@@ -16,6 +16,7 @@ import {
   MailSearch,
   MailWarning,
   MailX,
+  Download,
 } from "lucide-react";
 import { formatDate, formatDistanceToNow } from "date-fns";
 import { EmailStatus } from "@prisma/client";
@@ -74,6 +75,16 @@ export default function EmailsList() {
     apiId: apiId,
   });
 
+  const exportQuery = api.email.exportEmails.useQuery(
+    {
+      status: status?.toUpperCase() as EmailStatus,
+      domain: domainId,
+      search,
+      apiId: apiId,
+    },
+    { enabled: false },
+  );
+
   const { data: domainsQuery } = api.domain.domains.useQuery();
   const { data: apiKeysQuery } = api.apiKey.getApiKeys.useQuery();
 
@@ -99,9 +110,32 @@ export default function EmailsList() {
     setSearch(value);
   }, 1000);
 
+  const handleExport = async () => {
+    const resp = await exportQuery.refetch();
+    if (resp.data) {
+      const csv = [
+        "To,Status,Subject,Sent At",
+        ...resp.data.map(
+          (email) =>
+            `${email.to},${email.status},${email.subject},${email.sentAt}`,
+        ),
+      ].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `emails-${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+  };
+
   return (
     <div className="mt-10 flex flex-col gap-4">
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
         <Input
           placeholder="Search by subject or email"
           className="w-[350px] mr-4"
@@ -181,6 +215,14 @@ export default function EmailsList() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exportQuery.isFetching}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
         </div>
       </div>
       <div className="flex flex-col rounded-xl border shadow">

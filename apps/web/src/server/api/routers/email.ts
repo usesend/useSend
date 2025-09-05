@@ -22,7 +22,7 @@ export const emailRouter = createTRPCRouter({
         domain: z.number().optional(),
         search: z.string().optional().nullable(),
         apiId: z.number().optional(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const page = input.page || 1;
@@ -59,6 +59,59 @@ export const emailRouter = createTRPCRouter({
       `;
 
       return { emails };
+    }),
+
+  exportEmails: teamProcedure
+    .input(
+      z.object({
+        status: z.enum(statuses).optional().nullable(),
+        domain: z.number().optional(),
+        search: z.string().optional().nullable(),
+        apiId: z.number().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const emails = await db.$queryRaw<
+        Array<{
+          to: string[];
+          latestStatus: EmailStatus;
+          subject: string;
+          scheduledAt: Date | null;
+          createdAt: Date;
+        }>
+      >`
+        SELECT
+          "to",
+          "latestStatus",
+          subject,
+          "scheduledAt",
+          "createdAt"
+        FROM "Email"
+        WHERE "teamId" = ${ctx.team.id}
+        ${input.status ? Prisma.sql`AND "latestStatus"::text = ${input.status}` : Prisma.sql``}
+        ${input.domain ? Prisma.sql`AND "domainId" = ${input.domain}` : Prisma.sql``}
+        ${input.apiId ? Prisma.sql`AND "apiId" = ${input.apiId}` : Prisma.sql``}
+        ${
+          input.search
+            ? Prisma.sql`AND (
+          "subject" ILIKE ${`%${input.search}%`}
+          OR EXISTS (
+            SELECT 1 FROM unnest("to") AS email
+            WHERE email ILIKE ${`%${input.search}%`}
+          )
+        )`
+            : Prisma.sql``
+        }
+        ORDER BY "createdAt" DESC
+        LIMIT 10000
+      `;
+
+      return emails.map((email) => ({
+        to: email.to.join("; "),
+        status: email.latestStatus,
+        subject: email.subject,
+        sentAt: (email.scheduledAt ?? email.createdAt).toISOString(),
+      }));
     }),
 
   getEmail: emailProcedure.query(async ({ input }) => {
