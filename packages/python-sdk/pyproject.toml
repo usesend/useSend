@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "usesend-sdk"
+version = "0.1.0"
+description = "Python SDK for the UseSend API"
+authors = ["UseSend"]
+license = "AGPL-3.0-or-later"
+readme = "README.md"
+packages = [{ include = "usesend" }]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<4.0"
+requests = "^2.32.0"
+pydantic = "^2.0"
+
+[tool.poetry.group.dev.dependencies]
+datamodel-code-generator = "^0.25.0"
+openapi-python-client = "^0.21.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
