@@ -3,7 +3,7 @@ name = "usesend-sdk"
 version = "0.1.0"
 description = "Python SDK for the UseSend API"
 authors = ["UseSend"]
-license = "AGPL-3.0-or-later"
+license = "MIT"
 readme = "README.md"
 packages = [{ include = "usesend" }]
 
