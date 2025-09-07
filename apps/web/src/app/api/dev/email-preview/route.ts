@@ -31,19 +31,26 @@ export async function GET(request: NextRequest) {
         role: "admin",
       });
     } else if (type === "usage-warning") {
+      const isPaidPlan = searchParams.get("isPaidPlan") === "true";
+      const period = searchParams.get("period") || "daily";
+
       html = await renderUsageWarningEmail({
         teamName: "Acme Inc",
         used: 8000,
         limit: 10000,
-        period: "daily",
+        period: period as "daily" | "monthly",
         manageUrl: "https://app.usesend.com/settings/billing",
+        isPaidPlan: isPaidPlan,
       });
     } else if (type === "usage-limit") {
+      const isPaidPlan = searchParams.get("isPaidPlan") === "true";
+      const period = searchParams.get("period") || "daily";
       html = await renderUsageLimitReachedEmail({
         teamName: "Acme Inc",
         limit: 10000,
-        period: "daily",
+        period: period as "daily" | "monthly",
         manageUrl: "https://app.usesend.com/settings/billing",
+        isPaidPlan: isPaidPlan,
       });
     } else {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
