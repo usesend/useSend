@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Field, RootModel, constr
+from pydantic import BaseModel, EmailStr, Field, RootModel, constr, ConfigDict
 
 
 class Status(Enum):
@@ -163,6 +163,9 @@ class Attachment(BaseModel):
 
 
 class V1EmailsPostRequest(BaseModel):
+    # Allow populating fields by their Python names when aliases are defined
+    # so users can pass `from_=` instead of needing to use a dict with key "from".
+    model_config = ConfigDict(populate_by_name=True)
     to: Union[str, List[str]]
     from_: str = Field(..., alias='from')
     subject: Optional[constr(min_length=1)] = Field(
@@ -187,6 +190,8 @@ class V1EmailsPostResponse(BaseModel):
 
 
 class V1EmailsBatchPostRequestItem(BaseModel):
+    # Allow field population by name to support `from_=` convenience.
+    model_config = ConfigDict(populate_by_name=True)
     to: Union[str, List[str]]
     from_: str = Field(..., alias='from')
     subject: Optional[constr(min_length=1)] = Field(
