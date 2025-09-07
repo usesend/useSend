@@ -69,7 +69,7 @@ export async function sendTeamInviteEmail(
   await sendMail(email, subject, text, html);
 }
 
-async function sendMail(
+export async function sendMail(
   email: string,
   subject: string,
   text: string,

@@ -123,6 +123,7 @@ export class LimitService {
       () => getThisMonthUsage(teamId),
       { ttlSeconds: 60 }
     );
+
     const dailyUsage = usage.day.reduce((acc, curr) => acc + curr.sent, 0);
     const dailyLimit =
       team.plan !== "FREE"
@@ -133,11 +134,35 @@ export class LimitService {
       return {
         isLimitReached: true,
         limit: dailyLimit,
-        reason: team.dailyEmailLimit
-          ? LimitReason.EMAIL_LIMIT_REACHED
-          : LimitReason.EMAIL_FREE_PLAN_LIMIT_REACHED,
+        reason: LimitReason.EMAIL_DAILY_LIMIT_REACHED,
         available: dailyLimit - dailyUsage,
       };
+    }
+
+    if (team.plan === "FREE") {
+      const monthlyUsage = usage.month.reduce(
+        (acc, curr) => acc + curr.sent,
+        0
+      );
+      const monthlyLimit = PLAN_LIMITS[team.plan].emailsPerMonth;
+
+      if (monthlyUsage / monthlyLimit > 0.8) {
+        await TeamService.sendWarningEmail(
+          teamId,
+          monthlyUsage,
+          monthlyLimit,
+          LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        );
+      }
+
+      if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
+        return {
+          isLimitReached: true,
+          limit: monthlyLimit,
+          reason: LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
+          available: monthlyLimit - monthlyUsage,
+        };
+      }
     }
 
     return {

@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
+import { TeamService } from "./team-service";
 
 type QueueEmailJob = TeamJob<{
   emailId: string;
@@ -386,6 +387,16 @@ async function executeEmail(job: QueueEmailJob) {
         where: { id: email.id },
         data: { latestStatus: "FAILED" },
       });
+      // Notify team about limit reached, but rate-limited
+      try {
+        await TeamService.maybeNotifyEmailLimitReached(
+          email.teamId,
+          limitCheck.limit,
+          limitCheck.reason
+        );
+      } catch (e) {
+        logger.warn({ err: e }, "Failed to send limit reached notification");
+      }
       return;
     }
 
@@ -418,6 +429,17 @@ async function executeEmail(job: QueueEmailJob) {
       where: { id: email.id },
       data: { sesEmailId: messageId, text, attachments: undefined },
     });
+
+    if (limitCheck.limit !== -1 && limitCheck.available) {
+      if (limitCheck.available / limitCheck.limit < 0.2) {
+        await TeamService.sendWarningEmail(
+          email.teamId,
+          limitCheck.available,
+          limitCheck.limit,
+          limitCheck.reason
+        );
+      }
+    }
   } catch (error: any) {
     await db.emailEvent.create({
       data: {

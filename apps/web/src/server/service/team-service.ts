@@ -1,12 +1,14 @@
 import { TRPCError } from "@trpc/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { sendTeamInviteEmail } from "~/server/mailer";
+import { sendMail, sendTeamInviteEmail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
 import type { Prisma, Team, TeamInvite } from "@prisma/client";
 import { UnsendApiError } from "../public-api/api-error";
 import { getRedis } from "~/server/redis";
-import { PLAN_LIMITS } from "~/lib/constants/plans";
+import { LimitReason, PLAN_LIMITS } from "~/lib/constants/plans";
+import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
+import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
 
 // Cache stores exactly Prisma Team shape (no counts)
 
@@ -354,4 +356,147 @@ export class TeamService {
       },
     });
   }
+
+  /**
+   * Notify all team users that email limit has been reached, at most once per 6 hours.
+   */
+  static async maybeNotifyEmailLimitReached(
+    teamId: number,
+    limit: number,
+    reason: LimitReason | undefined
+  ) {
+    if (!reason) return;
+    // Only notify on actual email limit reasons
+    if (
+      ![
+        LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+        LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
+      ].includes(reason)
+    )
+      return;
+
+    const redis = getRedis();
+    const cacheKey = `limit:notify:${teamId}:${reason}`;
+    const alreadySent = await redis.get(cacheKey);
+    if (alreadySent) {
+      return; // within cooldown window
+    }
+
+    const team = await TeamService.getTeamCached(teamId);
+    const isPaidPlan = team.plan !== "FREE";
+
+    const html = await getLimitReachedEmail(teamId, limit, reason);
+
+    const subject =
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "You've reached your monthly email limit"
+        : "You've reached your daily email limit";
+
+    const text = `Hi ${team.name} team,\n\nYou've reached your ${
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily"
+    } limit of ${limit.toLocaleString()} emails.\n\nSending is temporarily paused until your limit resets or ${
+      isPaidPlan ? "your team is verified" : "your plan is upgraded"
+    }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
+
+    const teamUsers = await TeamService.getTeamUsers(teamId);
+    const recipients = teamUsers
+      .map((tu) => tu.user?.email)
+      .filter((e): e is string => Boolean(e));
+
+    // Send individually to all team users
+    await Promise.all(
+      recipients.map((to) => sendMail(to, subject, text, html))
+    );
+
+    // Set cooldown for 6 hours
+    await redis.setex(cacheKey, 6 * 60 * 60, "1");
+  }
+
+  /**
+   * Notify all team users that they're nearing their email limit.
+   * Rate limited via Redis to avoid spamming; sends at most once per 6 hours per reason.
+   */
+  static async sendWarningEmail(
+    teamId: number,
+    used: number,
+    limit: number,
+    reason: LimitReason | undefined
+  ) {
+    if (!reason) return;
+    // Only warn for email usage-related reasons (daily or monthly free plan)
+    if (
+      ![
+        LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+        LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
+      ].includes(reason)
+    )
+      return;
+
+    const redis = getRedis();
+    const cacheKey = `limit:warning:${teamId}:${reason}`;
+    const alreadySent = await redis.get(cacheKey);
+    if (alreadySent) {
+      return; // within cooldown window
+    }
+
+    const team = await TeamService.getTeamCached(teamId);
+    const isPaidPlan = team.plan !== "FREE";
+
+    const period =
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily";
+
+    const html = await renderUsageWarningEmail({
+      teamName: team.name,
+      used,
+      limit,
+      isPaidPlan,
+      period,
+      manageUrl: `${env.NEXTAUTH_URL}/settings`,
+    });
+
+    const subject =
+      period === "monthly"
+        ? "You're nearing your monthly email limit"
+        : "You're nearing your daily email limit";
+
+    const text = `Hi ${team.name} team,\n\nYou've used ${used.toLocaleString()} of your ${period} limit of ${limit.toLocaleString()} emails.\n\nConsider ${
+      isPaidPlan
+        ? "verifying your team by replying to this email"
+        : "upgrading your plan"
+    }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
+
+    const teamUsers = await TeamService.getTeamUsers(teamId);
+    const recipients = teamUsers
+      .map((tu) => tu.user?.email)
+      .filter((e): e is string => Boolean(e));
+
+    await Promise.all(recipients.map((to) => sendMail(to, subject, text, html)));
+
+    // Set cooldown for 6 hours
+    await redis.setex(cacheKey, 6 * 60 * 60, "1");
+  }
+}
+
+async function getLimitReachedEmail(
+  teamId: number,
+  limit: number,
+  reason: LimitReason
+) {
+  const team = await TeamService.getTeamCached(teamId);
+  const isPaidPlan = team.plan !== "FREE";
+  const email = await renderUsageLimitReachedEmail({
+    teamName: team.name,
+    limit,
+    isPaidPlan,
+    period:
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily",
+    manageUrl: `${env.NEXTAUTH_URL}/settings`,
+  });
+  return email;
 }

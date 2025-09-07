@@ -6,9 +6,9 @@ interface EmailFooterProps {
   supportUrl?: string;
 }
 
-export function EmailFooter({ 
-  companyName = "useSend", 
-  supportUrl = "https://usesend.com" 
+export function EmailFooter({
+  companyName = "useSend",
+  supportUrl = "mailto:hey@usesend.com",
 }: EmailFooterProps) {
   return (
     <Container
