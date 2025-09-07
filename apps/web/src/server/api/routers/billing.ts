@@ -48,10 +48,6 @@ export const billingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { billingEmail } = input;
 
-      await db.team.update({
-        where: { id: ctx.team.id },
-        data: { billingEmail },
-      });
-      await TeamService.invalidateTeamCache(ctx.team.id);
+      await TeamService.updateTeam(ctx.team.id, { billingEmail });
     }),
 });

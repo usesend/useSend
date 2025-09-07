@@ -7,7 +7,6 @@ import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
-import { TeamService } from "./team-service";
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
 
@@ -88,7 +87,12 @@ export async function createDomain(
 
   const subdomain = tldts.getSubdomain(name);
   const dkimSelector = "usesend";
-  const publicKey = await ses.addDomain(name, region, sesTenantId, dkimSelector);
+  const publicKey = await ses.addDomain(
+    name,
+    region,
+    sesTenantId,
+    dkimSelector
+  );
 
   const domain = await db.domain.create({
     data: {
@@ -101,8 +105,6 @@ export async function createDomain(
       dkimSelector,
     },
   });
-
-  await TeamService.invalidateTeamCache(teamId);
 
   return domain;
 }
@@ -194,7 +196,7 @@ export async function deleteDomain(id: number) {
   }
 
   const deletedRecord = await db.domain.delete({ where: { id } });
-  await TeamService.invalidateTeamCache(deletedRecord.teamId);
+
   return deletedRecord;
 }
 

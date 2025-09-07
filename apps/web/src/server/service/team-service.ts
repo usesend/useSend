@@ -3,7 +3,7 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 import { sendTeamInviteEmail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
-import type { Team, TeamInvite } from "@prisma/client";
+import type { Prisma, Team, TeamInvite } from "@prisma/client";
 import { UnsendApiError } from "../public-api/api-error";
 import { getRedis } from "~/server/redis";
 import { PLAN_LIMITS } from "~/lib/constants/plans";
@@ -92,6 +92,19 @@ export class TeamService {
     // Warm cache for the new team
     await TeamService.refreshTeamCache(created.id);
     return created;
+  }
+
+  /**
+   * Update a team and refresh the cache.
+   * Returns the full Prisma Team object.
+   */
+  static async updateTeam(
+    teamId: number,
+    data: Prisma.TeamUpdateInput
+  ): Promise<Team> {
+    const updated = await db.team.update({ where: { id: teamId }, data });
+    await TeamService.refreshTeamCache(teamId);
+    return updated;
   }
 
   static async getUserTeams(userId: number) {

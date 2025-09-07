@@ -121,7 +121,7 @@ export class LimitService {
     const usage = await withCache(
       `usage:this-month:${teamId}`,
       () => getThisMonthUsage(teamId),
-      { ttlSeconds: 60 },
+      { ttlSeconds: 60 }
     );
     const dailyUsage = usage.day.reduce((acc, curr) => acc + curr.sent, 0);
     const dailyLimit =
@@ -143,6 +143,7 @@ export class LimitService {
     return {
       isLimitReached: false,
       limit: dailyLimit,
+      available: dailyLimit - dailyUsage,
     };
   }
 }
