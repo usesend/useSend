@@ -44,7 +44,7 @@ class Emails:
     def batch(
         self, payload: Sequence[V1EmailsBatchPostRequestItem]
     ) -> Tuple[Optional[V1EmailsBatchPostResponse], Optional[APIError]]:
-        body = V1EmailsBatchPostRequest(__root__=list(payload))
+        body = V1EmailsBatchPostRequest(root=list(payload))
         data, err = self.usesend.post(
             "/emails/batch",
             body.model_dump(by_alias=True, exclude_none=True),

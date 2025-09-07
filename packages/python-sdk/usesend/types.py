@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Field, constr
+from pydantic import BaseModel, EmailStr, Field, RootModel, constr
 
 
 class Status(Enum):
@@ -38,8 +38,10 @@ class V1DomainsGetResponseItem(BaseModel):
     subdomain: Optional[str] = None
 
 
-class V1DomainsGetResponse(BaseModel):
-    __root__: List[V1DomainsGetResponseItem]
+class V1DomainsGetResponse(RootModel[List[V1DomainsGetResponseItem]]):
+    """List of domains returned by ``GET /domains``."""
+
+    root: List[V1DomainsGetResponseItem]
 
 
 class V1DomainsPostRequest(BaseModel):
@@ -204,8 +206,10 @@ class V1EmailsBatchPostRequestItem(BaseModel):
     inReplyToId: Optional[str] = None
 
 
-class V1EmailsBatchPostRequest(BaseModel):
-    __root__: List[V1EmailsBatchPostRequestItem] = Field(..., max_items=100)
+class V1EmailsBatchPostRequest(RootModel[List[V1EmailsBatchPostRequestItem]]):
+    """Batch payload for ``POST /emails/batch``."""
+
+    root: List[V1EmailsBatchPostRequestItem] = Field(..., max_items=100)
 
 
 class Datum1(BaseModel):
@@ -244,8 +248,12 @@ class V1ContactBooksContactBookIdContactsGetResponseItem(BaseModel):
     updatedAt: str
 
 
-class V1ContactBooksContactBookIdContactsGetResponse(BaseModel):
-    __root__: List[V1ContactBooksContactBookIdContactsGetResponseItem]
+class V1ContactBooksContactBookIdContactsGetResponse(
+    RootModel[List[V1ContactBooksContactBookIdContactsGetResponseItem]]
+):
+    """List of contacts returned by ``GET /contactBooks/{id}/contacts``."""
+
+    root: List[V1ContactBooksContactBookIdContactsGetResponseItem]
 
 
 class V1ContactBooksContactBookIdContactsContactIdPatchRequest(BaseModel):
