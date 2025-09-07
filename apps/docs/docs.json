@@ -1,11 +1,20 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "maple",
   "name": "useSend",
   "colors": {
-    "primary": "#000000",
-    "light": "#FFFFFF",
-    "dark": "#000000"
+    "primary": "#21453D",
+    "light": "#E6FAF5",
+    "dark": "#21453D"
+  },
+  "background": {
+    "color": {
+      "light": "#F5F5F5",
+      "dark": "#181825"
+    }
+  },
+  "fonts": {
+    "family": "IBM Plex Mono"
   },
   "favicon": "/favicon.svg",
   "navigation": {
