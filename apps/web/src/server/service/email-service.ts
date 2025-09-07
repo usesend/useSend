@@ -35,7 +35,7 @@ async function checkIfValidEmail(emailId: string) {
 
 export const replaceVariables = (
   text: string,
-  variables: Record<string, string>,
+  variables: Record<string, string>
 ) => {
   return Object.keys(variables).reduce((accum, key) => {
     const re = new RegExp(`{{${key}}}`, "g");
@@ -48,7 +48,7 @@ export const replaceVariables = (
  Send transactional email
  */
 export async function sendEmail(
-  emailContent: EmailContent & { teamId: number; apiKeyId?: number },
+  emailContent: EmailContent & { teamId: number; apiKeyId?: number }
 ) {
   const {
     to,
@@ -84,18 +84,18 @@ export async function sendEmail(
 
   const suppressionResults = await SuppressionService.checkMultipleEmails(
     allEmailsToCheck,
-    teamId,
+    teamId
   );
 
   // Filter each field separately
   const filteredToEmails = toEmails.filter(
-    (email) => !suppressionResults[email],
+    (email) => !suppressionResults[email]
   );
   const filteredCcEmails = ccEmails.filter(
-    (email) => !suppressionResults[email],
+    (email) => !suppressionResults[email]
   );
   const filteredBccEmails = bccEmails.filter(
-    (email) => !suppressionResults[email],
+    (email) => !suppressionResults[email]
   );
 
   // Only block the email if all TO recipients are suppressed
@@ -105,7 +105,7 @@ export async function sendEmail(
         to,
         teamId,
       },
-      "All TO recipients are suppressed. No emails to send.",
+      "All TO recipients are suppressed. No emails to send."
     );
 
     const email = await db.email.create({
@@ -147,7 +147,7 @@ export async function sendEmail(
         filteredCc: filteredCcEmails,
         teamId,
       },
-      "Some CC recipients were suppressed and filtered out.",
+      "Some CC recipients were suppressed and filtered out."
     );
   }
 
@@ -158,7 +158,7 @@ export async function sendEmail(
         filteredBcc: filteredBccEmails,
         teamId,
       },
-      "Some BCC recipients were suppressed and filtered out.",
+      "Some BCC recipients were suppressed and filtered out."
     );
   }
 
@@ -181,7 +181,7 @@ export async function sendEmail(
             acc[`{{${key}}}`] = variables?.[key] || "";
             return acc;
           },
-          {} as Record<string, string>,
+          {} as Record<string, string>
         ),
       };
 
@@ -251,7 +251,7 @@ export async function sendEmail(
       domain.region,
       true,
       undefined,
-      delay,
+      delay
     );
   } catch (error: any) {
     await db.emailEvent.create({
@@ -280,7 +280,7 @@ export async function updateEmail(
     scheduledAt,
   }: {
     scheduledAt?: string;
-  },
+  }
 ) {
   const { email, domain } = await checkIfValidEmail(emailId);
 
@@ -344,7 +344,7 @@ export async function sendBulkEmails(
       teamId: number;
       apiKeyId?: number;
     }
-  >,
+  >
 ) {
   if (emailContents.length === 0) {
     throw new UnsendApiError({
@@ -382,18 +382,18 @@ export async function sendBulkEmails(
 
       const suppressionResults = await SuppressionService.checkMultipleEmails(
         allEmailsToCheck,
-        content.teamId,
+        content.teamId
       );
 
       // Filter each field separately
       const filteredToEmails = toEmails.filter(
-        (email) => !suppressionResults[email],
+        (email) => !suppressionResults[email]
       );
       const filteredCcEmails = ccEmails.filter(
-        (email) => !suppressionResults[email],
+        (email) => !suppressionResults[email]
       );
       const filteredBccEmails = bccEmails.filter(
-        (email) => !suppressionResults[email],
+        (email) => !suppressionResults[email]
       );
 
       // Only consider it suppressed if all TO recipients are suppressed
@@ -410,13 +410,13 @@ export async function sendBulkEmails(
         suppressed: hasSuppressedToEmails,
         suppressedEmails: toEmails.filter((email) => suppressionResults[email]),
         suppressedCcEmails: ccEmails.filter(
-          (email) => suppressionResults[email],
+          (email) => suppressionResults[email]
         ),
         suppressedBccEmails: bccEmails.filter(
-          (email) => suppressionResults[email],
+          (email) => suppressionResults[email]
         ),
       };
-    }),
+    })
   );
 
   const validEmails = emailChecks.filter((check) => !check.suppressed);
@@ -433,7 +433,7 @@ export async function sendBulkEmails(
           suppressedAddresses: info.suppressedEmails,
         })),
       },
-      "Filtered suppressed emails from bulk send",
+      "Filtered suppressed emails from bulk send"
     );
   }
 
@@ -490,7 +490,7 @@ export async function sendBulkEmails(
               acc[`{{${key}}}`] = variables?.[key] || "";
               return acc;
             },
-            {} as Record<string, string>,
+            {} as Record<string, string>
           ),
         };
 
@@ -647,7 +647,7 @@ export async function sendBulkEmails(
                 acc[`{{${key}}}`] = variables?.[key] || "";
                 return acc;
               },
-              {} as Record<string, string>,
+              {} as Record<string, string>
             ),
           };
 
@@ -709,7 +709,7 @@ export async function sendBulkEmails(
       } catch (error: any) {
         logger.error(
           { err: error, to },
-          `Failed to create email record for recipient`,
+          `Failed to create email record for recipient`
         );
         // Continue processing other emails
       }
@@ -744,7 +744,7 @@ export async function sendBulkEmails(
           where: { id: email.email.id },
           data: { latestStatus: "FAILED" },
         });
-      }),
+      })
     );
     throw error;
   }

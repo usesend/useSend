@@ -2,6 +2,7 @@ import { CampaignStatus, type ContactBook } from "@prisma/client";
 import { db } from "../db";
 import { LimitService } from "./limit-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { TeamService } from "./team-service";
 
 export async function getContactBooks(teamId: number, search?: string) {
   return db.contactBook.findMany({
@@ -28,13 +29,15 @@ export async function createContactBook(teamId: number, name: string) {
     });
   }
 
-  return db.contactBook.create({
+  const created = await db.contactBook.create({
     data: {
       name,
       teamId,
       properties: {},
     },
   });
+  await TeamService.invalidateTeamCache(teamId);
+  return created;
 }
 
 export async function getContactBookDetails(contactBookId: string) {
@@ -79,5 +82,7 @@ export async function updateContactBook(
 }
 
 export async function deleteContactBook(contactBookId: string) {
-  return db.contactBook.delete({ where: { id: contactBookId } });
+  const deleted = await db.contactBook.delete({ where: { id: contactBookId } });
+  await TeamService.invalidateTeamCache(deleted.teamId);
+  return deleted;
 }

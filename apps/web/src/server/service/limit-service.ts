@@ -1,6 +1,9 @@
 import { PLAN_LIMITS, LimitReason } from "~/lib/constants/plans";
-import { db } from "../db";
+import { env } from "~/env";
 import { getThisMonthUsage } from "./usage-service";
+import { TeamService } from "./team-service";
+import { withCache } from "../redis";
+import { db } from "../db";
 
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
@@ -13,23 +16,16 @@ export class LimitService {
     limit: number;
     reason?: LimitReason;
   }> {
-    const team = await db.team.findUnique({
-      where: { id: teamId },
-      include: {
-        _count: {
-          select: {
-            domains: true,
-          },
-        },
-      },
-    });
-
-    if (!team) {
-      throw new Error("Team not found");
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return { isLimitReached: false, limit: -1 };
     }
 
+    const team = await TeamService.getTeamCached(teamId);
+    const currentCount = await db.domain.count({ where: { teamId } });
+
     const limit = PLAN_LIMITS[team.plan].domains;
-    if (isLimitExceeded(team._count.domains, limit)) {
+    if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
         limit,
@@ -48,23 +44,16 @@ export class LimitService {
     limit: number;
     reason?: LimitReason;
   }> {
-    const team = await db.team.findUnique({
-      where: { id: teamId },
-      include: {
-        _count: {
-          select: {
-            contactBooks: true,
-          },
-        },
-      },
-    });
-
-    if (!team) {
-      throw new Error("Team not found");
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return { isLimitReached: false, limit: -1 };
     }
 
+    const team = await TeamService.getTeamCached(teamId);
+    const currentCount = await db.contactBook.count({ where: { teamId } });
+
     const limit = PLAN_LIMITS[team.plan].contactBooks;
-    if (isLimitExceeded(team._count.contactBooks, limit)) {
+    if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
         limit,
@@ -83,19 +72,16 @@ export class LimitService {
     limit: number;
     reason?: LimitReason;
   }> {
-    const team = await db.team.findUnique({
-      where: { id: teamId },
-      include: {
-        teamUsers: true,
-      },
-    });
-
-    if (!team) {
-      throw new Error("Team not found");
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return { isLimitReached: false, limit: -1 };
     }
 
+    const team = await TeamService.getTeamCached(teamId);
+    const currentCount = await db.teamUser.count({ where: { teamId } });
+
     const limit = PLAN_LIMITS[team.plan].teamMembers;
-    if (isLimitExceeded(team.teamUsers.length, limit)) {
+    if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
         limit,
@@ -113,48 +99,50 @@ export class LimitService {
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
+    available?: number;
   }> {
-    const team = await db.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) {
-      throw new Error("Team not found");
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return { isLimitReached: false, limit: -1 };
     }
 
-    // FREE plan has hard limits; paid plans are unlimited (-1)
-    if (team.plan === "FREE") {
-      const usage = await getThisMonthUsage(teamId);
+    const team = await TeamService.getTeamCached(teamId);
 
-      const monthlyUsage = usage.month.reduce(
-        (acc, curr) => acc + curr.sent,
-        0,
-      );
-      const dailyUsage = usage.day.reduce((acc, curr) => acc + curr.sent, 0);
+    // In cloud, enforce verification and block flags first
+    if (team.isBlocked) {
+      return {
+        isLimitReached: true,
+        limit: 0,
+        reason: LimitReason.EMAIL_BLOCKED,
+      };
+    }
 
-      const monthlyLimit = PLAN_LIMITS[team.plan].emailsPerMonth;
-      const dailyLimit = PLAN_LIMITS[team.plan].emailsPerDay;
+    // Enforce daily sending limit (team-specific)
+    const usage = await withCache(
+      `usage:this-month:${teamId}`,
+      () => getThisMonthUsage(teamId),
+      { ttlSeconds: 60 },
+    );
+    const dailyUsage = usage.day.reduce((acc, curr) => acc + curr.sent, 0);
+    const dailyLimit =
+      team.plan !== "FREE"
+        ? team.dailyEmailLimit
+        : PLAN_LIMITS[team.plan].emailsPerDay;
 
-      if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
-        return {
-          isLimitReached: true,
-          limit: monthlyLimit,
-          reason: LimitReason.EMAIL,
-        };
-      }
-
-      if (isLimitExceeded(dailyUsage, dailyLimit)) {
-        return {
-          isLimitReached: true,
-          limit: dailyLimit,
-          reason: LimitReason.EMAIL,
-        };
-      }
+    if (isLimitExceeded(dailyUsage, dailyLimit)) {
+      return {
+        isLimitReached: true,
+        limit: dailyLimit,
+        reason: team.dailyEmailLimit
+          ? LimitReason.EMAIL_LIMIT_REACHED
+          : LimitReason.EMAIL_FREE_PLAN_LIMIT_REACHED,
+        available: dailyLimit - dailyUsage,
+      };
     }
 
     return {
       isLimitReached: false,
-      limit: PLAN_LIMITS[team.plan].emailsPerMonth,
+      limit: dailyLimit,
     };
   }
 }

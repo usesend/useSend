@@ -10,6 +10,7 @@ import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { Prisma } from "@prisma/client";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { LimitService } from "./limit-service";
 
 type QueueEmailJob = TeamJob<{
   emailId: string;
@@ -366,6 +367,28 @@ async function executeEmail(job: QueueEmailJob) {
   }
 
   try {
+    // Check limits right before sending (cloud-only)
+    const limitCheck = await LimitService.checkEmailLimit(email.teamId);
+    if (limitCheck.isLimitReached) {
+      await db.emailEvent.create({
+        data: {
+          emailId: email.id,
+          status: "FAILED",
+          data: {
+            error: "Email sending limit reached",
+            reason: limitCheck.reason,
+            limit: limitCheck.limit,
+          },
+          teamId: email.teamId,
+        },
+      });
+      await db.email.update({
+        where: { id: email.id },
+        data: { latestStatus: "FAILED" },
+      });
+      return;
+    }
+
     const messageId = await sendRawEmail({
       to: email.to,
       from: email.from,

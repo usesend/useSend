@@ -7,6 +7,7 @@ import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
+import { TeamService } from "./team-service";
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
 
@@ -101,6 +102,8 @@ export async function createDomain(
     },
   });
 
+  await TeamService.invalidateTeamCache(teamId);
+
   return domain;
 }
 
@@ -190,9 +193,9 @@ export async function deleteDomain(id: number) {
     throw new Error("Error in deleting domain");
   }
 
-  return db.domain.delete({
-    where: { id },
-  });
+  const deletedRecord = await db.domain.delete({ where: { id } });
+  await TeamService.invalidateTeamCache(deletedRecord.teamId);
+  return deletedRecord;
 }
 
 export async function getDomains(teamId: number) {

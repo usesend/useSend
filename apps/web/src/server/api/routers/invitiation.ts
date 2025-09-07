@@ -3,6 +3,7 @@ import { z } from "zod";
 import { env } from "~/env";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { TeamService } from "~/server/service/team-service";
 
 export const invitationRouter = createTRPCRouter({
   getUserInvites: protectedProcedure
@@ -65,12 +66,14 @@ export const invitationRouter = createTRPCRouter({
           role: invite.role,
         },
       });
+      await TeamService.invalidateTeamCache(invite.teamId);
 
       await ctx.db.teamInvite.delete({
         where: {
           id: input.inviteId,
         },
       });
+      // No need to invalidate cache here again
 
       return true;
     }),

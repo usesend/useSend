@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "../db";
+import { TeamService } from "../service/team-service";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -21,6 +22,7 @@ async function createCustomerForTeam(teamId: number) {
       billingEmail: customer.email,
     },
   });
+  await TeamService.invalidateTeamCache(teamId);
 
   return customer;
 }
@@ -193,4 +195,5 @@ export async function syncStripeData(customerId: string) {
       isActive: subscription.status === "active",
     },
   });
+  await TeamService.invalidateTeamCache(team.id);
 }
