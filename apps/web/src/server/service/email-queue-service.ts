@@ -11,8 +11,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
-import { TeamService } from "./team-service";
-import { LimitReason } from "~/lib/constants/plans";
+// Notifications about limits are handled inside LimitService.
 
 type QueueEmailJob = TeamJob<{
   emailId: string;
@@ -391,16 +390,6 @@ async function executeEmail(job: QueueEmailJob) {
         where: { id: email.id },
         data: { latestStatus: "FAILED" },
       });
-      // Notify team about limit reached, but rate-limited
-      try {
-        await TeamService.maybeNotifyEmailLimitReached(
-          email.teamId,
-          limitCheck.limit,
-          limitCheck.reason
-        );
-      } catch (e) {
-        logger.warn({ err: e }, "Failed to send limit reached notification");
-      }
       return;
     }
 
@@ -439,21 +428,7 @@ async function executeEmail(job: QueueEmailJob) {
       `[EmailQueueService]: Limit check after sending email ${limitCheck.limit !== -1 && limitCheck.available !== undefined && !limitCheck.isLimitReached}`
     );
 
-    if (
-      limitCheck.limit !== -1 &&
-      limitCheck.available !== undefined &&
-      limitCheck.available > 0 &&
-      !limitCheck.isLimitReached
-    ) {
-      if (limitCheck.available / limitCheck.limit < 0.2) {
-        await TeamService.sendWarningEmail(
-          email.teamId,
-          limitCheck.limit - limitCheck.available,
-          limitCheck.limit,
-          LimitReason.EMAIL_DAILY_LIMIT_REACHED
-        );
-      }
-    }
+    // Nearing-limit warnings now handled within LimitService.checkEmailLimit
   } catch (error: any) {
     await db.emailEvent.create({
       data: {

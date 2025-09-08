@@ -96,6 +96,10 @@ export class LimitService {
     };
   }
 
+  // Checks email sending limits and also triggers usage notifications.
+  // Side effects:
+  // - Sends "warning" emails when nearing daily/monthly limits (rate-limited in TeamService)
+  // - Sends "limit reached" notifications when limits are exceeded (rate-limited in TeamService)
   static async checkEmailLimit(teamId: number): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -137,6 +141,20 @@ export class LimitService {
     );
 
     if (isLimitExceeded(dailyUsage, dailyLimit)) {
+      // Notify: daily limit reached
+      try {
+        await TeamService.maybeNotifyEmailLimitReached(
+          teamId,
+          dailyLimit,
+          LimitReason.EMAIL_DAILY_LIMIT_REACHED
+        );
+      } catch (e) {
+        logger.warn(
+          { err: e },
+          "Failed to send daily limit reached notification"
+        );
+      }
+
       return {
         isLimitReached: true,
         limit: dailyLimit,
@@ -157,7 +175,7 @@ export class LimitService {
         `[LimitService]: Monthly usage and limit`
       );
 
-      if (monthlyUsage / monthlyLimit > 0.8) {
+      if (monthlyUsage / monthlyLimit > 0.8 && monthlyUsage < monthlyLimit) {
         await TeamService.sendWarningEmail(
           teamId,
           monthlyUsage,
@@ -172,12 +190,45 @@ export class LimitService {
       );
 
       if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
+        // Notify: monthly (free plan) limit reached
+        try {
+          await TeamService.maybeNotifyEmailLimitReached(
+            teamId,
+            monthlyLimit,
+            LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+          );
+        } catch (e) {
+          logger.warn(
+            { err: e },
+            "Failed to send monthly limit reached notification"
+          );
+        }
+
         return {
           isLimitReached: true,
           limit: monthlyLimit,
           reason: LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
           available: monthlyLimit - monthlyUsage,
         };
+      }
+    }
+
+    // Warn: nearing daily limit (e.g., < 20% available)
+    if (
+      dailyLimit !== -1 &&
+      dailyLimit > 0 &&
+      dailyLimit - dailyUsage > 0 &&
+      (dailyLimit - dailyUsage) / dailyLimit < 0.2
+    ) {
+      try {
+        await TeamService.sendWarningEmail(
+          teamId,
+          dailyUsage,
+          dailyLimit,
+          LimitReason.EMAIL_DAILY_LIMIT_REACHED
+        );
+      } catch (e) {
+        logger.warn({ err: e }, "Failed to send daily warning email");
       }
     }
 
