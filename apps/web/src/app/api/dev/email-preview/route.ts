@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   renderOtpEmail,
   renderTeamInviteEmail,
+  renderUsageWarningEmail,
+  renderUsageLimitReachedEmail,
 } from "~/server/email-templates";
 
 export async function GET(request: NextRequest) {
@@ -27,6 +29,28 @@ export async function GET(request: NextRequest) {
         inviteUrl: "https://app.usesend.com/join-team?inviteId=123",
         inviterName: "John Doe",
         role: "admin",
+      });
+    } else if (type === "usage-warning") {
+      const isPaidPlan = searchParams.get("isPaidPlan") === "true";
+      const period = searchParams.get("period") || "daily";
+
+      html = await renderUsageWarningEmail({
+        teamName: "Acme Inc",
+        used: 8000,
+        limit: 10000,
+        period: period as "daily" | "monthly",
+        manageUrl: "https://app.usesend.com/settings/billing",
+        isPaidPlan: isPaidPlan,
+      });
+    } else if (type === "usage-limit") {
+      const isPaidPlan = searchParams.get("isPaidPlan") === "true";
+      const period = searchParams.get("period") || "daily";
+      html = await renderUsageLimitReachedEmail({
+        teamName: "Acme Inc",
+        limit: 10000,
+        period: period as "daily" | "monthly",
+        manageUrl: "https://app.usesend.com/settings/billing",
+        isPaidPlan: isPaidPlan,
       });
     } else {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });

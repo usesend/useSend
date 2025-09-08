@@ -107,6 +107,9 @@ model Team {
   apiRateLimit     Int               @default(2)
   billingEmail     String?
   sesTenantId      String?
+  isVerified       Boolean           @default(false)
+  dailyEmailLimit  Int               @default(10000)
+  isBlocked        Boolean           @default(false)
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]

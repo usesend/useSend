@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "../db";
+import { TeamService } from "../service/team-service";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -14,12 +15,9 @@ async function createCustomerForTeam(teamId: number) {
   const stripe = getStripe();
   const customer = await stripe.customers.create({ metadata: { teamId } });
 
-  await db.team.update({
-    where: { id: teamId },
-    data: {
-      stripeCustomerId: customer.id,
-      billingEmail: customer.email,
-    },
+  await TeamService.updateTeam(teamId, {
+    billingEmail: customer.email,
+    stripeCustomerId: customer.id,
   });
 
   return customer;
@@ -183,14 +181,11 @@ export async function syncStripeData(customerId: string) {
     },
   });
 
-  await db.team.update({
-    where: { id: team.id },
-    data: {
-      plan:
-        subscription.status === "canceled"
-          ? "FREE"
-          : getPlanFromPriceIds(priceIds),
-      isActive: subscription.status === "active",
-    },
+  await TeamService.updateTeam(team.id, {
+    plan:
+      subscription.status === "canceled"
+        ? "FREE"
+        : getPlanFromPriceIds(priceIds),
+    isActive: subscription.status === "active",
   });
 }

@@ -1,13 +1,56 @@
 import { TRPCError } from "@trpc/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { sendTeamInviteEmail } from "~/server/mailer";
+import { sendMail, sendTeamInviteEmail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
-import type { Team, TeamInvite } from "@prisma/client";
-import { LimitService } from "./limit-service";
+import type { Prisma, Team, TeamInvite } from "@prisma/client";
 import { UnsendApiError } from "../public-api/api-error";
+import { getRedis } from "~/server/redis";
+import { LimitReason, PLAN_LIMITS } from "~/lib/constants/plans";
+import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
+import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
+
+// Cache stores exactly Prisma Team shape (no counts)
+
+const TEAM_CACHE_TTL_SECONDS = 120; // 2 minutes
 
 export class TeamService {
+  private static cacheKey(teamId: number) {
+    return `team:${teamId}`;
+  }
+
+  static async refreshTeamCache(teamId: number): Promise<Team | null> {
+    const team = await db.team.findUnique({ where: { id: teamId } });
+
+    if (!team) return null;
+
+    const redis = getRedis();
+    await redis.setex(
+      TeamService.cacheKey(teamId),
+      TEAM_CACHE_TTL_SECONDS,
+      JSON.stringify(team)
+    );
+    return team;
+  }
+
+  static async invalidateTeamCache(teamId: number) {
+    const redis = getRedis();
+    await redis.del(TeamService.cacheKey(teamId));
+  }
+
+  static async getTeamCached(teamId: number): Promise<Team> {
+    const redis = getRedis();
+    const raw = await redis.get(TeamService.cacheKey(teamId));
+    if (raw) {
+      return JSON.parse(raw) as Team;
+    }
+    const fresh = await TeamService.refreshTeamCache(teamId);
+    if (!fresh) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+    }
+    return fresh;
+  }
+
   static async createTeam(
     userId: number,
     name: string
@@ -37,7 +80,7 @@ export class TeamService {
       }
     }
 
-    return db.team.create({
+    const created = await db.team.create({
       data: {
         name,
         teamUsers: {
@@ -48,6 +91,22 @@ export class TeamService {
         },
       },
     });
+    // Warm cache for the new team
+    await TeamService.refreshTeamCache(created.id);
+    return created;
+  }
+
+  /**
+   * Update a team and refresh the cache.
+   * Returns the full Prisma Team object.
+   */
+  static async updateTeam(
+    teamId: number,
+    data: Prisma.TeamUpdateInput
+  ): Promise<Team> {
+    const updated = await db.team.update({ where: { id: teamId }, data });
+    await TeamService.refreshTeamCache(teamId);
+    return updated;
   }
 
   static async getUserTeams(userId: number) {
@@ -102,12 +161,14 @@ export class TeamService {
       });
     }
 
-    const { isLimitReached, reason } =
-      await LimitService.checkTeamMemberLimit(teamId);
-    if (isLimitReached) {
+    const cachedTeam = await TeamService.getTeamCached(teamId);
+    const memberLimit = PLAN_LIMITS[cachedTeam.plan].teamMembers;
+    const currentMembers = await db.teamUser.count({ where: { teamId } });
+    const isExceeded = memberLimit !== -1 && currentMembers >= memberLimit;
+    if (isExceeded) {
       throw new UnsendApiError({
         code: "FORBIDDEN",
-        message: reason ?? "Team invite limit reached",
+        message: "Team invite limit reached",
       });
     }
 
@@ -178,7 +239,7 @@ export class TeamService {
       });
     }
 
-    return db.teamUser.update({
+    const updated = await db.teamUser.update({
       where: {
         teamId_userId: {
           teamId,
@@ -189,6 +250,9 @@ export class TeamService {
         role,
       },
     });
+    // Role updates might influence permissions; refresh cache to be safe
+    await TeamService.invalidateTeamCache(teamId);
+    return updated;
   }
 
   static async deleteTeamUser(
@@ -233,7 +297,7 @@ export class TeamService {
       });
     }
 
-    return db.teamUser.delete({
+    const deleted = await db.teamUser.delete({
       where: {
         teamId_userId: {
           teamId,
@@ -241,6 +305,8 @@ export class TeamService {
         },
       },
     });
+    await TeamService.invalidateTeamCache(teamId);
+    return deleted;
   }
 
   static async resendTeamInvite(inviteId: string, teamName: string) {
@@ -290,4 +356,233 @@ export class TeamService {
       },
     });
   }
+
+  /**
+   * Notify all team users that email limit has been reached, at most once per 6 hours.
+   */
+  static async maybeNotifyEmailLimitReached(
+    teamId: number,
+    limit: number,
+    reason: LimitReason | undefined
+  ) {
+    logger.info(
+      { teamId, limit, reason },
+      "[TeamService]: maybeNotifyEmailLimitReached called"
+    );
+    if (!reason) {
+      logger.info(
+        { teamId },
+        "[TeamService]: Skipping notify — no reason provided"
+      );
+      return;
+    }
+    // Only notify on actual email limit reasons
+    if (
+      ![
+        LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+        LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
+      ].includes(reason)
+    ) {
+      logger.info(
+        { teamId, reason },
+        "[TeamService]: Skipping notify — reason not eligible"
+      );
+      return;
+    }
+
+    const redis = getRedis();
+    const cacheKey = `limit:notify:${teamId}:${reason}`;
+    const alreadySent = await redis.get(cacheKey);
+    if (alreadySent) {
+      logger.info(
+        { teamId, cacheKey },
+        "[TeamService]: Skipping notify — cooldown active"
+      );
+      return; // within cooldown window
+    }
+
+    const team = await TeamService.getTeamCached(teamId);
+    const isPaidPlan = team.plan !== "FREE";
+
+    const html = await getLimitReachedEmail(teamId, limit, reason);
+
+    const subject =
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "useSend: You've reached your monthly email limit"
+        : "useSend: You've reached your daily email limit";
+
+    const text = `Hi ${team.name} team,\n\nYou've reached your ${
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily"
+    } limit of ${limit.toLocaleString()} emails.\n\nSending is temporarily paused until your limit resets or ${
+      isPaidPlan ? "your team is verified" : "your plan is upgraded"
+    }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
+
+    const teamUsers = await TeamService.getTeamUsers(teamId);
+    const recipients = teamUsers
+      .map((tu) => tu.user?.email)
+      .filter((e): e is string => Boolean(e));
+
+    logger.info(
+      { teamId, recipientsCount: recipients.length, reason },
+      "[TeamService]: Sending limit reached notifications"
+    );
+
+    // Send individually to all team users
+    try {
+      await Promise.all(
+        recipients.map((to) =>
+          sendMail(to, subject, text, html, "hey@usesend.com")
+        )
+      );
+      logger.info(
+        { teamId, recipientsCount: recipients.length },
+        "[TeamService]: Limit reached notifications sent"
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId },
+        "[TeamService]: Failed sending limit reached notifications"
+      );
+      throw err;
+    }
+
+    // Set cooldown for 6 hours
+    await redis.setex(cacheKey, 6 * 60 * 60, "1");
+    logger.info(
+      { teamId, cacheKey },
+      "[TeamService]: Set limit reached notification cooldown"
+    );
+  }
+
+  /**
+   * Notify all team users that they're nearing their email limit.
+   * Rate limited via Redis to avoid spamming; sends at most once per 6 hours per reason.
+   */
+  static async sendWarningEmail(
+    teamId: number,
+    used: number,
+    limit: number,
+    reason: LimitReason | undefined
+  ) {
+    logger.info(
+      { teamId, used, limit, reason },
+      "[TeamService]: sendWarningEmail called"
+    );
+    if (!reason) {
+      logger.info(
+        { teamId },
+        "[TeamService]: Skipping warning — no reason provided"
+      );
+      return;
+    }
+
+    if (
+      ![
+        LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+        LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
+      ].includes(reason)
+    ) {
+      logger.info(
+        { teamId, reason },
+        "[TeamService]: Skipping warning — reason not eligible"
+      );
+      return;
+    }
+
+    const redis = getRedis();
+    const cacheKey = `limit:warning:${teamId}:${reason}`;
+    const alreadySent = await redis.get(cacheKey);
+    if (alreadySent) {
+      logger.info(
+        { teamId, cacheKey },
+        "[TeamService]: Skipping warning — cooldown active"
+      );
+      return; // within cooldown window
+    }
+
+    const team = await TeamService.getTeamCached(teamId);
+    const isPaidPlan = team.plan !== "FREE";
+
+    const period =
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily";
+
+    const html = await renderUsageWarningEmail({
+      teamName: team.name,
+      used,
+      limit,
+      isPaidPlan,
+      period,
+      manageUrl: `${env.NEXTAUTH_URL}/settings`,
+    });
+
+    const subject =
+      period === "monthly"
+        ? "useSend: You're nearing your monthly email limit"
+        : "useSend: You're nearing your daily email limit";
+
+    const text = `Hi ${team.name} team,\n\nYou've used ${used.toLocaleString()} of your ${period} limit of ${limit.toLocaleString()} emails.\n\nConsider ${
+      isPaidPlan
+        ? "verifying your team by replying to this email"
+        : "upgrading your plan"
+    }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
+
+    const teamUsers = await TeamService.getTeamUsers(teamId);
+    const recipients = teamUsers
+      .map((tu) => tu.user?.email)
+      .filter((e): e is string => Boolean(e));
+
+    logger.info(
+      { teamId, recipientsCount: recipients.length, reason },
+      "[TeamService]: Sending warning notifications"
+    );
+
+    try {
+      await Promise.all(
+        recipients.map((to) =>
+          sendMail(to, subject, text, html, "hey@usesend.com")
+        )
+      );
+      logger.info(
+        { teamId, recipientsCount: recipients.length },
+        "[TeamService]: Warning notifications sent"
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId },
+        "[TeamService]: Failed sending warning notifications"
+      );
+      throw err;
+    }
+
+    // Set cooldown for 6 hours
+    await redis.setex(cacheKey, 6 * 60 * 60, "1");
+    logger.info(
+      { teamId, cacheKey },
+      "[TeamService]: Set warning notification cooldown"
+    );
+  }
+}
+
+async function getLimitReachedEmail(
+  teamId: number,
+  limit: number,
+  reason: LimitReason
+) {
+  const team = await TeamService.getTeamCached(teamId);
+  const isPaidPlan = team.plan !== "FREE";
+  const email = await renderUsageLimitReachedEmail({
+    teamName: team.name,
+    limit,
+    isPaidPlan,
+    period:
+      reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+        ? "monthly"
+        : "daily",
+    manageUrl: `${env.NEXTAUTH_URL}/settings`,
+  });
+  return email;
 }

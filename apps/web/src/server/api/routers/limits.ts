@@ -8,7 +8,7 @@ export const limitsRouter = createTRPCRouter({
     .input(
       z.object({
         type: z.nativeEnum(LimitReason),
-      }),
+      })
     )
     .query(async ({ ctx, input }) => {
       switch (input.type) {
@@ -18,8 +18,6 @@ export const limitsRouter = createTRPCRouter({
           return LimitService.checkDomainLimit(ctx.team.id);
         case LimitReason.TEAM_MEMBER:
           return LimitService.checkTeamMemberLimit(ctx.team.id);
-        case LimitReason.EMAIL:
-          return LimitService.checkEmailLimit(ctx.team.id);
         default:
           // exhaustive guard
           throw new Error("Unsupported limit type");

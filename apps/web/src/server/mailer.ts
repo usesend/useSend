@@ -69,11 +69,12 @@ export async function sendTeamInviteEmail(
   await sendMail(email, subject, text, html);
 }
 
-async function sendMail(
+export async function sendMail(
   email: string,
   subject: string,
   text: string,
-  html: string
+  html: string,
+  replyTo?: string
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -107,6 +108,7 @@ async function sendMail(
       subject,
       text,
       html,
+      replyTo,
     });
   } else if (env.UNSEND_API_KEY && env.FROM_EMAIL) {
     const resp = await getClient().emails.send({
@@ -115,6 +117,7 @@ async function sendMail(
       subject,
       text,
       html,
+      replyTo,
     });
 
     if (resp.data) {
@@ -123,7 +126,7 @@ async function sendMail(
     } else {
       logger.error(
         { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend, so fallback to resend"
+        "Error sending email using usesend"
       );
     }
   } else {

@@ -28,13 +28,15 @@ export async function createContactBook(teamId: number, name: string) {
     });
   }
 
-  return db.contactBook.create({
+  const created = await db.contactBook.create({
     data: {
       name,
       teamId,
       properties: {},
     },
   });
+
+  return created;
 }
 
 export async function getContactBookDetails(contactBookId: string) {
@@ -79,5 +81,7 @@ export async function updateContactBook(
 }
 
 export async function deleteContactBook(contactBookId: string) {
-  return db.contactBook.delete({ where: { id: contactBookId } });
+  const deleted = await db.contactBook.delete({ where: { id: contactBookId } });
+
+  return deleted;
 }

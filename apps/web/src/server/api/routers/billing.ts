@@ -15,6 +15,7 @@ import {
   getManageSessionUrl,
 } from "~/server/billing/payments";
 import { db } from "~/server/db";
+import { TeamService } from "~/server/service/team-service";
 
 export const billingRouter = createTRPCRouter({
   createCheckoutSession: teamAdminProcedure.mutation(async ({ ctx }) => {
@@ -47,9 +48,6 @@ export const billingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { billingEmail } = input;
 
-      await db.team.update({
-        where: { id: ctx.team.id },
-        data: { billingEmail },
-      });
+      await TeamService.updateTeam(ctx.team.id, { billingEmail });
     }),
 });
