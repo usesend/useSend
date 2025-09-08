@@ -126,7 +126,7 @@ export async function sendMail(
     } else {
       logger.error(
         { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend, so fallback to resend"
+        "Error sending email using usesend"
       );
     }
   } else {
