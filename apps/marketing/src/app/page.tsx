@@ -42,7 +42,7 @@ function Hero() {
           <span className="text-primary font-normal">
             Pay only for what you send
           </span>{" "}
-          and not for storing contacts. Open source and self-hostable.
+          and not for storing contacts.
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

@@ -267,7 +267,7 @@ export default function EmailsList() {
           open={!!selectedEmail}
           onOpenChange={handleSheetChange}
         >
-          <DynamicSheetContentWithNoSSR className=" sm:max-w-3xl">
+          <DynamicSheetContentWithNoSSR className="sm:max-w-3xl overflow-y-auto no-scrollbar">
             <SheetTitle className="sr-only">Email Details</SheetTitle>
             <SheetDescription className="sr-only">
               Detailed view of the selected email.

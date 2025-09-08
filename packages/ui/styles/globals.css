@@ -151,6 +151,12 @@
   }
 }
 
+@layer utilities {
+  /* Hide scrollbars but preserve scroll behavior */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
 /* .app,
 ::before,
 ::after {

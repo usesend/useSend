@@ -28,7 +28,7 @@ export default function EmailDetails({ emailId }: { emailId: string }) {
   const emailQuery = api.email.getEmail.useQuery({ id: emailId });
 
   return (
-    <div className="h-full overflow-auto px-4">
+    <div className="h-full overflow-auto px-4 no-scrollbar">
       <div className="flex justify-between items-center">
         <div className="flex gap-4 items-center">
           <h1 className="font-bold">{emailQuery.data?.to}</h1>

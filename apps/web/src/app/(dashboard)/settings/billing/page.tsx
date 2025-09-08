@@ -164,7 +164,7 @@ export default function SettingsPage() {
                   <div className="font-mono">
                     {currentTeam?.billingEmail || "No billing email set"}
                   </div>
-                  <Button onClick={handleEditEmail} variant="ghost" size="sm">
+                  <Button onClick={handleEditEmail} variant="default" size="sm">
                     Edit
                   </Button>
                 </div>
