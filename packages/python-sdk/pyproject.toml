@@ -1,21 +1,19 @@
 [tool.poetry]
 name = "usesend"
-version = "0.1.4"
+version = "0.2.3"
 description = "Python SDK for the UseSend API"
 authors = ["UseSend"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "usesend" }]
+include = ["usesend/py.typed"]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<4.0"
 requests = "^2.32.0"
-# EmailStr in Pydantic requires the optional email-validator dependency.
-# Declare the extra so it's installed automatically for users.
-pydantic = { version = "^2.0", extras = ["email"] }
+typing_extensions = ">=4.7"
 
 [tool.poetry.group.dev.dependencies]
-datamodel-code-generator = "^0.25.0"
 
 [build-system]
 requires = ["poetry-core"]

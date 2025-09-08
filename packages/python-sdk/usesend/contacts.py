@@ -1,18 +1,18 @@
-"""Contact resource client with typed models."""
+"""Contact resource client using TypedDict shapes (no Pydantic)."""
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from .types import (
     APIError,
-    V1ContactBooksContactBookIdContactsContactIdDeleteResponse,
-    V1ContactBooksContactBookIdContactsContactIdGetResponse,
-    V1ContactBooksContactBookIdContactsContactIdPatchRequest,
-    V1ContactBooksContactBookIdContactsContactIdPatchResponse,
-    V1ContactBooksContactBookIdContactsContactIdPutRequest,
-    V1ContactBooksContactBookIdContactsContactIdPutResponse,
-    V1ContactBooksContactBookIdContactsPostRequest,
-    V1ContactBooksContactBookIdContactsPostResponse,
+    ContactDeleteResponse,
+    Contact,
+    ContactUpdate,
+    ContactUpdateResponse,
+    ContactUpsert,
+    ContactUpsertResponse,
+    ContactCreate,
+    ContactCreateResponse,
 )
 
 
@@ -23,99 +23,47 @@ class Contacts:
         self.usesend = usesend
 
     def create(
-        self, book_id: str, payload: V1ContactBooksContactBookIdContactsPostRequest
-    ) -> Tuple[
-        Optional[V1ContactBooksContactBookIdContactsPostResponse],
-        Optional[APIError],
-    ]:
+        self, book_id: str, payload: ContactCreate
+    ) -> Tuple[Optional[ContactCreateResponse], Optional[APIError]]:
         data, err = self.usesend.post(
             f"/contactBooks/{book_id}/contacts",
-            payload.model_dump(exclude_none=True),
+            payload,
         )
-        return (
-            V1ContactBooksContactBookIdContactsPostResponse.model_validate(data)
-            if data
-            else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
     def get(
         self, book_id: str, contact_id: str
-    ) -> Tuple[
-        Optional[V1ContactBooksContactBookIdContactsContactIdGetResponse],
-        Optional[APIError],
-    ]:
+    ) -> Tuple[Optional[Contact], Optional[APIError]]:
         data, err = self.usesend.get(
             f"/contactBooks/{book_id}/contacts/{contact_id}"
         )
-        return (
-            V1ContactBooksContactBookIdContactsContactIdGetResponse.model_validate(data)
-            if data
-            else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
     def update(
-        self,
-        book_id: str,
-        contact_id: str,
-        payload: V1ContactBooksContactBookIdContactsContactIdPatchRequest,
-    ) -> Tuple[
-        Optional[V1ContactBooksContactBookIdContactsContactIdPatchResponse],
-        Optional[APIError],
-    ]:
+        self, book_id: str, contact_id: str, payload: ContactUpdate
+    ) -> Tuple[Optional[ContactUpdateResponse], Optional[APIError]]:
         data, err = self.usesend.patch(
             f"/contactBooks/{book_id}/contacts/{contact_id}",
-            payload.model_dump(exclude_none=True),
+            payload,
         )
-        return (
-            V1ContactBooksContactBookIdContactsContactIdPatchResponse.model_validate(
-                data
-            )
-            if data
-            else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
     def upsert(
-        self,
-        book_id: str,
-        contact_id: str,
-        payload: V1ContactBooksContactBookIdContactsContactIdPutRequest,
-    ) -> Tuple[
-        Optional[V1ContactBooksContactBookIdContactsContactIdPutResponse],
-        Optional[APIError],
-    ]:
+        self, book_id: str, contact_id: str, payload: ContactUpsert
+    ) -> Tuple[Optional[ContactUpsertResponse], Optional[APIError]]:
         data, err = self.usesend.put(
             f"/contactBooks/{book_id}/contacts/{contact_id}",
-            payload.model_dump(exclude_none=True),
+            payload,
         )
-        return (
-            V1ContactBooksContactBookIdContactsContactIdPutResponse.model_validate(
-                data
-            )
-            if data
-            else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
     def delete(
-        self, book_id: str, contact_id: str
-    ) -> Tuple[
-        Optional[V1ContactBooksContactBookIdContactsContactIdDeleteResponse],
-        Optional[APIError],
-    ]:
+        self, *, book_id: str, contact_id: str
+    ) -> Tuple[Optional[ContactDeleteResponse], Optional[APIError]]:
         data, err = self.usesend.delete(
             f"/contactBooks/{book_id}/contacts/{contact_id}"
         )
-        return (
-            V1ContactBooksContactBookIdContactsContactIdDeleteResponse.model_validate(
-                data
-            )
-            if data
-            else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
 
 from .usesend import UseSend  # noqa: E402  pylint: disable=wrong-import-position

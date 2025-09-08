@@ -1,19 +1,20 @@
-"""Email resource client with typed models."""
+"""Email resource client using TypedDict shapes (no Pydantic)."""
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from .types import (
     APIError,
-    V1EmailsBatchPostRequest,
-    V1EmailsBatchPostRequestItem,
-    V1EmailsBatchPostResponse,
-    V1EmailsEmailIdCancelPostResponse,
-    V1EmailsEmailIdGetResponse,
-    V1EmailsEmailIdPatchRequest,
-    V1EmailsEmailIdPatchResponse,
-    V1EmailsPostRequest,
-    V1EmailsPostResponse,
+    Attachment,
+    EmailBatchItem,
+    EmailBatchResponse,
+    EmailCancelResponse,
+    Email,
+    EmailUpdate,
+    EmailUpdateResponse,
+    EmailCreate,
+    EmailCreateResponse,
 )
 
 
@@ -24,65 +25,53 @@ class Emails:
         self.usesend = usesend
 
     # Basic operations -------------------------------------------------
-    def send(
-        self, payload: V1EmailsPostRequest
-    ) -> Tuple[Optional[V1EmailsPostResponse], Optional[APIError]]:
+    def send(self, payload: EmailCreate) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
         """Alias for :meth:`create`."""
         return self.create(payload)
 
-    def create(
-        self, payload: V1EmailsPostRequest
-    ) -> Tuple[Optional[V1EmailsPostResponse], Optional[APIError]]:
-        data, err = self.usesend.post(
-            "/emails", payload.model_dump(by_alias=True, exclude_none=True)
-        )
-        return (
-            V1EmailsPostResponse.model_validate(data) if data else None,
-            APIError.model_validate(err) if err else None,
-        )
+    def create(self, payload: Union[EmailCreate, Dict[str, Any]]) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
+        if isinstance(payload, dict):
+            payload = dict(payload)
 
-    def batch(
-        self, payload: Sequence[V1EmailsBatchPostRequestItem]
-    ) -> Tuple[Optional[V1EmailsBatchPostResponse], Optional[APIError]]:
-        body = V1EmailsBatchPostRequest(root=list(payload))
-        data, err = self.usesend.post(
-            "/emails/batch",
-            body.model_dump(by_alias=True, exclude_none=True),
-        )
-        return (
-            V1EmailsBatchPostResponse.model_validate(data) if data else None,
-            APIError.model_validate(err) if err else None,
-        )
+        # Normalize fields
+        body: Dict[str, Any] = dict(payload)
+        # Support accidental 'from_' usage
+        if "from_" in body and "from" not in body:
+            body["from"] = body.pop("from_")
+        # Convert scheduledAt to ISO 8601 if datetime
+        if isinstance(body.get("scheduledAt"), datetime):
+            body["scheduledAt"] = body["scheduledAt"].isoformat()
 
-    def get(
-        self, email_id: str
-    ) -> Tuple[Optional[V1EmailsEmailIdGetResponse], Optional[APIError]]:
+        data, err = self.usesend.post("/emails", body)
+        return (data, err)  # type: ignore[return-value]
+
+    def batch(self, payload: Sequence[Union[EmailBatchItem, Dict[str, Any]]]) -> Tuple[Optional[EmailBatchResponse], Optional[APIError]]:
+        items: List[Dict[str, Any]] = []
+        for item in payload:
+            d = dict(item)
+            if "from_" in d and "from" not in d:
+                d["from"] = d.pop("from_")
+            if isinstance(d.get("scheduledAt"), datetime):
+                d["scheduledAt"] = d["scheduledAt"].isoformat()
+            items.append(d)
+        data, err = self.usesend.post("/emails/batch", items)
+        return (data, err)  # type: ignore[return-value]
+
+    def get(self, email_id: str) -> Tuple[Optional[Email], Optional[APIError]]:
         data, err = self.usesend.get(f"/emails/{email_id}")
-        return (
-            V1EmailsEmailIdGetResponse.model_validate(data) if data else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
-    def update(
-        self, email_id: str, payload: V1EmailsEmailIdPatchRequest
-    ) -> Tuple[Optional[V1EmailsEmailIdPatchResponse], Optional[APIError]]:
-        data, err = self.usesend.patch(
-            f"/emails/{email_id}",
-            payload.model_dump(by_alias=True, exclude_none=True),
-        )
-        return (
-            V1EmailsEmailIdPatchResponse.model_validate(data) if data else None,
-            APIError.model_validate(err) if err else None,
-        )
+    def update(self, email_id: str, payload: EmailUpdate) -> Tuple[Optional[EmailUpdateResponse], Optional[APIError]]:
+        body: Dict[str, Any] = dict(payload)
+        if isinstance(body.get("scheduledAt"), datetime):
+            body["scheduledAt"] = body["scheduledAt"].isoformat()
 
-    def cancel(
-        self, email_id: str
-    ) -> Tuple[Optional[V1EmailsEmailIdCancelPostResponse], Optional[APIError]]:
+        data, err = self.usesend.patch(f"/emails/{email_id}", body)
+        return (data, err)  # type: ignore[return-value]
+
+    def cancel(self, email_id: str) -> Tuple[Optional[EmailCancelResponse], Optional[APIError]]:
         data, err = self.usesend.post(f"/emails/{email_id}/cancel", {})
-        return (
-            V1EmailsEmailIdCancelPostResponse.model_validate(data) if data else None,
-            APIError.model_validate(err) if err else None,
-        )
+        return (data, err)  # type: ignore[return-value]
 
 
 from .usesend import UseSend  # noqa: E402  pylint: disable=wrong-import-position
