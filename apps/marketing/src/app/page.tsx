@@ -7,7 +7,7 @@ import { TopNav } from "~/components/TopNav";
 import { FeatureCard } from "~/components/FeatureCard";
 import { FeatureCardPlain } from "~/components/FeatureCardPlain";
 import { PricingCalculator } from "~/components/PricingCalculator";
-import { CodeBlock } from "@usesend/ui/src/code-block";
+import CodeExample from "~/components/CodeExample";
 
 const REPO = "usesend/usesend";
 const REPO_URL = `https://github.com/${REPO}`;
@@ -292,62 +292,7 @@ function Features() {
   );
 }
 
-function CodeExample() {
-  const code = `import { UseSend } from "usesend-js";
-
-const usesend = new UseSend("us_12345");
-
-usesend.emails.send({
-  to: "hello@acme.com",
-  from: "hello@company.com",
-  subject: "useSend email",
-  html: "<p>useSend is the best open source product to send emails</p>",
-  text: "useSend is the best open source product to send emails",
-});`;
-
-  return (
-    <section className="py-16 sm:py-20">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="text-center">
-          <div className="mb-2 text-sm uppercase tracking-wider text-primary">
-            Developers
-          </div>
-          <p className="mt-1 text-xs sm:text-sm text-muted-foreground max-w-2xl mx-auto">
-            Typed SDKs and simple APIs, so you can focus on product not
-            plumbing.
-          </p>
-        </div>
-
-        <div className="mt-8 overflow-hidden">
-          <div className=" py-2 text-xs text-muted-foreground">JavaScript</div>
-          <div className="rounded-[18px] bg-primary/20 p-1">
-            <div className="rounded-[14px] bg-primary/20 p-0.5 shadow-sm">
-              <div className="bg-background rounded-xl overflow-hidden">
-                <CodeBlock
-                  lang="javascript"
-                  children={code}
-                  className="p-4 rounded-[10px]"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <Button size="lg" className="px-6">
-            <a
-              href="https://docs.usesend.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Read the docs
-            </a>
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-}
+// CodeExample moved to a dedicated client component in ~/components/CodeExample
 
 function Pricing() {
   const freePerks = [
