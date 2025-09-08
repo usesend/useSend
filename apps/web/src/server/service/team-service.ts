@@ -365,20 +365,39 @@ export class TeamService {
     limit: number,
     reason: LimitReason | undefined
   ) {
-    if (!reason) return;
+    logger.info(
+      { teamId, limit, reason },
+      "[TeamService]: maybeNotifyEmailLimitReached called"
+    );
+    if (!reason) {
+      logger.info(
+        { teamId },
+        "[TeamService]: Skipping notify — no reason provided"
+      );
+      return;
+    }
     // Only notify on actual email limit reasons
     if (
       ![
         LimitReason.EMAIL_DAILY_LIMIT_REACHED,
         LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
       ].includes(reason)
-    )
+    ) {
+      logger.info(
+        { teamId, reason },
+        "[TeamService]: Skipping notify — reason not eligible"
+      );
       return;
+    }
 
     const redis = getRedis();
     const cacheKey = `limit:notify:${teamId}:${reason}`;
     const alreadySent = await redis.get(cacheKey);
     if (alreadySent) {
+      logger.info(
+        { teamId, cacheKey },
+        "[TeamService]: Skipping notify — cooldown active"
+      );
       return; // within cooldown window
     }
 
@@ -405,15 +424,36 @@ export class TeamService {
       .map((tu) => tu.user?.email)
       .filter((e): e is string => Boolean(e));
 
-    // Send individually to all team users
-    await Promise.all(
-      recipients.map((to) =>
-        sendMail(to, subject, text, html, "hey@usesend.com")
-      )
+    logger.info(
+      { teamId, recipientsCount: recipients.length, reason },
+      "[TeamService]: Sending limit reached notifications"
     );
+
+    // Send individually to all team users
+    try {
+      await Promise.all(
+        recipients.map((to) =>
+          sendMail(to, subject, text, html, "hey@usesend.com")
+        )
+      );
+      logger.info(
+        { teamId, recipientsCount: recipients.length },
+        "[TeamService]: Limit reached notifications sent"
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId },
+        "[TeamService]: Failed sending limit reached notifications"
+      );
+      throw err;
+    }
 
     // Set cooldown for 6 hours
     await redis.setex(cacheKey, 6 * 60 * 60, "1");
+    logger.info(
+      { teamId, cacheKey },
+      "[TeamService]: Set limit reached notification cooldown"
+    );
   }
 
   /**
@@ -426,26 +466,41 @@ export class TeamService {
     limit: number,
     reason: LimitReason | undefined
   ) {
-    if (!reason) return;
-    // Only warn for email usage-related reasons (daily or monthly free plan)
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
+    logger.info(
+      { teamId, used, limit, reason },
+      "[TeamService]: sendWarningEmail called"
+    );
+    if (!reason) {
+      logger.info(
+        { teamId },
+        "[TeamService]: Skipping warning — no reason provided"
+      );
+      return;
+    }
+
     if (
       ![
         LimitReason.EMAIL_DAILY_LIMIT_REACHED,
         LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
       ].includes(reason)
-    )
+    ) {
+      logger.info(
+        { teamId, reason },
+        "[TeamService]: Skipping warning — reason not eligible"
+      );
       return;
+    }
 
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
     const redis = getRedis();
     const cacheKey = `limit:warning:${teamId}:${reason}`;
     const alreadySent = await redis.get(cacheKey);
     if (alreadySent) {
+      logger.info(
+        { teamId, cacheKey },
+        "[TeamService]: Skipping warning — cooldown active"
+      );
       return; // within cooldown window
     }
-
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
 
     const team = await TeamService.getTeamCached(teamId);
     const isPaidPlan = team.plan !== "FREE";
@@ -455,8 +510,6 @@ export class TeamService {
         ? "monthly"
         : "daily";
 
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
-
     const html = await renderUsageWarningEmail({
       teamName: team.name,
       used,
@@ -465,8 +518,6 @@ export class TeamService {
       period,
       manageUrl: `${env.NEXTAUTH_URL}/settings`,
     });
-
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
 
     const subject =
       period === "monthly"
@@ -479,25 +530,40 @@ export class TeamService {
         : "upgrading your plan"
     }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
 
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
-
     const teamUsers = await TeamService.getTeamUsers(teamId);
     const recipients = teamUsers
       .map((tu) => tu.user?.email)
       .filter((e): e is string => Boolean(e));
 
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
-
-    await Promise.all(
-      recipients.map((to) =>
-        sendMail(to, subject, text, html, "hey@usesend.com")
-      )
+    logger.info(
+      { teamId, recipientsCount: recipients.length, reason },
+      "[TeamService]: Sending warning notifications"
     );
 
-    logger.info({ reason }, `[TeamService]: Sending warning email`);
+    try {
+      await Promise.all(
+        recipients.map((to) =>
+          sendMail(to, subject, text, html, "hey@usesend.com")
+        )
+      );
+      logger.info(
+        { teamId, recipientsCount: recipients.length },
+        "[TeamService]: Warning notifications sent"
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId },
+        "[TeamService]: Failed sending warning notifications"
+      );
+      throw err;
+    }
 
     // Set cooldown for 6 hours
     await redis.setex(cacheKey, 6 * 60 * 60, "1");
+    logger.info(
+      { teamId, cacheKey },
+      "[TeamService]: Set warning notification cooldown"
+    );
   }
 }
 

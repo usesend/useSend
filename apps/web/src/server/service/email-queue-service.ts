@@ -309,8 +309,6 @@ async function executeEmail(job: QueueEmailJob) {
     `[EmailQueueService]: Executing email job`
   );
 
-  logger.info({ jobData: job.data }, `[EmailQueueService]: Job data`);
-
   const email = await db.email.findUnique({
     where: { id: job.data.emailId },
   });
@@ -422,13 +420,6 @@ async function executeEmail(job: QueueEmailJob) {
       where: { id: email.id },
       data: { sesEmailId: messageId, text, attachments: undefined },
     });
-
-    logger.info(
-      { limitCheck },
-      `[EmailQueueService]: Limit check after sending email ${limitCheck.limit !== -1 && limitCheck.available !== undefined && !limitCheck.isLimitReached}`
-    );
-
-    // Nearing-limit warnings now handled within LimitService.checkEmailLimit
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
