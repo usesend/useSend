@@ -27,6 +27,7 @@
             "pages": [
               "introduction",
               "get-started/nodejs",
+              "get-started/python",
               "get-started/local",
               "get-started/self-hosting",
               "get-started/smtp"
