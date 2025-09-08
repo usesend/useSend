@@ -4,6 +4,7 @@ import { getThisMonthUsage } from "./usage-service";
 import { TeamService } from "./team-service";
 import { withCache } from "../redis";
 import { db } from "../db";
+import { logger } from "../logger/log";
 
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
@@ -130,6 +131,11 @@ export class LimitService {
         ? team.dailyEmailLimit
         : PLAN_LIMITS[team.plan].emailsPerDay;
 
+    logger.info(
+      { dailyUsage, dailyLimit, team },
+      `[LimitService]: Daily usage and limit`
+    );
+
     if (isLimitExceeded(dailyUsage, dailyLimit)) {
       return {
         isLimitReached: true,
@@ -146,6 +152,11 @@ export class LimitService {
       );
       const monthlyLimit = PLAN_LIMITS[team.plan].emailsPerMonth;
 
+      logger.info(
+        { monthlyUsage, monthlyLimit, team },
+        `[LimitService]: Monthly usage and limit`
+      );
+
       if (monthlyUsage / monthlyLimit > 0.8) {
         await TeamService.sendWarningEmail(
           teamId,
@@ -154,6 +165,11 @@ export class LimitService {
           LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
         );
       }
+
+      logger.info(
+        { monthlyUsage, monthlyLimit, team },
+        `[LimitService]: Monthly usage and limit`
+      );
 
       if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
         return {

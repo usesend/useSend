@@ -12,6 +12,7 @@ import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
 import { TeamService } from "./team-service";
+import { LimitReason } from "~/lib/constants/plans";
 
 type QueueEmailJob = TeamJob<{
   emailId: string;
@@ -309,6 +310,8 @@ async function executeEmail(job: QueueEmailJob) {
     `[EmailQueueService]: Executing email job`
   );
 
+  logger.info({ jobData: job.data }, `[EmailQueueService]: Job data`);
+
   const email = await db.email.findUnique({
     where: { id: job.data.emailId },
   });
@@ -370,6 +373,7 @@ async function executeEmail(job: QueueEmailJob) {
   try {
     // Check limits right before sending (cloud-only)
     const limitCheck = await LimitService.checkEmailLimit(email.teamId);
+    logger.info({ limitCheck }, `[EmailQueueService]: Limit check`);
     if (limitCheck.isLimitReached) {
       await db.emailEvent.create({
         data: {
@@ -430,13 +434,23 @@ async function executeEmail(job: QueueEmailJob) {
       data: { sesEmailId: messageId, text, attachments: undefined },
     });
 
-    if (limitCheck.limit !== -1 && limitCheck.available) {
+    logger.info(
+      { limitCheck },
+      `[EmailQueueService]: Limit check after sending email ${limitCheck.limit !== -1 && limitCheck.available !== undefined && !limitCheck.isLimitReached}`
+    );
+
+    if (
+      limitCheck.limit !== -1 &&
+      limitCheck.available !== undefined &&
+      limitCheck.available > 0 &&
+      !limitCheck.isLimitReached
+    ) {
       if (limitCheck.available / limitCheck.limit < 0.2) {
         await TeamService.sendWarningEmail(
           email.teamId,
-          limitCheck.available,
+          limitCheck.limit - limitCheck.available,
           limitCheck.limit,
-          limitCheck.reason
+          LimitReason.EMAIL_DAILY_LIMIT_REACHED
         );
       }
     }

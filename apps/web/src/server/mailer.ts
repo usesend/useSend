@@ -73,7 +73,8 @@ export async function sendMail(
   email: string,
   subject: string,
   text: string,
-  html: string
+  html: string,
+  replyTo?: string
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -107,6 +108,7 @@ export async function sendMail(
       subject,
       text,
       html,
+      replyTo,
     });
   } else if (env.UNSEND_API_KEY && env.FROM_EMAIL) {
     const resp = await getClient().emails.send({
@@ -115,6 +117,7 @@ export async function sendMail(
       subject,
       text,
       html,
+      replyTo,
     });
 
     if (resp.data) {

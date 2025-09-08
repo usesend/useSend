@@ -389,8 +389,8 @@ export class TeamService {
 
     const subject =
       reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
-        ? "You've reached your monthly email limit"
-        : "You've reached your daily email limit";
+        ? "useSend: You've reached your monthly email limit"
+        : "useSend: You've reached your daily email limit";
 
     const text = `Hi ${team.name} team,\n\nYou've reached your ${
       reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
@@ -407,7 +407,9 @@ export class TeamService {
 
     // Send individually to all team users
     await Promise.all(
-      recipients.map((to) => sendMail(to, subject, text, html))
+      recipients.map((to) =>
+        sendMail(to, subject, text, html, "hey@usesend.com")
+      )
     );
 
     // Set cooldown for 6 hours
@@ -426,6 +428,7 @@ export class TeamService {
   ) {
     if (!reason) return;
     // Only warn for email usage-related reasons (daily or monthly free plan)
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
     if (
       ![
         LimitReason.EMAIL_DAILY_LIMIT_REACHED,
@@ -434,12 +437,15 @@ export class TeamService {
     )
       return;
 
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
     const redis = getRedis();
     const cacheKey = `limit:warning:${teamId}:${reason}`;
     const alreadySent = await redis.get(cacheKey);
     if (alreadySent) {
       return; // within cooldown window
     }
+
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
 
     const team = await TeamService.getTeamCached(teamId);
     const isPaidPlan = team.plan !== "FREE";
@@ -448,6 +454,8 @@ export class TeamService {
       reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
         ? "monthly"
         : "daily";
+
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
 
     const html = await renderUsageWarningEmail({
       teamName: team.name,
@@ -458,10 +466,12 @@ export class TeamService {
       manageUrl: `${env.NEXTAUTH_URL}/settings`,
     });
 
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
+
     const subject =
       period === "monthly"
-        ? "You're nearing your monthly email limit"
-        : "You're nearing your daily email limit";
+        ? "useSend: You're nearing your monthly email limit"
+        : "useSend: You're nearing your daily email limit";
 
     const text = `Hi ${team.name} team,\n\nYou've used ${used.toLocaleString()} of your ${period} limit of ${limit.toLocaleString()} emails.\n\nConsider ${
       isPaidPlan
@@ -469,12 +479,22 @@ export class TeamService {
         : "upgrading your plan"
     }.\n\nManage plan: ${env.NEXTAUTH_URL}/settings`;
 
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
+
     const teamUsers = await TeamService.getTeamUsers(teamId);
     const recipients = teamUsers
       .map((tu) => tu.user?.email)
       .filter((e): e is string => Boolean(e));
 
-    await Promise.all(recipients.map((to) => sendMail(to, subject, text, html)));
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
+
+    await Promise.all(
+      recipients.map((to) =>
+        sendMail(to, subject, text, html, "hey@usesend.com")
+      )
+    );
+
+    logger.info({ reason }, `[TeamService]: Sending warning email`);
 
     // Set cooldown for 6 hours
     await redis.setex(cacheKey, 6 * 60 * 60, "1");
