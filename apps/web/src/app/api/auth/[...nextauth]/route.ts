@@ -49,10 +49,7 @@ function getClientIp(req: Request): string | null {
   return ip || null;
 }
 
-export async function POST(
-  req: Request,
-  ctx: { params: { nextauth: string[] } }
-) {
+export async function POST(req: Request, ctx: any) {
   if (env.AUTH_EMAIL_RATE_LIMIT > 0) {
     const url = new URL(req.url);
     if (url.pathname.endsWith("/signin/email")) {
