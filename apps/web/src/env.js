@@ -44,6 +44,10 @@ export const env = createEnv({
       .string()
       .default("1")
       .transform((str) => parseInt(str, 10)),
+    AUTH_EMAIL_RATE_LIMIT: z
+      .string()
+      .default("0")
+      .transform((str) => parseInt(str, 10)),
     FROM_EMAIL: z.string().optional(),
     ADMIN_EMAIL: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
@@ -95,6 +99,7 @@ export const env = createEnv({
     AWS_SES_ENDPOINT: process.env.AWS_SES_ENDPOINT,
     AWS_SNS_ENDPOINT: process.env.AWS_SNS_ENDPOINT,
     API_RATE_LIMIT: process.env.API_RATE_LIMIT,
+    AUTH_EMAIL_RATE_LIMIT: process.env.AUTH_EMAIL_RATE_LIMIT,
     NEXT_PUBLIC_IS_CLOUD: process.env.NEXT_PUBLIC_IS_CLOUD,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
