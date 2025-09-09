@@ -30,7 +30,7 @@ As most of email products out there, useSend also uses Amazon SES under the hood
 
 Currently we only support emails, but we plan to expand to other sending protocols like SMS, push notification and even whatsapp.
 
-We are currently in beta and trying to rollout to public slowly. If you're interested [join our waitlist](https://app.youform.io/forms/caja89vr) or drop in a message in discord.
+We are currently in beta!
 
 ## Features
 
