@@ -96,7 +96,7 @@ For detailed instructions on how to configure and run the Docker container, plea
 
 ## Self Hosting
 
-Checkout the [Self hosting](https://usesend.com/docs/get-started/self-hosting) guide to learn how to self-host useSend.
+Checkout the [Self hosting](https://docs.usesend.com/get-started/self-hosting) guide to learn how to self-host useSend.
 
 Also
 
