@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import Image from "next/image";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,18 +14,19 @@ import {
   FormField,
   FormItem,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
   REGEXP_ONLY_DIGITS_AND_CHARS,
-} from "@unsend/ui/src/input-otp";
-import { Input } from "@unsend/ui/src/input";
+} from "@usesend/ui/src/input-otp";
+import { Input } from "@usesend/ui/src/input";
 import { BuiltInProviderType } from "next-auth/providers/index";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 import Link from "next/link";
-import { useTheme } from "@unsend/ui";
+import { useTheme } from "@usesend/ui";
+import { useSearchParams as useNextSearchParams } from "next/navigation";
 
 const emailSchema = z.object({
   email: z
@@ -93,9 +94,12 @@ export default function LoginPage({
     const email = emailForm.getValues().email;
     console.log("email", email);
 
+    const finalCallbackUrl = inviteId
+      ? `/join-team?inviteId=${inviteId}`
+      : `${callbackUrl}/dashboard`;
     window.location.href = `/api/auth/callback/email?email=${encodeURIComponent(
       email.toLowerCase()
-    )}&token=${values.otp.toLowerCase()}${callbackUrl ? `&callbackUrl=${callbackUrl}/dashboard` : ""}`;
+    )}&token=${values.otp.toLowerCase()}&callbackUrl=${encodeURIComponent(finalCallbackUrl)}`;
   }
 
   const emailProvider = providers?.find(
@@ -105,9 +109,15 @@ export default function LoginPage({
   const [submittedProvider, setSubmittedProvider] =
     useState<LiteralUnion<BuiltInProviderType> | null>(null);
 
+  const searchParams = useNextSearchParams();
+  const inviteId = searchParams.get("inviteId");
+
   const handleSubmit = (provider: LiteralUnion<BuiltInProviderType>) => {
     setSubmittedProvider(provider);
-    signIn(provider);
+    const callbackUrl = inviteId
+      ? `/join-team?inviteId=${inviteId}`
+      : "/dashboard";
+    signIn(provider, { callbackUrl });
   };
 
   const { resolvedTheme } = useTheme();
@@ -116,18 +126,18 @@ export default function LoginPage({
     <main className="h-screen flex justify-center items-center">
       <div className="flex flex-col gap-6">
         <Image
-          src={resolvedTheme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
-          alt="Unsend"
+          src={"/logo-squircle.png"}
+          alt="useSend"
           width={50}
           height={50}
           className="mx-auto"
         />
         <div>
           <p className="text-2xl text-center font-semibold">
-            {isSignup ? "Create new account" : "Sign into Unsend"}
+            {isSignup ? "Create new account" : "Sign into useSend"}
           </p>
           <p className="text-center mt-2 text-sm text-muted-foreground">
-            {isSignup ? "Already have an account?" : "New to Unsend?"}
+            {isSignup ? "Already have an account?" : "New to useSend?"}
             <Link
               href={isSignup ? "/login" : "/signup"}
               className=" text-foreground hover:underline ml-1"

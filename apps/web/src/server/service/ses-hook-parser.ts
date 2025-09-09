@@ -53,7 +53,7 @@ export async function parseSesHook(data: SesEvent) {
   // Handle race condition: If email not found by sesEmailId, try to find by custom header
   if (!email) {
     const emailIdHeader = data.mail.headers.find(
-      (h) => h.name === "X-Unsend-Email-ID"
+      (h) => h.name === "X-Usesend-Email-ID" || h.name === "X-Unsend-Email-ID",
     );
 
     if (emailIdHeader?.value) {
@@ -71,7 +71,7 @@ export async function parseSesHook(data: SesEvent) {
         });
         logger.info(
           { emailId: email.id, sesEmailId },
-          "Updated email with sesEmailId from webhook (race condition resolved)"
+          "Updated email with sesEmailId from webhook (race condition resolved)",
         );
       }
     }
@@ -131,8 +131,8 @@ export async function parseSesHook(data: SesEvent) {
               ? SuppressionReason.HARD_BOUNCE
               : SuppressionReason.COMPLAINT,
             source: email.id,
-          })
-        )
+          }),
+        ),
       );
 
       logger.info(
@@ -141,7 +141,7 @@ export async function parseSesHook(data: SesEvent) {
           recipients: recipientEmails,
           reason: isHardBounced ? "HARD_BOUNCE" : "COMPLAINT",
         },
-        "Added emails to suppression list due to bounce/complaint"
+        "Added emails to suppression list due to bounce/complaint",
       );
     } catch (error) {
       logger.error(
@@ -150,7 +150,7 @@ export async function parseSesHook(data: SesEvent) {
           recipients: recipientEmails,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to add emails to suppression list"
+        "Failed to add emails to suppression list",
       );
       // Don't throw error - continue processing the webhook
     }
@@ -205,6 +205,7 @@ export async function parseSesHook(data: SesEvent) {
       updateField === "delivered"
     ) {
       logger.info("Updating cumulated metrics");
+      const cumulatedField = isHardBounced ? "hardBounced" : updateField;
       await db.cumulatedMetrics.upsert({
         where: {
           teamId_domainId: {
@@ -213,14 +214,14 @@ export async function parseSesHook(data: SesEvent) {
           },
         },
         update: {
-          [updateField]: {
+          [cumulatedField]: {
             increment: BigInt(1),
           },
         },
         create: {
           teamId: email.teamId,
           domainId: email.domainId ?? 0,
-          [updateField]: BigInt(1),
+          [cumulatedField]: BigInt(1),
         },
       });
     }
@@ -250,7 +251,7 @@ export async function parseSesHook(data: SesEvent) {
         await updateCampaignAnalytics(
           email.campaignId,
           mailStatus,
-          isHardBounced
+          isHardBounced,
         );
       }
     }
@@ -333,7 +334,7 @@ async function checkUnsubscribe({
             event === EmailStatus.BOUNCED
               ? UnsubscribeReason.BOUNCED
               : UnsubscribeReason.COMPLAINED,
-        })
+        }),
       ),
     ]);
   }
@@ -389,13 +390,13 @@ export class SesHookParser {
         }),
         async () => {
           await this.execute(job.data);
-        }
+        },
       );
     },
     {
       connection: getRedis(),
       concurrency: 50,
-    }
+    },
   );
 
   private static async execute(event: SesEvent) {
@@ -411,7 +412,7 @@ export class SesHookParser {
     return await this.sesHookQueue.add(
       data.messageId,
       data.event,
-      DEFAULT_QUEUE_OPTIONS
+      DEFAULT_QUEUE_OPTIONS,
     );
   }
 }

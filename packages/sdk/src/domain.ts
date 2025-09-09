@@ -1,6 +1,6 @@
 import { paths } from "../types/schema";
 import { ErrorResponse } from "../types";
-import { Unsend } from "./unsend";
+import { UseSend } from "./usesend";
 
 type CreateDomainPayload =
   paths["/v1/domains"]["post"]["requestBody"]["content"]["application/json"];
@@ -30,17 +30,17 @@ type VerifyDomainResponseSuccess =
   paths["/v1/domains/{id}/verify"]["put"]["responses"]["200"]["content"]["application/json"];
 
 export class Domains {
-  constructor(private readonly unsend: Unsend) {
-    this.unsend = unsend;
+  constructor(private readonly usesend: UseSend) {
+    this.usesend = usesend;
   }
 
   async list(): Promise<GetDomainsResponse> {
-    const data = await this.unsend.get<GetDomainsResponseSuccess>("/domains");
+    const data = await this.usesend.get<GetDomainsResponseSuccess>("/domains");
     return data;
   }
 
   async create(payload: CreateDomainPayload): Promise<CreateDomainResponse> {
-    const data = await this.unsend.post<CreateDomainResponseSuccess>(
+    const data = await this.usesend.post<CreateDomainResponseSuccess>(
       "/domains",
       payload
     );
@@ -48,7 +48,7 @@ export class Domains {
   }
 
   async verify(id: number): Promise<VerifyDomainResponse> {
-    const data = await this.unsend.put<VerifyDomainResponseSuccess>(
+    const data = await this.usesend.put<VerifyDomainResponseSuccess>(
       `/domains/${id}/verify`,
       {}
     );

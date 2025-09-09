@@ -11,6 +11,7 @@ import { billingRouter } from "./routers/billing";
 import { invitationRouter } from "./routers/invitiation";
 import { dashboardRouter } from "./routers/dashboard";
 import { suppressionRouter } from "./routers/suppression";
+import { limitsRouter } from "./routers/limits";
 
 /**
  * This is the primary router for your server.
@@ -30,6 +31,7 @@ export const appRouter = createTRPCRouter({
   invitation: invitationRouter,
   dashboard: dashboardRouter,
   suppression: suppressionRouter,
+  limits: limitsRouter,
 });
 
 // export type definition of API

@@ -1,13 +1,13 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 
 import { Edit } from "lucide-react";
 import { useState } from "react";
@@ -20,13 +20,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "~/trpc/react";
-import { Input } from "@unsend/ui/src/input";
-import { toast } from "@unsend/ui/src/toaster";
-import Spinner from "@unsend/ui/src/spinner";
+import { Input } from "@usesend/ui/src/input";
+import { toast } from "@usesend/ui/src/toaster";
+import Spinner from "@usesend/ui/src/spinner";
 import { SesSetting } from "@prisma/client";
 
 const FormSchema = z.object({

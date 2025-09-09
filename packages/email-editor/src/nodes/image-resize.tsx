@@ -6,7 +6,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@unsend/ui/src/popover";
+} from "@usesend/ui/src/popover";
 import {
   ExpandIcon,
   ScanIcon,
@@ -14,20 +14,20 @@ import {
   ImageIcon,
   TypeIcon,
 } from "lucide-react";
-import { Input } from "@unsend/ui/src/input";
+import { Input } from "@usesend/ui/src/input";
 import { BorderWidth } from "../components/ui/icons/BorderWidth";
 import { ColorPickerPopup } from "../components/ui/ColorPicker";
 import { AllowedAlignments } from "../types";
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import { AlignmentIcon } from "../components/ui/icons/AlignmentIcon";
 import {
   Tooltip,
   TooltipProvider,
   TooltipContent,
   TooltipTrigger,
-} from "@unsend/ui/src/tooltip";
-import { Separator } from "@unsend/ui/src/separator";
-import Spinner from "@unsend/ui/src/spinner";
+} from "@usesend/ui/src/tooltip";
+import { Separator } from "@usesend/ui/src/separator";
+import Spinner from "@usesend/ui/src/spinner";
 import { LinkEditorPanel } from "../components/panels/LinkEditorPanel";
 import { TextEditorPanel } from "../components/panels/TextEditorPanel";
 

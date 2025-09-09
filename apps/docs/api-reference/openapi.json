@@ -2,11 +2,11 @@
   "openapi": "3.0.0",
   "info": {
     "version": "1.0.0",
-    "title": "Unsend API"
+    "title": "useSend API"
   },
   "servers": [
     {
-      "url": "https://app.unsend.dev/api"
+      "url": "https://app.usesend.com/api"
     }
   ],
   "components": {

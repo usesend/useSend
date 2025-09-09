@@ -1,13 +1,13 @@
 ---
 title: NodeJS
-description: "Send your mail using unsend in NodeJS"
+description: "Send your mail using useSend in NodeJS"
 icon: node-js
 ---
 
 ## Prerequisites
 
-- [Unsend API key](https://app.unsend.dev/dev-settings/api-keys)
-- [Verified domain](https://app.unsend.dev/domains)
+- [useSend API key](https://app.usesend.com/dev-settings/api-keys)
+- [Verified domain](https://app.usesend.com/domains)
 
 ## Using SDK
 
@@ -15,48 +15,48 @@ icon: node-js
   <Step title="Install SDK">
     <CodeGroup>
       ```bash npm
-      npm install unsend
+      npm install usesend-js
       ```
 
       ```bash yarn
-      yarn add unsend
+      yarn add usesend-js
       ```
 
       ```bash pnpm
-      pnpm add unsend
+      pnpm add usesend-js
       ```
 
       ```bash bun
-      bun add unsend
+      bun add usesend-js
       ```
     </CodeGroup>
 
   </Step>
   <Step title="Initialize SDK">
-    Get the API key from the [Unsend dashboard](https://app.unsend.dev/dev-settings/api-keys) and initialize the SDK
+    Get the API key from the [useSend dashboard](https://app.usesend.com/dev-settings/api-keys) and initialize the SDK
 
     ```javascript
-    import { Unsend } from "unsend";
+    import { UseSend } from "usesend-js";
 
-    const unsend = new Unsend("us_12345");
+    const usesend = new UseSend("us_12345");
     ```
 
-    If you are running a self-hosted version of Unsend, pass the base URL as the
+    If you are running a self-hosted version of useSend, pass the base URL as the
     second argument:
 
     ```javascript
-    const unsend = new Unsend("us_12345", "https://my-unsend-instance.com");
+    const usesend = new UseSend("us_12345", "https://app.usesend.com");
     ```
 
   </Step>
   <Step title="Send Email">
     ```javascript
-    unsend.emails.send({
+    usesend.emails.send({
       to: "hello@acme.com",
       from: "hello@company.com",
-      subject: "Unsend email",
-      html: "<p>Unsend is the best open source product to send emails</p>",
-      text: "Unsend is the best open source product to send emails",
+      subject: "useSend email",
+      html: "<p>useSend is the best open source product to send emails</p>",
+      text: "useSend is the best open source product to send emails",
     });
     ```
   </Step>
@@ -66,12 +66,12 @@ icon: node-js
 
 <Steps>
   <Step title="Get the contact book id">
-    Get the contact book id from the [Unsend dashboard](https://app.unsend.dev/contacts/). Copy the contact book id
+    Get the contact book id from the [useSend dashboard](https://app.usesend.com/contacts/). Copy the contact book id
   </Step>
   <Step title="Add contacts">
 
     ```javascript
-    unsend.contacts
+    usesend.contacts
       .create("clzeydgeygff", {
         email: "hey@koushik.dev",
         firstName: "Koushik",
@@ -83,7 +83,7 @@ icon: node-js
 
   <Step title="Update contact">
     ```javascript
-    unsend.contacts.update("clzeydgeygff", contactId, {
+    usesend.contacts.update("clzeydgeygff", contactId, {
       firstName: "Koushik",
       lastName: "KM",
     });

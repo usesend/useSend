@@ -31,7 +31,7 @@ export const domainRouter = createTRPCRouter({
         ctx.team.id,
         input.name,
         input.region,
-        ctx.team.sesTenantId ?? undefined
+        ctx.team.sesTenantId ?? undefined,
       );
     }),
 
@@ -87,7 +87,7 @@ export const domainRouter = createTRPCRouter({
       z.object({
         clickTracking: z.boolean().optional(),
         openTracking: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       return updateDomain(input.id, {
@@ -125,10 +125,10 @@ export const domainRouter = createTRPCRouter({
         teamId: team.id,
         to: user.email,
         from: `hello@${domain.name}`,
-        subject: "Unsend test email",
-        text: "hello,\n\nUnsend is the best open source sending platform\n\ncheck out https://unsend.dev",
-        html: "<p>hello,</p><p>Unsend is the best open source sending platform<p><p>check out <a href='https://unsend.dev'>unsend.dev</a>",
+        subject: "useSend test email",
+        text: "hello,\n\nuseSend is the best open source sending platform\n\ncheck out https://usesend.com",
+        html: "<p>hello,</p><p>useSend is the best open source sending platform<p><p>check out <a href='https://usesend.com'>usesend.com</a>",
       });
-    }
+    },
   ),
 });

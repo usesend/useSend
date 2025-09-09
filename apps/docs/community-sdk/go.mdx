@@ -57,9 +57,9 @@ func main() {
 	request := &unsend.SendEmailRequest{
 		To: []string{"youremail@gmail.com"},
 		From: "hello@yourdomain.com",
-		Subject: "Unsend test email",
+    Subject: "Unsend test email",
 		Text: "hello,\n\nUnsend is the best open source sending platform",
-		Html: "<p>hello,</p><p>Unsend is the best open source sending platform</p><p>check out <a href='https://unsend.dev'>unsend.dev</a></p>",
+    Html: "<p>hello,</p><p>Unsend is the best open source sending platform</p><p>check out <a href='https://unsend.dev'>unsend.dev</a></p>",
 	}
 
 	response, err := client.Emails.SendEmail(context.Background(), *request)

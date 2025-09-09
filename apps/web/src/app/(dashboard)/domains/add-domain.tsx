@@ -1,14 +1,14 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import {
   Form,
   FormControl,
@@ -17,10 +17,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 
 import { api } from "~/trpc/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as tldts from "tldts";
@@ -33,13 +33,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@unsend/ui/src/select";
-import { toast } from "@unsend/ui/src/toaster";
+} from "@usesend/ui/src/select";
+import { toast } from "@usesend/ui/src/toaster";
+import { useUpgradeModalStore } from "~/store/upgradeModalStore";
+import { LimitReason } from "~/lib/constants/plans";
 
 const domainSchema = z.object({
-  region: z.string({ required_error: "Region is required" }).min(1, {
-    message: "Region is required",
-  }),
+  region: z.string().optional(),
   domain: z.string({ required_error: "Domain is required" }).min(1, {
     message: "Domain is required",
   }),
@@ -49,6 +49,9 @@ export default function AddDomain() {
   const [open, setOpen] = useState(false);
 
   const regionQuery = api.domain.getAvailableRegions.useQuery();
+  const limitsQuery = api.limits.get.useQuery({ type: LimitReason.DOMAIN });
+
+  const { openModal } = useUpgradeModalStore((s) => s.action);
 
   const addDomainMutation = api.domain.createDomain.useMutation();
 
@@ -63,6 +66,11 @@ export default function AddDomain() {
   const utils = api.useUtils();
   const router = useRouter();
 
+  const singleRegion =
+    regionQuery.data?.length === 1 ? regionQuery.data[0] : undefined;
+
+  const showRegionSelect = (regionQuery.data?.length ?? 0) > 1;
+
   async function onDomainAdd(values: z.infer<typeof domainSchema>) {
     const domain = tldts.getDomain(values.domain);
     if (!domain) {
@@ -73,10 +81,22 @@ export default function AddDomain() {
       return;
     }
 
+    if (!values.region && !singleRegion) {
+      domainForm.setError("region", {
+        message: "Region is required",
+      });
+      return;
+    }
+
+    if (limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
     addDomainMutation.mutate(
       {
         name: values.domain,
-        region: values.region,
+        region: singleRegion ?? values.region ?? "",
       },
       {
         onSuccess: async (data) => {
@@ -91,10 +111,19 @@ export default function AddDomain() {
     );
   }
 
+  function onOpenChange(_open: boolean) {
+    if (_open && limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
+    setOpen(_open);
+  }
+
   return (
     <Dialog
       open={open}
-      onOpenChange={(_open) => (_open !== open ? setOpen(_open) : null)}
+      onOpenChange={(_open) => (_open !== open ? onOpenChange(_open) : null)}
     >
       <DialogTrigger asChild>
         <Button>
@@ -132,46 +161,51 @@ export default function AddDomain() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={domainForm.control}
-                name="region"
-                render={({ field, formState }) => (
-                  <FormItem>
-                    <FormLabel>Region</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={regionQuery.isLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select region" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {regionQuery.data?.map((region) => (
-                          <SelectItem value={region} key={region}>
-                            {region}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formState.errors.region ? (
-                      <FormMessage />
-                    ) : (
-                      <FormDescription>
-                        Select the region from where the email is sent{" "}
-                      </FormDescription>
-                    )}
-                  </FormItem>
-                )}
-              />
+
+              {showRegionSelect && (
+                <FormField
+                  control={domainForm.control}
+                  name="region"
+                  render={({ field, formState }) => (
+                    <FormItem>
+                      <FormLabel>Region</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={regionQuery.isLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select region" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {regionQuery.data?.map((region) => (
+                            <SelectItem value={region} key={region}>
+                              {region}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formState.errors.region ? (
+                        <FormMessage />
+                      ) : (
+                        <FormDescription>
+                          Select the region from where the email is sent{" "}
+                        </FormDescription>
+                      )}
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <div className="flex justify-end">
                 <Button
                   className=" w-[100px]"
                   type="submit"
-                  disabled={addDomainMutation.isPending}
+                  disabled={
+                    addDomainMutation.isPending || limitsQuery.isLoading
+                  }
                 >
                   {addDomainMutation.isPending ? "Adding..." : "Add"}
                 </Button>

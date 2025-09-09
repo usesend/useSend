@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "../db";
+import { TeamService } from "../service/team-service";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -14,12 +15,9 @@ async function createCustomerForTeam(teamId: number) {
   const stripe = getStripe();
   const customer = await stripe.customers.create({ metadata: { teamId } });
 
-  await db.team.update({
-    where: { id: teamId },
-    data: {
-      stripeCustomerId: customer.id,
-      billingEmail: customer.email,
-    },
+  await TeamService.updateTeam(teamId, {
+    billingEmail: customer.email,
+    stripeCustomerId: customer.id,
   });
 
   return customer;
@@ -47,7 +45,11 @@ export async function createCheckoutSessionForTeam(teamId: number) {
     customerId = customer.id;
   }
 
-  if (!env.STRIPE_BASIC_PRICE_ID || !customerId) {
+  if (
+    !env.STRIPE_BASIC_PRICE_ID ||
+    !env.STRIPE_BASIC_USAGE_PRICE_ID ||
+    !customerId
+  ) {
     throw new Error("Stripe prices are not set");
   }
 
@@ -57,6 +59,10 @@ export async function createCheckoutSessionForTeam(teamId: number) {
     line_items: [
       {
         price: env.STRIPE_BASIC_PRICE_ID,
+        quantity: 1,
+      },
+      {
+        price: env.STRIPE_BASIC_USAGE_PRICE_ID,
       },
     ],
     success_url: `${env.NEXTAUTH_URL}/payments?success=true&session_id={CHECKOUT_SESSION_ID}`,
@@ -70,8 +76,13 @@ export async function createCheckoutSessionForTeam(teamId: number) {
   return session;
 }
 
-function getPlanFromPriceId(priceId: string) {
-  if (priceId === env.STRIPE_BASIC_PRICE_ID) {
+function getPlanFromPriceIds(priceIds: string[]) {
+  if (
+    (env.STRIPE_BASIC_PRICE_ID &&
+      priceIds.includes(env.STRIPE_BASIC_PRICE_ID)) ||
+    (env.STRIPE_LEGACY_BASIC_PRICE_ID &&
+      priceIds.includes(env.STRIPE_LEGACY_BASIC_PRICE_ID))
+  ) {
     return "BASIC";
   }
 
@@ -129,11 +140,16 @@ export async function syncStripeData(customerId: string) {
     return;
   }
 
+  const priceIds = subscription.items.data
+    .map((item) => item.price?.id)
+    .filter((id): id is string => Boolean(id));
+
   await db.subscription.upsert({
     where: { id: subscription.id },
     update: {
       status: subscription.status,
       priceId: subscription.items.data[0]?.price?.id || "",
+      priceIds: priceIds,
       currentPeriodEnd: new Date(
         subscription.items.data[0]?.current_period_end * 1000
       ),
@@ -150,6 +166,7 @@ export async function syncStripeData(customerId: string) {
       id: subscription.id,
       status: subscription.status,
       priceId: subscription.items.data[0]?.price?.id || "",
+      priceIds: priceIds,
       currentPeriodEnd: new Date(
         subscription.items.data[0]?.current_period_end * 1000
       ),
@@ -164,11 +181,11 @@ export async function syncStripeData(customerId: string) {
     },
   });
 
-  await db.team.update({
-    where: { id: team.id },
-    data: {
-      plan: getPlanFromPriceId(subscription.items.data[0]?.price?.id || ""),
-      isActive: subscription.status === "active",
-    },
+  await TeamService.updateTeam(team.id, {
+    plan:
+      subscription.status === "canceled"
+        ? "FREE"
+        : getPlanFromPriceIds(priceIds),
+    isActive: subscription.status === "active",
   });
 }

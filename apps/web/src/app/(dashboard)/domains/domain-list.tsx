@@ -3,12 +3,12 @@
 import { Domain } from "@prisma/client";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import { Switch } from "@unsend/ui/src/switch";
+import { Switch } from "@usesend/ui/src/switch";
 import { api } from "~/trpc/react";
 import React from "react";
 import { StatusIndicator } from "./status-indicator";
 import { DomainStatusBadge } from "./domain-badge";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 
 export default function DomainsList() {
   const domainsQuery = api.domain.domains.useQuery();

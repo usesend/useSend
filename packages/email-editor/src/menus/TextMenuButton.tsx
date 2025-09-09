@@ -1,5 +1,5 @@
-import { Button } from "@unsend/ui/src/button";
-import { cn } from "@unsend/ui/lib/utils";
+import { Button } from "@usesend/ui/src/button";
+import { cn } from "@usesend/ui/lib/utils";
 
 import { TextMenuItem } from "./TextMenu";
 

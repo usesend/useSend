@@ -1,12 +1,12 @@
 ---
 title: Local Development
-description: "A guide on how to run Unsend’s codebase locally"
+description: "A guide on how to run useSend’s codebase locally"
 icon: code
 ---
 
 ## Introduction
 
-Unsend's codebase is fully [open-source on github](https://github.com/unsend-dev/unsend)
+useSend's codebase is fully [open-source on github](https://github.com/usesend/usesend)
 
 Here is the codebase structure
 
@@ -27,7 +27,7 @@ The `apps` directory contains the code for:
 
 - `web`: Code for our dashboard and email infra
 
-- `marketing`: The code for the landing page of Unsend
+- `marketing`: The code for the landing page of useSend
 
 - `docs`: The documentation that you are currently reading.
 
@@ -35,7 +35,7 @@ The `packages` directory contains the code for:
 
 - `eslint-config` package contains shared ESLint configuration settings
 
-- `sdk` package contains typescript sdk for unsend rest api
+- `sdk` package contains TypeScript SDK for useSend REST API
 
 - `tailwind-config` This package contains a shared Tailwind CSS configuration.
 
@@ -43,9 +43,9 @@ The `packages` directory contains the code for:
 
 - `ui` This package is a collection of reusable UI components like buttons, badges, etc
 
-## Running Unsend locally
+## Running useSend locally
 
-To run Unsend, locally you will need to setup the following:
+To run useSend locally, you will need to setup the following:
 
 - [AWS](https://aws.amazon.com/) Free tier account will work.
 
@@ -57,13 +57,13 @@ To run Unsend, locally you will need to setup the following:
 
 <Steps>
   <Step title="Fork the repo">
-    Click on the fork button on [GitHub](https://github.com/unsend-dev/unsend) to fork the repo
+    Click on the fork button on [GitHub](https://github.com/usesend/usesend) to fork the repo
   </Step>
   <Step title="Clone the repo">
   Once the repo is forked you can clone it on your local machine using:
 
 ```bash
-git clone https://github.com/your-username/unsend.git
+git clone https://github.com/your-username/usesend.git
 ```
 
   </Step>
@@ -107,7 +107,7 @@ openssl rand -base64 32
     variables. for development email link will logged in the console.
   </Note>
 
-Next, [create a new GitHub App](https://github.com/settings/applications/new). This will allow you to sign in to Unsend with your GitHub account.4
+Next, [create a new GitHub App](https://github.com/settings/applications/new). This will allow you to sign in to useSend with your GitHub account.
 
 Add the homepage as:
 
@@ -131,7 +131,7 @@ Once the app is added you can add the Client ID under `GITHUB_ID`and CLIENT SECR
   will not be sent out.
 </Note>
 
-Next, we need to add in the [AWS credentials](https://docs.unsend.dev/get-started/create-aws-credentials). Follow the detailed guide to get the AWS credentials with accurate permissions and add them in:
+Next, we need to add in the [AWS credentials](https://docs.usesend.com/get-started/create-aws-credentials). Follow the detailed guide to get the AWS credentials with accurate permissions and add them in:
 
 ```
 AWS_ACCESS_KEY=<access-key-id>
@@ -141,7 +141,7 @@ AWS_SECRET_KEY=<secret-access-key>
   </Step>
 </Steps>
 
-## Running Unsend locally
+## Running useSend locally
 
 We are using a local Postgresql server and a local Redis server. But if you don't have docker you can also manually set these up.
 

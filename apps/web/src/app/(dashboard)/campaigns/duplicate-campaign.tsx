@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Dialog,
   DialogContent,
@@ -8,10 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import { api } from "~/trpc/react";
 import React, { useState } from "react";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { Copy } from "lucide-react";
 import { Campaign } from "@prisma/client";
 
@@ -35,7 +35,7 @@ export const DuplicateCampaign: React.FC<{
           setOpen(false);
           toast.success(`Campaign duplicated`);
         },
-      }
+      },
     );
   }
 
@@ -46,7 +46,7 @@ export const DuplicateCampaign: React.FC<{
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="p-0 hover:bg-transparent">
-          <Copy className="h-[18px] w-[18px] text-blue-600/80" />
+          <Copy className="h-[18px] w-[18px] text-blue/80" />
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -1,5 +1,5 @@
 import { NodeViewProps, NodeViewWrapper, NodeViewContent } from "@tiptap/react";
-import { cn } from "@unsend/ui/lib/utils";
+import { cn } from "@usesend/ui/lib/utils";
 
 export function UnsubscribeFooterComponent(props: NodeViewProps) {
   return (

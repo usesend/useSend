@@ -22,7 +22,7 @@ export function TeamInviteEmail({
   role = "member",
 }: TeamInviteEmailProps) {
   return (
-    <EmailLayout preview={`You've been invited to join ${teamName} on Unsend`}>
+    <EmailLayout preview={`You've been invited to join ${teamName} on useSend`}>
       <EmailHeader logoUrl={logoUrl} title="You're invited!" />
 
       <Container style={{ padding: "20px 0", textAlign: "left" as const }}>
@@ -50,7 +50,7 @@ export function TeamInviteEmail({
           {inviterName
             ? `${inviterName} has invited you to join `
             : "You have been invited to join "}
-          <strong style={{ color: "#000000" }}>{teamName}</strong> on Unsend
+          <strong style={{ color: "#000000" }}>{teamName}</strong> on useSend
           {role && role !== "member" && (
             <span>
               {" "}

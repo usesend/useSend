@@ -5,8 +5,9 @@ import AddSuppressionDialog from "./add-suppression";
 import BulkAddSuppressionsDialog from "./bulk-add-suppressions";
 import SuppressionList from "./suppression-list";
 import SuppressionStats from "./suppression-stats";
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import { Plus, Upload } from "lucide-react";
+import { H1 } from "@usesend/ui";
 
 export default function SuppressionsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -16,7 +17,7 @@ export default function SuppressionsPage() {
     <div>
       {/* Header */}
       <div className="flex justify-between items-center mb-10">
-        <h1 className="font-bold text-lg">Suppression List</h1>
+        <H1>Suppression List</H1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowBulkAddDialog(true)}>
             <Upload className="h-4 w-4 mr-2" />

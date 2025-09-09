@@ -1,19 +1,19 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 
 import { api } from "~/trpc/react";
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,7 +25,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
+import { useUpgradeModalStore } from "~/store/upgradeModalStore";
+import { LimitReason } from "~/lib/constants/plans";
 
 const contactBookSchema = z.object({
   name: z.string({ required_error: "Name is required" }).min(1, {
@@ -38,6 +40,11 @@ export default function AddContactBook() {
   const createContactBookMutation =
     api.contacts.createContactBook.useMutation();
 
+  const limitsQuery = api.limits.get.useQuery({
+    type: LimitReason.CONTACT_BOOK,
+  });
+  const { openModal } = useUpgradeModalStore((s) => s.action);
+
   const utils = api.useUtils();
 
   const contactBookForm = useForm<z.infer<typeof contactBookSchema>>({
@@ -48,6 +55,11 @@ export default function AddContactBook() {
   });
 
   function handleSave(values: z.infer<typeof contactBookSchema>) {
+    if (limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
     createContactBookMutation.mutate(
       {
         name: values.name,
@@ -59,14 +71,23 @@ export default function AddContactBook() {
           setOpen(false);
           toast.success("Contact book created successfully");
         },
-      }
+      },
     );
+  }
+
+  function onOpenChange(_open: boolean) {
+    if (_open && limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
+    setOpen(_open);
   }
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(_open) => (_open !== open ? setOpen(_open) : null)}
+      onOpenChange={(_open) => (_open !== open ? onOpenChange(_open) : null)}
     >
       <DialogTrigger asChild>
         <Button>
@@ -108,7 +129,9 @@ export default function AddContactBook() {
                 <Button
                   className=" w-[100px]"
                   type="submit"
-                  disabled={createContactBookMutation.isPending}
+                  disabled={
+                    createContactBookMutation.isPending || limitsQuery.isLoading
+                  }
                 >
                   {createContactBookMutation.isPending
                     ? "Creating..."

@@ -1,0 +1,164 @@
+---
+title: Python SDK
+description: Official UseSend Python SDK for sending emails and managing contacts.
+icon: python
+---
+
+This guide shows how to install and use the official `usesend` Python SDK.
+
+## Installation
+
+Install from PyPI:
+
+```bash
+pip install usesend
+```
+
+## Initialize
+
+```python
+from usesend import UseSend, types
+
+
+# Option A: pass values directly (helpful in scripts/tests)
+client = UseSend("us_xxx")
+
+# Option B: custom base URL (self-hosted)
+client = UseSend("us_xxx", url="https://your-domain.example")
+```
+
+## Send an email
+
+`EmailCreate` is a TypedDict for editor hints; at runtime you pass a regular dict. The client accepts `from` or `from_` (it normalizes `from_` to `from`).
+
+```python
+from usesend import UseSend, types
+
+client = UseSend("us_xxx")
+
+payload: types.EmailCreate = {
+    "to": "user@example.com",
+    "from": "no-reply@yourdomain.com",
+    "subject": "Welcome",
+    "html": "<strong>Hello!</strong>",
+}
+
+data, err = client.emails.send(payload)
+print(data or err)
+```
+
+Attachments and scheduling:
+
+```python
+from datetime import datetime, timedelta
+
+payload: types.EmailCreate = {
+    "to": ["user1@example.com", "user2@example.com"],
+    "from": "no-reply@yourdomain.com",
+    "subject": "Report",
+    "text": "See attached.",
+    "attachments": [
+        {"filename": "report.txt", "content": "SGVsbG8gd29ybGQ="},  # base64
+    ],
+    "scheduledAt": datetime.utcnow() + timedelta(minutes=10),
+}
+data, err = client.emails.create(payload)
+```
+
+## Batch send
+
+```python
+items: list[types.EmailBatchItem] = [
+    {"to": "a@example.com", "from": "no-reply@yourdomain.com", "subject": "A", "html": "<p>A</p>"},
+    {"to": "b@example.com", "from": "no-reply@yourdomain.com", "subject": "B", "html": "<p>B</p>"},
+]
+data, err = client.emails.batch(items)
+```
+
+## Retrieve and manage emails
+
+Get an email:
+
+```python
+email, err = client.emails.get("email_123")
+```
+
+Update schedule time:
+
+```python
+from datetime import datetime, timedelta
+
+update: types.EmailUpdate = {"scheduledAt": datetime.utcnow() + timedelta(hours=1)}
+data, err = client.emails.update("email_123", update)
+```
+
+Cancel a scheduled email:
+
+```python
+data, err = client.emails.cancel("email_123")
+```
+
+## Contacts
+
+All contact operations require a contact book ID (`book_id`).
+
+Create a contact:
+
+```python
+create: types.ContactCreate = {
+    "email": "user@example.com",
+    "firstName": "Jane",
+    "properties": {"plan": "pro"},
+}
+data, err = client.contacts.create("book_123", create)
+```
+
+Get a contact:
+
+```python
+contact, err = client.contacts.get("book_123", "contact_456")
+```
+
+Update a contact:
+
+```python
+update: types.ContactUpdate = {"subscribed": False}
+data, err = client.contacts.update("book_123", "contact_456", update)
+```
+
+Upsert a contact:
+
+```python
+upsert: types.ContactUpsert = {
+    "email": "user@example.com",
+    "firstName": "Jane",
+}
+data, err = client.contacts.upsert("book_123", "contact_456", upsert)
+```
+
+Delete a contact:
+
+```python
+data, err = client.contacts.delete(book_id="book_123", contact_id="contact_456")
+```
+
+## Error handling
+
+By default the client raises `UseSendHTTPError` for non-2xx responses. To handle errors as return values, pass `raise_on_error=False`.
+
+```python
+from usesend import UseSend, UseSendHTTPError
+
+# Raises exceptions on errors (default)
+client = UseSend("us_xxx")
+try:
+    data, _ = client.emails.get("email_123")
+except UseSendHTTPError as e:
+    print("request failed:", e)
+
+# Returns (None, error) instead of raising
+client = UseSend("us_xxx", raise_on_error=False)
+data, err = client.emails.get("email_123")
+if err:
+    print("error:", err)
+```

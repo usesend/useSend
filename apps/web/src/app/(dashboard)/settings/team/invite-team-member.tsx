@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import { PlusIcon } from "lucide-react";
 import {
   Dialog,
@@ -9,18 +9,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@unsend/ui/src/select";
-import { Input } from "@unsend/ui/src/input";
+} from "@usesend/ui/src/select";
+import { Input } from "@usesend/ui/src/input";
 import { useForm } from "react-hook-form";
 import { api } from "~/trpc/react";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -31,9 +31,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 import { useTeam } from "~/providers/team-context";
 import { isCloud, isSelfHosted } from "~/utils/common";
+import { useUpgradeModalStore } from "~/store/upgradeModalStore";
+import { LimitReason } from "~/lib/constants/plans";
 
 const inviteTeamMemberSchema = z.object({
   email: z
@@ -50,6 +52,11 @@ export default function InviteTeamMember() {
   const { currentIsAdmin } = useTeam();
   const { data: domains } = api.domain.domains.useQuery();
 
+  const limitsQuery = api.limits.get.useQuery({
+    type: LimitReason.TEAM_MEMBER,
+  });
+  const { openModal } = useUpgradeModalStore((s) => s.action);
+
   const [open, setOpen] = useState(false);
 
   const form = useForm<FormData>({
@@ -65,6 +72,11 @@ export default function InviteTeamMember() {
   const createInvite = api.team.createTeamInvite.useMutation();
 
   function onSubmit(values: FormData) {
+    if (limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
     createInvite.mutate(
       {
         email: values.email,
@@ -82,11 +94,16 @@ export default function InviteTeamMember() {
           console.error(error);
           toast.error(error.message || "Failed to send invitation");
         },
-      }
+      },
     );
   }
 
   async function onCopyLink() {
+    if (limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
     createInvite.mutate(
       {
         email: form.getValues("email"),
@@ -97,7 +114,7 @@ export default function InviteTeamMember() {
         onSuccess: (invite) => {
           void utils.team.getTeamInvites.invalidate();
           navigator.clipboard.writeText(
-            `${location.origin}/join-team?inviteId=${invite.id}`
+            `${location.origin}/join-team?inviteId=${invite.id}`,
           );
           form.reset();
           setOpen(false);
@@ -107,8 +124,17 @@ export default function InviteTeamMember() {
           console.error(error);
           toast.error(error.message || "Failed to copy invitation link");
         },
-      }
+      },
     );
+  }
+
+  function onOpenChange(_open: boolean) {
+    if (_open && limitsQuery.data?.isLimitReached) {
+      openModal(limitsQuery.data.reason);
+      return;
+    }
+
+    setOpen(_open);
   }
 
   if (!currentIsAdmin) {
@@ -116,7 +142,10 @@ export default function InviteTeamMember() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(_open) => (_open !== open ? onOpenChange(_open) : null)}
+    >
       <DialogTrigger asChild>
         <Button size="sm">
           <PlusIcon className="mr-2 h-4 w-4" />
@@ -201,7 +230,7 @@ export default function InviteTeamMember() {
               </Button>
               {isSelfHosted() ? (
                 <Button
-                  disabled={createInvite.isPending}
+                  disabled={createInvite.isPending || limitsQuery.isLoading}
                   isLoading={createInvite.isPending}
                   className="w-[150px]"
                   onClick={form.handleSubmit(onCopyLink)}
@@ -212,7 +241,7 @@ export default function InviteTeamMember() {
               {isCloud() || domains?.length ? (
                 <Button
                   type="submit"
-                  disabled={createInvite.isPending}
+                  disabled={createInvite.isPending || limitsQuery.isLoading}
                   isLoading={createInvite.isPending}
                   className="w-[150px]"
                 >

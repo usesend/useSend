@@ -1,4 +1,4 @@
-import { EmailRenderer } from "@unsend/email-editor/src/renderer";
+import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,8 @@ export async function POST(req: Request) {
     const html = await renderer.render({
       shouldReplaceVariableValues: true,
       linkValues: {
-        "{{unsend_unsubscribe_url}}": "https://unsend.com/unsubscribe",
+        "{{usesend_unsubscribe_url}}": "https://usesend.com/unsubscribe",
+        "{{unsend_unsubscribe_url}}": "https://usesend.com/unsubscribe",
       },
     });
     console.log(`Time taken: ${Date.now() - time}ms`);
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
           "Access-Control-Allow-Methods": "POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
-      }
+      },
     );
   }
 }

@@ -1,5 +1,5 @@
-import { cn, useTheme } from "@unsend/ui";
-import { Button } from "@unsend/ui/src/button";
+import { cn, useTheme } from "@usesend/ui";
+import { Button } from "@usesend/ui/src/button";
 import { Monitor, Sun, Moon, SunMoonIcon } from "lucide-react";
 
 export const ThemeSwitcher = () => {
@@ -17,7 +17,7 @@ export const ThemeSwitcher = () => {
           size="sm"
           className={cn(
             "p-0.5 rounded-[0.20rem]  h-5 w-5",
-            theme === "system" ? " bg-muted" : ""
+            theme === "system" ? " bg-muted" : "",
           )}
           onClick={() => setTheme("system")}
         >
@@ -28,7 +28,7 @@ export const ThemeSwitcher = () => {
           size="sm"
           className={cn(
             "p-0.5 rounded-[0.20rem]  h-5 w-5",
-            theme === "light" ? " bg-muted" : ""
+            theme === "light" ? " bg-muted" : "",
           )}
           onClick={() => setTheme("light")}
         >
@@ -39,7 +39,7 @@ export const ThemeSwitcher = () => {
           size="sm"
           className={cn(
             "p-0.5 rounded-[0.20rem]  h-5 w-5",
-            theme === "dark" ? "bg-muted" : ""
+            theme === "dark" ? "bg-muted" : "",
           )}
           onClick={() => setTheme("dark")}
         >

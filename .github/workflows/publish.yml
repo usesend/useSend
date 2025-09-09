@@ -24,7 +24,7 @@ jobs:
           - warp-ubuntu-latest-x64-2x
           - warp-ubuntu-latest-arm64-2x
         app:
-          - name: unsend
+          - name: usesend
             dockerfile: ./docker/Dockerfile
             context: .
           - name: smtp-proxy
@@ -65,16 +65,16 @@ jobs:
           docker build \
             -f "$DOCKER_FILE" \
             --progress=plain \
-            -t "unsend/$APP-$BUILD_PLATFORM:latest" \
-            -t "unsend/$APP-$BUILD_PLATFORM:$GIT_SHA" \
-            -t "unsend/$APP-$BUILD_PLATFORM:$APP_VERSION" \
-            -t "ghcr.io/unsend-dev/$APP-$BUILD_PLATFORM:latest" \
-            -t "ghcr.io/unsend-dev/$APP-$BUILD_PLATFORM:$GIT_SHA" \
-            -t "ghcr.io/unsend-dev/$APP-$BUILD_PLATFORM:$APP_VERSION" \
+            -t "usesend/$APP-$BUILD_PLATFORM:latest" \
+            -t "usesend/$APP-$BUILD_PLATFORM:$GIT_SHA" \
+            -t "usesend/$APP-$BUILD_PLATFORM:$APP_VERSION" \
+            -t "ghcr.io/usesend/$APP-$BUILD_PLATFORM:latest" \
+            -t "ghcr.io/usesend/$APP-$BUILD_PLATFORM:$GIT_SHA" \
+            -t "ghcr.io/usesend/$APP-$BUILD_PLATFORM:$APP_VERSION" \
             "$CONTEXT"
 
       - name: Push the docker image to DockerHub
-        run: docker push --all-tags "unsend/$APP-$BUILD_PLATFORM"
+        run: docker push --all-tags "usesend/$APP-$BUILD_PLATFORM"
         env:
           BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
           APP: ${{ matrix.app.name }}
@@ -82,7 +82,7 @@ jobs:
           CONTEXT: ${{ matrix.app.context }}
 
       - name: Push the docker image to GitHub Container Registry
-        run: docker push --all-tags "ghcr.io/unsend-dev/$APP-$BUILD_PLATFORM"
+        run: docker push --all-tags "ghcr.io/usesend/$APP-$BUILD_PLATFORM"
         env:
           BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
           APP: ${{ matrix.app.name }}
@@ -117,25 +117,25 @@ jobs:
           APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
           GIT_SHA="$(git rev-parse HEAD)"
 
-          for APP_NAME in unsend smtp-proxy; do
+          for APP_NAME in usesend smtp-proxy; do
             docker manifest create \
-              unsend/$APP_NAME:latest \
-              --amend unsend/$APP_NAME-amd64:latest \
-              --amend unsend/$APP_NAME-arm64:latest
+              usesend/$APP_NAME:latest \
+              --amend usesend/$APP_NAME-amd64:latest \
+              --amend usesend/$APP_NAME-arm64:latest
 
             docker manifest create \
-              unsend/$APP_NAME:$GIT_SHA \
-              --amend unsend/$APP_NAME-amd64:$GIT_SHA \
-              --amend unsend/$APP_NAME-arm64:$GIT_SHA
+              usesend/$APP_NAME:$GIT_SHA \
+              --amend usesend/$APP_NAME-amd64:$GIT_SHA \
+              --amend usesend/$APP_NAME-arm64:$GIT_SHA
 
             docker manifest create \
-              unsend/$APP_NAME:$APP_VERSION \
-              --amend unsend/$APP_NAME-amd64:$APP_VERSION \
-              --amend unsend/$APP_NAME-arm64:$APP_VERSION
+              usesend/$APP_NAME:$APP_VERSION \
+              --amend usesend/$APP_NAME-amd64:$APP_VERSION \
+              --amend usesend/$APP_NAME-arm64:$APP_VERSION
 
-            docker manifest push unsend/$APP_NAME:latest
-            docker manifest push unsend/$APP_NAME:$GIT_SHA
-            docker manifest push unsend/$APP_NAME:$APP_VERSION
+            docker manifest push usesend/$APP_NAME:latest
+            docker manifest push usesend/$APP_NAME:$GIT_SHA
+            docker manifest push usesend/$APP_NAME:$APP_VERSION
           done
 
       - name: Create and push GitHub Container Registry manifest
@@ -143,23 +143,23 @@ jobs:
           APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
           GIT_SHA="$(git rev-parse HEAD)"
 
-          for APP_NAME in unsend smtp-proxy; do
+          for APP_NAME in usesend smtp-proxy; do
             docker manifest create \
-              ghcr.io/unsend-dev/$APP_NAME:latest \
-              --amend ghcr.io/unsend-dev/$APP_NAME-amd64:latest \
-              --amend ghcr.io/unsend-dev/$APP_NAME-arm64:latest
+              ghcr.io/usesend/$APP_NAME:latest \
+              --amend ghcr.io/usesend/$APP_NAME-amd64:latest \
+              --amend ghcr.io/usesend/$APP_NAME-arm64:latest
 
             docker manifest create \
-              ghcr.io/unsend-dev/$APP_NAME:$GIT_SHA \
-              --amend ghcr.io/unsend-dev/$APP_NAME-amd64:$GIT_SHA \
-              --amend ghcr.io/unsend-dev/$APP_NAME-arm64:$GIT_SHA
+              ghcr.io/usesend/$APP_NAME:$GIT_SHA \
+              --amend ghcr.io/usesend/$APP_NAME-amd64:$GIT_SHA \
+              --amend ghcr.io/usesend/$APP_NAME-arm64:$GIT_SHA
 
             docker manifest create \
-              ghcr.io/unsend-dev/$APP_NAME:$APP_VERSION \
-              --amend ghcr.io/unsend-dev/$APP_NAME-amd64:$APP_VERSION \
-              --amend ghcr.io/unsend-dev/$APP_NAME-arm64:$APP_VERSION
+              ghcr.io/usesend/$APP_NAME:$APP_VERSION \
+              --amend ghcr.io/usesend/$APP_NAME-amd64:$APP_VERSION \
+              --amend ghcr.io/usesend/$APP_NAME-arm64:$APP_VERSION
 
-            docker manifest push ghcr.io/unsend-dev/$APP_NAME:latest
-            docker manifest push ghcr.io/unsend-dev/$APP_NAME:$GIT_SHA
-            docker manifest push ghcr.io/unsend-dev/$APP_NAME:$APP_VERSION
+            docker manifest push ghcr.io/usesend/$APP_NAME:latest
+            docker manifest push ghcr.io/usesend/$APP_NAME:$GIT_SHA
+            docker manifest push ghcr.io/usesend/$APP_NAME:$APP_VERSION
           done

@@ -1,27 +1,27 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import * as chrono from "chrono-node";
 import { api } from "~/trpc/react";
 import { useRef, useState } from "react";
 import { Edit3 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSubContent,
   DropdownMenuTrigger,
-} from "@unsend/ui/src/dropdown-menu";
+} from "@usesend/ui/src/dropdown-menu";
 import {
   Command,
   CommandDialog,
@@ -31,7 +31,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@unsend/ui/src/command";
+} from "@usesend/ui/src/command";
 
 export const EditSchedule: React.FC<{
   emailId: string;

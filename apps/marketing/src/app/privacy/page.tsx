@@ -1,154 +1,197 @@
-import React from "react";
+import type { Metadata } from "next";
+import { TopNav } from "~/components/TopNav";
 
-const PrivacyPolicy = () => {
-  return (
-    <div className="mx-auto mt-20">
-      <div className="flex flex-col gap-12">
-        <div>
-          <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-          <p className="mb-4 text-muted-foreground">
-            Last Updated: Aug 22, 2024
-          </p>
-
-          <p className="mb-4 text-primary">
-            Unsend is committed to protecting your privacy. This Privacy Policy
-            outlines how we collect, use, and disclose your information when you
-            use Unsend.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold mb-4">
-            1. Information We Collect
-          </h2>
-
-          <h3 className="text-lg font-semibold mt-4 mb-2">
-            Personal Information
-          </h3>
-          <p className="mb-4 opacity-90 ">
-            When you create an account, we collect your email address and name.
-          </p>
-
-          <h3 className="text-lg font-semibold mt-4 mb-2">Usage Data</h3>
-          <p className="mb-4 opacity-90 ">
-            We automatically collect information about how you interact with the
-            Service, such as pages visited and features used.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">
-            2. How We Use Your Information
-          </h2>
-          <p className="mb-4 opacity-90 ">
-            We use your information for the following purposes:
-          </p>
-          <ul className="list-disc list-inside mb-4 opacity-90">
-            <li>To provide and maintain the Service</li>
-            <li>To improve and personalize your experience with the Service</li>
-            <li>
-              To communicate with you about updates, promotions, and customer
-              support
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">
-            3. Sharing Your Information
-          </h2>
-          <p className="mb-4 opacity-90">
-            We do not sell, rent or your personal information with third
-            parties.
-          </p>
-          <p className="mb-4 opacity-90">
-            We are using following third party services to run this service.
-          </p>
-          <ul className="list-disc list-inside mb-4 opacity-90 gap-2 flex flex-col mt-2">
-            <li>
-              <a
-                href="https://railway.app/"
-                className=" underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Railway
-              </a>
-              : this is where unsend is hosted. currently in US region
-            </li>
-            <li>
-              <a
-                href="https://aws.amazon.com/ses/"
-                className=" underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                AWS
-              </a>
-              : unsend uses AWS SES to process your mails
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">4. Data Security</h2>
-          <p className="mb-4 opacity-90">
-            We take reasonable steps to protect your information from
-            unauthorized access, use, or disclosure. However, no method of
-            transmission or storage is completely secure, and we cannot
-            guarantee the absolute security of your information.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">5. Data Retention</h2>
-          <p className="mb-4 opacity-90">
-            We retain your personal information for as long as necessary to
-            provide the Service, comply with legal obligations, resolve
-            disputes, and enforce our agreements.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">6. Your Rights</h2>
-          <p className="mb-4 opacity-90">
-            You may access, update, or request the deletion of your personal
-            information by contacting us at hello@unsend.dev.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">7. Children's Privacy</h2>
-          <p className="mb-4 opacity-90">
-            The Service is not intended for users under 13 years old. We do not
-            knowingly collect personal information from children under 13. If
-            you are a parent or guardian and believe your child has provided us
-            with personal information, please contact us at hello@unsend.dev.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">
-            8. Changes to This Policy
-          </h2>
-          <p className="mb-4 opacity-90">
-            We may update this Policy from time to time. We will notify you of
-            any changes by posting the updated Policy on this page. By
-            continuing to use the Service, you agree to be bound by the updated
-            Policy.
-          </p>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">9. Contact</h2>
-          <p className="mb-4 opacity-90">
-            If you have any questions or concerns regarding this Privacy Policy,
-            please contact us at hello@unsend.dev.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+export const metadata: Metadata = {
+  title: "Privacy Policy – useSend",
+  description: "Simple privacy policy for the useSend marketing site.",
 };
 
-export default PrivacyPolicy;
+export default function PrivacyPage() {
+  return (
+    <main className="min-h-screen bg-sidebar-background text-foreground">
+      <TopNav />
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <h1 className="text-3xl font-semibold tracking-tight mb-6">
+          Privacy Policy
+        </h1>
+        <p className="text-muted-foreground mb-8">
+          This Privacy Policy explains how we collect, use, and share
+          information when you visit or interact with the useSend marketing
+          website at usesend.com. It also summarizes the limited information we
+          process when you sign up for our product and receive transactional or
+          occasional marketing emails.
+        </p>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Who We Are</h2>
+          <p className="text-muted-foreground">
+            useSend ("we", "us") operates the marketing website at
+            <span className="mx-1 font-mono">usesend.com</span>. The marketing
+            site is hosted on Vercel. Our application is hosted on Railway. We
+            are the controller of the information described in this policy for
+            the marketing site. If you have questions about this policy or your
+            data, contact us at
+            <a
+              href="mailto:hey@usesend.com"
+              className="ml-1 underline decoration-dotted"
+            >
+              hey@usesend.com
+            </a>
+            .
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">What We Collect</h2>
+          <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+            <li>
+              <span className="text-foreground">
+                Usage and device data (marketing site):
+              </span>{" "}
+              We use Simple Analytics to understand overall traffic and usage
+              patterns (e.g., pages visited, referrers, device type). Simple
+              Analytics is a privacy‑friendly analytics provider and does not
+              use cookies for tracking. Data is aggregated and not used to
+              identify you.
+            </li>
+            <li>
+              <span className="text-foreground">Server and security logs:</span>{" "}
+              Our hosting providers (Vercel for the marketing site; Railway for
+              the app) may process IP addresses and basic request metadata
+              transiently for security, reliability, and debugging.
+            </li>
+            <li>
+              <span className="text-foreground">
+                Account and email data (product):
+              </span>{" "}
+              If you sign up for useSend, we process your account information
+              and send transactional emails. If you opt in, we may also send
+              occasional marketing emails. You can unsubscribe at any time via
+              the link in those emails.
+            </li>
+          </ul>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">How We Use Information</h2>
+          <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+            <li>Operate, secure, and maintain the marketing site and app.</li>
+            <li>
+              Understand aggregated usage to improve performance and content.
+            </li>
+            <li>
+              Deliver transactional emails related to your account or use.
+            </li>
+            <li>Send occasional marketing emails to subscribers who opt in.</li>
+            <li>Comply with legal obligations and enforce our terms.</li>
+          </ul>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Legal Bases</h2>
+          <p className="text-muted-foreground">
+            Where applicable (e.g., in the EEA/UK), we rely on legitimate
+            interests to operate and secure our services and to measure
+            aggregated site usage, and on your consent for marketing emails. We
+            may rely on contract and legal obligation where relevant.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Sharing and Processors</h2>
+          <p className="text-muted-foreground">
+            We share information with service providers who process data on our
+            behalf, including:
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+            <li>
+              <span className="text-foreground">Hosting:</span> Vercel
+              (marketing site) and Railway (application) for serving content,
+              networking, and security.
+            </li>
+            <li>
+              <span className="text-foreground">Analytics:</span> Simple
+              Analytics for aggregated, privacy‑friendly usage metrics on the
+              marketing site.
+            </li>
+            <li>
+              <span className="text-foreground">Email delivery:</span> We send
+              transactional emails and, for subscribers who opt in, occasional
+              marketing emails.
+            </li>
+          </ul>
+          <p className="text-muted-foreground">
+            We do not sell your personal information. We may disclose
+            information if required by law or to protect our rights, users, or
+            the public.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Retention</h2>
+          <p className="text-muted-foreground">
+            We retain information only for as long as necessary to fulfill the
+            purposes described in this policy, including security, analytics,
+            and legal compliance. Aggregated analytics do not identify
+            individuals.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">International Transfers</h2>
+          <p className="text-muted-foreground">
+            Our providers may process data in locations outside of your country
+            of residence. Where required, we implement appropriate safeguards
+            for cross‑border transfers.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Your Rights</h2>
+          <p className="text-muted-foreground">
+            Depending on your location, you may have rights to access, correct,
+            delete, or export your information; to object to or restrict certain
+            processing; and to withdraw consent where processing is based on
+            consent. To exercise these rights, contact us using the details on
+            our website. We may ask you to verify your identity before acting on
+            a request.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Contact</h2>
+          <p className="text-muted-foreground">
+            For privacy requests or questions, email us at
+            <a
+              href="mailto:hey@usesend.com"
+              className="ml-1 underline decoration-dotted"
+            >
+              hey@usesend.com
+            </a>
+            .
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Children</h2>
+          <p className="text-muted-foreground">
+            Our services are not directed to children, and we do not knowingly
+            collect personal information from children.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-10">
+          <h2 className="text-xl font-medium">Changes</h2>
+          <p className="text-muted-foreground">
+            We may update this policy from time to time. The "Last updated" date
+            below reflects the most recent changes.
+          </p>
+        </section>
+
+        <p className="text-xs text-muted-foreground">
+          Last updated: {new Date().toLocaleDateString()}
+        </p>
+      </div>
+    </main>
+  );
+}

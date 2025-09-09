@@ -6,15 +6,15 @@ import { useUrlState } from "~/hooks/useUrlState";
 import { useDebouncedCallback } from "use-debounce";
 import { SuppressionReason } from "@prisma/client";
 import { formatDistanceToNow } from "date-fns";
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@unsend/ui/src/select";
+} from "@usesend/ui/src/select";
 import {
   Table,
   TableBody,
@@ -22,10 +22,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@unsend/ui/src/table";
+} from "@usesend/ui/src/table";
 import { Trash2, Download } from "lucide-react";
 import RemoveSuppressionDialog from "./remove-suppression";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 
 const reasonLabels = {
   HARD_BOUNCE: "Hard Bounce",

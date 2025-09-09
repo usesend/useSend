@@ -1,14 +1,14 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Textarea } from "@unsend/ui/src/textarea";
+import { Button } from "@usesend/ui/src/button";
+import { Textarea } from "@usesend/ui/src/textarea";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import {
   Form,
   FormControl,
@@ -17,7 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 
 import { api } from "~/trpc/react";
 import { useState } from "react";
@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 
 const contactsSchema = z.object({
   contacts: z.string({ required_error: "Contacts are required" }).min(1, {

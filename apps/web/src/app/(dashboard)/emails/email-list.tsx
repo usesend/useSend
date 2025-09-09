@@ -7,7 +7,7 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "@unsend/ui/src/table";
+} from "@usesend/ui/src/table";
 import { api } from "~/trpc/react";
 import {
   Mail,
@@ -23,35 +23,35 @@ import { EmailStatusBadge } from "./email-status-badge";
 import EmailDetails from "./email-details";
 import dynamic from "next/dynamic";
 import { useUrlState } from "~/hooks/useUrlState";
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@unsend/ui/src/select";
-import Spinner from "@unsend/ui/src/spinner";
+} from "@usesend/ui/src/select";
+import Spinner from "@usesend/ui/src/spinner";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@unsend/ui/src/tooltip";
-import { Input } from "@unsend/ui/src/input";
+} from "@usesend/ui/src/tooltip";
+import { Input } from "@usesend/ui/src/input";
 import { DEFAULT_QUERY_LIMIT } from "~/lib/constants";
 import { useDebouncedCallback } from "use-debounce";
 import { useState } from "react";
-import { SheetTitle, SheetDescription } from "@unsend/ui/src/sheet";
+import { SheetTitle, SheetDescription } from "@usesend/ui/src/sheet";
 
 /* Stupid hydrating error. And I so stupid to understand the stupid NextJS docs */
 const DynamicSheetWithNoSSR = dynamic(
-  () => import("@unsend/ui/src/sheet").then((mod) => mod.Sheet),
-  { ssr: false }
+  () => import("@usesend/ui/src/sheet").then((mod) => mod.Sheet),
+  { ssr: false },
 );
 
 const DynamicSheetContentWithNoSSR = dynamic(
-  () => import("@unsend/ui/src/sheet").then((mod) => mod.SheetContent),
-  { ssr: false }
+  () => import("@usesend/ui/src/sheet").then((mod) => mod.SheetContent),
+  { ssr: false },
 );
 
 export default function EmailsList() {
@@ -231,7 +231,7 @@ export default function EmailsList() {
                             Scheduled at{" "}
                             {formatDate(
                               email.scheduledAt,
-                              "MMM dd'th', hh:mm a"
+                              "MMM dd'th', hh:mm a",
                             )}
                           </TooltipContent>
                         </Tooltip>
@@ -247,7 +247,7 @@ export default function EmailsList() {
                     {email.latestStatus !== "SCHEDULED"
                       ? formatDate(
                           email.scheduledAt ?? email.createdAt,
-                          "MMM do, hh:mm a"
+                          "MMM do, hh:mm a",
                         )
                       : "--"}
                   </TableCell>
@@ -267,7 +267,7 @@ export default function EmailsList() {
           open={!!selectedEmail}
           onOpenChange={handleSheetChange}
         >
-          <DynamicSheetContentWithNoSSR className=" sm:max-w-3xl">
+          <DynamicSheetContentWithNoSSR className="sm:max-w-3xl overflow-y-auto no-scrollbar">
             <SheetTitle className="sr-only">Email Details</SheetTitle>
             <SheetDescription className="sr-only">
               Detailed view of the selected email.
@@ -301,39 +301,39 @@ const EmailIcon: React.FC<{ status: EmailStatus }> = ({ status }) => {
     case "SENT":
       return (
         // <div className="border border-gray-400/60 p-2 rounded-lg bg-gray-400/10">
-        <Mail className="w-6 h-6 text-gray-500 " />
+        <Mail className="w-6 h-6 text-gray" />
         // </div>
       );
     case "DELIVERED":
       return (
         // <div className="border border-emerald-600/60 p-2 rounded-lg bg-emerald-500/10">
-        <MailCheck className="w-6 h-6 text-emerald-800" />
+        <MailCheck className="w-6 h-6 text-green" />
         // </div>
       );
     case "BOUNCED":
     case "FAILED":
       return (
         // <div className="border border-red-600/60 p-2 rounded-lg bg-red-500/10">
-        <MailX className="w-6 h-6 text-red-900" />
+        <MailX className="w-6 h-6 text-red" />
         // </div>
       );
     case "CLICKED":
       return (
         // <div className="border border-cyan-600/60 p-2 rounded-lg bg-cyan-500/10">
-        <MailSearch className="w-6 h-6 text-cyan-700" />
+        <MailSearch className="w-6 h-6 text-blue" />
         // </div>
       );
     case "OPENED":
       return (
         // <div className="border border-indigo-600/60 p-2 rounded-lg bg-indigo-500/10">
-        <MailOpen className="w-6 h-6 text-indigo-700" />
+        <MailOpen className="w-6 h-6 text-purple" />
         // </div>
       );
     case "DELIVERY_DELAYED":
     case "COMPLAINED":
       return (
         // <div className="border border-yellow-600/60 p-2 rounded-lg bg-yellow-500/10">
-        <MailWarning className="w-6 h-6 text-yellow-700" />
+        <MailWarning className="w-6 h-6 text-yellow" />
         // </div>
       );
     default:

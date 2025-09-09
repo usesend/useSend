@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Form,
   FormControl,
@@ -12,12 +12,12 @@ import {
   FormField,
   FormItem,
   FormMessage,
-} from "@unsend/ui/src/form";
-import { Input } from "@unsend/ui/src/input";
-import { Spinner } from "@unsend/ui/src/spinner";
+} from "@usesend/ui/src/form";
+import { Input } from "@usesend/ui/src/input";
+import { Spinner } from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import JoinTeam from "./JoinTeam";
 
 const FormSchema = z.object({

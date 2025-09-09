@@ -1,6 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { env } from "~/env";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
@@ -71,6 +70,7 @@ export const invitationRouter = createTRPCRouter({
           id: input.inviteId,
         },
       });
+      // No need to invalidate cache here again
 
       return true;
     }),

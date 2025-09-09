@@ -1,4 +1,4 @@
-import { Unsend } from "./unsend";
+import { UseSend } from "./usesend";
 import { paths } from "../types/schema";
 import { ErrorResponse } from "../types";
 
@@ -49,15 +49,15 @@ type DeleteContactResponse = {
 };
 
 export class Contacts {
-  constructor(private readonly unsend: Unsend) {
-    this.unsend = unsend;
+  constructor(private readonly usesend: UseSend) {
+    this.usesend = usesend;
   }
 
   async create(
     contactBookId: string,
     payload: CreateContactPayload
   ): Promise<CreateContactResponse> {
-    const data = await this.unsend.post<CreateContactResponseSuccess>(
+    const data = await this.usesend.post<CreateContactResponseSuccess>(
       `/contactBooks/${contactBookId}/contacts`,
       payload
     );
@@ -69,7 +69,7 @@ export class Contacts {
     contactBookId: string,
     contactId: string
   ): Promise<GetContactResponse> {
-    const data = await this.unsend.get<GetContactResponseSuccess>(
+    const data = await this.usesend.get<GetContactResponseSuccess>(
       `/contactBooks/${contactBookId}/contacts/${contactId}`
     );
     return data;
@@ -80,7 +80,7 @@ export class Contacts {
     contactId: string,
     payload: UpdateContactPayload
   ): Promise<UpdateContactResponse> {
-    const data = await this.unsend.patch<UpdateContactResponseSuccess>(
+    const data = await this.usesend.patch<UpdateContactResponseSuccess>(
       `/contactBooks/${contactBookId}/contacts/${contactId}`,
       payload
     );
@@ -93,7 +93,7 @@ export class Contacts {
     contactId: string,
     payload: UpsertContactPayload
   ): Promise<UpsertContactResponse> {
-    const data = await this.unsend.put<UpsertContactResponseSuccess>(
+    const data = await this.usesend.put<UpsertContactResponseSuccess>(
       `/contactBooks/${contactBookId}/contacts/${contactId}`,
       payload
     );
@@ -105,7 +105,7 @@ export class Contacts {
     contactBookId: string,
     contactId: string
   ): Promise<DeleteContactResponse> {
-    const data = await this.unsend.delete<{ success: boolean }>(
+    const data = await this.usesend.delete<{ success: boolean }>(
       `/contactBooks/${contactBookId}/contacts/${contactId}`
     );
 

@@ -1,29 +1,29 @@
 ---
 title: Use with React Email
-description: "A guide on how to use Unsend with React Email"
+description: "A guide on how to use useSend with React Email"
 ---
 
 ## Introduction
 
-[React Email](https://react.email/docs/introduction) is a library for building emails with React. In this guide, we will show you how to use Unsend with React Email.
+[React Email](https://react.email/docs/introduction) is a library for building emails with React. In this guide, we will show you how to use useSend with React Email.
 
 ## Install dependencies
 
 <CodeGroup>
   ```sh npm
-  npm install unsend @react-email/render
+  npm install usesend @react-email/render
   ```
 
 ```sh yarn
-yarn add unsend @react-email/render
+yarn add usesend @react-email/render
 ```
 
 ```sh pnpm
-pnpm add unsend @react-email/render
+pnpm add usesend @react-email/render
 ```
 
 ```sh bun
-bun add unsend @react-email/render
+bun add usesend @react-email/render
 ```
 
 </CodeGroup>
@@ -46,21 +46,21 @@ export function Email(props) {
 }
 ```
 
-## Send an email using Unsend
+## Send an email using useSend
 
 ```ts
-import { Unsend } from "unsend";
+import { UseSend } from "usesend";
 import { render } from "@react-email/render";
 import { Email } from "./email";
 
-const unsend = new Unsend("us_your_unsend_api_key");
+const usesend = new UseSend("us_your_usesend_api_key");
 
-  const html = await render(<Email url="https://unsend.dev" />);
+  const html = await render(<Email url="https://usesend.com" />);
 
-const response = await unsend.emails.send({
-  to: "hello@unsend.dev",
-  from: "hello@unsend.dev",
-  subject: "Unsend email",
+const response = await usesend.emails.send({
+  to: "hello@usesend.com",
+  from: "hello@usesend.com",
+  subject: "useSend email",
   html,
 });
 ```
@@ -77,7 +77,7 @@ If you're using nodejs, importing `email.jsx` might fail. make sure to add these
 }
 ```
 
-Checkout this [example](https://github.com/unsend-dev/unsend-js-examples/tree/main/react-email-js)
+Checkout this [example](https://github.com/usesend/unsend-js-examples/tree/main/react-email-js)
 
 ### TypeScript
 
@@ -89,4 +89,4 @@ Just add `jsx` to your `tsconfig.json`
 }
 ```
 
-Checkout this [example](https://github.com/unsend-dev/unsend-js-examples/tree/main/react-email-ts)
+Checkout this [example](https://github.com/usesend/unsend-js-examples/tree/main/react-email-ts)

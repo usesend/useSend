@@ -2,7 +2,7 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import TipTapImage from "@tiptap/extension-image";
 import { ResizableImageTemplate } from "../nodes/image-resize";
 import { PluginKey, Plugin } from "@tiptap/pm/state";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 
 const uploadKey = new PluginKey("upload-image");
 

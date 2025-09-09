@@ -5,8 +5,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@unsend/ui/src/card";
-import { TextWithCopyButton } from "@unsend/ui/src/text-with-copy";
+} from "@usesend/ui/src/card";
+import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import { env } from "~/env";
 
 export const dynamic = "force-dynamic";

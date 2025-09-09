@@ -2,20 +2,25 @@ import { SMTPServer, SMTPServerOptions, SMTPServerSession } from "smtp-server";
 import { Readable } from "stream";
 import dotenv from "dotenv";
 import { simpleParser } from "mailparser";
-import { readFileSync } from "fs";
+import { readFileSync, watch, FSWatcher } from "fs";
 
 dotenv.config();
 
-const AUTH_USERNAME = process.env.SMTP_AUTH_USERNAME ?? "unsend";
-const UNSEND_BASE_URL = process.env.UNSEND_BASE_URL ?? "https://app.unsend.dev";
-const SSL_KEY_PATH = process.env.UNSEND_API_KEY_PATH;
-const SSL_CERT_PATH = process.env.UNSEND_API_CERT_PATH;
+const AUTH_USERNAME = process.env.SMTP_AUTH_USERNAME ?? "usesend";
+const BASE_URL =
+  process.env.USESEND_BASE_URL ??
+  process.env.UNSEND_BASE_URL ??
+  "https://app.usesend.com";
+const SSL_KEY_PATH =
+  process.env.USESEND_API_KEY_PATH ?? process.env.UNSEND_API_KEY_PATH;
+const SSL_CERT_PATH =
+  process.env.USESEND_API_CERT_PATH ?? process.env.UNSEND_API_CERT_PATH;
 
-async function sendEmailToUnsend(emailData: any, apiKey: string) {
+async function sendEmailToUseSend(emailData: any, apiKey: string) {
   try {
     const apiEndpoint = "/api/v1/emails";
-    const url = new URL(apiEndpoint, UNSEND_BASE_URL); // Combine base URL with endpoint
-    console.log("Sending email to Unsend API at:", url.href); // Debug statement
+    const url = new URL(apiEndpoint, BASE_URL); // Combine base URL with endpoint
+    console.log("Sending email to useSend API at:", url.href); // Debug statement
 
     const emailDataText = JSON.stringify(emailData);
 
@@ -31,17 +36,17 @@ async function sendEmailToUnsend(emailData: any, apiKey: string) {
     if (!response.ok) {
       const errorData = await response.text();
       console.error(
-        "Unsend API error response: error:",
+        "useSend API error response: error:",
         JSON.stringify(errorData, null, 4),
-        `\nemail data: ${emailDataText}`
+        `\nemail data: ${emailDataText}`,
       );
       throw new Error(
-        `Failed to send email: ${errorData || "Unknown error from server"}`
+        `Failed to send email: ${errorData || "Unknown error from server"}`,
       );
     }
 
     const responseData = await response.json();
-    console.log("Unsend API response:", responseData);
+    console.log("useSend API response:", responseData);
   } catch (error) {
     if (error instanceof Error) {
       console.error("Error message:", error.message);
@@ -53,14 +58,23 @@ async function sendEmailToUnsend(emailData: any, apiKey: string) {
   }
 }
 
+function loadCertificates(): { key?: Buffer; cert?: Buffer } {
+  return {
+    key: SSL_KEY_PATH ? readFileSync(SSL_KEY_PATH) : undefined,
+    cert: SSL_CERT_PATH ? readFileSync(SSL_CERT_PATH) : undefined,
+  };
+}
+
+const initialCerts = loadCertificates();
+
 const serverOptions: SMTPServerOptions = {
   secure: false,
-  key: SSL_KEY_PATH ? readFileSync(SSL_KEY_PATH) : undefined,
-  cert: SSL_CERT_PATH ? readFileSync(SSL_CERT_PATH) : undefined,
+  key: initialCerts.key,
+  cert: initialCerts.cert,
   onData(
     stream: Readable,
     session: SMTPServerSession,
-    callback: (error?: Error) => void
+    callback: (error?: Error) => void,
   ) {
     console.log("Receiving email data..."); // Debug statement
     simpleParser(stream, (err, parsed) => {
@@ -87,7 +101,7 @@ const serverOptions: SMTPServerOptions = {
         replyTo: parsed.replyTo?.text,
       };
 
-      sendEmailToUnsend(emailObject, session.user)
+      sendEmailToUseSend(emailObject, session.user)
         .then(() => callback())
         .then(() => console.log("Email sent successfully to: ", emailObject.to))
         .catch((error) => {
@@ -109,6 +123,9 @@ const serverOptions: SMTPServerOptions = {
 };
 
 function startServers() {
+  const servers: SMTPServer[] = [];
+  const watchers: FSWatcher[] = [];
+
   if (SSL_KEY_PATH && SSL_CERT_PATH) {
     // Implicit SSL/TLS for ports 465 and 2465
     [465, 2465].forEach((port) => {
@@ -116,13 +133,15 @@ function startServers() {
 
       server.listen(port, () => {
         console.log(
-          `Implicit SSL/TLS SMTP server is listening on port ${port}`
+          `Implicit SSL/TLS SMTP server is listening on port ${port}`,
         );
       });
 
       server.on("error", (err) => {
         console.error(`Error occurred on port ${port}:`, err);
       });
+
+      servers.push(server);
     });
   }
 
@@ -137,7 +156,39 @@ function startServers() {
     server.on("error", (err) => {
       console.error(`Error occurred on port ${port}:`, err);
     });
+
+    servers.push(server);
   });
+
+  if (SSL_KEY_PATH && SSL_CERT_PATH) {
+    const reloadCertificates = () => {
+      try {
+        const { key, cert } = loadCertificates();
+        if (key && cert) {
+          servers.forEach((srv) => srv.updateSecureContext({ key, cert }));
+          console.log("TLS certificates reloaded");
+        }
+      } catch (err) {
+        console.error("Failed to reload TLS certificates", err);
+      }
+    };
+
+    [SSL_KEY_PATH, SSL_CERT_PATH].forEach((file) => {
+      watchers.push(watch(file, { persistent: false }, reloadCertificates));
+    });
+  }
+  return { servers, watchers };
 }
 
-startServers();
+const { servers, watchers } = startServers();
+
+function shutdown() {
+  console.log("Shutting down SMTP server...");
+  watchers.forEach((w) => w.close());
+  servers.forEach((s) => s.close());
+  process.exit(0);
+}
+
+["SIGINT", "SIGTERM", "SIGQUIT"].forEach((signal) => {
+  process.on(signal, shutdown);
+});

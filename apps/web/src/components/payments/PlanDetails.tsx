@@ -2,10 +2,11 @@ import { Plan } from "@prisma/client";
 import { PLAN_PERKS } from "~/lib/constants/payments";
 import { CheckCircle2 } from "lucide-react";
 import { api } from "~/trpc/react";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 import { useTeam } from "~/providers/team-context";
-import { Badge } from "@unsend/ui/src/badge";
+import { Badge } from "@usesend/ui/src/badge";
 import { format } from "date-fns";
+
 export const PlanDetails = () => {
   const subscriptionQuery = api.billing.getSubscriptionDetails.useQuery();
   const { currentTeam } = useTeam();
@@ -35,7 +36,7 @@ export const PlanDetails = () => {
       <ul className="mt-4 space-y-3">
         {perks.map((perk, index) => (
           <li key={index} className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <CheckCircle2 className="h-4 w-4 text-green flex-shrink-0" />
             <span className="text-sm">{perk}</span>
           </li>
         ))}

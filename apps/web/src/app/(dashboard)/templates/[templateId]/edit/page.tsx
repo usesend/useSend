@@ -1,12 +1,12 @@
 "use client";
 
 import { api } from "~/trpc/react";
-import { Spinner } from "@unsend/ui/src/spinner";
-import { Input } from "@unsend/ui/src/input";
-import { Editor } from "@unsend/email-editor";
+import { Spinner } from "@usesend/ui/src/spinner";
+import { Input } from "@usesend/ui/src/input";
+import { Editor } from "@usesend/email-editor";
 import { useState } from "react";
 import { Template } from "@prisma/client";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { useDebouncedCallback } from "use-debounce";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft } from "lucide-react";
@@ -29,7 +29,7 @@ export default function EditTemplatePage({
     { templateId: templateId },
     {
       enabled: !!templateId,
-    }
+    },
   );
 
   if (isLoading) {
@@ -63,7 +63,7 @@ function TemplateEditor({
   const utils = api.useUtils();
 
   const [json, setJson] = useState<Record<string, any> | undefined>(
-    template.content ? JSON.parse(template.content) : undefined
+    template.content ? JSON.parse(template.content) : undefined,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(template.name);
@@ -86,13 +86,13 @@ function TemplateEditor({
 
   const deboucedUpdateTemplate = useDebouncedCallback(
     updateEditorContent,
-    1000
+    1000,
   );
 
   const handleFileChange = async (file: File) => {
     if (file.size > IMAGE_SIZE_LIMIT) {
       throw new Error(
-        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`
+        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`,
       );
     }
 
@@ -143,7 +143,7 @@ function TemplateEditor({
                       toast.error(`${e.message}. Reverting changes.`);
                       setName(template.name);
                     },
-                  }
+                  },
                 );
               }}
             />
@@ -152,9 +152,9 @@ function TemplateEditor({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-500">
               {isSaving ? (
-                <div className="h-2 w-2 bg-yellow-500 rounded-full" />
+                <div className="h-2 w-2 bg-yellow rounded-full" />
               ) : (
-                <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                <div className="h-2 w-2 bg-green rounded-full" />
               )}
               {formatDistanceToNow(template.updatedAt) === "less than a minute"
                 ? "just now"
@@ -188,7 +188,7 @@ function TemplateEditor({
                       toast.error(`${e.message}. Reverting changes.`);
                       setSubject(template.subject);
                     },
-                  }
+                  },
                 );
               }}
               className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent  focus:border-border bg-transparent"
