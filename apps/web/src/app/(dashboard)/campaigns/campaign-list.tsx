@@ -7,11 +7,11 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "@unsend/ui/src/table";
+} from "@usesend/ui/src/table";
 import { api } from "~/trpc/react";
 import { useUrlState } from "~/hooks/useUrlState";
-import { Button } from "@unsend/ui/src/button";
-import Spinner from "@unsend/ui/src/spinner";
+import { Button } from "@usesend/ui/src/button";
+import Spinner from "@usesend/ui/src/spinner";
 import { formatDistanceToNow } from "date-fns";
 import { CampaignStatus } from "@prisma/client";
 import DeleteCampaign from "./delete-campaign";
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectContent,
   SelectItem,
-} from "@unsend/ui/src/select";
+} from "@usesend/ui/src/select";
 
 export default function CampaignList() {
   const [page, setPage] = useUrlState("page", "1");
@@ -103,10 +103,10 @@ export default function CampaignList() {
                     <div
                       className={`text-center w-[130px] rounded capitalize py-1 text-xs ${
                         campaign.status === CampaignStatus.DRAFT
-                          ? "bg-gray-500/15 dark:bg-gray-400/15 text-gray-700 dark:text-gray-400/90 border border-gray-500/25 dark:border-gray-700/25"
+                          ? "bg-gray/15 text-gray border border-gray/25"
                           : campaign.status === CampaignStatus.SENT
-                            ? "bg-green-500/15 dark:bg-green-600/10 text-green-700 dark:text-green-600/90 border border-green-500/25 dark:border-green-700/25"
-                            : "bg-yellow-500/15 dark:bg-yellow-600/10 text-yellow-700 dark:text-yellow-600/90 border border-yellow-500/25 dark:border-yellow-700/25"
+                            ? "bg-green/15 text-green border border-green/25"
+                            : "bg-yellow/15 text-yellow border border-yellow/25"
                       }`}
                     >
                       {campaign.status.toLowerCase()}

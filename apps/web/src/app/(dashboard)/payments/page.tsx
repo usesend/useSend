@@ -1,11 +1,12 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import Spinner from "@unsend/ui/src/spinner";
+import { Button } from "@usesend/ui/src/button";
+import Spinner from "@usesend/ui/src/spinner";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "~/trpc/react";
+import { H1 } from "@usesend/ui";
 
 export default function PaymentsPage() {
   const searchParams = useSearchParams();
@@ -15,9 +16,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-semibold mb-8">
-        Payment {success ? "Success" : canceled ? "Canceled" : "Unknown"}
-      </h1>
+      <H1>Payment {success ? "Success" : canceled ? "Canceled" : "Unknown"}</H1>
       {canceled ? (
         <Link href="/settings/billing">
           <Button>Go to billing</Button>
@@ -37,7 +36,7 @@ function VerifySuccess() {
     return (
       <div>
         <div className="flex gap-2 items-center">
-          <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-green flex-shrink-0" />
           <p>Your account has been upgraded to the paid plan.</p>
         </div>
         <Link href="/settings/billing" className="mt-8">

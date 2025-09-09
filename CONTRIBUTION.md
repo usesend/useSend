@@ -1,6 +1,6 @@
-# 🤝 Contributing to Unsend
+# 🤝 Contributing to useSend
 
-Thanks for your interest in contributing to **Unsend**! We’re an open-source email infrastructure platform, and we’d love your help to make it even better. This guide will walk you through how to get started, set up the project locally, and submit contributions.
+Thanks for your interest in contributing to **useSend**! We’re an open-source email infrastructure platform, and we’d love your help to make it even better. This guide will walk you through how to get started, set up the project locally, and submit contributions.
 
 ---
 
@@ -9,7 +9,7 @@ Thanks for your interest in contributing to **Unsend**! We’re an open-source e
 All contributions begin with setting up the project locally. Follow the steps below to get started.
 
 📖 **Refer to the full setup guide:**  
-[https://docs.unsend.dev/get-started/local](https://docs.unsend.dev/get-started/local)
+[https://docs.usesend.com/get-started/local](https://docs.usesend.com/get-started/local)
 
 ### ⚙️ Prerequisites
 
@@ -28,8 +28,8 @@ You’ll need:
 ### 1. Fork & Clone
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/unsend.git
-cd unsend
+git clone https://github.com/YOUR-USERNAME/usesend.git
+cd usesend
 ```
 
 ### 2. Install Dependencies
@@ -57,8 +57,9 @@ openssl rand -base64 32
 
 ### 4. GitHub OAuth (Optional for Dev)
 
-Set up a GitHub OAuth App:  
-- Homepage: `http://localhost:3000/login`  
+Set up a GitHub OAuth App:
+
+- Homepage: `http://localhost:3000/login`
 - Callback: `http://localhost:3000/api/auth/callback/github`
 
 Add credentials to `.env`:
@@ -89,7 +90,7 @@ AWS_SECRET_KEY=your_secret_key
 pnpm d
 ```
 
-- **Dashboard**: [http://localhost:3000](http://localhost:3000)  
+- **Dashboard**: [http://localhost:3000](http://localhost:3000)
 - **Marketing Site**: [http://localhost:3001](http://localhost:3001)
 
 > To test GitHub login, run:
@@ -147,7 +148,7 @@ apps/
 
 packages/
 ├── eslint-config     # Shared ESLint rules
-├── sdk               # TypeScript SDK for Unsend REST API
+├── sdk               # TypeScript SDK for useSend REST API
 ├── tailwind-config   # Shared Tailwind setup
 ├── typescript-config # Shared tsconfig
 ├── ui                # Shared UI components (buttons, modals, etc.)
@@ -164,6 +165,7 @@ git checkout -b feat/your-feature
 ```
 
 2. **Make Your Changes**
+
    - Follow the existing project structure.
    - Write clean, modular, and reusable code.
    - Formatting is enforced with Prettier.
@@ -189,8 +191,8 @@ git push origin feat/your-feature
 ## 💬 Community and Support
 
 - **Discord**: [Join our server](https://discord.gg/BU8n8pJv8S)
-- **GitHub Discussions**: [Start a discussion](https://github.com/unsend-dev/unsend/discussions)
-- **GitHub Issues**: [Report issues or bugs](https://github.com/unsend-dev/unsend/issues)
+- **GitHub Discussions**: [Start a discussion](https://github.com/usesend/usesend/discussions)
+- **GitHub Issues**: [Report issues or bugs](https://github.com/usesend/usesend/issues)
 
 ---
 
@@ -199,6 +201,6 @@ git push origin feat/your-feature
 Need help or unsure where to begin? Just ask!
 
 - Chat with us on [Discord](https://discord.gg/BU8n8pJv8S)
-- Open an [Issue](https://github.com/unsend-dev/unsend/issues)
+- Open an [Issue](https://github.com/usesend/usesend/issues)
 
 We’re excited to see your ideas and contributions! 💌

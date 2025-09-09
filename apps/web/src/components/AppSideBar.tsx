@@ -31,14 +31,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@unsend/ui/src/sidebar";
+} from "@usesend/ui/src/sidebar";
 import Link from "next/link";
 import { MiniThemeSwitcher, ThemeSwitcher } from "./theme/ThemeSwitcher";
 import { useSession } from "next-auth/react";
 import { isSelfHosted } from "~/utils/common";
 import { usePathname } from "next/navigation";
-import { Badge } from "@unsend/ui/src/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@unsend/ui/src/avatar";
+import { Badge } from "@usesend/ui/src/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@usesend/ui/src/avatar";
+import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +48,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@unsend/ui/src/dropdown-menu";
+} from "@usesend/ui/src/dropdown-menu";
 
 // General items
 const generalItems = [
@@ -125,8 +126,8 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarGroupLabel>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-foreground">
-              Unsend
+            <span className="text-lg font-semibold text-foreground font-mono">
+              useSend
             </span>
             <Badge variant="outline">Beta</Badge>
           </div>
@@ -234,7 +235,7 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip="Docs">
-                <Link href="https://docs.unsend.dev" target="_blank">
+                <Link href="https://docs.usesend.com" target="_blank">
                   <BookOpenText />
                   <span>Docs</span>
                 </Link>

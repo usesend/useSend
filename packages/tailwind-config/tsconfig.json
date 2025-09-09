@@ -1,5 +1,5 @@
 {
-  "extends": "@unsend/typescript-config/base.json",
+  "extends": "@usesend/typescript-config/base.json",
   "compilerOptions": {
     "allowJs": true,
     "noEmit": true

@@ -14,7 +14,7 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const acc = await getAccount(input.region);
@@ -25,15 +25,15 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string(),
-        unsendUrl: z.string().url(),
+        usesendUrl: z.string().url(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.createSesSetting({
         region: input.region,
-        unsendUrl: input.unsendUrl,
+        usesendUrl: input.usesendUrl,
         sendingRateLimit: input.sendRate,
         transactionalQuota: input.transactionalQuota,
       });
@@ -45,7 +45,7 @@ export const adminRouter = createTRPCRouter({
         settingsId: z.string(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.updateSesSetting({
@@ -59,11 +59,11 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string().optional().nullable(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       return SesSettingsService.getSetting(
-        input.region ?? env.AWS_DEFAULT_REGION
+        input.region ?? env.AWS_DEFAULT_REGION,
       );
     }),
 });

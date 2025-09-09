@@ -8,7 +8,7 @@ import EditContactBook from "./edit-contact-book";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useUrlState } from "~/hooks/useUrlState";
-import { Input } from "@unsend/ui/src/input";
+import { Input } from "@usesend/ui/src/input";
 import { useDebouncedCallback } from "use-debounce";
 
 export default function ContactBooksList() {

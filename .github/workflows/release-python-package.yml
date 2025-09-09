@@ -1,0 +1,43 @@
+name: Publish Python package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/python-sdk/**" # Trigger only changes within sdk/python
+      - ".github/workflows/release-python-package.yml"
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/python-sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: snok/install-poetry@v1
+        with:
+          version: "1.8.2"
+          virtualenvs-create: false
+
+      - name: Build package with Poetry
+        run: poetry build --no-interaction
+
+      - name: List contents of dist
+        run: ls -la dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: packages/python-sdk/dist

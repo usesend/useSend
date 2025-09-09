@@ -2,6 +2,7 @@
 
 import EmailChart from "./email-chart";
 import DashboardFilters from "./dashboard-filters";
+import { H1 } from "@usesend/ui";
 import { useUrlState } from "~/hooks/useUrlState";
 import { ReputationMetrics } from "./reputation-metrics";
 
@@ -13,7 +14,7 @@ export default function Dashboard() {
     <div>
       <div className="w-full">
         <div className="flex justify-between items-center mb-10">
-          <h1 className="font-semibold text-xl">Analytics</h1>
+          <H1>Analytics</H1>
           <DashboardFilters
             days={days ?? "7"}
             setDays={setDays}

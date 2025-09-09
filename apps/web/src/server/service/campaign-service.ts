@@ -1,4 +1,4 @@
-import { EmailRenderer } from "@unsend/email-editor/src/renderer";
+import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
 import { env } from "~/env";
@@ -263,7 +263,10 @@ async function processContactEmail(jobData: CampaignEmailJob) {
   const renderer = new EmailRenderer(jsonContent);
 
   const unsubscribeUrl = createUnsubUrl(contact.id, emailConfig.campaignId);
-  const oneClickUnsubUrl = createOneClickUnsubUrl(contact.id, emailConfig.campaignId);
+  const oneClickUnsubUrl = createOneClickUnsubUrl(
+    contact.id,
+    emailConfig.campaignId
+  );
 
   // Check for suppressed emails before processing
   const toEmails = [contact.email];
@@ -303,6 +306,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     },
     linkValues: {
       "{{unsend_unsubscribe_url}}": unsubscribeUrl,
+      "{{usesend_unsubscribe_url}}": unsubscribeUrl,
     },
   });
 

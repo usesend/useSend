@@ -1,6 +1,6 @@
 {
-  "name": "unsend",
-  "version": "1.5.1",
+  "name": "usesend-js",
+  "version": "1.5.2",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -18,8 +18,8 @@
   "devDependencies": {
     "@types/node": "^22.15.2",
     "@types/react": "^19.1.2",
-    "@unsend/eslint-config": "workspace:*",
-    "@unsend/typescript-config": "workspace:*",
+    "@usesend/eslint-config": "workspace:*",
+    "@usesend/typescript-config": "workspace:*",
     "openapi-typescript": "^7.6.1",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"

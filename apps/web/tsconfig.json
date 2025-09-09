@@ -1,5 +1,5 @@
 {
-  "extends": "@unsend/typescript-config/nextjs.json",
+  "extends": "@usesend/typescript-config/nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

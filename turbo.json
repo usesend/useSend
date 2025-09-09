@@ -28,6 +28,7 @@
         "SKIP_ENV_VALIDATION",
         "PORT",
         "UNSEND_API_KEY",
+        "USESEND_API_KEY",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "NEXT_PUBLIC_IS_CLOUD",

@@ -1,12 +1,12 @@
 import React from "react";
-import { Tabs, TabsList, TabsTrigger } from "@unsend/ui/src/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@usesend/ui/src/tabs";
 import { useUrlState } from "~/hooks/useUrlState";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@unsend/ui/src/select";
+} from "@usesend/ui/src/select";
 import { api } from "~/trpc/react";
 
 interface DashboardFiltersProps {

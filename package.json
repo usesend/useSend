@@ -1,13 +1,13 @@
 {
-  "name": "unsend",
+  "name": "usesend",
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "build:editor": "turbo build --filter=@unsend/email-editor",
-    "build:web": "turbo build --filter=@unsend/email-editor  --filter=web ",
-    "build:marketing": "turbo build --filter=@unsend/email-editor --filter=marketing",
+    "build:editor": "turbo build --filter=@usesend/email-editor",
+    "build:web": "turbo build --filter=@usesend/email-editor  --filter=web ",
+    "build:marketing": "turbo build --filter=@usesend/email-editor --filter=marketing",
     "build:smtp": "turbo build --filter=smtp-server",
-    "build:web:local": "pnpm load-env -- turbo build --filter=@unsend/email-editor  --filter=web ",
+    "build:web:local": "pnpm load-env -- turbo build --filter=@usesend/email-editor  --filter=web ",
     "start:web:local": "pnpm load-env -- cd apps/web && pnpm start",
     "dev": "pnpm load-env -- turbo dev",
     "dev:docs": "cd apps/docs && mintlify dev",
@@ -28,8 +28,8 @@
     "dx:down": "docker compose -f docker/dev/compose.yml down"
   },
   "devDependencies": {
-    "@unsend/eslint-config": "workspace:*",
-    "@unsend/typescript-config": "workspace:*",
+    "@usesend/eslint-config": "workspace:*",
+    "@usesend/typescript-config": "workspace:*",
     "dotenv-cli": "^8.0.0",
     "mintlify": "4.0.510",
     "prettier": "^3.5.3"

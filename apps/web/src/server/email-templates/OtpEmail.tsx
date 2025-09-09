@@ -16,7 +16,7 @@ interface OtpEmailProps {
 export function OtpEmail({
   otpCode,
   loginUrl,
-  hostName = "Unsend",
+  hostName = "useSend",
   logoUrl,
 }: OtpEmailProps) {
   return (
@@ -45,7 +45,7 @@ export function OtpEmail({
             textAlign: "left" as const,
           }}
         >
-          Use the verification code below to sign in to your Unsend account:
+          Use the verification code below to sign in to your useSend account:
         </Text>
 
         <Container

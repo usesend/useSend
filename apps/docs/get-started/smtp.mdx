@@ -1,6 +1,6 @@
 ---
 title: SMTP support
-description: "A guide to integrate Unsend with SMTP"
+description: "A guide to integrate useSend with SMTP"
 icon: envelope  
 ---
 
@@ -8,31 +8,31 @@ icon: envelope
 
 You will need an API key and a verified domain to get the most out of this guide:
 
-- [API Key](https://app.unsend.dev/dev-settings/api-keys)
-- [Verified Domain](https://app.unsend.dev/domains)
+- [API Key](https://app.usesend.com/dev-settings/api-keys)
+- [Verified Domain](https://app.usesend.com/domains)
 
 ## SMTP credentials
 
 To set up your SMTP integration, you'll need to provide the following credentials:
 
-- **Host:** ```smtp.unsend.dev```
+- **Host:** ```smtp.usesend.com```
 - **Port:** ```465```, ```587```, ```2465```, or ```2587```
-- **Username:** ```unsend```
+- **Username:** ```usesend```
 - **Password:** ```YOUR-API-KEY```
 
 ## Example with Nodemailer
 
-Following example with Nodemailer shows how you can send mails with SMTP support from Unsend and Nodemailer.
+Following example with Nodemailer shows how you can send mails with SMTP support from useSend and Nodemailer.
 
 ```javascript
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.unsend.dev",
+  host: "smtp.usesend.com",
   port: 465,
   secure: false,
   auth: {
-    user: "unsend",
+    user: "usesend",
     pass: "us_123",
   },
   tls: {
@@ -44,8 +44,8 @@ const mailOptions = {
   to: "sender@example.com",
   from: "hello@example.com",
   subject: "Testing SMTP",
-  html: "<strong>THIS IS USING SMTP,</strong><p>Unsend is the best open source sending platform<p><p>check out <a href='https://unsend.dev'>unsend.dev</a>",
-  text: "hello,\n\nUnsend is the best open source sending platform",
+  html: "<strong>THIS IS USING SMTP,</strong><p>useSend is the best open source sending platform<p><p>check out <a href='https://usesend.com'>usesend.com</a>",
+  text: "hello,\n\nuseSend is the best open source sending platform",
 };
 
 transporter.sendMail(mailOptions, (error, info) => {

@@ -1,6 +1,6 @@
 ---
-title: Self hosting Unsend
-description: "An end-to-end guide on how to self-host Unsend. An opensource sending infrastructure for developers."
+title: Self hosting useSend
+description: "An end-to-end guide on how to self-host useSend. An open-source sending infrastructure for developers."
 icon: server
 ---
 
@@ -13,7 +13,7 @@ If you have any questions join [#self-host](https://discord.gg/gbsvjb9MqV) on di
 
 ## Step 1: Environment variables
 
-Unsend depends on AWS ses to send emails and SNS to receive email status. Along with that it also depends on Postgres as a database and Redis for queue. Copy the `.env.selfhost.example` file to `.env` and fill in the values.
+useSend depends on AWS SES to send emails and SNS to receive email status. Along with that it also depends on Postgres as a database and Redis for queue. Copy the `.env.selfhost.example` file to `.env` and fill in the values.
 
 <Steps>
   <Step title="AWS credentials">
@@ -33,11 +33,11 @@ Add the following environment variables.
 
   </Step>
   <Step title="GitHub app credentials for login">
-  Usend uses github authentication for login.
+  useSend uses GitHub authentication for login.
 
 Use this link to [create an github app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
 
-Callback URL : `https://<your-unsend-instance>/api/auth/callback/github`
+Callback URL : `https://<your-usesend-instance>/api/auth/callback/github`
 
 ![github app](/images/github-callback.png)
 
@@ -48,10 +48,10 @@ GITHUB_ID="<your-github-client-id>"
 GITHUB_SECRET="<your-github-client-secret>"
 ```
 
-  <Info>If you want email/password login, please help us out with the [code](https://github.com/unsend-dev/unsend) </Info>  
+  <Info>If you want email/password login, please help us out with the [code](https://github.com/usesend/usesend) </Info>  
   </Step>
   <Step title="Database & Redis">
-  Unsend uses Postgres as a database and Redis as a queue. You need to create a new database and add the following environment variables.
+  useSend uses Postgres as a database and Redis as a queue. You need to create a new database and add the following environment variables.
 
 If you're using docker-compose or our railway template, it's all automatically done for you.
 
@@ -71,8 +71,8 @@ openssl rand -base64 32
 Add the following environment variables.
 
 ```env
-  NEXTAUTH_URL="https://<your-unsend-instance>"
-  NEXTAUTH_SECRET="<your-unsend-secret>"
+  NEXTAUTH_URL="https://<your-usesend-instance>"
+  NEXTAUTH_SECRET="<your-usesend-secret>"
 ```
 
   </Step>
@@ -86,7 +86,7 @@ You can use any platforms that supports docker. You can also use the railway tem
 
 Follow this guide to setup your docker instance: [Set up docker](/get-started/set-up-docker)
 
-[![Docker image](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker)](https://hub.docker.com/r/unsend/unsend)
+[![Docker image](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker)](https://hub.docker.com/r/usesend/usesend)
 
 ### Railway
 
@@ -96,15 +96,15 @@ Updating image is easy, click on the 3 dots and redeploy. This will pull the lat
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
 
-Your unsend instance is now live now.
+Your useSend instance is now live now.
 
 ## Step 3: Setting up a region
 
-In order to send emails, you need to select an region in aws. Use a region where your users are located / where unsend is hosted. If you're confused just use `us-east-1`.
+In order to send emails, you need to select a region in AWS. Use a region where your users are located / where useSend is hosted. If you're confused just use `us-east-1`.
 
 You can check available regions [here](https://docs.aws.amazon.com/general/latest/gr/ses.html)
 
-Once you logged in to unsend, it will prompt you add ses configuration.
+Once you log in to useSend, it will prompt you add SES configuration.
 
 - Add the region
 - Add the callback url, which is basically the app url. Note this should be accesible from internet. This is how you get the delivery status of the emails.
@@ -120,10 +120,10 @@ Once you logged in to unsend, it will prompt you add ses configuration.
 
 ## Step 5: SMTP Proxy Server (Optional)
 
-The SMTP proxy server is an optional component that allows applications to send emails through Unsend using standard SMTP protocol instead of the REST API. This is useful for legacy applications, email clients, or any software that needs to send emails via SMTP.
+The SMTP proxy server is an optional component that allows applications to send emails through useSend using standard SMTP protocol instead of the REST API. This is useful for legacy applications, email clients, or any software that needs to send emails via SMTP.
 
 <Tip>
-The complete source code for the SMTP proxy server is available at: [unsend-dev/unsend/tree/main/apps/smtp-server](https://github.com/unsend-dev/unsend/tree/main/apps/smtp-server)
+The complete source code for the SMTP proxy server is available at: [usesend/usesend/tree/main/apps/smtp-server](https://github.com/usesend/usesend/tree/main/apps/smtp-server)
 </Tip>
 
 ### When to use the SMTP proxy:
@@ -137,19 +137,19 @@ The complete source code for the SMTP proxy server is available at: [unsend-dev/
 Create a `docker-compose.yml` file for the SMTP server:
 
 ```yaml
-name: unsend-smtp-server
+name: usesend-smtp-server
 
 services:
   smtp-server:
-    container_name: unsend-smtp-server
-    image: unsend/smtp-proxy:latest
+    container_name: usesend-smtp-server
+    image: usesend/smtp-proxy:latest
     environment:
-      SMTP_AUTH_USERNAME: "unsend" # Username for SMTP authentication
-      UNSEND_BASE_URL: "https://your-unsend-instance.com" # Your Unsend instance URL
+      SMTP_AUTH_USERNAME: "usesend" # Username for SMTP authentication
+      USESEND_BASE_URL: "https://your-usesend-instance.com" # Your useSend instance URL
       
       # Optional: SSL certificate paths for secure connections
-      # UNSEND_API_KEY_PATH: "/certs/server.key"
-      # UNSEND_API_CERT_PATH: "/certs/server.crt"
+      # USESEND_API_KEY_PATH: "/certs/server.key"
+      # USESEND_API_CERT_PATH: "/certs/server.crt"
     
     # Optional: Mount SSL certificates
     # volumes:
@@ -178,12 +178,12 @@ To send emails through the proxy, configure your application with these SMTP set
 
 - **Host**: Your server's IP address or domain
 - **Ports**: 25, 587 (STARTTLS), 465 (SSL/TLS), 2587, or 2465
-- **Username**: `unsend` (or your custom `SMTP_AUTH_USERNAME`)
-- **Password**: Your Unsend API key
+- **Username**: `usesend` (or your custom `SMTP_AUTH_USERNAME`)
+- **Password**: Your useSend API key
 - **Encryption**: STARTTLS (ports 25, 587, 2587) or SSL/TLS (ports 465, 2465)
 
 <Tip>
-The SMTP proxy forwards all emails to your Unsend instance, so make sure your main Unsend application is running and accessible.
+The SMTP proxy forwards all emails to your useSend instance, so make sure your main useSend application is running and accessible.
 </Tip>
 
 <Warning>
@@ -201,5 +201,5 @@ You're all set up now.
 If you have any questions, please join [#self-host](https://discord.gg/gbsvjb9MqV) on discord.
 
 <Tip>
-A community member shared a short write-up on hosting Unsend with [Coolify](https://mattstein.com/thoughts/coolify-unsend/). Give it a read if you need another reference.
+A community member shared a short write-up on hosting useSend with [Coolify](https://mattstein.com/thoughts/coolify-unsend/). Give it a read if you need another reference.
 </Tip>

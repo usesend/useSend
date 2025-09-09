@@ -7,8 +7,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@unsend/ui/src/dialog";
-import { Button } from "@unsend/ui/src/button";
+} from "@usesend/ui/src/dialog";
+import { Button } from "@usesend/ui/src/button";
 
 interface RemoveSuppressionDialogProps {
   email: string | null;

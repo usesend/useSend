@@ -7,11 +7,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@unsend/ui/src/table";
+} from "@usesend/ui/src/table";
 import { formatDistanceToNow } from "date-fns";
 import { api } from "~/trpc/react";
 import DeleteApiKey from "./delete-api-key";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 
 export default function ApiList() {
   const apiKeysQuery = api.apiKey.getApiKeys.useQuery();

@@ -1,13 +1,13 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 
 import { Plus } from "lucide-react";
 import { useState } from "react";

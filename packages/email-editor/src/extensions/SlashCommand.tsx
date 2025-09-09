@@ -1,6 +1,6 @@
 import { Editor, Extension, Range, ReactRenderer } from "@tiptap/react";
 import Suggestion, { SuggestionOptions } from "@tiptap/suggestion";
-import { cn } from "@unsend/ui/lib/utils";
+import { cn } from "@usesend/ui/lib/utils";
 import {
   CodeIcon,
   DivideIcon,
@@ -277,7 +277,7 @@ const DEFAULT_SLASH_COMMANDS = (uploadImage?: UploadFn): SlashCommandItem[] => [
         .deleteRange(range)
         .setHorizontalRule()
         .insertContent(
-          `<unsub data-unsend-component='unsubscribe-footer'><p>You are receiving this email because you opted in via our site.<br/><br/><a href="{{unsend_unsubscribe_url}}">Unsubscribe from the list</a></p><br><br><p>Company name,<br/>00 street name<br/>City, State 000000</p></unsub>`
+          `<unsub data-unsend-component='unsubscribe-footer'><p>You are receiving this email because you opted in via our site.<br/><br/><a href="{{usesend_unsubscribe_url}}">Unsubscribe from the list</a></p><br><br><p>Company name,<br/>00 street name<br/>City, State 000000</p></unsub>`
         )
         .run();
     },

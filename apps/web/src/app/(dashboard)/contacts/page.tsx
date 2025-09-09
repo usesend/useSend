@@ -2,12 +2,13 @@
 
 import AddContactBook from "./add-contact-book";
 import ContactBooksList from "./contact-books-list";
+import { H1 } from "@usesend/ui";
 
 export default function ContactsPage() {
   return (
     <div>
       <div className="flex justify-between items-center">
-        <h1 className="font-semibold text-xl">Contact books</h1>
+        <H1>Contact books</H1>
         <AddContactBook />
       </div>
       <ContactBooksList />

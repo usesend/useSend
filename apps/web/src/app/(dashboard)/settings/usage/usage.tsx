@@ -1,8 +1,8 @@
 "use client";
 
 import { api } from "~/trpc/react";
-import { Card } from "@unsend/ui/src/card";
-import Spinner from "@unsend/ui/src/spinner";
+import { Card } from "@usesend/ui/src/card";
+import Spinner from "@usesend/ui/src/spinner";
 import { format } from "date-fns";
 import {
   getCost,
@@ -14,7 +14,7 @@ import { useTeam } from "~/providers/team-context";
 import { EmailUsageType } from "@prisma/client";
 import { PlanDetails } from "~/components/payments/PlanDetails";
 import { UpgradeButton } from "~/components/payments/UpgradeButton";
-import { Progress } from "@unsend/ui/src/progress";
+import { Progress } from "@usesend/ui/src/progress";
 
 const FREE_PLAN_LIMIT = 3000;
 
@@ -49,7 +49,7 @@ function FreePlanUsage({
                 <div className="text-sm text-muted-foreground mt-1">
                   {item.type === "TRANSACTIONAL"
                     ? "Mails sent using the send api or SMTP"
-                    : "Mails designed sent from unsend editor"}
+                    : "Mails designed sent from useSend editor"}
                 </div>
               </div>
               <div className="font-mono font-medium">
@@ -179,8 +179,8 @@ function PaidPlanUsage({
             <div className="">
               <div className="text-2xl font-mono">
                 {planCreditCost < totalCost
-                  ? `$${totalCost.toFixed(2)}`
-                  : `$${planCreditCost.toFixed(2)}`}
+                  ? `$${(totalCost - planCreditCost).toFixed(2)}`
+                  : `$${(0.0).toFixed(2)}`}
               </div>
             </div>
           </div>

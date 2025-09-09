@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Dialog,
   DialogContent,
@@ -9,12 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 
 import { api } from "~/trpc/react";
 import { useState } from "react";
 import { CheckIcon, ClipboardCopy, Eye, EyeOff, Plus } from "lucide-react";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,7 +26,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 import {
   Select,
   SelectContent,
@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@unsend/ui/src/select";
+
 
 const apiKeySchema = z.object({
   name: z.string({ required_error: "Name is required" }).min(1, {
@@ -74,7 +75,7 @@ export default function AddApiKey() {
           setApiKey(data);
           apiKeyForm.reset();
         },
-      }
+      },
     );
   }
 
@@ -144,7 +145,7 @@ export default function AddApiKey() {
                 onClick={handleCopy}
               >
                 {isCopied ? (
-                  <CheckIcon className="h-4 w-4 text-green-500" />
+                  <CheckIcon className="h-4 w-4 text-green" />
                 ) : (
                   <ClipboardCopy className="h-4 w-4" />
                 )}

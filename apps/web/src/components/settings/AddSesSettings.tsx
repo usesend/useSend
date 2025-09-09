@@ -9,19 +9,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "~/trpc/react";
-import { Input } from "@unsend/ui/src/input";
-import { Button } from "@unsend/ui/src/button";
-import Spinner from "@unsend/ui/src/spinner";
-import { toast } from "@unsend/ui/src/toaster";
+import { Input } from "@usesend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import Spinner from "@usesend/ui/src/spinner";
+import { toast } from "@usesend/ui/src/toaster";
 import { isLocalhost } from "~/utils/client";
 
 const FormSchema = z.object({
   region: z.string(),
-  unsendUrl: z.string().url(),
+  usesendUrl: z.string().url(),
   sendRate: z.coerce.number(),
   transactionalQuota: z.coerce.number().min(0).max(100),
 });
@@ -56,7 +56,7 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       region: "",
-      unsendUrl: "",
+      usesendUrl: "",
       sendRate: 1,
       transactionalQuota: 50,
     },
@@ -65,31 +65,39 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
   function onSubmit(data: z.infer<typeof FormSchema>) {
     const localhost = isLocalhost();
 
-    if (!data.unsendUrl.startsWith("https://") && !localhost) {
-      form.setError("unsendUrl", {
+    if (!data.usesendUrl.startsWith("https://") && !localhost) {
+      form.setError("usesendUrl", {
         message: "URL must start with https://",
       });
       return;
     }
 
-    if (data.unsendUrl.includes("localhost") && !localhost) {
-      form.setError("unsendUrl", {
+    if (data.usesendUrl.includes("localhost") && !localhost) {
+      form.setError("usesendUrl", {
         message: "URL must be a valid url",
       });
       return;
     }
 
-    addSesSettings.mutate(data, {
-      onSuccess: () => {
-        utils.admin.invalidate();
-        onSuccess?.();
+    addSesSettings.mutate(
+      {
+        region: data.region,
+        usesendUrl: data.usesendUrl,
+        sendRate: data.sendRate,
+        transactionalQuota: data.transactionalQuota,
       },
-      onError: (e) => {
-        toast.error("Failed to create", {
-          description: e.message,
-        });
+      {
+        onSuccess: () => {
+          utils.admin.invalidate();
+          onSuccess?.();
+        },
+        onError: (e) => {
+          toast.error("Failed to create", {
+            description: e.message,
+          });
+        },
       },
-    });
+    );
   }
 
   const onRegionInputOutOfFocus = async () => {
@@ -134,7 +142,7 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
         />
         <FormField
           control={form.control}
-          name="unsendUrl"
+          name="usesendUrl"
           render={({ field, formState }) => (
             <FormItem>
               <FormLabel>Callback URL</FormLabel>
@@ -145,7 +153,7 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
                   {...field}
                 />
               </FormControl>
-              {formState.errors.unsendUrl ? (
+              {formState.errors.usesendUrl ? (
                 <FormMessage />
               ) : (
                 <FormDescription>

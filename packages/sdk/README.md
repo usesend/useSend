@@ -1,51 +1,51 @@
-# Unsend SDK
+# useSend SDK
 
 ## Prerequisites
 
-- [Unsend API key](https://app.unsend.dev/dev-settings/api-keys)
-- [Verified domain](https://app.unsend.dev/domains)
+- [useSend API key](https://app.usesend.com/dev-settings/api-keys)
+- [Verified domain](https://app.usesend.com/domains)
 
 ## Installation
 
 ### NPM
 
 ```bash
-npm install unsend
+npm install usesend
 ```
 
 ### Yarn
 
 ```bash
-yarn add unsend
+yarn add usesend
 ```
 
 ### PNPM
 
 ```bash
-pnpm add unsend
+pnpm add usesend
 ```
 
 ### Bun
 
 ```bash
-bun add unsend
+bun add usesend
 ```
 
 ## Usage
 
 ```javascript
-import { Unsend } from "unsend";
+import { UseSend } from "usesend";
 
-const unsend = new Unsend("us_12345");
+const usesend = new UseSend("us_12345");
 
 // for self-hosted installations you can pass your base URL
-// const unsend = new Unsend("us_12345", "https://my-unsend-instance.com");
+// const usesend = new UseSend("us_12345", "https://app.usesend.com");
 
-unsend.emails.send({
+usesend.emails.send({
   to: "hello@acme.com",
   from: "hello@company.com",
-  subject: "Unsend email",
-  html: "<p>Unsend is the best open source product to send emails</p>",
-  text: "Unsend is the best open source product to send emails",
+  subject: "useSend email",
+  html: "<p>useSend is the best open source product to send emails</p>",
+  text: "useSend is the best open source product to send emails",
 });
 ```

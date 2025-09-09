@@ -3,7 +3,7 @@ import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { EmailQueueService } from "./email-queue-service";
 import { validateDomainFromEmail, validateApiKeyDomainAccess } from "./domain-service";
-import { EmailRenderer } from "@unsend/email-editor/src/renderer";
+import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 

@@ -7,12 +7,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@unsend/ui/src/table";
+} from "@usesend/ui/src/table";
 import { formatDistanceToNow } from "date-fns";
 import { api } from "~/trpc/react";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 import EditSesConfiguration from "./edit-ses-configuration";
-import { TextWithCopyButton } from "@unsend/ui/src/text-with-copy";
+import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 
 export default function SesConfigurations() {
   const sesSettingsQuery = api.admin.getSesSettings.useQuery();

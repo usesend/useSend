@@ -7,6 +7,7 @@ import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
 import { ApiKey } from "@prisma/client";
+import { LimitService } from "./limit-service";
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
 
@@ -41,7 +42,7 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
   if (!domain) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
-      message: `Domain: ${fromDomain} of from email is wrong. Use the domain verified by unsend`,
+      message: `Domain: ${fromDomain} of from email is wrong. Use the domain verified by useSend`,
     });
   }
 
@@ -99,8 +100,24 @@ export async function createDomain(
     throw new Error("Ses setting not found");
   }
 
+  const { isLimitReached, reason } =
+    await LimitService.checkDomainLimit(teamId);
+
+  if (isLimitReached) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: reason ?? "Domain limit reached",
+    });
+  }
+
   const subdomain = tldts.getSubdomain(name);
-  const publicKey = await ses.addDomain(name, region, sesTenantId);
+  const dkimSelector = "usesend";
+  const publicKey = await ses.addDomain(
+    name,
+    region,
+    sesTenantId,
+    dkimSelector
+  );
 
   const domain = await db.domain.create({
     data: {
@@ -110,6 +127,7 @@ export async function createDomain(
       subdomain,
       region,
       sesTenantId,
+      dkimSelector,
     },
   });
 
@@ -139,7 +157,7 @@ export async function getDomain(id: number) {
     const verificationStatus = domainIdentity.VerificationStatus;
     const lastCheckedTime =
       domainIdentity.VerificationInfo?.LastCheckedTimestamp;
-    const _dmarcRecord = await getDmarcRecord(domain.name);
+    const _dmarcRecord = await getDmarcRecord(tldts.getDomain(domain.name)!);
     const dmarcRecord = _dmarcRecord?.[0]?.[0];
 
     domain = await db.domain.update({
@@ -202,9 +220,9 @@ export async function deleteDomain(id: number) {
     throw new Error("Error in deleting domain");
   }
 
-  return db.domain.delete({
-    where: { id },
-  });
+  const deletedRecord = await db.domain.delete({ where: { id } });
+
+  return deletedRecord;
 }
 
 export async function getDomains(teamId: number) {

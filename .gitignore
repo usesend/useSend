@@ -41,3 +41,4 @@ yarn-error.log*
 prod_db.tar
 
 bin
+__pycache__

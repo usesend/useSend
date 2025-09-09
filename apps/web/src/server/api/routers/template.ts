@@ -1,17 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { EmailRenderer } from "@unsend/email-editor/src/renderer";
+import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { z } from "zod";
 import { env } from "~/env";
 import {
   teamProcedure,
   createTRPCRouter,
-  templateProcedure
+  templateProcedure,
 } from "~/server/api/trpc";
 import { nanoid } from "~/server/nanoid";
 import {
   getDocumentUploadUrl,
-  isStorageConfigured
+  isStorageConfigured,
 } from "~/server/service/storage-service";
 
 export const templateRouter = createTRPCRouter({
@@ -19,18 +19,16 @@ export const templateRouter = createTRPCRouter({
     .input(
       z.object({
         page: z.number().optional(),
-      })
+      }),
     )
     .query(async ({ ctx: { db, team }, input }) => {
       const page = input.page || 1;
       const limit = 30;
       const offset = (page - 1) * limit;
 
-
       const whereConditions: Prisma.TemplateFindManyArgs["where"] = {
         teamId: team.id,
       };
-
 
       const countP = db.template.count({ where: whereConditions });
 
@@ -61,7 +59,7 @@ export const templateRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         subject: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { db, team }, input }) => {
       const template = await db.template.create({
@@ -80,7 +78,7 @@ export const templateRouter = createTRPCRouter({
         name: z.string().optional(),
         subject: z.string().optional(),
         content: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { db }, input }) => {
       const { templateId, ...data } = input;
@@ -109,7 +107,7 @@ export const templateRouter = createTRPCRouter({
         where: { id: input.templateId, teamId: team.id },
       });
       return template;
-    }
+    },
   ),
 
   getTemplate: templateProcedure.query(async ({ ctx: { db, team }, input }) => {
@@ -139,12 +137,12 @@ export const templateRouter = createTRPCRouter({
           name: `${template.name} (Copy)`,
           subject: template.subject,
           content: template.content,
-          teamId: team.id
+          teamId: team.id,
         },
       });
 
       return newTemplate;
-    }
+    },
   ),
 
   generateImagePresignedUrl: templateProcedure
@@ -152,7 +150,7 @@ export const templateRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         type: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
       const extension = input.name.split(".").pop();
@@ -160,7 +158,7 @@ export const templateRouter = createTRPCRouter({
 
       const url = await getDocumentUploadUrl(
         `${team.id}/${randomName}`,
-        input.type
+        input.type,
       );
 
       const imageUrl = `${env.S3_COMPATIBLE_PUBLIC_URL}/${team.id}/${randomName}`;

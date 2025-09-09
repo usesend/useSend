@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "usesend"
+version = "0.2.3"
+description = "Python SDK for the UseSend API"
+authors = ["UseSend"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "usesend" }]
+include = ["usesend/py.typed"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<4.0"
+requests = "^2.32.0"
+typing_extensions = ">=4.7"
+
+[tool.poetry.group.dev.dependencies]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

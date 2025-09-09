@@ -2,12 +2,13 @@
 
 import TemplateList from "./template-list";
 import CreateTemplate from "./create-template";
+import { H1 } from "@usesend/ui";
 
 export default function TemplatesPage() {
   return (
     <div>
       <div className="flex justify-between items-center">
-        <h1 className="font-bold text-lg">Templates</h1>
+        <H1>Templates</H1>
         <CreateTemplate />
       </div>
       <TemplateList />

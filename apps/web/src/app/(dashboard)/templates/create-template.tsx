@@ -1,14 +1,14 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Input } from "@unsend/ui/src/input";
+import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import {
   Form,
   FormControl,
@@ -16,7 +16,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@unsend/ui/src/form";
+} from "@usesend/ui/src/form";
 
 import { api } from "~/trpc/react";
 import { useState } from "react";
@@ -24,9 +24,9 @@ import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { useRouter } from "next/navigation";
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 
 const templateSchema = z.object({
   name: z.string({ required_error: "Name is required" }).min(1, {

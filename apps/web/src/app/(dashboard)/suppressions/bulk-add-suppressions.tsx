@@ -10,18 +10,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@unsend/ui/src/dialog";
-import { Button } from "@unsend/ui/src/button";
-import { Label } from "@unsend/ui/src/label";
-import { Textarea } from "@unsend/ui/src/textarea";
+} from "@usesend/ui/src/dialog";
+import { Button } from "@usesend/ui/src/button";
+import { Label } from "@usesend/ui/src/label";
+import { Textarea } from "@usesend/ui/src/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@unsend/ui/src/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@unsend/ui/src/tabs";
+} from "@usesend/ui/src/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@usesend/ui/src/tabs";
 import { Upload, FileText } from "lucide-react";
 
 interface BulkAddSuppressionsDialogProps {

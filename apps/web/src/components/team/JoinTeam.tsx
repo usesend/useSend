@@ -1,17 +1,17 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
-import { Spinner } from "@unsend/ui/src/spinner";
+import { Button } from "@usesend/ui/src/button";
+import { Spinner } from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import { useState } from "react";
 import type { AppRouter } from "~/server/api/root";
 import type { inferRouterOutputs } from "@trpc/server";

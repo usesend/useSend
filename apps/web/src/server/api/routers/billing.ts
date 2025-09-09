@@ -2,6 +2,7 @@ import { DailyEmailUsage, EmailUsageType, Subscription } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { format, sub } from "date-fns";
 import { z } from "zod";
+import { getThisMonthUsage } from "~/server/service/usage-service";
 
 import {
   apiKeyProcedure,
@@ -14,6 +15,7 @@ import {
   getManageSessionUrl,
 } from "~/server/billing/payments";
 import { db } from "~/server/db";
+import { TeamService } from "~/server/service/team-service";
 
 export const billingRouter = createTRPCRouter({
   createCheckoutSession: teamAdminProcedure.mutation(async ({ ctx }) => {
@@ -25,48 +27,7 @@ export const billingRouter = createTRPCRouter({
   }),
 
   getThisMonthUsage: teamProcedure.query(async ({ ctx }) => {
-    const isPaidPlan = ctx.team.plan !== "FREE";
-    let subscription: Subscription | null = null;
-
-    if (isPaidPlan) {
-      subscription = await db.subscription.findFirst({
-        where: { teamId: ctx.team.id },
-        orderBy: { status: "asc" },
-      });
-    }
-
-    const isoStartDate = subscription?.currentPeriodStart
-      ? format(subscription.currentPeriodStart, "yyyy-MM-dd")
-      : format(new Date(), "yyyy-MM-01"); // First day of current month
-    const today = format(new Date(), "yyyy-MM-dd");
-
-    const [monthUsage, dayUsage] = await Promise.all([
-      // Get month usage
-      db.$queryRaw<Array<{ type: EmailUsageType; sent: number }>>`
-        SELECT 
-          type,
-          SUM(sent)::integer AS sent
-        FROM "DailyEmailUsage"
-        WHERE "teamId" = ${ctx.team.id}
-        AND "date" >= ${isoStartDate}
-        GROUP BY "type"
-      `,
-      // Get today's usage
-      db.$queryRaw<Array<{ type: EmailUsageType; sent: number }>>`
-        SELECT 
-          type,
-          SUM(sent)::integer AS sent
-        FROM "DailyEmailUsage"
-        WHERE "teamId" = ${ctx.team.id}
-        AND "date" = ${today}
-        GROUP BY "type"
-      `,
-    ]);
-
-    return {
-      month: monthUsage,
-      day: dayUsage,
-    };
+    return await getThisMonthUsage(ctx.team.id);
   }),
 
   getSubscriptionDetails: teamProcedure.query(async ({ ctx }) => {
@@ -87,9 +48,6 @@ export const billingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { billingEmail } = input;
 
-      await db.team.update({
-        where: { id: ctx.team.id },
-        data: { billingEmail },
-      });
+      await TeamService.updateTeam(ctx.team.id, { billingEmail });
     }),
 });

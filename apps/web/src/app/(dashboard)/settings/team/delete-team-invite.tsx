@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@unsend/ui/src/button";
+import { Button } from "@usesend/ui/src/button";
 import {
   Dialog,
   DialogContent,
@@ -8,10 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@unsend/ui/src/dialog";
+} from "@usesend/ui/src/dialog";
 import { api } from "~/trpc/react";
 import { useState } from "react";
-import { toast } from "@unsend/ui/src/toaster";
+import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 
 export const DeleteTeamInvite: React.FC<{
@@ -36,7 +36,7 @@ export const DeleteTeamInvite: React.FC<{
         onError: async (error) => {
           toast.error(error.message);
         },
-      }
+      },
     );
   }
 
@@ -47,7 +47,7 @@ export const DeleteTeamInvite: React.FC<{
     >
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm">
-          <Trash2 className="h-4 w-4 text-red-600/80" />
+          <Trash2 className="h-4 w-4 text-red/80" />
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -8,9 +8,5 @@ export default async function Home() {
     redirect("/login");
   }
 
-  if (!session.user.isBetaUser) {
-    redirect("/wait-list");
-  } else {
-    redirect("/dashboard");
-  }
+  redirect("/dashboard");
 }

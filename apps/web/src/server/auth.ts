@@ -53,6 +53,11 @@ function getProviders() {
         clientId: env.GITHUB_ID,
         clientSecret: env.GITHUB_SECRET,
         allowDangerousEmailAccountLinking: true,
+        authorization: {
+          params: {
+            scope: "read:user user:email",
+          },
+        },
       })
     );
   }
@@ -121,17 +126,10 @@ export const authOptions: NextAuthOptions = {
         invitesAvailable = invites.length > 0;
       }
 
-      // No waitlist for self hosting
-      if (
-        !env.NEXT_PUBLIC_IS_CLOUD ||
-        env.NODE_ENV === "development" ||
-        invitesAvailable
-      ) {
-        await db.user.update({
-          where: { id: user.id },
-          data: { isBetaUser: true },
-        });
-      }
+      await db.user.update({
+        where: { id: user.id },
+        data: { isBetaUser: true },
+      });
     },
   },
   providers: getProviders(),

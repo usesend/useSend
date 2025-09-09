@@ -107,6 +107,9 @@ model Team {
   apiRateLimit     Int               @default(2)
   billingEmail     String?
   sesTenantId      String?
+  isVerified       Boolean           @default(false)
+  dailyEmailLimit  Int               @default(10000)
+  isBlocked        Boolean           @default(false)
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]
@@ -138,6 +141,7 @@ model Subscription {
   teamId             Int
   status             String
   priceId            String
+  priceIds           String[]
   currentPeriodEnd   DateTime?
   currentPeriodStart DateTime?
   cancelAtPeriodEnd  DateTime?
@@ -180,6 +184,7 @@ model Domain {
   clickTracking Boolean      @default(false)
   openTracking  Boolean      @default(false)
   publicKey     String
+  dkimSelector  String?      @default("usesend")
   dkimStatus    String?
   spfDetails    String?
   dmarcAdded    Boolean      @default(false)

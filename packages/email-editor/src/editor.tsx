@@ -10,7 +10,7 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import React, { useRef } from "react";
 import { TextMenu } from "./menus/TextMenu";
-import { cn } from "@unsend/ui/lib/utils";
+import { cn } from "@usesend/ui/lib/utils";
 
 import { extensions } from "./extensions";
 import LinkMenu from "./menus/LinkMenu";
@@ -19,7 +19,7 @@ import { UploadFn } from "./extensions/ImageExtension";
 
 const content = `<h2>Hello World!</h2>
 
-<h3>Unsend is the best open source resend alternative.</h3>
+<h3>useSend is the best open source resend alternative.</h3>
 
 <p>Use markdown (<code># </code>, <code>## </code>, <code>### </code>, <code>\`\`</code>, <code>* *</code>, <code>** **</code>) to write your email. </p>
 <p>You can <b>Bold</b> text.
@@ -27,7 +27,7 @@ You can <i>Italic</i> text.
 You can <u>Underline</u> text.
 You can <del>Delete</del> text.
 You can <code>Code</code> text.
-you can change <span style="color: #dc2626;"> color</span> of text. Add <a href="https://unsend.dev" target="_blank">link</a> to text
+you can change <span style="color: #dc2626;"> color</span> of text. Add <a href="https://usesend.com" target="_blank">link</a> to text
 </p>
 <br>
 You can create ordered list
@@ -49,11 +49,11 @@ You can create unordered list
 <p>Add code by typing \`\`\` and enter</p>
 <pre>
 <code>
-const unsend = new Unsend("us_12345");
+const usesend = new UseSend("us_12345");
 
-// const unsend = new Unsend("us_12345", "https://my-unsend-instance.com");
+// const usesend = new UseSend("us_12345", "https://app.usesend.com");
 
-unsend.emails.send({
+usesend.emails.send({
   to: "john@doe.com",
   from: "john@doe.com",
   subject: "Hello World!",

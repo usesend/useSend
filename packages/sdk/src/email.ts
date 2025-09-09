@@ -1,6 +1,6 @@
 import { render } from "@react-email/render";
 import * as React from "react";
-import { Unsend } from "./unsend";
+import { UseSend } from "./usesend";
 import { paths } from "../types/schema";
 import { ErrorResponse } from "../types";
 
@@ -68,8 +68,8 @@ type BatchEmailResponse = {
 };
 
 export class Emails {
-  constructor(private readonly unsend: Unsend) {
-    this.unsend = unsend;
+  constructor(private readonly usesend: UseSend) {
+    this.usesend = usesend;
   }
 
   async send(payload: SendEmailPayload) {
@@ -82,7 +82,7 @@ export class Emails {
       delete payload.react;
     }
 
-    const data = await this.unsend.post<CreateEmailResponseSuccess>(
+    const data = await this.usesend.post<CreateEmailResponseSuccess>(
       "/emails",
       payload
     );
@@ -98,7 +98,7 @@ export class Emails {
    */
   async batch(payload: BatchEmailPayload): Promise<BatchEmailResponse> {
     // Note: React element rendering is not supported in batch mode.
-    const response = await this.unsend.post<BatchEmailResponseSuccess>(
+    const response = await this.usesend.post<BatchEmailResponseSuccess>(
       "/emails/batch",
       payload
     );
@@ -109,7 +109,7 @@ export class Emails {
   }
 
   async get(id: string): Promise<GetEmailResponse> {
-    const data = await this.unsend.get<GetEmailResponseSuccess>(
+    const data = await this.usesend.get<GetEmailResponseSuccess>(
       `/emails/${id}`
     );
     return data;
@@ -119,7 +119,7 @@ export class Emails {
     id: string,
     payload: UpdateEmailPayload
   ): Promise<UpdateEmailResponse> {
-    const data = await this.unsend.patch<UpdateEmailResponseSuccess>(
+    const data = await this.usesend.patch<UpdateEmailResponseSuccess>(
       `/emails/${id}`,
       payload
     );
@@ -127,7 +127,7 @@ export class Emails {
   }
 
   async cancel(id: string): Promise<CancelEmailResponse> {
-    const data = await this.unsend.post<CancelEmailResponseSuccess>(
+    const data = await this.usesend.post<CancelEmailResponseSuccess>(
       `/emails/${id}/cancel`,
       {}
     );

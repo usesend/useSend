@@ -8,20 +8,20 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@unsend/ui/src/breadcrumb";
+} from "@usesend/ui/src/breadcrumb";
 import Link from "next/link";
 import AddContact from "./add-contact";
 import ContactList from "./contact-list";
-import { TextWithCopyButton } from "@unsend/ui/src/text-with-copy";
+import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@unsend/ui/src/popover";
-import { Button } from "@unsend/ui/src/button";
-import { useTheme } from "@unsend/ui";
+} from "@usesend/ui/src/popover";
+import { Button } from "@usesend/ui/src/button";
+import { useTheme } from "@usesend/ui";
 import { use } from "react";
 
 export default function ContactsPage({
@@ -51,7 +51,7 @@ export default function ContactsPage({
             ...old,
             ...data,
           };
-        }
+        },
       );
     },
     onSettled: () => {

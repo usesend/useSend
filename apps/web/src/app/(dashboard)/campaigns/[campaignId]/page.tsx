@@ -7,10 +7,11 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@unsend/ui/src/breadcrumb";
+} from "@usesend/ui/src/breadcrumb";
 import Link from "next/link";
+import { H2 } from "@usesend/ui";
 
-import Spinner from "@unsend/ui/src/spinner";
+import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { use } from "react";
 
@@ -80,7 +81,7 @@ export default function CampaignDetailsPage({
         </BreadcrumbList>
       </Breadcrumb>
       <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4"> Statistics</h2>
+        <H2 className="mb-4"> Statistics</H2>
         <div className="flex  gap-4">
           {statusCards.map((card) => (
             <div
@@ -110,7 +111,7 @@ export default function CampaignDetailsPage({
 
       {campaign.html && (
         <div className=" rounded-lg  mt-16">
-          <h2 className="text-xl font-semibold mb-4">Email</h2>
+          <H2 className="mb-4">Email</H2>
 
           <div className="p-2 rounded-lg border shadow  flex flex-col gap-4 w-full">
             <div className="flex flex-col gap-3 px-4 py-1">
@@ -146,35 +147,35 @@ export default function CampaignDetailsPage({
 }
 
 const CampaignStatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  let outsideColor = "bg-gray-600";
-  let insideColor = "bg-gray-600/50";
+  let outsideColor = "bg-gray";
+  let insideColor = "bg-gray/50";
 
   switch (status) {
     case "delivered":
-      outsideColor = "bg-emerald-500/30";
-      insideColor = "bg-emerald-500";
+      outsideColor = "bg-green/30";
+      insideColor = "bg-green";
       break;
     case "bounced":
     case "unsubscribed":
-      outsideColor = "bg-red-500/30";
-      insideColor = "bg-red-500";
+      outsideColor = "bg-red/30";
+      insideColor = "bg-red";
       break;
     case "clicked":
-      outsideColor = "bg-cyan-500/30";
-      insideColor = "bg-cyan-500";
+      outsideColor = "bg-blue/30";
+      insideColor = "bg-blue";
       break;
     case "opened":
-      outsideColor = "bg-indigo-500/30";
-      insideColor = "bg-indigo-500";
+      outsideColor = "bg-purple/30";
+      insideColor = "bg-purple";
       break;
 
     case "complained":
-      outsideColor = "bg-yellow-500/30";
-      insideColor = "bg-yellow-500";
+      outsideColor = "bg-yellow/30";
+      insideColor = "bg-yellow";
       break;
     default:
-      outsideColor = "bg-gray-600/40";
-      insideColor = "bg-gray-600";
+      outsideColor = "bg-gray/40";
+      insideColor = "bg-gray";
   }
 
   return (
