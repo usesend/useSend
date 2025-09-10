@@ -122,9 +122,17 @@ export default function EmailsList() {
         return /[",\r\n]/.test(safe) ? `"${safe}"` : safe;
       };
 
-      const header = ["To", "Status", "Subject", "Sent At"].join(",");
+      const header = [
+        "To",
+        "Status",
+        "Subject",
+        "Sent At",
+        "Bounce Reason",
+      ].join(",");
       const rows = resp.data.map((e) =>
-        [e.to, e.status, e.subject, e.sentAt].map(escape).join(","),
+        [e.to, e.status, e.subject, e.sentAt, e.bounceReason]
+          .map(escape)
+          .join(","),
       );
       const csv = [header, ...rows].join("\n");
 
