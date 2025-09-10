@@ -96,6 +96,16 @@ export function SiteFooter() {
                   </li>
                   <li>
                     <a
+                      href="https://discord.com/invite/BU8n8pJv8S"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-foreground text-xs"
+                    >
+                      Discord
+                    </a>
+                  </li>
+                  <li>
+                    <a
                       href="https://bsky.app/profile/usesend.com"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -140,6 +150,7 @@ export function SiteFooter() {
               title="Service status"
               className="inline-flex items-center"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="https://status.usesend.com/api/badge/2/status?upColor=30D9BD&style=plastic"
                 alt="Service status"
