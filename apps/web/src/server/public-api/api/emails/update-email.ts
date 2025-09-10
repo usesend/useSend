@@ -48,7 +48,11 @@ function updateEmailScheduledAt(app: PublicAPIApp) {
     const team = c.var.team;
     const emailId = c.req.param("emailId");
 
-    await checkIsValidEmailIdWithDomainRestriction(emailId, team.id, team.apiKey.domainId);
+    await checkIsValidEmailIdWithDomainRestriction(
+      emailId,
+      team.id,
+      team.apiKey.domainId ?? undefined
+    );
 
     await updateEmail(emailId, {
       scheduledAt: c.req.valid("json").scheduledAt,
