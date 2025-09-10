@@ -37,7 +37,11 @@ function cancelScheduledEmail(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
     const emailId = c.req.param("emailId");
-    await checkIsValidEmailIdWithDomainRestriction(emailId, team.id, team.apiKey.domainId);
+    await checkIsValidEmailIdWithDomainRestriction(
+      emailId,
+      team.id,
+      team.apiKey.domainId ?? undefined
+    );
 
     await cancelEmail(emailId);
 
