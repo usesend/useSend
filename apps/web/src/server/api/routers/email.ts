@@ -15,31 +15,60 @@ import { cancelEmail, updateEmail } from "~/server/service/email-service";
 
 const statuses = Object.values(EmailStatus) as [EmailStatus];
 
-const getBounceReason = (data: Prisma.JsonValue) => {
-  const bounce = data as unknown as SesBounce;
-  if (bounce.bouncedRecipients?.[0]?.diagnosticCode) {
-    return bounce.bouncedRecipients[0].diagnosticCode;
+const getBounceReason = (data: Prisma.JsonValue): string | undefined => {
+  // Accept JSON string or object; bail out on malformed input
+  const raw =
+    typeof data === "string"
+      ? (() => {
+          try {
+            return JSON.parse(data);
+          } catch {
+            return undefined;
+          }
+        })()
+      : data;
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const bounce = raw as Partial<SesBounce>;
+
+  const diagnostic = bounce.bouncedRecipients?.[0]?.diagnosticCode?.trim();
+  if (diagnostic) return diagnostic;
+
+  const type = (bounce.bounceType ?? "").trim() as
+    | "Transient"
+    | "Permanent"
+    | "Undetermined"
+    | "";
+  const subtype = (bounce.bounceSubType ?? "")
+    .toString()
+    .trim()
+    .replace(/\s+/g, ""); // remove stray spaces/tabs
+
+  if (type === "Permanent") {
+    const key = (
+      ["General", "NoEmail", "Suppressed", "OnAccountSuppressionList"].includes(
+        subtype,
+      )
+        ? subtype
+        : "General"
+    ) as keyof typeof BOUNCE_ERROR_MESSAGES.Permanent;
+    return BOUNCE_ERROR_MESSAGES.Permanent[key];
   }
-  if (bounce.bounceType === "Permanent") {
-    return BOUNCE_ERROR_MESSAGES.Permanent[
-      bounce.bounceSubType as
-        | "General"
-        | "NoEmail"
-        | "Suppressed"
-        | "OnAccountSuppressionList"
-    ];
+  if (type === "Transient") {
+    const key = (
+      [
+        "General",
+        "MailboxFull",
+        "MessageTooLarge",
+        "ContentRejected",
+        "AttachmentRejected",
+      ].includes(subtype)
+        ? subtype
+        : "General"
+    ) as keyof typeof BOUNCE_ERROR_MESSAGES.Transient;
+    return BOUNCE_ERROR_MESSAGES.Transient[key];
   }
-  if (bounce.bounceType === "Transient") {
-    return BOUNCE_ERROR_MESSAGES.Transient[
-      bounce.bounceSubType as
-        | "General"
-        | "MailboxFull"
-        | "MessageTooLarge"
-        | "ContentRejected"
-        | "AttachmentRejected"
-    ];
-  }
-  if (bounce.bounceType === "Undetermined") {
+  if (type === "Undetermined") {
     return BOUNCE_ERROR_MESSAGES.Undetermined;
   }
   return undefined;
