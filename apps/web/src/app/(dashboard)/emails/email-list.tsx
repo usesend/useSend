@@ -111,25 +111,36 @@ export default function EmailsList() {
   }, 1000);
 
   const handleExport = async () => {
-    const resp = await exportQuery.refetch();
-    if (resp.data) {
-      const csv = [
-        "To,Status,Subject,Sent At",
-        ...resp.data.map(
-          (email) =>
-            `${email.to},${email.status},${email.subject},${email.sentAt}`,
-        ),
-      ].join("\n");
+    try {
+      const resp = await exportQuery.refetch();
+      if (!resp.data) return;
 
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = window.URL.createObjectURL(blob);
+      const escape = (val: unknown) => {
+        const s = String(val ?? "");
+        const startsRisky = /^\s*[=+\-@]/.test(s);
+        const safe = (startsRisky ? "'" : "") + s.replace(/"/g, '""');
+        return /[",\r\n]/.test(safe) ? `"${safe}"` : safe;
+      };
+
+      const header = ["To", "Status", "Subject", "Sent At"].join(",");
+      const rows = resp.data.map((e) =>
+        [e.to, e.status, e.subject, e.sentAt].map(escape).join(","),
+      );
+      const csv = [header, ...rows].join("\n");
+
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `emails-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed", err);
     }
   };
 
