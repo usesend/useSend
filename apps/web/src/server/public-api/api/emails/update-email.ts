@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { updateEmail } from "~/server/service/email-service";
-import { checkIsValidEmailId } from "../../api-utils";
+import { checkIsValidEmailIdWithDomainRestriction } from "../../api-utils";
 
 const route = createRoute({
   method: "patch",
@@ -48,7 +48,7 @@ function updateEmailScheduledAt(app: PublicAPIApp) {
     const team = c.var.team;
     const emailId = c.req.param("emailId");
 
-    await checkIsValidEmailId(emailId, team.id);
+    await checkIsValidEmailIdWithDomainRestriction(emailId, team.id, team.apiKey.domainId);
 
     await updateEmail(emailId, {
       scheduledAt: c.req.valid("json").scheduledAt,

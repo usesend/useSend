@@ -2,7 +2,7 @@ import { EmailContent } from "~/types";
 import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { EmailQueueService } from "./email-queue-service";
-import { validateDomainFromEmail } from "./domain-service";
+import { validateDomainFromEmail, validateApiKeyDomainAccess } from "./domain-service";
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
@@ -70,7 +70,27 @@ export async function sendEmail(
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
 
-  const domain = await validateDomainFromEmail(from, teamId);
+  let domain: Awaited<ReturnType<typeof validateDomainFromEmail>>;
+  
+  // If this is an API call with an API key, validate domain access
+  if (apiKeyId) {
+    const apiKey = await db.apiKey.findUnique({
+      where: { id: apiKeyId },
+      include: { domain: true },
+    });
+    
+    if (!apiKey) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "Invalid API key",
+      });
+    }
+    
+    domain = await validateApiKeyDomainAccess(from, teamId, apiKey);
+  } else {
+    // For non-API calls (dashboard, etc.), use regular domain validation
+    domain = await validateDomainFromEmail(from, teamId);
+  }
 
   // Check for suppressed emails before sending
   const toEmails = Array.isArray(to) ? to : [to];

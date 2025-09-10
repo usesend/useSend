@@ -123,7 +123,9 @@ function listEmails(app: PublicAPIApp) {
       };
     }
 
-    if (domainId && domainId.length > 0) {
+    if (team.apiKey.domainId !== null) {
+      whereClause.domainId = team.apiKey.domainId;
+    } else if (domainId && domainId.length > 0) {
       whereClause.domainId = { in: domainId };
     }
 

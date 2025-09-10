@@ -195,6 +195,7 @@ model Domain {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  apiKeys       ApiKey[]
 }
 
 enum ApiPermission {
@@ -209,11 +210,13 @@ model ApiKey {
   partialToken String
   name         String
   permission   ApiPermission @default(SENDING)
+  domainId     Int?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   lastUsed     DateTime?
   teamId       Int
   team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  domain       Domain?       @relation(fields: [domainId], references: [id], onDelete: Cascade)
 }
 
 enum EmailStatus {

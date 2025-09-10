@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { ApiPermission } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 import {
   apiKeyProcedure,
@@ -10,13 +12,18 @@ import { addApiKey, deleteApiKey } from "~/server/service/api-service";
 export const apiRouter = createTRPCRouter({
   createToken: teamProcedure
     .input(
-      z.object({ name: z.string(), permission: z.enum(["FULL", "SENDING"]) })
+      z.object({
+        name: z.string(),
+        permission: z.nativeEnum(ApiPermission),
+        domainId: z.number().int().positive().optional(),
+      })
     )
     .mutation(async ({ ctx, input }) => {
-      return addApiKey({
+      return await addApiKey({
         name: input.name,
         permission: input.permission,
         teamId: ctx.team.id,
+        domainId: input.domainId,
       });
     }),
 
@@ -32,6 +39,12 @@ export const apiRouter = createTRPCRouter({
         partialToken: true,
         lastUsed: true,
         createdAt: true,
+        domainId: true,
+        domain: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 

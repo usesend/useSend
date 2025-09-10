@@ -6,6 +6,7 @@ import { db } from "~/server/db";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
+import { ApiKey } from "@prisma/client";
 import { LimitService } from "./limit-service";
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
@@ -34,7 +35,7 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
     });
   }
 
-  const domain = await db.domain.findUnique({
+  const domain = await db.domain.findFirst({
     where: { name: fromDomain, teamId },
   });
 
@@ -52,6 +53,30 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
     });
   }
 
+  return domain;
+}
+
+export async function validateApiKeyDomainAccess(
+  email: string,
+  teamId: number,
+  apiKey: ApiKey & { domain?: { name: string } | null }
+) {
+  // First validate the domain exists and is verified
+  const domain = await validateDomainFromEmail(email, teamId);
+  
+  // If API key has no domain restriction (domainId is null), allow all domains
+  if (!apiKey.domainId) {
+    return domain;
+  }
+  
+  // If API key is restricted to a specific domain, check if it matches
+  if (apiKey.domainId !== domain.id) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: `API key does not have access to domain: ${domain.name}`,
+    });
+  }
+  
   return domain;
 }
 
