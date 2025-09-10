@@ -7,13 +7,13 @@ import { getRedis } from "~/server/redis";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { isSelfHosted } from "~/utils/common";
 import { UnsendApiError } from "./api-error";
-import { Team } from "@prisma/client";
+import { Team, ApiKey } from "@prisma/client";
 import { logger } from "../logger/log";
 
 // Define AppEnv for Hono context
 export type AppEnv = {
   Variables: {
-    team: Team & { apiKeyId: number };
+    team: Team & { apiKeyId: number; apiKey: { domainId: number | null } };
   };
 };
 

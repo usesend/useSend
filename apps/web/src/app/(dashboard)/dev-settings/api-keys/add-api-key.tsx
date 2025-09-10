@@ -27,11 +27,20 @@ import {
   FormLabel,
   FormMessage,
 } from "@usesend/ui/src/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@unsend/ui/src/select";
+
 
 const apiKeySchema = z.object({
   name: z.string({ required_error: "Name is required" }).min(1, {
     message: "Name is required",
   }),
+  domainId: z.string().optional(),
 });
 
 export default function AddApiKey() {
@@ -40,6 +49,8 @@ export default function AddApiKey() {
   const createApiKeyMutation = api.apiKey.createToken.useMutation();
   const [isCopied, setIsCopied] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  
+  const domainsQuery = api.domain.domains.useQuery();
 
   const utils = api.useUtils();
 
@@ -47,6 +58,7 @@ export default function AddApiKey() {
     resolver: zodResolver(apiKeySchema),
     defaultValues: {
       name: "",
+      domainId: "all",
     },
   });
 
@@ -55,6 +67,7 @@ export default function AddApiKey() {
       {
         name: values.name,
         permission: "FULL",
+        domainId: values.domainId === "all" ? undefined : Number(values.domainId),
       },
       {
         onSuccess: (data) => {
@@ -177,6 +190,33 @@ export default function AddApiKey() {
                           Use a name to easily identify this API key.
                         </FormDescription>
                       )}
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={apiKeyForm.control}
+                  name="domainId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Domain access</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select domain access" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="all">All Domains</SelectItem>
+                          {domainsQuery.data?.map((domain: { id: number; name: string }) => (
+                            <SelectItem key={domain.id} value={domain.id.toString()}>
+                              {domain.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose which domain this API key can send emails from.
+                      </FormDescription>
                     </FormItem>
                   )}
                 />

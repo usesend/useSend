@@ -59,5 +59,5 @@ export const getTeamFromToken = async (c: Context) => {
       logger.error({ err }, "Failed to update lastUsed on API key")
     );
 
-  return { ...team, apiKeyId: apiKey.id };
+  return { ...team, apiKeyId: apiKey.id, apiKey: { domainId: apiKey.domainId } };
 };
