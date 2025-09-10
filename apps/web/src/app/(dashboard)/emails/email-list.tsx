@@ -16,6 +16,7 @@ import {
   MailSearch,
   MailWarning,
   MailX,
+  Download,
 } from "lucide-react";
 import { formatDate, formatDistanceToNow } from "date-fns";
 import { EmailStatus } from "@prisma/client";
@@ -74,6 +75,16 @@ export default function EmailsList() {
     apiId: apiId,
   });
 
+  const exportQuery = api.email.exportEmails.useQuery(
+    {
+      status: status?.toUpperCase() as EmailStatus,
+      domain: domainId,
+      search,
+      apiId: apiId,
+    },
+    { enabled: false },
+  );
+
   const { data: domainsQuery } = api.domain.domains.useQuery();
   const { data: apiKeysQuery } = api.apiKey.getApiKeys.useQuery();
 
@@ -99,9 +110,43 @@ export default function EmailsList() {
     setSearch(value);
   }, 1000);
 
+  const handleExport = async () => {
+    try {
+      const resp = await exportQuery.refetch();
+      if (!resp.data) return;
+
+      const escape = (val: unknown) => {
+        const s = String(val ?? "");
+        const startsRisky = /^\s*[=+\-@]/.test(s);
+        const safe = (startsRisky ? "'" : "") + s.replace(/"/g, '""');
+        return /[",\r\n]/.test(safe) ? `"${safe}"` : safe;
+      };
+
+      const header = ["To", "Status", "Subject", "Sent At"].join(",");
+      const rows = resp.data.map((e) =>
+        [e.to, e.status, e.subject, e.sentAt].map(escape).join(","),
+      );
+      const csv = [header, ...rows].join("\n");
+
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `emails-${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed", err);
+    }
+  };
+
   return (
     <div className="mt-10 flex flex-col gap-4">
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
         <Input
           placeholder="Search by subject or email"
           className="w-[350px] mr-4"
@@ -181,6 +226,14 @@ export default function EmailsList() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exportQuery.isFetching}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
         </div>
       </div>
       <div className="flex flex-col rounded-xl border shadow">
