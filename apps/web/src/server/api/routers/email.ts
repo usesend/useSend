@@ -15,8 +15,9 @@ import { cancelEmail, updateEmail } from "~/server/service/email-service";
 
 const statuses = Object.values(EmailStatus) as [EmailStatus];
 
-const getBounceReason = (data: Prisma.JsonValue): string | undefined => {
-  // Accept JSON string or object; bail out on malformed input
+const ensureBounceObject = (
+  data: Prisma.JsonValue,
+): Partial<SesBounce> | undefined => {
   const raw =
     typeof data === "string"
       ? (() => {
@@ -28,13 +29,16 @@ const getBounceReason = (data: Prisma.JsonValue): string | undefined => {
         })()
       : data;
   if (!raw || typeof raw !== "object") return undefined;
+  return raw as Partial<SesBounce>;
+};
 
-  const bounce = raw as Partial<SesBounce>;
-
+const getBounceReasonFromParsed = (
+  bounce: Partial<SesBounce>,
+): string | undefined => {
   const diagnostic = bounce.bouncedRecipients?.[0]?.diagnosticCode?.trim();
   if (diagnostic) return diagnostic;
 
-  const type = (bounce.bounceType ?? "").trim() as
+  const type = (bounce.bounceType ?? "").toString().trim() as
     | "Transient"
     | "Permanent"
     | "Undetermined"
@@ -42,7 +46,7 @@ const getBounceReason = (data: Prisma.JsonValue): string | undefined => {
   const subtype = (bounce.bounceSubType ?? "")
     .toString()
     .trim()
-    .replace(/\s+/g, ""); // remove stray spaces/tabs
+    .replace(/\s+/g, "");
 
   if (type === "Permanent") {
     const key = (
@@ -188,16 +192,27 @@ export const emailRouter = createTRPCRouter({
         LIMIT 10000
       `;
 
-      return emails.map((email) => ({
-        to: email.to.join("; "),
-        status: email.latestStatus,
-        subject: email.subject,
-        sentAt: (email.scheduledAt ?? email.createdAt).toISOString(),
-        bounceReason:
-          email.latestStatus === "BOUNCED" && email.bounceData
-            ? getBounceReason(email.bounceData)
-            : undefined,
-      }));
+      return emails.map((email) => {
+        const base = {
+          to: email.to.join("; "),
+          status: email.latestStatus,
+          subject: email.subject,
+          sentAt: (email.scheduledAt ?? email.createdAt).toISOString(),
+        } as const;
+
+        if (email.latestStatus !== "BOUNCED" || !email.bounceData) {
+          return { ...base, bounceType: undefined, bounceSubType: undefined, bounceReason: undefined };
+        }
+
+        const bounce = ensureBounceObject(email.bounceData);
+        const bounceType = bounce?.bounceType?.toString().trim() || undefined;
+        const bounceSubType = bounce?.bounceSubType
+          ? bounce.bounceSubType.toString().trim().replace(/\s+/g, "")
+          : undefined;
+        const bounceReason = bounce ? getBounceReasonFromParsed(bounce) : undefined;
+
+        return { ...base, bounceType, bounceSubType, bounceReason };
+      });
     }),
 
   getEmail: emailProcedure.query(async ({ input }) => {

@@ -127,10 +127,20 @@ export default function EmailsList() {
         "Status",
         "Subject",
         "Sent At",
+        "Bounce Type",
+        "Bounce Subtype",
         "Bounce Reason",
       ].join(",");
       const rows = resp.data.map((e) =>
-        [e.to, e.status, e.subject, e.sentAt, e.bounceReason]
+        [
+          e.to,
+          e.status,
+          e.subject,
+          e.sentAt,
+          e.bounceType,
+          e.bounceSubType,
+          e.bounceReason,
+        ]
           .map(escape)
           .join(","),
       );
