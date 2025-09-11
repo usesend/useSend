@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { JetBrains_Mono } from "next/font/google";
 import type { Metadata } from "next";
 import { ThemeProvider } from "@usesend/ui";
+import Script from "next/script";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -63,6 +64,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className="scroll-smooth bg-background"
     >
+      {process.env.NODE_ENV === "production" && (
+        <Script src="https://scripts.simpleanalyticscdn.com/latest.js" />
+      )}
       <body
         className={`font-mono ${inter.variable} ${jetbrainsMono.variable} bg-background`}
       >
