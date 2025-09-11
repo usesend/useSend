@@ -128,7 +128,7 @@ export default function DomainItemPage({
                   <TableCell className="">MX</TableCell>
                   <TableCell>
                     <TextWithCopyButton
-                      value={`mail.${domainQuery.data?.subdomain || domainQuery.data?.name}`}
+                      value={`mail${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
                     />
                   </TableCell>
                   <TableCell className="">
@@ -152,7 +152,7 @@ export default function DomainItemPage({
                   <TableCell className="">TXT</TableCell>
                   <TableCell>
                     <TextWithCopyButton
-                      value={`${domainQuery.data?.dkimSelector ?? "unsend"}._domainkey.${domainQuery.data?.subdomain || domainQuery.data?.name}`}
+                      value={`${domainQuery.data?.dkimSelector ?? "unsend"}._domainkey${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
                     />
                   </TableCell>
                   <TableCell className="">
@@ -173,7 +173,7 @@ export default function DomainItemPage({
                   <TableCell className="">TXT</TableCell>
                   <TableCell>
                     <TextWithCopyButton
-                      value={`mail.${domainQuery.data?.subdomain || domainQuery.data?.name}`}
+                      value={`mail${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
                     />
                   </TableCell>
                   <TableCell className="">
