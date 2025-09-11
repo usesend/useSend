@@ -121,3 +121,11 @@ We are grateful for the support of our sponsors.
 <a href="https://doras.to/" target="_blank">
   <img src="https://cdn.doras.to/doras/assets/05c5db48-cfba-49d7-82a1-5b4a3751aa40/49ca4647-65ed-412e-95c6-c475633d62af.png" alt="doras.to" style="width:60px;height:60px;">
 </a>
+
+<a href="https://github.com/anaclumos" target="_blank">
+  <img src="https://avatars.githubusercontent.com/u/31657298?v=4" alt="anaclumos" style="width:60px;height:60px;">
+</a>
+
+<a href="https://github.com/miguilimzero" target="_blank">
+  <img src="https://avatars.githubusercontent.com/u/35383529?v=4" alt="miguilimzero" style="width:60px;height:60px;">
+</a>
