@@ -17,6 +17,7 @@ import { CampaignStatus } from "@prisma/client";
 import DeleteCampaign from "./delete-campaign";
 import Link from "next/link";
 import DuplicateCampaign from "./duplicate-campaign";
+import TogglePauseCampaign from "./toggle-pause-campaign";
 import {
   Select,
   SelectTrigger,
@@ -58,6 +59,12 @@ export default function CampaignList() {
             >
               Scheduled
             </SelectItem>
+            <SelectItem value={CampaignStatus.RUNNING} className=" capitalize">
+              Running
+            </SelectItem>
+            <SelectItem value={CampaignStatus.PAUSED} className=" capitalize">
+              Paused
+            </SelectItem>
             <SelectItem value={CampaignStatus.SENT} className=" capitalize">
               Sent
             </SelectItem>
@@ -91,7 +98,8 @@ export default function CampaignList() {
                     <Link
                       className="underline underline-offset-4 decoration-dashed text-foreground hover:text-foreground"
                       href={
-                        campaign.status === CampaignStatus.DRAFT
+                        campaign.status === CampaignStatus.DRAFT ||
+                        campaign.status === CampaignStatus.SCHEDULED
                           ? `/campaigns/${campaign.id}/edit`
                           : `/campaigns/${campaign.id}`
                       }
@@ -106,7 +114,11 @@ export default function CampaignList() {
                           ? "bg-gray/15 text-gray border border-gray/25"
                           : campaign.status === CampaignStatus.SENT
                             ? "bg-green/15 text-green border border-green/25"
-                            : "bg-yellow/15 text-yellow border border-yellow/25"
+                            : campaign.status === CampaignStatus.RUNNING
+                              ? "bg-blue/15 text-blue border border-blue/25"
+                              : campaign.status === CampaignStatus.PAUSED
+                                ? "bg-orange/15 text-orange border border-orange/25"
+                                : "bg-yellow/15 text-yellow border border-yellow/25"
                       }`}
                     >
                       {campaign.status.toLowerCase()}
@@ -118,7 +130,11 @@ export default function CampaignList() {
                     })}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      {(campaign.status === CampaignStatus.SCHEDULED ||
+                        campaign.status === CampaignStatus.RUNNING) && (
+                        <TogglePauseCampaign campaign={campaign} />
+                      )}
                       <DuplicateCampaign campaign={campaign} />
                       <DeleteCampaign campaign={campaign} />
                     </div>

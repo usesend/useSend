@@ -14,6 +14,9 @@ import { H2 } from "@usesend/ui";
 import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { use } from "react";
+import { CampaignStatus } from "@prisma/client";
+import { formatDistanceToNow } from "date-fns";
+import TogglePauseCampaign from "../toggle-pause-campaign";
 
 export default function CampaignDetailsPage({
   params,
@@ -22,9 +25,20 @@ export default function CampaignDetailsPage({
 }) {
   const { campaignId } = use(params);
 
-  const { data: campaign, isLoading } = api.campaign.getCampaign.useQuery({
-    campaignId: campaignId,
-  });
+  const { data: campaign, isLoading } = api.campaign.getCampaign.useQuery(
+    { campaignId: campaignId },
+    {
+      refetchInterval: (query) => {
+        const c: any = query.state.data;
+        if (!c) return false;
+        const dueNow =
+          c.status === CampaignStatus.SCHEDULED &&
+          (c.scheduledAt ? new Date(c.scheduledAt) <= new Date() : true);
+        const shouldPoll = c.status === CampaignStatus.RUNNING || dueNow;
+        return shouldPoll ? 5000 : false;
+      },
+    }
+  );
 
   if (isLoading) {
     return (
@@ -61,6 +75,16 @@ export default function CampaignDetailsPage({
     },
   ];
 
+  const total = campaign.total ?? 0;
+  const processed = (campaign as any).processed ?? 0;
+  const progressPct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
+
+  const dueNow =
+    campaign.status === CampaignStatus.SCHEDULED &&
+    (!!campaign.scheduledAt
+      ? new Date(campaign.scheduledAt) <= new Date()
+      : true);
+
   return (
     <div className="container mx-auto">
       <Breadcrumb>
@@ -80,6 +104,48 @@ export default function CampaignDetailsPage({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+      {/* Header: status + schedule + progress */}
+      <div className="mt-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div
+            className={`text-center min-w-[110px] rounded capitalize py-1 px-3 text-xs ${
+              campaign.status === CampaignStatus.DRAFT
+                ? "bg-gray/15 text-gray border border-gray/25"
+                : campaign.status === CampaignStatus.SENT
+                  ? "bg-green/15 text-green border border-green/25"
+                  : campaign.status === CampaignStatus.RUNNING
+                    ? "bg-blue/15 text-blue border border-blue/25"
+                    : campaign.status === CampaignStatus.PAUSED
+                      ? "bg-orange/15 text-orange border border-orange/25"
+                      : "bg-yellow/15 text-yellow border border-yellow/25"
+            }`}
+          >
+            {campaign.status.toLowerCase()}
+          </div>
+          {campaign.status === CampaignStatus.SCHEDULED && campaign.scheduledAt ? (
+            <div className="text-sm text-muted-foreground">
+              Starts {formatDistanceToNow(new Date(campaign.scheduledAt), { addSuffix: true })}
+            </div>
+          ) : null}
+          {campaign.status === CampaignStatus.RUNNING ? (
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-muted-foreground">
+                {processed}/{total} processed
+              </div>
+              <div className="w-48 h-2 rounded bg-muted overflow-hidden">
+                <div
+                  className="h-2 bg-blue rounded"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <TogglePauseCampaign campaign={campaign} />
+        </div>
+      </div>
+
       <div className="mt-10">
         <H2 className="mb-4"> Statistics</H2>
         <div className="flex  gap-4">

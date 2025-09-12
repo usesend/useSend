@@ -41,6 +41,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@usesend/ui/src/accordion";
+import ScheduleCampaign from "../../schedule-campaign";
 
 const sendSchema = z.object({
   confirmation: z.string(),
@@ -63,7 +64,7 @@ export default function EditCampaignPage({
     { campaignId },
     {
       enabled: !!campaignId,
-    },
+    }
   );
 
   if (isLoading) {
@@ -98,7 +99,7 @@ function CampaignEditor({
   const utils = api.useUtils();
 
   const [json, setJson] = useState<Record<string, any> | undefined>(
-    campaign.content ? JSON.parse(campaign.content) : undefined,
+    campaign.content ? JSON.parse(campaign.content) : undefined
   );
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(campaign.name);
@@ -106,10 +107,10 @@ function CampaignEditor({
   const [from, setFrom] = useState(campaign.from);
   const [contactBookId, setContactBookId] = useState(campaign.contactBookId);
   const [replyTo, setReplyTo] = useState<string | undefined>(
-    campaign.replyTo[0],
+    campaign.replyTo[0]
   );
   const [previewText, setPreviewText] = useState<string | null>(
-    campaign.previewText,
+    campaign.previewText
   );
   const [openSendDialog, setOpenSendDialog] = useState(false);
 
@@ -135,7 +136,7 @@ function CampaignEditor({
 
   const deboucedUpdateCampaign = useDebouncedCallback(
     updateEditorContent,
-    1000,
+    1000
   );
 
   async function onSendCampaign(values: z.infer<typeof sendSchema>) {
@@ -160,14 +161,14 @@ function CampaignEditor({
         onError: (error) => {
           toast.error(`Failed to send campaign: ${error.message}`);
         },
-      },
+      }
     );
   }
 
   const handleFileChange = async (file: File) => {
     if (file.size > IMAGE_SIZE_LIMIT) {
       throw new Error(
-        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`,
+        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`
       );
     }
 
@@ -194,7 +195,7 @@ function CampaignEditor({
   const confirmation = sendForm.watch("confirmation");
 
   const contactBook = contactBooksQuery.data?.find(
-    (book) => book.id === contactBookId,
+    (book) => book.id === contactBookId
   );
 
   return (
@@ -220,7 +221,7 @@ function CampaignEditor({
                     toast.error(`${e.message}. Reverting changes.`);
                     setName(campaign.name);
                   },
-                },
+                }
               );
             }}
           />
@@ -235,56 +236,8 @@ function CampaignEditor({
                 ? "just now"
                 : `${formatDistanceToNow(campaign.updatedAt)} ago`}
             </div>
-            <Dialog open={openSendDialog} onOpenChange={setOpenSendDialog}>
-              <DialogTrigger asChild>
-                <Button variant="default">Send Campaign</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Send Campaign</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to send this campaign? This action
-                    cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-2">
-                  <Form {...sendForm}>
-                    <form
-                      onSubmit={sendForm.handleSubmit(onSendCampaign)}
-                      className="space-y-4"
-                    >
-                      <FormField
-                        control={sendForm.control}
-                        name="confirmation"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Type 'Send' to confirm</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          type="submit"
-                          disabled={
-                            sendCampaignMutation.isPending ||
-                            confirmation?.toLocaleLowerCase() !==
-                              "Send".toLocaleLowerCase()
-                          }
-                        >
-                          {sendCampaignMutation.isPending
-                            ? "Sending..."
-                            : "Send"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </div>
-              </DialogContent>
-            </Dialog>
+
+            <ScheduleCampaign campaign={campaign} />
           </div>
         </div>
 
@@ -315,7 +268,7 @@ function CampaignEditor({
                           toast.error(`${e.message}. Reverting changes.`);
                           setSubject(campaign.subject);
                         },
-                      },
+                      }
                     );
                   }}
                   className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent  focus:border-border bg-transparent"
@@ -350,7 +303,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setFrom(campaign.from);
                           },
-                        },
+                        }
                       );
                     }}
                   />
@@ -381,7 +334,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setReplyTo(campaign.replyTo[0]);
                           },
-                        },
+                        }
                       );
                     }}
                   />
@@ -414,7 +367,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setPreviewText(campaign.previewText ?? "");
                           },
-                        },
+                        }
                       );
                     }}
                     className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent bg-transparent  focus:border-border"
@@ -440,7 +393,7 @@ function CampaignEditor({
                             onError: () => {
                               setContactBookId(campaign.contactBookId);
                             },
-                          },
+                          }
                         );
                         setContactBookId(val);
                       }}
