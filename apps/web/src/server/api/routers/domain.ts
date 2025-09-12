@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { DomainStatus } from "@prisma/client";
 
 import {
   createTRPCRouter,
@@ -34,10 +36,33 @@ export const domainRouter = createTRPCRouter({
     }),
 
   startVerification: domainProcedure.mutation(async ({ ctx, input }) => {
-    await ctx.db.domain.update({
-      where: { id: input.id },
-      data: { isVerifying: true },
-    });
+    try {
+      const domain = await ctx.db.domain.findUnique({
+        where: { id: input.id },
+      });
+
+      if (!domain) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found" });
+      }
+
+      await ctx.db.domain.update({
+        where: { id: input.id },
+        data: {
+          isVerifying: true,
+          status: DomainStatus.PENDING,
+        },
+      });
+
+      return { success: true, message: "Domain verification started successfully" };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "Failed to start verification: " +
+          (error instanceof Error ? error.message : "Unknown error"),
+      });
+    }
   }),
 
   domains: teamProcedure.query(async ({ ctx }) => {
@@ -89,11 +114,11 @@ export const domainRouter = createTRPCRouter({
       });
 
       if (!domain) {
-        throw new Error("Domain not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found" });
       }
 
       if (!user.email) {
-        throw new Error("User email not found");
+        throw new TRPCError({ code: "BAD_REQUEST", message: "User email not found" });
       }
 
       return sendEmail({
