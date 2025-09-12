@@ -19,6 +19,7 @@
 - `pnpm format`: Prettier over ts/tsx/md.
 - `pnpm dx` / `pnpm dx:up` / `pnpm dx:down`: Spin up/down local infra via Docker Compose, then run migrations.
 - Database (apps/web filter): `pnpm db:generate` | `db:migrate-dev` | `db:push` | `db:studio`.
+- Never run migrations unless users explicitly asked
 
 ## Coding Style & Naming Conventions
 
