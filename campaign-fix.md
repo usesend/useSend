@@ -107,3 +107,78 @@ Defaults
 
 Summary
 This keeps it simple: a tiny scheduler loops all active campaigns and enqueues one batch job per campaign. The batch job pages contacts, renders, and queues emails while relying on an indexed database lookup (campaignId+contactId) to ensure idempotency. No extra queue orchestration or inflight accounting is needed.
+
+## Frontend: Status & Scheduling Plan
+
+Goals
+- Clearly surface campaign status (DRAFT, SCHEDULED, RUNNING, PAUSED, SENT) in list and detail views.
+- Allow scheduling: schedule later (set `scheduledAt`) and schedule now (immediate).
+- Provide pause/resume controls and simple progress visibility while RUNNING.
+
+API Changes (minimal, explicit)
+- Add `scheduleCampaign` mutation
+  - Input: `{ campaignId: string, scheduledAt?: string | Date, batchSize?: number }`
+  - Behavior: sets `scheduledAt` (default now if not provided), sets `status = SCHEDULED`, resets `lastCursor = null` if moving from DRAFT/SENT, updates `batchSize` if provided, sets `total = count(subscribed contacts)` and kicks the first batch job (same as current `sendCampaign`).
+
+- Add `pauseCampaign` mutation
+  - Input: `{ campaignId: string }`
+  - Behavior: sets `status = PAUSED`.
+
+- Add `resumeCampaign` mutation
+  - Input: `{ campaignId: string }`
+  - Behavior: sets `status = SCHEDULED` (scheduler will pick it up next tick).
+
+- Extend `getCampaign` response
+  - Include: `scheduledAt`, `batchSize`, `lastSentAt`, `total`.
+  - Include computed `processed` = `db.email.count({ where: { campaignId } })` (polled by UI).
+
+UI Changes
+- List view (`apps/web/src/app/(dashboard)/campaigns/campaign-list.tsx`)
+  - Status chip: map `DRAFT|SCHEDULED|RUNNING|PAUSED|SENT` to colors.
+  - For `SCHEDULED`: show relative time “starts in …” from `scheduledAt`.
+  - For `RUNNING`: show compact progress `processed/total` and a thin progress bar.
+  - Update filter dropdown to include `RUNNING` and `PAUSED`.
+  - Row actions:
+    - `Schedule` (opens dialog), `Schedule now` (calls `scheduleCampaign` without date),
+    - `Pause` (when RUNNING or SCHEDULED), `Resume` (when PAUSED).
+
+- Detail view (`apps/web/src/app/(dashboard)/campaigns/[id]/page.tsx` or equivalent)
+  - Header shows status chip, `scheduledAt` (if set), `lastSentAt` (if any), `batchSize`, `total`, `processed` and progress bar.
+  - Poll progress every 3s while status is RUNNING or SCHEDULED and `scheduledAt <= now()`.
+  - Same actions as list (Schedule, Schedule now, Pause, Resume).
+
+- Schedule dialog (`CampaignScheduleDialog` component)
+  - Fields: Date/time picker for `scheduledAt`, optional `batchSize` override.
+  - Validations: `scheduledAt` must be in the future (or allow now).
+  - Submit calls `scheduleCampaign` and closes; list refreshes.
+
+Wiring & Behavior
+- “Schedule now” → `scheduleCampaign({ scheduledAt: now })`.
+- “Schedule…” → open dialog → send chosen `scheduledAt`.
+- “Pause” → `pauseCampaign` (scheduler and batch worker already skip PAUSED).
+- “Resume” → `resumeCampaign` (sets to SCHEDULED, next tick continues from `lastCursor`).
+- Progress computation uses `processed = count(Email where campaignId)`; no schema change required.
+
+Implementation Steps
+1) Backend
+   - Add TRPC mutations: `scheduleCampaign`, `pauseCampaign`, `resumeCampaign`.
+   - Extend `getCampaign` to add `scheduledAt`, `batchSize`, `lastSentAt`, `total`, and computed `processed`.
+
+2) Frontend list
+   - Update status filter options to include RUNNING/PAUSED.
+   - Add status chip and conditional displays (scheduledAt, progress).
+   - Add actions: Schedule, Schedule now, Pause/Resume.
+
+3) Frontend detail
+   - Add header summary with chips and counters.
+   - Implement 3s polling for `processed` while RUNNING (and for SCHEDULED after `scheduledAt <= now()`).
+   - Include the same actions (Schedule, Pause/Resume) in the header.
+
+4) Schedule dialog
+   - Build `CampaignScheduleDialog` with date/time input and optional batchSize.
+   - Call `scheduleCampaign` on submit and invalidate list/detail queries.
+
+UX Notes
+- If `total` is 0, disable schedule buttons with a tooltip “No subscribed contacts”.
+- On PAUSE, show info banner “New batches are paused. Existing in-flight batch may complete.”
+- Time display uses team’s timezone if available, else browser local.
