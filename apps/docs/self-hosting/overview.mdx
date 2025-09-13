@@ -1,7 +1,6 @@
 ---
 title: Self hosting useSend
 description: "An end-to-end guide on how to self-host useSend. An open-source sending infrastructure for developers."
-icon: server
 ---
 
 ## Prerequisites
@@ -53,7 +52,7 @@ GITHUB_SECRET="<your-github-client-secret>"
   <Step title="Database & Redis">
   useSend uses Postgres as a database and Redis as a queue. You need to create a new database and add the following environment variables.
 
-If you're using docker-compose or our railway template, it's all automatically done for you.
+If you're using docker-compose, it's all automatically done for you.
 
 ```env
 DATABASE_URL="postgres://<username>:<password>@<host>:<port>/<database-name>"
@@ -80,23 +79,13 @@ Add the following environment variables.
 
 ## Step 2: Setting up the app
 
-You can use any platforms that supports docker. You can also use the railway template. In this example I'll be using railway. If you have any questions drop in the [discord channel](https://discord.gg/gbsvjb9MqV) and i'll try to help you out
+You can use any platform that supports Docker to host useSend. If you have any questions drop in the [discord channel](https://discord.gg/gbsvjb9MqV) and we'll try to help you out.
 
 ### Docker
 
 Follow this guide to setup your docker instance: [Set up docker](/get-started/set-up-docker)
 
 [![Docker image](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker)](https://hub.docker.com/r/usesend/usesend)
-
-### Railway
-
-This option is very easy. Click on the below button and click "Deploy now". Add a custom domain etc.
-
-Updating image is easy, click on the 3 dots and redeploy. This will pull the latest image.
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
-
-Your useSend instance is now live now.
 
 ## Step 3: Setting up a region
 
@@ -123,10 +112,12 @@ Once you log in to useSend, it will prompt you add SES configuration.
 The SMTP proxy server is an optional component that allows applications to send emails through useSend using standard SMTP protocol instead of the REST API. This is useful for legacy applications, email clients, or any software that needs to send emails via SMTP.
 
 <Tip>
-The complete source code for the SMTP proxy server is available at: [usesend/usesend/tree/main/apps/smtp-server](https://github.com/usesend/usesend/tree/main/apps/smtp-server)
+  The complete source code for the SMTP proxy server is available at:
+  [usesend/usesend/tree/main/apps/smtp-server](https://github.com/usesend/usesend/tree/main/apps/smtp-server)
 </Tip>
 
 ### When to use the SMTP proxy:
+
 - **Legacy applications** that only support SMTP
 - **Email clients** like Thunderbird, Outlook, Apple Mail
 - **Applications** that can't easily integrate with REST APIs
@@ -146,23 +137,23 @@ services:
     environment:
       SMTP_AUTH_USERNAME: "usesend" # Username for SMTP authentication
       USESEND_BASE_URL: "https://your-usesend-instance.com" # Your useSend instance URL
-      
+
       # Optional: SSL certificate paths for secure connections
       # USESEND_API_KEY_PATH: "/certs/server.key"
       # USESEND_API_CERT_PATH: "/certs/server.crt"
-    
+
     # Optional: Mount SSL certificates
     # volumes:
     #   - ./certs/server.key:/certs/server.key:ro
     #   - ./certs/server.crt:/certs/server.crt:ro
-    
+
     ports:
-      - "25:25"     # Standard SMTP
-      - "587:587"   # SMTP with STARTTLS
+      - "25:25" # Standard SMTP
+      - "587:587" # SMTP with STARTTLS
       - "2587:2587" # Alternative SMTP port
-      - "465:465"   # SMTP over SSL/TLS
+      - "465:465" # SMTP over SSL/TLS
       - "2465:2465" # Alternative SMTPS port
-    
+
     restart: unless-stopped
 ```
 
@@ -183,11 +174,14 @@ To send emails through the proxy, configure your application with these SMTP set
 - **Encryption**: STARTTLS (ports 25, 587, 2587) or SSL/TLS (ports 465, 2465)
 
 <Tip>
-The SMTP proxy forwards all emails to your useSend instance, so make sure your main useSend application is running and accessible.
+  The SMTP proxy forwards all emails to your useSend instance, so make sure your
+  main useSend application is running and accessible.
 </Tip>
 
 <Warning>
-Ensure your firewall allows traffic on the SMTP ports you're using. For production deployments, consider using non-standard ports (2587, 2465) to avoid conflicts.
+  Ensure your firewall allows traffic on the SMTP ports you're using. For
+  production deployments, consider using non-standard ports (2587, 2465) to
+  avoid conflicts.
 </Warning>
 
 ## Next steps
@@ -201,5 +195,7 @@ You're all set up now.
 If you have any questions, please join [#self-host](https://discord.gg/gbsvjb9MqV) on discord.
 
 <Tip>
-A community member shared a short write-up on hosting useSend with [Coolify](https://mattstein.com/thoughts/coolify-unsend/). Give it a read if you need another reference.
+  A community member shared a short write-up on hosting useSend with
+  [Coolify](https://mattstein.com/thoughts/coolify-unsend/). Give it a read if
+  you need another reference.
 </Tip>
