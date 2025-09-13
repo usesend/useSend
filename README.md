@@ -96,9 +96,11 @@ For detailed instructions on how to configure and run the Docker container, plea
 
 ## Self Hosting
 
-Checkout the [Self hosting](https://docs.usesend.com/get-started/self-hosting) guide to learn how to self-host useSend.
+Checkout the [self-hosting guide](https://docs.usesend.com/self-hosting/overview) to learn how to run useSend on your own infrastructure.
 
-Also
+## Self Hosting with Railway
+
+Railway provides the quickest way to spin up useSend. Read the [Railway self-hosting guide](https://docs.usesend.com/self-hosting/railway) or deploy directly:
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
 
