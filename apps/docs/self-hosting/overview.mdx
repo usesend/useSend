@@ -53,7 +53,7 @@ GITHUB_SECRET="<your-github-client-secret>"
   <Step title="Database & Redis">
   useSend uses Postgres as a database and Redis as a queue. You need to create a new database and add the following environment variables.
 
-If you're using docker-compose or our railway template, it's all automatically done for you.
+If you're using docker-compose, it's all automatically done for you.
 
 ```env
 DATABASE_URL="postgres://<username>:<password>@<host>:<port>/<database-name>"
@@ -80,23 +80,13 @@ Add the following environment variables.
 
 ## Step 2: Setting up the app
 
-You can use any platforms that supports docker. You can also use the railway template. In this example I'll be using railway. If you have any questions drop in the [discord channel](https://discord.gg/gbsvjb9MqV) and i'll try to help you out
+You can use any platform that supports Docker to host useSend. If you have any questions drop in the [discord channel](https://discord.gg/gbsvjb9MqV) and we'll try to help you out.
 
 ### Docker
 
 Follow this guide to setup your docker instance: [Set up docker](/get-started/set-up-docker)
 
 [![Docker image](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker)](https://hub.docker.com/r/usesend/usesend)
-
-### Railway
-
-This option is very easy. Click on the below button and click "Deploy now". Add a custom domain etc.
-
-Updating image is easy, click on the 3 dots and redeploy. This will pull the latest image.
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
-
-Your useSend instance is now live now.
 
 ## Step 3: Setting up a region
 
