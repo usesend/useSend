@@ -1,16 +1,114 @@
 ---
 title: Self hosting with Railway
 description: Deploy useSend on Railway with one click.
-icon: server
 ---
 
-Railway offers the quickest way to get a useSend instance running.
-
-1. Click the button below and choose **Deploy now**.
-2. Wait for the build to finish and open the service.
-3. Add any required environment variables and a custom domain if needed.
-4. Redeploy from the dashboard whenever you want to pull the latest image.
+useSend is a [Railway Partner](https://railway.app/partners) and Railway offers the quickest way to get a useSend instance running.
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
 
-Once the service is up, your useSend instance is ready to use.
+## Prerequisites
+
+- A [GitHub](https://github.com) account
+- An [AWS](https://aws.amazon.com) account
+
+If you have any questions join [#self-host](https://discord.gg/gbsvjb9MqV) on discord.
+
+## Step 1: Deploy on Railway
+
+1. Click the button above and choose **Deploy now**.
+2. Wait for the deployment to complete and open the service.
+3. Note the assigned Railway domain (you can add a custom domain later).
+4. You can redeploy from the dashboard anytime to pull the latest image.
+
+## Step 2: Environment variables
+
+useSend depends on AWS SES to send emails and SNS to receive email status. The Railway template provisions Postgres (database) and Redis (queue) automatically—no action needed for those. Add the following variables under your service’s Variables tab.
+
+<Steps>
+  <Step title="AWS credentials">
+  tl;dr: In the AWS Console, create a new IAM user with programmatic access. Attach `AmazonSNSFullAccess` and `AmazonSESFullAccess`. Then create an access key.
+
+Add the following environment variables in Railway.
+
+```env
+AWS_ACCESS_KEY=<access-key-id>
+AWS_SECRET_KEY=<secret-access-key>
+```
+
+<Tip>
+  Follow this for detailed steps: [Create AWS
+  credentials](/get-started/create-aws-credentials)
+</Tip>
+  </Step>
+
+  <Step title="GitHub app credentials for login">
+  useSend uses GitHub authentication for login.
+
+Use this link to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)
+
+Callback URL : `https://<your-railway-domain>/api/auth/callback/github`
+
+![github app](/images/github-callback.png)
+
+Add the following environment variables in Railway.
+
+```env
+GITHUB_ID="<your-github-client-id>"
+GITHUB_SECRET="<your-github-client-secret>"
+```
+
+  </Step>
+
+  <Step title="NextAuth URL">
+  Set your public app URL for NextAuth.
+
+Add the following variables in Railway:
+
+```env
+NEXTAUTH_URL="https://<your-railway-domain>"
+```
+
+  </Step>
+</Steps>
+
+<Tip>
+  After adding variables, click **Redeploy** so the service picks up the new
+  configuration.
+</Tip>
+
+## Step 3: Optional — Custom domain
+
+- Add a custom domain in Railway and configure DNS.
+- Update `NEXTAUTH_URL` to your new domain (e.g., `https://mail.yourdomain.com`).
+- Redeploy to apply the change.
+
+## Step 4: Set up SES region in useSend
+
+In order to send emails, you need to select a region in AWS. Use a region where your users are located / where useSend is hosted. If you're unsure, use `us-east-1`.
+
+You can check available regions [here](https://docs.aws.amazon.com/general/latest/gr/ses.html)
+
+Once you log in to useSend, it will prompt you add SES configuration.
+
+- Add the region
+- Add the callback url, which is basically the app url. Note this should be accessible from the internet. This is how you get the delivery status of the emails.
+- You don't need to update the send rate, it's automatically based on your account.
+
+![add ses settings](/images/ses-settings/add-ses-settings.png)
+
+## Step 5: Get out of SES sandbox
+
+<Warning>Don't forget to get the SES account out of sandbox mode.</Warning>
+
+![sandbox mode](/images/ses-settings/sandbox.png)
+
+## Next steps
+
+You're all set up.
+
+- Set up a domain.
+- Create an API key.
+- Start sending emails.
+
+If you have any questions, please join [#self-host](https://discord.gg/gbsvjb9MqV) on discord.
