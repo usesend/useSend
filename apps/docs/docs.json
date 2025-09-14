@@ -34,23 +34,15 @@
           },
           {
             "group": "Self Hosting",
-            "pages": [
-              "self-hosting/overview",
-              "self-hosting/railway"
-            ]
+            "pages": ["self-hosting/overview", "self-hosting/railway"]
           },
           {
             "group": "Guides",
-            "pages": [
-              "guides/use-with-react-email"
-            ]
+            "pages": ["guides/use-with-react-email"]
           },
           {
             "group": "Community SDKs",
-            "pages": [
-              "community-sdk/python",
-              "community-sdk/go"
-            ]
+            "pages": ["community-sdk/python", "community-sdk/go"]
           }
         ]
       },
@@ -59,9 +51,7 @@
         "groups": [
           {
             "group": "API Reference",
-            "pages": [
-              "api-reference/introduction"
-            ]
+            "pages": ["api-reference/introduction"]
           },
           {
             "group": "Emails",
@@ -144,5 +134,8 @@
       "x": "https://x.com/useSend_com",
       "github": "https://github.com/usesend"
     }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "perplexity"]
   }
 }
