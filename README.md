@@ -102,7 +102,7 @@ Checkout the [self-hosting guide](https://docs.usesend.com/self-hosting/overview
 
 Railway provides the quickest way to spin up useSend. Read the [Railway self-hosting guide](https://docs.usesend.com/self-hosting/railway) or deploy directly:
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/QbMnwX?referralCode=oaAwvp)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.com/deploy/usesend?utm_medium=integration&utm_source=docs&utm_campaign=usesend)
 
 ## Star History
 
