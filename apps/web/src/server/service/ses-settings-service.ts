@@ -210,8 +210,9 @@ export class SesSettingsService {
   }
 
   static async invalidateCache() {
-    this.cache = {};
     const settings = await db.sesSetting.findMany();
+    this.cache = {};
+    this.topicArns = [];
     settings.forEach((setting) => {
       this.cache[setting.region] = setting;
       if (setting.topicArn) {
