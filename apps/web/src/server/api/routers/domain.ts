@@ -11,6 +11,7 @@ import {
   createDomain,
   deleteDomain,
   getDomain,
+  resolveFromAddress,
   updateDomain,
 } from "~/server/service/domain-service";
 import { sendEmail } from "~/server/service/email-service";
@@ -96,10 +97,15 @@ export const domainRouter = createTRPCRouter({
         throw new Error("User email not found");
       }
 
+      const fromAddress = resolveFromAddress({
+        name: domain.name,
+        defaultFrom: (domain as any).defaultFrom ?? null,
+      });
+
       return sendEmail({
         teamId: team.id,
         to: user.email,
-        from: `hello@${domain.name}`,
+        from: fromAddress,
         subject: "useSend test email",
         text: "hello,\n\nuseSend is the best open source sending platform\n\ncheck out https://usesend.com",
         html: "<p>hello,</p><p>useSend is the best open source sending platform<p><p>check out <a href='https://usesend.com'>usesend.com</a>",

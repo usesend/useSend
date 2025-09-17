@@ -6,7 +6,7 @@ import { db } from "~/server/db";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
-import { ApiKey } from "@prisma/client";
+import { ApiKey, Domain } from "@prisma/client";
 import { LimitService } from "./limit-service";
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
@@ -54,6 +54,18 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
   }
 
   return domain;
+}
+
+type DomainWithDefaultFrom = Domain & { defaultFrom: string | null };
+
+export function resolveFromAddress(
+  domain: Pick<DomainWithDefaultFrom, "name" | "defaultFrom">
+) {
+  if (domain.defaultFrom && domain.defaultFrom.trim().length > 0) {
+    return domain.defaultFrom.trim();
+  }
+
+  return `hello@${domain.name}`;
 }
 
 export async function validateApiKeyDomainAccess(
@@ -229,6 +241,18 @@ export async function getDomains(teamId: number) {
   return db.domain.findMany({
     where: {
       teamId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+export async function getVerifiedDomains(teamId: number) {
+  return db.domain.findMany({
+    where: {
+      teamId,
+      status: "SUCCESS",
     },
     orderBy: {
       createdAt: "desc",

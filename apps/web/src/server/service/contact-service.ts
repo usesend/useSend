@@ -1,4 +1,9 @@
 import { db } from "../db";
+import {
+  sendDoubleOptInEmail,
+  templateSupportsDoubleOptIn,
+} from "./double-opt-in-service";
+import { UnsendApiError } from "../public-api/api-error";
 
 export type ContactInput = {
   email: string;
@@ -12,6 +17,58 @@ export async function addOrUpdateContact(
   contactBookId: string,
   contact: ContactInput
 ) {
+  const contactBook = await db.contactBook.findUnique({
+    where: { id: contactBookId },
+    include: {
+      defaultDomain: true,
+      doubleOptInTemplate: true,
+    },
+  });
+
+  if (!contactBook) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Contact book not found",
+    });
+  }
+
+  const existingContact = await db.contact.findUnique({
+    where: {
+      contactBookId_email: {
+        contactBookId,
+        email: contact.email,
+      },
+    },
+  });
+
+  const doubleOptInActive =
+    contactBook.doubleOptInEnabled &&
+    contactBook.doubleOptInTemplateId &&
+    contactBook.defaultDomainId;
+
+  if (doubleOptInActive) {
+    if (!contactBook.doubleOptInTemplate || !contactBook.defaultDomain) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "Double opt-in configuration is incomplete",
+      });
+    }
+
+    if (!templateSupportsDoubleOptIn(contactBook.doubleOptInTemplate)) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "Double opt-in template must include {{verificationUrl}}",
+      });
+    }
+  }
+
+  const requestedSubscribed =
+    contact.subscribed === undefined ? true : contact.subscribed;
+
+  const subscribedValue = doubleOptInActive
+    ? existingContact?.subscribed ?? false
+    : requestedSubscribed;
+
   const createdContact = await db.contact.upsert({
     where: {
       contactBookId_email: {
@@ -25,15 +82,36 @@ export async function addOrUpdateContact(
       firstName: contact.firstName,
       lastName: contact.lastName,
       properties: contact.properties ?? {},
-      subscribed: contact.subscribed,
+      subscribed: subscribedValue,
+      ...(doubleOptInActive ? { unsubscribeReason: null } : {}),
     },
     update: {
       firstName: contact.firstName,
       lastName: contact.lastName,
       properties: contact.properties ?? {},
-      subscribed: contact.subscribed,
+      subscribed: subscribedValue,
+      ...(doubleOptInActive && requestedSubscribed
+        ? { unsubscribeReason: null }
+        : {}),
     },
   });
+
+  const shouldSendDoubleOptInEmail =
+    doubleOptInActive &&
+    (!existingContact || (requestedSubscribed && existingContact.subscribed === false));
+
+  if (shouldSendDoubleOptInEmail) {
+    await sendDoubleOptInEmail({
+      contact: createdContact,
+      contactBook: contactBook as typeof contactBook & {
+        doubleOptInEnabled: boolean;
+      },
+      template: contactBook.doubleOptInTemplate!,
+      domain: contactBook.defaultDomain as typeof contactBook.defaultDomain & {
+        defaultFrom: string | null;
+      },
+    });
+  }
 
   return createdContact;
 }
@@ -42,11 +120,45 @@ export async function updateContact(
   contactId: string,
   contact: Partial<ContactInput>
 ) {
+  const existing = await db.contact.findUnique({
+    where: { id: contactId },
+    include: {
+      contactBook: true,
+    },
+  });
+
+  if (!existing) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Contact not found",
+    });
+  }
+
+  const doubleOptInActive =
+    existing.contactBook.doubleOptInEnabled &&
+    existing.contactBook.doubleOptInTemplateId &&
+    existing.contactBook.defaultDomainId;
+
+  const data: Partial<ContactInput> & { subscribed?: boolean } = {
+    ...contact,
+  };
+
+  if (doubleOptInActive && contact.subscribed) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Contact can only subscribe via confirmation link",
+    });
+  }
+
+  if (doubleOptInActive && contact.subscribed === undefined) {
+    delete data.subscribed;
+  }
+
   return db.contact.update({
     where: {
       id: contactId,
     },
-    data: contact,
+    data,
   });
 }
 

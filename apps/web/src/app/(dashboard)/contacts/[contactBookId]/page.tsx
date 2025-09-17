@@ -120,6 +120,11 @@ export default function ContactsPage({
           </Breadcrumb>
         </div>
         <div className="flex gap-4">
+          <Link href={`/contacts/${contactBookId}/settings`}>
+            <Button variant="outline" type="button">
+              Settings
+            </Button>
+          </Link>
           <AddContact contactBookId={contactBookId} />
         </div>
       </div>

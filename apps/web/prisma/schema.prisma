@@ -177,26 +177,28 @@ enum DomainStatus {
 }
 
 model Domain {
-  id            Int          @id @default(autoincrement())
-  name          String       @unique
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
   teamId        Int
-  status        DomainStatus @default(PENDING)
-  region        String       @default("us-east-1")
-  clickTracking Boolean      @default(false)
-  openTracking  Boolean      @default(false)
+  status        DomainStatus  @default(PENDING)
+  region        String        @default("us-east-1")
+  clickTracking Boolean       @default(false)
+  openTracking  Boolean       @default(false)
   publicKey     String
-  dkimSelector  String?      @default("usesend")
+  dkimSelector  String?       @default("usesend")
   dkimStatus    String?
   spfDetails    String?
-  dmarcAdded    Boolean      @default(false)
+  dmarcAdded    Boolean       @default(false)
   errorMessage  String?
   subdomain     String?
   sesTenantId   String?
-  isVerifying   Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  isVerifying   Boolean       @default(false)
+  defaultFrom   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   apiKeys       ApiKey[]
+  ContactBook   ContactBook[]
 }
 
 enum ApiPermission {
@@ -279,17 +281,24 @@ model EmailEvent {
 }
 
 model ContactBook {
-  id         String    @id @default(cuid())
-  name       String
-  teamId     Int
-  properties Json
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  emoji      String    @default("📙")
-  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  contacts   Contact[]
+  id                    String    @id @default(cuid())
+  name                  String
+  teamId                Int
+  properties            Json
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  emoji                 String    @default("📙")
+  defaultDomainId       Int?
+  doubleOptInEnabled    Boolean   @default(false)
+  doubleOptInTemplateId String?
+  team                  Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contacts              Contact[]
+  defaultDomain         Domain?   @relation(fields: [defaultDomainId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  doubleOptInTemplate   Template? @relation(fields: [doubleOptInTemplateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([teamId])
+  @@index([defaultDomainId])
+  @@index([doubleOptInTemplateId])
 }
 
 enum UnsubscribeReason {
@@ -369,7 +378,8 @@ model Template {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  ContactBook ContactBook[]
 
   @@index([createdAt(sort: Desc)])
 }
