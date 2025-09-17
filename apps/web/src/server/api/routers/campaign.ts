@@ -178,16 +178,21 @@ export const campaignRouter = createTRPCRouter({
 
     const imageUploadSupported = isStorageConfigured();
 
+    const processed = await db.email.count({
+      where: { campaignId: input.campaignId },
+    });
+
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
         where: { id: campaign.contactBookId },
       });
-      return { ...campaign, contactBook, imageUploadSupported };
+      return { ...campaign, contactBook, imageUploadSupported, processed };
     }
     return {
       ...campaign,
       contactBook: null,
       imageUploadSupported,
+      processed,
     };
   }),
 
@@ -225,6 +230,78 @@ export const campaignRouter = createTRPCRouter({
       return newCampaign;
     },
   ),
+
+  scheduleCampaign: teamProcedure
+    .input(
+      z.object({
+        campaignId: z.string(),
+        scheduledAt: z.union([z.string().datetime(), z.date()]).optional(),
+        batchSize: z.number().min(1).max(100_000).optional(),
+      })
+    )
+    .mutation(async ({ ctx: { db, team }, input }) => {
+      const campaign = await db.campaign.findUnique({
+        where: { id: input.campaignId, teamId: team.id },
+      });
+      if (!campaign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+      }
+
+      if (!campaign.content) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No content added for campaign" });
+      }
+
+      // Pre-render HTML from content for consistency with sendCampaign
+      try {
+        const jsonContent = JSON.parse(campaign.content);
+        const renderer = new EmailRenderer(jsonContent);
+        const html = await renderer.render();
+        await db.campaign.update({ where: { id: campaign.id }, data: { html } });
+      } catch (err) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid content" });
+      }
+
+      if (!campaign.contactBookId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No contact book found for campaign" });
+      }
+
+      // Recalculate total subscribed contacts (cheap COUNT)
+      const total = await db.contact.count({
+        where: { contactBookId: campaign.contactBookId, subscribed: true },
+      });
+
+      const scheduledAt = input.scheduledAt
+        ? input.scheduledAt instanceof Date
+          ? input.scheduledAt
+          : new Date(input.scheduledAt)
+        : new Date();
+
+      // If coming from DRAFT or SENT, reset cursor
+      const shouldResetCursor = campaign.status === "DRAFT" || campaign.status === "SENT";
+
+      await db.campaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: "SCHEDULED",
+          scheduledAt,
+          total,
+          ...(input.batchSize ? { batchSize: input.batchSize } : {}),
+          ...(shouldResetCursor ? { lastCursor: null } : {}),
+        },
+      });
+
+      return { ok: true };
+    }),
+
+  pauseCampaign: campaignProcedure.mutation(async ({ ctx: { db, campaign } }) => {
+    await db.campaign.update({ where: { id: campaign.id }, data: { status: "PAUSED" } });
+    return { ok: true };
+  }),
+
+  resumeCampaign: campaignProcedure.mutation(async ({ ctx: { db, campaign } }) => {
+    await db.campaign.update({ where: { id: campaign.id }, data: { status: "SCHEDULED" } });
+    return { ok: true };
+  }),
 
   generateImagePresignedUrl: campaignProcedure
     .input(

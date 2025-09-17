@@ -14,6 +14,8 @@ import { Queue, Worker } from "bullmq";
 import { getRedis } from "../redis";
 import {
   CAMPAIGN_MAIL_PROCESSING_QUEUE,
+  CAMPAIGN_BATCH_QUEUE,
+  CAMPAIGN_SCHEDULER_QUEUE,
   DEFAULT_QUEUE_OPTIONS,
 } from "../queue/queue-constants";
 import { logger } from "../logger/log";
@@ -52,40 +54,30 @@ export async function sendCampaign(id: string) {
     throw new Error("No contact book found for campaign");
   }
 
-  const contactBook = await db.contactBook.findUnique({
-    where: { id: campaign.contactBookId },
-    include: {
-      contacts: {
-        where: {
-          subscribed: true,
-        },
-      },
-    },
-  });
-
-  if (!contactBook) {
-    throw new Error("Contact book not found");
-  }
-
   if (!campaign.html) {
     throw new Error("No HTML content for campaign");
   }
 
-  await sendCampaignEmail(campaign, {
-    campaignId: campaign.id,
-    from: campaign.from,
-    subject: campaign.subject,
-    html: campaign.html,
-    replyTo: campaign.replyTo,
-    cc: campaign.cc,
-    bcc: campaign.bcc,
-    teamId: campaign.teamId,
-    contacts: contactBook.contacts,
+  // Count subscribed contacts for total, don't load all into memory
+  const total = await db.contact.count({
+    where: { contactBookId: campaign.contactBookId, subscribed: true },
   });
 
+  // Mark as scheduled (or keep running if already running), set totals and scheduledAt if not set
   await db.campaign.update({
     where: { id },
-    data: { status: "SENT", total: contactBook.contacts.length },
+    data: {
+      status: "SCHEDULED",
+      total,
+      scheduledAt: campaign.scheduledAt ?? new Date(),
+      lastCursor: campaign.lastCursor ?? null,
+    },
+  });
+
+  // Kick off first batch immediately (idempotent by jobId)
+  await CampaignBatchService.queueBatch({
+    campaignId: id,
+    teamId: campaign.teamId,
   });
 }
 
@@ -545,3 +537,194 @@ class CampaignEmailService {
     );
   }
 }
+
+// ---------------------------
+// Simple campaign batch queue
+// ---------------------------
+
+type CampaignBatchJob = TeamJob<{ campaignId: string }>;
+
+class CampaignBatchService {
+  private static batchQueue = new Queue<CampaignBatchJob>(
+    CAMPAIGN_BATCH_QUEUE,
+    {
+      connection: getRedis(),
+    }
+  );
+
+  static worker = new Worker(
+    CAMPAIGN_BATCH_QUEUE,
+    createWorkerHandler(async (job: CampaignBatchJob) => {
+      const { campaignId } = job.data;
+
+      const campaign = await db.campaign.findUnique({
+        where: { id: campaignId },
+      });
+      if (!campaign) return;
+      if (!campaign.contactBookId) return;
+
+      // Skip paused campaigns
+      if (campaign.status === "PAUSED") return;
+
+      // Respect scheduledAt if set
+      if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now())
+        return;
+
+      // First touch moves SCHEDULED -> RUNNING
+      if (campaign.status === "SCHEDULED") {
+        await db.campaign.update({
+          where: { id: campaignId },
+          data: { status: "RUNNING" },
+        });
+      }
+
+      const batchSize = campaign.batchSize ?? 500;
+
+      const where = {
+        contactBookId: campaign.contactBookId,
+        subscribed: true,
+      } as const;
+      const pagination: any = {
+        take: batchSize,
+        orderBy: { id: "asc" as const },
+      };
+      if (campaign.lastCursor) {
+        pagination.cursor = { id: campaign.lastCursor };
+        pagination.skip = 1; // do not include the cursor row
+      }
+
+      const contacts = await db.contact.findMany({ where, ...pagination });
+
+      if (contacts.length === 0) {
+        // No more contacts -> mark SENT
+        await db.campaign.update({
+          where: { id: campaignId },
+          data: { status: "SENT" },
+        });
+        return;
+      }
+
+      // Fetch domain for region and id
+      const domain = await db.domain.findUnique({
+        where: { id: campaign.domainId },
+      });
+      if (!domain) return;
+
+      // Bulk existence check to avoid duplicates while unique is not enforced
+      const existing = await db.email.findMany({
+        where: {
+          campaignId: campaign.id,
+          contactId: { in: contacts.map((c) => c.id) },
+        },
+        select: { contactId: true },
+      });
+      const existingSet = new Set(existing.map((e) => e.contactId));
+
+      // Process each contact in this batch
+      for (const contact of contacts) {
+        if (existingSet.has(contact.id)) continue;
+
+        await processContactEmail({
+          contact,
+          campaign,
+          emailConfig: {
+            from: campaign.from,
+            subject: campaign.subject,
+            replyTo: Array.isArray(campaign.replyTo) ? campaign.replyTo : [],
+            cc: Array.isArray(campaign.cc) ? campaign.cc : [],
+            bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
+            teamId: campaign.teamId,
+            campaignId: campaign.id,
+            previewText: campaign.previewText ?? undefined,
+            domainId: domain.id,
+            region: domain.region,
+          },
+        });
+      }
+
+      // Advance cursor and timestamp
+      const newCursor = contacts[contacts.length - 1]?.id;
+      await db.campaign.update({
+        where: { id: campaignId },
+        data: { lastCursor: newCursor, lastSentAt: new Date() },
+      });
+    }),
+    { connection: getRedis(), concurrency: 20 }
+  );
+
+  static async queueBatch({
+    campaignId,
+    teamId,
+  }: {
+    campaignId: string;
+    teamId?: number;
+  }) {
+    await this.batchQueue.add(
+      `campaign-${campaignId}`,
+      { campaignId, teamId },
+      { jobId: `campaign-batch:${campaignId}`, ...DEFAULT_QUEUE_OPTIONS }
+    );
+  }
+}
+
+// ---------------------------
+// Scheduler: BullMQ repeatable job
+// ---------------------------
+
+const SCHEDULER_TICK_MS = 1500;
+
+type SchedulerJob = TeamJob<{}>;
+
+class CampaignSchedulerService {
+  private static schedulerQueue = new Queue<SchedulerJob>(
+    CAMPAIGN_SCHEDULER_QUEUE,
+    {
+      connection: getRedis(),
+    }
+  );
+
+  static worker = new Worker(
+    CAMPAIGN_SCHEDULER_QUEUE,
+    createWorkerHandler(async (_job: SchedulerJob) => {
+      try {
+        const now = new Date();
+        const campaigns = await db.campaign.findMany({
+          where: {
+            status: { in: ["SCHEDULED", "RUNNING"] },
+            OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }],
+          },
+          select: { id: true, teamId: true },
+        });
+
+        for (const c of campaigns) {
+          await CampaignBatchService.queueBatch({
+            campaignId: c.id,
+            teamId: c.teamId,
+          });
+        }
+      } catch (err) {
+        logger.error({ err }, "Campaign scheduler tick failed");
+      }
+    }),
+    { connection: getRedis(), concurrency: 1 }
+  );
+
+  static async ensureRepeatable() {
+    try {
+      await this.schedulerQueue.add(
+        "tick",
+        {},
+        {
+          jobId: "campaign-scheduler",
+          repeat: { every: SCHEDULER_TICK_MS },
+          ...DEFAULT_QUEUE_OPTIONS,
+        }
+      );
+    } catch (err) {
+      // Adding the same repeatable job is idempotent; ignore job-exists errors
+      logger.info({ err }, "Scheduler ensureRepeatable attempted");
+    }
+  }
+}
+
+CampaignSchedulerService.ensureRepeatable();

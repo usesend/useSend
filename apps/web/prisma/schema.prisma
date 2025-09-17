@@ -261,6 +261,7 @@ model Email {
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
+  @@index([campaignId, contactId])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -318,11 +319,14 @@ model Contact {
   contactBook ContactBook @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
 
   @@unique([contactBookId, email])
+  @@index([contactBookId, id])
 }
 
 enum CampaignStatus {
   DRAFT
   SCHEDULED
+  RUNNING
+  PAUSED
   SENT
 }
 
@@ -340,6 +344,7 @@ model Campaign {
   html          String?
   content       String?
   contactBookId String?
+  scheduledAt   DateTime?
   total         Int            @default(0)
   sent          Int            @default(0)
   delivered     Int            @default(0)
@@ -350,12 +355,16 @@ model Campaign {
   hardBounced   Int            @default(0)
   complained    Int            @default(0)
   status        CampaignStatus @default(DRAFT)
+  batchSize     Int            @default(500)
+  lastCursor    String?
+  lastSentAt    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([createdAt(sort: Desc)])
+  @@index([status, scheduledAt])
 }
 
 model Template {
