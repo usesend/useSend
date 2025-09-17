@@ -8,5 +8,9 @@ export default async function Home() {
     redirect("/login");
   }
 
-  redirect("/dashboard");
+  if (session.user.isWaitlisted) {
+    redirect("/wait-list");
+  } else {
+    redirect("/dashboard");
+  }
 }

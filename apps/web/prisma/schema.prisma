@@ -85,6 +85,7 @@ model User {
   emailVerified DateTime?
   image         String?
   isBetaUser    Boolean    @default(false)
+  isWaitlisted  Boolean    @default(false)
   createdAt     DateTime   @default(now())
   accounts      Account[]
   sessions      Session[]
