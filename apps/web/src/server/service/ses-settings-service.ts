@@ -82,6 +82,8 @@ export class SesSettingsService {
     const idPrefix = smallNanoid(10);
     let topicArn: string | undefined;
 
+    let settingId: string | undefined;
+
     try {
       const topicName = `${idPrefix}-${region}-unsend`;
       topicArn = await sns.createTopic(topicName, region);
@@ -100,6 +102,8 @@ export class SesSettingsService {
           idPrefix,
         },
       });
+
+      settingId = setting.id;
 
       await this.invalidateCache();
 
@@ -140,6 +144,14 @@ export class SesSettingsService {
           );
         }
       }
+      if (settingId) {
+        await db.sesSetting.delete({
+          where: {
+            id: settingId,
+          },
+        });
+      }
+      await this.invalidateCache();
       logger.error({ err: error }, "Failed to create SES setting");
       throw error;
     }
