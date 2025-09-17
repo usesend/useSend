@@ -25,7 +25,7 @@ export class SesSettingsService {
   private static initialized = false;
 
   public static async getSetting(
-    region = env.AWS_DEFAULT_REGION,
+    region = env.AWS_DEFAULT_REGION
   ): Promise<SesSetting | null> {
     await this.checkInitialized();
 
@@ -75,12 +75,14 @@ export class SesSettingsService {
 
     if (!usesendUrlValidation.isValid) {
       throw new Error(
-        `Callback URL: ${usesendUrl} is not valid, status: ${usesendUrlValidation.code} message:${usesendUrlValidation.error}`,
+        `Callback URL: ${usesendUrl} is not valid, status: ${usesendUrlValidation.code} message:${usesendUrlValidation.error}`
       );
     }
 
     const idPrefix = smallNanoid(10);
     let topicArn: string | undefined;
+
+    let settingId: string | undefined;
 
     try {
       const topicName = `${idPrefix}-${region}-unsend`;
@@ -89,27 +91,27 @@ export class SesSettingsService {
         throw new Error("Failed to create SNS topic");
       }
 
-      const setting = await db.$transaction(async (tx) => {
-        const setting = await tx.sesSetting.create({
-          data: {
-            region,
-            callbackUrl: `${parsedUrl}/api/ses_callback`,
-            topic: topicName,
-            topicArn,
-            sesEmailRateLimit: sendingRateLimit,
-            transactionalQuota,
-            idPrefix,
-          },
-        });
-
-        await sns.subscribeEndpoint(
-          topicArn!,
-          `${setting.callbackUrl}`,
-          setting.region,
-        );
-
-        return setting;
+      const setting = await db.sesSetting.create({
+        data: {
+          region,
+          callbackUrl: `${parsedUrl}/api/ses_callback`,
+          topic: topicName,
+          topicArn,
+          sesEmailRateLimit: sendingRateLimit,
+          transactionalQuota,
+          idPrefix,
+        },
       });
+
+      settingId = setting.id;
+
+      await this.invalidateCache();
+
+      await sns.subscribeEndpoint(
+        topicArn!,
+        `${setting.callbackUrl}`,
+        setting.region
+      );
 
       if (!setting) {
         throw new Error("Failed to create setting");
@@ -120,14 +122,14 @@ export class SesSettingsService {
       EmailQueueService.initializeQueue(
         region,
         setting.sesEmailRateLimit,
-        setting.transactionalQuota,
+        setting.transactionalQuota
       );
       logger.info(
         {
           transactionalQueue: EmailQueueService.transactionalQueue,
           marketingQueue: EmailQueueService.marketingQueue,
         },
-        "Email queues initialized",
+        "Email queues initialized"
       );
 
       await this.invalidateCache();
@@ -138,10 +140,18 @@ export class SesSettingsService {
         } catch (deleteError) {
           logger.error(
             { err: deleteError },
-            "Failed to delete SNS topic after error",
+            "Failed to delete SNS topic after error"
           );
         }
       }
+      if (settingId) {
+        await db.sesSetting.delete({
+          where: {
+            id: settingId,
+          },
+        });
+      }
+      await this.invalidateCache();
       logger.error({ err: error }, "Failed to create SES setting");
       throw error;
     }
@@ -172,13 +182,13 @@ export class SesSettingsService {
         transactionalQueue: EmailQueueService.transactionalQueue,
         marketingQueue: EmailQueueService.marketingQueue,
       },
-      "Email queues before update",
+      "Email queues before update"
     );
 
     EmailQueueService.initializeQueue(
       setting.region,
       setting.sesEmailRateLimit,
-      setting.transactionalQuota,
+      setting.transactionalQuota
     );
 
     logger.info(
@@ -186,7 +196,7 @@ export class SesSettingsService {
         transactionalQueue: EmailQueueService.transactionalQueue,
         marketingQueue: EmailQueueService.marketingQueue,
       },
-      "Email queues after update",
+      "Email queues after update"
     );
 
     await this.invalidateCache();
@@ -200,8 +210,9 @@ export class SesSettingsService {
   }
 
   static async invalidateCache() {
-    this.cache = {};
     const settings = await db.sesSetting.findMany();
+    this.cache = {};
+    this.topicArns = [];
     settings.forEach((setting) => {
       this.cache[setting.region] = setting;
       if (setting.topicArn) {
@@ -229,7 +240,7 @@ async function registerConfigurationSet(setting: SesSetting) {
     configGeneral,
     setting.topicArn,
     GENERAL_EVENTS,
-    setting.region,
+    setting.region
   );
 
   const configClick = `${setting.idPrefix}-${setting.region}-unsend-click`;
@@ -237,7 +248,7 @@ async function registerConfigurationSet(setting: SesSetting) {
     configClick,
     setting.topicArn,
     [...GENERAL_EVENTS, "CLICK"],
-    setting.region,
+    setting.region
   );
 
   const configOpen = `${setting.idPrefix}-${setting.region}-unsend-open`;
@@ -245,7 +256,7 @@ async function registerConfigurationSet(setting: SesSetting) {
     configOpen,
     setting.topicArn,
     [...GENERAL_EVENTS, "OPEN"],
-    setting.region,
+    setting.region
   );
 
   const configFull = `${setting.idPrefix}-${setting.region}-unsend-full`;
@@ -253,7 +264,7 @@ async function registerConfigurationSet(setting: SesSetting) {
     configFull,
     setting.topicArn,
     [...GENERAL_EVENTS, "CLICK", "OPEN"],
-    setting.region,
+    setting.region
   );
 
   return await db.sesSetting.update({
