@@ -20,6 +20,11 @@ import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { SuppressionService } from "./suppression-service";
 
+const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
+  "{{unsend_unsubscribe_url}}",
+  "{{usesend_unsubscribe_url}}",
+];
+
 export async function sendCampaign(id: string) {
   let campaign = await db.campaign.findUnique({
     where: { id },
@@ -69,6 +74,18 @@ export async function sendCampaign(id: string) {
 
   if (!campaign.html) {
     throw new Error("No HTML content for campaign");
+  }
+
+  const unsubPlaceholderFound = CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.some(
+    (placeholder) =>
+      campaign.content?.includes(placeholder) ||
+      campaign.html?.includes(placeholder)
+  );
+
+  if (!unsubPlaceholderFound) {
+    throw new Error(
+      "Campaign must include an unsubscribe link before sending"
+    );
   }
 
   await sendCampaignEmail(campaign, {
