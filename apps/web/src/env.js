@@ -13,7 +13,7 @@ export const env = createEnv({
       .url()
       .refine(
         (str) => !str.includes("YOUR_MYSQL_URL_HERE"),
-        "You forgot to change the default URL",
+        "You forgot to change the default URL"
       ),
     NODE_ENV: z
       .enum(["development", "test", "production"])
@@ -27,7 +27,7 @@ export const env = createEnv({
       // Since NextAuth.js automatically uses the VERCEL_URL if present.
       (str) => process.env.VERCEL_URL ?? str,
       // VERCEL_URL doesn't include `https` so it cant be validated as a URL
-      process.env.VERCEL ? z.string() : z.string().url(),
+      process.env.VERCEL ? z.string() : z.string().url()
     ),
     GITHUB_ID: z.string().optional(),
     GITHUB_SECRET: z.string().optional(),
@@ -56,6 +56,7 @@ export const env = createEnv({
     S3_COMPATIBLE_SECRET_KEY: z.string().optional(),
     S3_COMPATIBLE_API_URL: z.string().optional(),
     S3_COMPATIBLE_PUBLIC_URL: z.string().optional(),
+    S3_COMPATIBLE_BUCKET: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_BASIC_PRICE_ID: z.string().optional(),
     STRIPE_BASIC_USAGE_PRICE_ID: z.string().optional(),
@@ -109,6 +110,7 @@ export const env = createEnv({
     S3_COMPATIBLE_SECRET_KEY: process.env.S3_COMPATIBLE_SECRET_KEY,
     S3_COMPATIBLE_API_URL: process.env.S3_COMPATIBLE_API_URL,
     S3_COMPATIBLE_PUBLIC_URL: process.env.S3_COMPATIBLE_PUBLIC_URL,
+    S3_COMPATIBLE_BUCKET: process.env.S3_COMPATIBLE_BUCKET,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_BASIC_PRICE_ID: process.env.STRIPE_BASIC_PRICE_ID,
     STRIPE_BASIC_USAGE_PRICE_ID: process.env.STRIPE_BASIC_USAGE_PRICE_ID,

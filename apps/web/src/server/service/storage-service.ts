@@ -3,7 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "~/env";
 
 let S3: S3Client | null = null;
-export const DEFAULT_BUCKET = "unsend";
+export const DEFAULT_BUCKET = env.S3_COMPATIBLE_BUCKET || "unsend";
 
 export const isStorageConfigured = () =>
   !!(
