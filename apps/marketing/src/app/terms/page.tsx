@@ -47,6 +47,16 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3 mb-8">
+          <h2 className="text-xl font-medium">Anti-Spam Enforcement</h2>
+          <p className="text-muted-foreground">
+            To protect our community, we may suspend or block access for any
+            user who sends unsolicited marketing emails or similar promotional
+            messages to other users through the platform. Enforcement actions
+            may include immediate account suspension or termination.
+          </p>
+        </section>
+
+        <section className="space-y-3 mb-8">
           <h2 className="text-xl font-medium">Intellectual Property</h2>
           <p className="text-muted-foreground">
             Content on the site, including trademarks, logos, text, and
