@@ -54,6 +54,12 @@ export default function TermsPage() {
             messages to other users through the platform. Enforcement actions
             may include immediate account suspension or termination.
           </p>
+          <p className="text-muted-foreground">
+            Marketing communications sent via useSend must employ double
+            opt-in verification. Accounts that bypass double opt-in or misuse
+            our transactional mail API for promotional campaigns may be
+            suspended or terminated without notice.
+          </p>
         </section>
 
         <section className="space-y-3 mb-8">
