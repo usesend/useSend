@@ -10,6 +10,12 @@ import { sendEmail } from "./email-service";
 
 export const DOUBLE_OPT_IN_PLACEHOLDER = "{{verificationUrl}}";
 export const DOUBLE_OPT_IN_ROUTE = "/confirm";
+export const DOUBLE_OPT_IN_TEMPLATE_NAME = "Double Opt In";
+const DOUBLE_OPT_IN_TEMPLATE_SUBJECT = "Confirm your email";
+const DOUBLE_OPT_IN_TEMPLATE_HTML =
+  "<p>Hey there,</p><p>Welcome to [Product name]. Please click the link below to verify your email address to get started.</p><p><a href=\"{{verificationUrl}}\" style=\"display:inline-block;padding:12px 24px;border-radius:4px;border-width:1px;border-style:solid;border-color:#000;background-color:#000;color:#fff;text-decoration:none;\">Confirm</a></p><p>Best</p>";
+const DOUBLE_OPT_IN_TEMPLATE_CONTENT =
+  '{"type":"doc","content":[{"type":"paragraph","attrs":{"textAlign":null},"content":[{"type":"text","text":"Hey there,"}]},{"type":"paragraph","attrs":{"textAlign":null},"content":[{"type":"text","text":"Welcome to [Product name]. Please click the link below to verify your email address to get started."}]},{"type":"paragraph","attrs":{"textAlign":null}},{"type":"button","attrs":{"component":"button","text":"Confirm","url":"{{verificationUrl}}","alignment":"left","borderRadius":"4","borderWidth":"1","buttonColor":"rgb(0, 0, 0)","borderColor":"rgb(0, 0, 0)","textColor":"rgb(255, 255, 255)"}},{"type":"paragraph","attrs":{"textAlign":null}},{"type":"paragraph","attrs":{"textAlign":null},"content":[{"type":"text","text":"Best"}]}]}';
 
 type ContactBookWithSettings = ContactBook & {
   defaultDomainId: number | null;
@@ -80,6 +86,29 @@ export function assertTemplateSupportsDoubleOptIn(template: TemplateWithContent)
         "Selected template must include the {{verificationUrl}} placeholder",
     });
   }
+}
+
+export async function ensureDefaultDoubleOptInTemplate(teamId: number) {
+  const existing = await db.template.findFirst({
+    where: {
+      teamId,
+      name: DOUBLE_OPT_IN_TEMPLATE_NAME,
+    },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return db.template.create({
+    data: {
+      teamId,
+      name: DOUBLE_OPT_IN_TEMPLATE_NAME,
+      subject: DOUBLE_OPT_IN_TEMPLATE_SUBJECT,
+      html: DOUBLE_OPT_IN_TEMPLATE_HTML,
+      content: DOUBLE_OPT_IN_TEMPLATE_CONTENT,
+    },
+  });
 }
 
 export async function sendDoubleOptInEmail(options: {

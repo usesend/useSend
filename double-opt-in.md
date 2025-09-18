@@ -27,9 +27,9 @@
   - Infer `defaultDomainId` when a team has exactly one verified domain.
   - Set `doubleOptInEnabled = false` and leave template null.
 
-### 2. Template Seeding Migration
-- Add migration that:
-  - Inserts a "Double Opt In" template per team (or a global seed copied to each team) with subject "Confirm your email".
+### 2. Template Seeding
+- Implement an application hook that:
+  - Ensures each team gets a "Double Opt In" template created during team creation (and lazily when settings load for existing teams).
   - Stores the provided editor JSON in `Template.content` and ensures `Template.html` includes a `{{verificationUrl}}` button/link.
   - Default template content:
     ```json

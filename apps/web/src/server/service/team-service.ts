@@ -10,6 +10,7 @@ import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
 import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
 import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
+import { ensureDefaultDoubleOptInTemplate } from "./double-opt-in-service";
 
 // Cache stores exactly Prisma Team shape (no counts)
 
@@ -92,6 +93,8 @@ export class TeamService {
         },
       },
     });
+
+    await ensureDefaultDoubleOptInTemplate(created.id);
     // Warm cache for the new team
     await TeamService.refreshTeamCache(created.id);
     return created;

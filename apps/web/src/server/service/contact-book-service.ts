@@ -4,6 +4,7 @@ import { LimitService } from "./limit-service";
 import { UnsendApiError } from "../public-api/api-error";
 import {
   assertTemplateSupportsDoubleOptIn,
+  ensureDefaultDoubleOptInTemplate,
   templateSupportsDoubleOptIn,
 } from "./double-opt-in-service";
 import { getVerifiedDomains } from "./domain-service";
@@ -173,6 +174,8 @@ export async function getContactBookSettings(contactBookId: string) {
       message: "Contact book not found",
     });
   }
+
+  await ensureDefaultDoubleOptInTemplate(contactBook.teamId);
 
   const [domains, templates] = await Promise.all([
     getVerifiedDomains(contactBook.teamId),
