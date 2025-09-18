@@ -29,6 +29,10 @@
 - Paths (web): use alias `~/` for src imports (e.g., `import { x } from "~/utils/x"`).
 - Never use dynamic imports
 
+## Rules
+
+- Prefer to use trpc alway unless asked otherwise
+
 ## Testing Guidelines
 
 - No repo-wide test runner is configured yet. do not add any tests unless required

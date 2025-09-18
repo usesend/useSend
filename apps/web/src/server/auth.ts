@@ -129,11 +129,7 @@ export const authOptions: NextAuthOptions = {
         invitesAvailable = invites.length > 0;
       }
 
-      if (
-        !env.NEXT_PUBLIC_IS_CLOUD ||
-        env.NODE_ENV === "development" ||
-        invitesAvailable
-      ) {
+      if (!env.NEXT_PUBLIC_IS_CLOUD || invitesAvailable) {
         await db.user.update({
           where: { id: user.id },
           data: { isBetaUser: true },
