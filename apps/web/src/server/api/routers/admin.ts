@@ -1,3 +1,5 @@
+import { Prisma, type Plan } from "@prisma/client";
+import { format, startOfMonth } from "date-fns";
 import { z } from "zod";
 import { env } from "~/env";
 
@@ -288,5 +290,88 @@ export const adminRouter = createTRPCRouter({
       });
 
       return updatedTeam;
+    }),
+
+  getEmailAnalytics: adminProcedure
+    .input(
+      z.object({
+        timeframe: z.enum(["today", "thisMonth"]),
+        paidOnly: z.boolean().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const timeframe = input.timeframe;
+      const paidOnly = input.paidOnly ?? false;
+
+      const today = format(new Date(), "yyyy-MM-dd");
+      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+
+      type EmailAnalyticsRow = {
+        teamId: number;
+        name: string;
+        plan: Plan;
+        sent: number;
+        delivered: number;
+        opened: number;
+        clicked: number;
+        bounced: number;
+        complained: number;
+        hardBounced: number;
+      };
+
+      const rows = await db.$queryRaw<Array<EmailAnalyticsRow>>`
+        SELECT
+          d."teamId" AS "teamId",
+          t."name" AS name,
+          t."plan" AS plan,
+          SUM(d.sent)::integer AS sent,
+          SUM(d.delivered)::integer AS delivered,
+          SUM(d.opened)::integer AS opened,
+          SUM(d.clicked)::integer AS clicked,
+          SUM(d.bounced)::integer AS bounced,
+          SUM(d.complained)::integer AS complained,
+          SUM(d."hardBounced")::integer AS "hardBounced"
+        FROM "DailyEmailUsage" d
+        INNER JOIN "Team" t ON t.id = d."teamId"
+        WHERE 1 = 1
+        ${
+          timeframe === "today"
+            ? Prisma.sql`AND d."date" = ${today}`
+            : Prisma.sql`AND d."date" >= ${monthStart}`
+        }
+        ${paidOnly ? Prisma.sql`AND t."plan" = 'BASIC'` : Prisma.sql``}
+        GROUP BY d."teamId", t."name", t."plan"
+        ORDER BY sent DESC
+      `;
+
+      const totals = rows.reduce(
+        (acc, row) => {
+          acc.sent += row.sent;
+          acc.delivered += row.delivered;
+          acc.opened += row.opened;
+          acc.clicked += row.clicked;
+          acc.bounced += row.bounced;
+          acc.complained += row.complained;
+          acc.hardBounced += row.hardBounced;
+          return acc;
+        },
+        {
+          sent: 0,
+          delivered: 0,
+          opened: 0,
+          clicked: 0,
+          bounced: 0,
+          complained: 0,
+          hardBounced: 0,
+        }
+      );
+
+      return {
+        rows,
+        totals,
+        timeframe,
+        paidOnly,
+        periodStart: timeframe === "today" ? today : monthStart,
+      };
     }),
 });

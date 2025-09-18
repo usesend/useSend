@@ -21,6 +21,11 @@ export default function AdminLayout({
           </SettingsNavButton>
         ) : null}
         {isCloud() ? (
+          <SettingsNavButton href="/admin/email-analytics">
+            Email analytics
+          </SettingsNavButton>
+        ) : null}
+        {isCloud() ? (
           <SettingsNavButton href="/admin/waitlist">
             Waitlist
           </SettingsNavButton>
