@@ -40,6 +40,7 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
     defaultValues: {
       domain: "",
       emailTypes: [],
+      emailVolume: "",
       description: "",
     },
   });
@@ -144,6 +145,25 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
               </FormItem>
             );
           }}
+        />
+
+        <FormField
+          control={form.control}
+          name="emailVolume"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>How many emails will you send?</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={3}
+                  placeholder="e.g., Around 400 transactional emails per day and 5,000 marketing emails per month"
+                  {...field}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
 
         <FormField

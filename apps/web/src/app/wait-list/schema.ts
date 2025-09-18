@@ -14,6 +14,11 @@ export const waitlistSubmissionSchema = z.object({
   emailTypes: z
     .array(z.enum(WAITLIST_EMAIL_TYPES))
     .min(1, "Select at least one email type"),
+  emailVolume: z
+    .string({ required_error: "Share your expected volume" })
+    .trim()
+    .min(1, "Tell us how many emails you expect to send")
+    .max(500, "Keep the volume details under 500 characters"),
   description: z
     .string({ required_error: "Provide a short description" })
     .trim()
