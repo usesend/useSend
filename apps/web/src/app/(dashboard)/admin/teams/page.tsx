@@ -30,6 +30,7 @@ import { formatDistanceToNow } from "date-fns";
 import { api } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
 import type { inferRouterOutputs } from "@trpc/server";
+import { isCloud } from "~/utils/common";
 
 const searchSchema = z.object({
   query: z
@@ -81,6 +82,14 @@ export default function AdminTeamsPage() {
       });
     }
   }, [team, updateForm]);
+
+  if (!isCloud()) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-6 text-sm text-muted-foreground">
+        Team administration tools are available only in the cloud deployment.
+      </div>
+    );
+  }
 
   const findTeam = api.admin.findTeam.useMutation({
     onSuccess: (data) => {
