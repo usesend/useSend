@@ -41,4 +41,4 @@
 
 - Prefer Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`). Git history shows frequent feat/fix usage.
 - PRs must include: clear description, linked issues, screenshots for UI changes, migration notes, and verification steps.
-- CI hygiene: ensure `pnpm lint` and `pnpm build` pass; run relevant `db:*` scripts if schema changes.
+- never run build,migration commands unless asked for

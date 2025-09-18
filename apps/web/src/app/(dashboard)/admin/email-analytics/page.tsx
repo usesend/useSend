@@ -23,12 +23,12 @@ import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { isCloud } from "~/utils/common";
 import { timeframeOptions } from "./constants";
+import { keepPreviousData } from "@tanstack/react-query";
 
 export default function AdminEmailAnalyticsPage() {
   const isCloudEnv = isCloud();
-  const [timeframe, setTimeframe] = useState<
-    (typeof timeframeOptions)[number]["value"]
-  >("today");
+  const [timeframe, setTimeframe] =
+    useState<(typeof timeframeOptions)[number]["value"]>("today");
   const [paidOnly, setPaidOnly] = useState(false);
 
   const analyticsQuery = api.admin.getEmailAnalytics.useQuery(
@@ -36,7 +36,7 @@ export default function AdminEmailAnalyticsPage() {
       timeframe,
       paidOnly,
     },
-    { keepPreviousData: true, enabled: isCloudEnv }
+    { enabled: isCloudEnv, placeholderData: keepPreviousData }
   );
 
   const data = analyticsQuery.data;
@@ -111,9 +111,7 @@ export default function AdminEmailAnalyticsPage() {
               </p>
             ) : null}
           </div>
-          {analyticsQuery.isLoading ? (
-            <Spinner className="h-4 w-4" />
-          ) : null}
+          {analyticsQuery.isLoading ? <Spinner className="h-4 w-4" /> : null}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -149,12 +147,18 @@ export default function AdminEmailAnalyticsPage() {
                     <TableCell>{row.name}</TableCell>
                     <TableCell>{row.plan}</TableCell>
                     <TableCell className="text-right">{row.sent}</TableCell>
-                    <TableCell className="text-right">{row.delivered}</TableCell>
+                    <TableCell className="text-right">
+                      {row.delivered}
+                    </TableCell>
                     <TableCell className="text-right">{row.opened}</TableCell>
                     <TableCell className="text-right">{row.clicked}</TableCell>
                     <TableCell className="text-right">{row.bounced}</TableCell>
-                    <TableCell className="text-right">{row.complained}</TableCell>
-                    <TableCell className="text-right">{row.hardBounced}</TableCell>
+                    <TableCell className="text-right">
+                      {row.complained}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.hardBounced}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
