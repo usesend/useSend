@@ -91,6 +91,24 @@ export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
 /**
+ * Authenticated (session-required) procedure
+ *
+ * Ensures a session exists but does not enforce waitlist status. Useful for flows where waitlisted
+ * users should still have access (e.g., waitlist management).
+ */
+export const authedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.session || !ctx.session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  return next({
+    ctx: {
+      session: { ...ctx.session, user: ctx.session.user },
+    },
+  });
+});
+
+/**
  * Protected (authenticated) procedure
  *
  * If you want a query or mutation to ONLY be accessible to logged in users, use this. It verifies
@@ -98,17 +116,12 @@ export const publicProcedure = t.procedure;
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.session || !ctx.session.user || ctx.session.user.isWaitlisted) {
+export const protectedProcedure = authedProcedure.use(({ ctx, next }) => {
+  if (ctx.session.user.isWaitlisted) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
-  return next({
-    ctx: {
-      // infers the `session` as non-nullable
-      session: { ...ctx.session, user: ctx.session.user },
-    },
-  });
+  return next();
 });
 
 export const teamProcedure = protectedProcedure.use(async ({ ctx, next }) => {

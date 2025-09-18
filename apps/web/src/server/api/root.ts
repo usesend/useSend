@@ -12,6 +12,7 @@ import { invitationRouter } from "./routers/invitiation";
 import { dashboardRouter } from "./routers/dashboard";
 import { suppressionRouter } from "./routers/suppression";
 import { limitsRouter } from "./routers/limits";
+import { waitlistRouter } from "./routers/waitlist";
 
 /**
  * This is the primary router for your server.
@@ -32,6 +33,7 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   suppression: suppressionRouter,
   limits: limitsRouter,
+  waitlist: waitlistRouter,
 });
 
 // export type definition of API
