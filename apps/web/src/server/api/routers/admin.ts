@@ -1,5 +1,4 @@
 import { Prisma, type Plan } from "@prisma/client";
-import { format, startOfMonth } from "date-fns";
 import { z } from "zod";
 import { env } from "~/env";
 
@@ -303,8 +302,12 @@ export const adminRouter = createTRPCRouter({
       const timeframe = input.timeframe;
       const paidOnly = input.paidOnly ?? false;
 
-      const today = format(new Date(), "yyyy-MM-dd");
-      const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const monthStartDate = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+      );
+      const monthStart = monthStartDate.toISOString().slice(0, 10);
 
       type EmailAnalyticsRow = {
         teamId: number;
