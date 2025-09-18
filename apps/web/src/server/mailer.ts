@@ -2,7 +2,7 @@ import { env } from "~/env";
 import { UseSend } from "usesend-js";
 import { isSelfHosted } from "~/utils/common";
 import { db } from "./db";
-import { getDomains } from "./service/domain-service";
+import { getDomains, resolveFromAddress } from "./service/domain-service";
 import { sendEmail } from "./service/email-service";
 import { logger } from "./logger/log";
 import { renderOtpEmail, renderTeamInviteEmail } from "./email-templates";
@@ -101,10 +101,15 @@ export async function sendMail(
     const domain =
       domains.find((d) => d.name === fromEmailDomain) ?? domains[0];
 
+    const fromAddress = resolveFromAddress({
+      name: domain.name,
+      defaultFrom: (domain as any).defaultFrom ?? null,
+    });
+
     await sendEmail({
       teamId: team.id,
       to: email,
-      from: `hello@${domain.name}`,
+      from: fromAddress,
       subject,
       text,
       html,

@@ -41,6 +41,12 @@ export const contactsRouter = createTRPCRouter({
     }
   ),
 
+  getContactBookSettings: contactBookProcedure.query(
+    async ({ ctx: { contactBook } }) => {
+      return contactBookService.getContactBookSettings(contactBook.id);
+    }
+  ),
+
   updateContactBook: contactBookProcedure
     .input(
       z.object({
@@ -48,10 +54,14 @@ export const contactsRouter = createTRPCRouter({
         name: z.string().optional(),
         properties: z.record(z.string()).optional(),
         emoji: z.string().optional(),
+        defaultDomainId: z.number().nullable().optional(),
+        doubleOptInEnabled: z.boolean().optional(),
+        doubleOptInTemplateId: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {
-      return contactBookService.updateContactBook(contactBook.id, input);
+      const { contactBookId, ...payload } = input;
+      return contactBookService.updateContactBook(contactBook.id, payload);
     }),
 
   deleteContactBook: contactBookProcedure
