@@ -74,7 +74,8 @@ export async function sendMail(
   subject: string,
   text: string,
   html: string,
-  replyTo?: string
+  replyTo?: string,
+  fromOverride?: string
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -96,24 +97,33 @@ export async function sendMail(
       return;
     }
 
-    const fromEmailDomain = env.FROM_EMAIL?.split("@")[1];
+    const availableDomains = domains.map((d) => d.name);
+    const domain = domains[0];
 
-    const domain =
-      domains.find((d) => d.name === fromEmailDomain) ?? domains[0];
+    const candidateFroms = [fromOverride, env.FROM_EMAIL, `hello@${domain.name}`].filter(
+      (value): value is string => Boolean(value)
+    );
+
+    const selectedFrom =
+      candidateFroms.find((address) => {
+        const domainPart = address.split("@")[1];
+        return domainPart ? availableDomains.includes(domainPart) : false;
+      }) ?? `hello@${domain.name}`;
 
     await sendEmail({
       teamId: team.id,
       to: email,
-      from: `hello@${domain.name}`,
+      from: selectedFrom,
       subject,
       text,
       html,
       replyTo,
     });
-  } else if (env.UNSEND_API_KEY && env.FROM_EMAIL) {
+  } else if (env.UNSEND_API_KEY && (env.FROM_EMAIL || fromOverride)) {
+    const fromAddress = fromOverride ?? env.FROM_EMAIL!;
     const resp = await getClient().emails.send({
       to: email,
-      from: env.FROM_EMAIL,
+      from: fromAddress,
       subject,
       text,
       html,

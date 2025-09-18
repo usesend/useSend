@@ -5,6 +5,8 @@ import { createTRPCRouter, adminProcedure } from "~/server/api/trpc";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
 import { getAccount } from "~/server/aws/ses";
 import { db } from "~/server/db";
+import { sendMail } from "~/server/mailer";
+import { logger } from "~/server/logger/log";
 
 const waitlistUserSelection = {
   id: true,
@@ -13,6 +15,28 @@ const waitlistUserSelection = {
   isWaitlisted: true,
   createdAt: true,
 } as const;
+
+function toPlainHtml(text: string) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  return `<pre style="font-family: inherit; white-space: pre-wrap; margin: 0;">${escaped}</pre>`;
+}
+
+function formatDisplayNameFromEmail(email: string) {
+  const localPart = email.split("@")[0] ?? email;
+  const pieces = localPart.split(/[._-]+/).filter(Boolean);
+  if (pieces.length === 0) {
+    return localPart;
+  }
+  return pieces
+    .map((piece) => piece.charAt(0).toUpperCase() + piece.slice(1))
+    .join(" ");
+}
 
 const teamAdminSelection = {
   id: true,
@@ -54,7 +78,7 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string(),
-      }),
+      })
     )
     .query(async ({ input }) => {
       const acc = await getAccount(input.region);
@@ -68,7 +92,7 @@ export const adminRouter = createTRPCRouter({
         usesendUrl: z.string().url(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.createSesSetting({
@@ -85,7 +109,7 @@ export const adminRouter = createTRPCRouter({
         settingsId: z.string(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.updateSesSetting({
@@ -99,11 +123,11 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string().optional().nullable(),
-      }),
+      })
     )
     .query(async ({ input }) => {
       return SesSettingsService.getSetting(
-        input.region ?? env.AWS_DEFAULT_REGION,
+        input.region ?? env.AWS_DEFAULT_REGION
       );
     }),
 
@@ -114,7 +138,7 @@ export const adminRouter = createTRPCRouter({
           .string()
           .email()
           .transform((value) => value.toLowerCase()),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const user = await db.user.findUnique({
@@ -130,14 +154,61 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.number(),
         isWaitlisted: z.boolean(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
+      const existingUser = await db.user.findUnique({
+        where: { id: input.userId },
+        select: waitlistUserSelection,
+      });
+
+      if (!existingUser) {
+        throw new Error("User not found");
+      }
+
       const updatedUser = await db.user.update({
         where: { id: input.userId },
         data: { isWaitlisted: input.isWaitlisted },
         select: waitlistUserSelection,
       });
+
+      const founderEmail = env.FOUNDER_EMAIL ?? undefined;
+      const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
+
+      const shouldSendAcceptanceEmail =
+        existingUser.isWaitlisted &&
+        !input.isWaitlisted &&
+        Boolean(updatedUser.email) &&
+        (founderEmail || fallbackFrom);
+
+      if (shouldSendAcceptanceEmail) {
+        const recipient = updatedUser.email as string;
+        const replyTo = founderEmail ?? fallbackFrom;
+        const fromOverride = founderEmail ?? undefined;
+        const founderName = replyTo
+          ? formatDisplayNameFromEmail(replyTo)
+          : "Founder";
+        const userFirstName =
+          updatedUser.name?.split(" ")[0] ?? updatedUser.name ?? recipient;
+
+        const text = `Hey ${userFirstName},\n\nThanks for hanging in while we reviewed your waitlist request. I've just moved your account off the waitlist, so you now have full access to useSend.\n\nGo ahead and log back in to start sending: ${env.NEXTAUTH_URL}\n\nIf anything feels unclear or you want help getting set up, reply to this email and it comes straight to me.\n\nCheers,\n${founderName}\n${replyTo}`;
+
+        try {
+          await sendMail(
+            recipient,
+            "useSend: You're off the waitlist",
+            text,
+            toPlainHtml(text),
+            replyTo,
+            fromOverride
+          );
+        } catch (error) {
+          logger.error(
+            { userId: updatedUser.id, error },
+            "Failed to send waitlist acceptance email"
+          );
+        }
+      }
 
       return updatedUser;
     }),
@@ -149,7 +220,7 @@ export const adminRouter = createTRPCRouter({
           .string({ required_error: "Search query is required" })
           .trim()
           .min(1, "Search query is required"),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const query = input.query.trim();
@@ -205,7 +276,7 @@ export const adminRouter = createTRPCRouter({
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const { teamId, ...data } = input;
