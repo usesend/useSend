@@ -19,7 +19,7 @@ const getClient = () => {
 export async function sendSignUpEmail(
   email: string,
   token: string,
-  url: string
+  url: string,
 ) {
   const { host } = new URL(url);
 
@@ -46,7 +46,7 @@ export async function sendSignUpEmail(
 export async function sendTeamInviteEmail(
   email: string,
   url: string,
-  teamName: string
+  teamName: string,
 ) {
   const { host } = new URL(url);
 
@@ -69,12 +69,39 @@ export async function sendTeamInviteEmail(
   await sendMail(email, subject, text, html);
 }
 
+export async function sendWelcomeEmail(email: string) {
+  if (!env.FOUNDER_EMAIL) {
+    logger.error("FOUNDER_EMAIL not configured");
+    return;
+  }
+
+  const subject = "Welcome to useSend";
+  const text = `Hey,\n\nThanks for signing up for useSend. You can get started with the docs here: https://docs.usesend.com\n\nIf you have any questions, just reply to this email.\n\ncheers,\nkoushik - useSend`;
+  const html = text.replace(/\n/g, "<br />");
+
+  await sendMail(email, subject, text, html, undefined, env.FOUNDER_EMAIL);
+}
+
+export async function sendSubscriptionConfirmationEmail(email: string) {
+  if (!env.FOUNDER_EMAIL) {
+    logger.error("FOUNDER_EMAIL not configured");
+    return;
+  }
+
+  const subject = "Thanks for subscribing to useSend";
+  const text = `Hey,\n\nThanks for subscribing to useSend, just wanted to let you know you can join the discord server to have a dedicated support channel for your team. So that we can address your queries / bugs asap.\n\nYou can join over using the link: https://discord.com/invite/BU8n8pJv8S\n\nIf you prefer slack, please let me know\n\ncheers,\nkoushik - useSend`;
+  const html = text.replace(/\n/g, "<br />");
+
+  await sendMail(email, subject, text, html, undefined, env.FOUNDER_EMAIL);
+}
+
 export async function sendMail(
   email: string,
   subject: string,
   text: string,
   html: string,
-  replyTo?: string
+  replyTo?: string,
+  fromOverride?: string,
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -96,7 +123,7 @@ export async function sendMail(
       return;
     }
 
-    const fromEmailDomain = env.FROM_EMAIL?.split("@")[1];
+    const fromEmailDomain = (fromOverride ?? env.FROM_EMAIL)?.split("@")[1];
 
     const domain =
       domains.find((d) => d.name === fromEmailDomain) ?? domains[0];
@@ -104,16 +131,16 @@ export async function sendMail(
     await sendEmail({
       teamId: team.id,
       to: email,
-      from: `hello@${domain.name}`,
+      from: fromOverride ?? `hello@${domain.name}`,
       subject,
       text,
       html,
       replyTo,
     });
-  } else if (env.UNSEND_API_KEY && env.FROM_EMAIL) {
+  } else if (env.UNSEND_API_KEY && (fromOverride || env.FROM_EMAIL)) {
     const resp = await getClient().emails.send({
       to: email,
-      from: env.FROM_EMAIL,
+      from: fromOverride ?? env.FROM_EMAIL!,
       subject,
       text,
       html,
@@ -126,7 +153,7 @@ export async function sendMail(
     } else {
       logger.error(
         { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend"
+        "Error sending email using usesend",
       );
     }
   } else {

@@ -49,6 +49,7 @@ export const env = createEnv({
       .default("0")
       .transform((str) => parseInt(str, 10)),
     FROM_EMAIL: z.string().optional(),
+    FOUNDER_EMAIL: z.string().optional(),
     ADMIN_EMAIL: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
     REDIS_URL: z.string(),
@@ -105,6 +106,7 @@ export const env = createEnv({
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
     REDIS_URL: process.env.REDIS_URL,
     FROM_EMAIL: process.env.FROM_EMAIL,
+    FOUNDER_EMAIL: process.env.FOUNDER_EMAIL,
     S3_COMPATIBLE_ACCESS_KEY: process.env.S3_COMPATIBLE_ACCESS_KEY,
     S3_COMPATIBLE_SECRET_KEY: process.env.S3_COMPATIBLE_SECRET_KEY,
     S3_COMPATIBLE_API_URL: process.env.S3_COMPATIBLE_API_URL,

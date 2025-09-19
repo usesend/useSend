@@ -10,7 +10,7 @@ import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
 import { Provider } from "next-auth/providers/index";
 
-import { sendSignUpEmail } from "~/server/mailer";
+import { sendSignUpEmail, sendWelcomeEmail } from "~/server/mailer";
 import { env } from "~/env";
 import { db } from "~/server/db";
 
@@ -58,7 +58,7 @@ function getProviders() {
             scope: "read:user user:email",
           },
         },
-      })
+      }),
     );
   }
 
@@ -68,7 +68,7 @@ function getProviders() {
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         allowDangerousEmailAccountLinking: true,
-      })
+      }),
     );
   }
 
@@ -82,7 +82,7 @@ function getProviders() {
         async generateVerificationToken() {
           return Math.random().toString(36).substring(2, 7).toLowerCase();
         },
-      })
+      }),
     );
   }
 
@@ -130,6 +130,10 @@ export const authOptions: NextAuthOptions = {
         where: { id: user.id },
         data: { isBetaUser: true },
       });
+
+      if (user.email) {
+        await sendWelcomeEmail(user.email);
+      }
     },
   },
   providers: getProviders(),

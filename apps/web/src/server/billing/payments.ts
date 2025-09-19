@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "../db";
 import { TeamService } from "../service/team-service";
+import { sendSubscriptionConfirmationEmail } from "../mailer";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -123,6 +124,8 @@ export async function syncStripeData(customerId: string) {
     return;
   }
 
+  const wasPaid = team.isActive && team.plan !== "FREE";
+
   const subscriptions = await stripe.subscriptions.list({
     customer: customerId,
     limit: 1,
@@ -144,6 +147,10 @@ export async function syncStripeData(customerId: string) {
     .map((item) => item.price?.id)
     .filter((id): id is string => Boolean(id));
 
+  const newPlan = getPlanFromPriceIds(priceIds);
+  const isNowPaid = subscription.status === "active" && newPlan !== "FREE";
+  const shouldSendSubscriptionConfirmation = !wasPaid && isNowPaid;
+
   await db.subscription.upsert({
     where: { id: subscription.id },
     update: {
@@ -151,10 +158,10 @@ export async function syncStripeData(customerId: string) {
       priceId: subscription.items.data[0]?.price?.id || "",
       priceIds: priceIds,
       currentPeriodEnd: new Date(
-        subscription.items.data[0]?.current_period_end * 1000
+        subscription.items.data[0]?.current_period_end * 1000,
       ),
       currentPeriodStart: new Date(
-        subscription.items.data[0]?.current_period_start * 1000
+        subscription.items.data[0]?.current_period_start * 1000,
       ),
       cancelAtPeriodEnd: subscription.cancel_at
         ? new Date(subscription.cancel_at * 1000)
@@ -168,10 +175,10 @@ export async function syncStripeData(customerId: string) {
       priceId: subscription.items.data[0]?.price?.id || "",
       priceIds: priceIds,
       currentPeriodEnd: new Date(
-        subscription.items.data[0]?.current_period_end * 1000
+        subscription.items.data[0]?.current_period_end * 1000,
       ),
       currentPeriodStart: new Date(
-        subscription.items.data[0]?.current_period_start * 1000
+        subscription.items.data[0]?.current_period_start * 1000,
       ),
       cancelAtPeriodEnd: subscription.cancel_at
         ? new Date(subscription.cancel_at * 1000)
@@ -182,10 +189,17 @@ export async function syncStripeData(customerId: string) {
   });
 
   await TeamService.updateTeam(team.id, {
-    plan:
-      subscription.status === "canceled"
-        ? "FREE"
-        : getPlanFromPriceIds(priceIds),
+    plan: subscription.status === "canceled" ? "FREE" : newPlan,
     isActive: subscription.status === "active",
   });
+
+  if (shouldSendSubscriptionConfirmation) {
+    const teamUsers = await TeamService.getTeamUsers(team.id);
+    await Promise.all(
+      teamUsers
+        .map((tu) => tu.user?.email)
+        .filter((e): e is string => Boolean(e))
+        .map((e) => sendSubscriptionConfirmationEmail(e)),
+    );
+  }
 }
