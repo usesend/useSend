@@ -1,0 +1,66 @@
+export const metadata = {
+  title: "September Outage Update | useSend",
+  description:
+    "What happened during the September outage, how we responded, and the improvements now in motion.",
+  alternates: {
+    canonical: "https://usesend.com/update/september-outage",
+  },
+  openGraph: {
+    title: "September Outage Update | useSend",
+    description:
+      "What happened during the September outage, how we responded, and the improvements now in motion.",
+    type: "article",
+    url: "https://usesend.com/update/september-outage",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "September Outage Update | useSend",
+    description:
+      "What happened during the September outage, how we responded, and the improvements now in motion.",
+  },
+};
+
+# September Outage Postmortem
+
+On September 17, starting at 11:25 UTC, our emails were not being sent and the outage lasted for almost 10 hours until 21:00 UTC. No emails were sent during this time.
+
+## What happened
+
+Our Amazon SES sending was temporarily paused after compliance signals indicated potential spam characteristics. The initial feedback suggested that some marketing emails might not meet common anti-spam standards (for example, missing unsubscribe links).
+
+## Timeline tldr; (UTC)
+
+- **11:25** - Received an email that our account's sending was paused without prior warning.
+- **11:43** - Identified the problematic account, blocked it, and replied to AWS. Paused new signups as well.
+- **13:00** - No reply yet, so created a separate escalated support case to get on a call.
+- **14:00** - Initial response appeared to interpret us as the sender of the flagged emails; sending was not yet resumed.
+- **14:11** - Clarified our product offering again, noting we had blocked the account and paused signups. Shared the useSend site, GitHub, etc.
+- **15:53** - Similar response; only valid point is that some marketing emails lacked an unsubscribe link.
+- **17:40** - Shipped a change making an unsubscribe link mandatory for marketing emails; shared details on the fix and existing rate limits.
+- **18:36** - AWS still not clear with my product and suggestions included adding a CAPTCHA to a form (not applicable to our current flow).
+- **19:18** - Re-explained the product and requested senior review for clearer alignment.
+- **19:45** - AWS informed that the case would be reviewed within 2-3 business days.
+- **19:48** - Requested expedited review due to user impact.
+- **21:00** - Finally a valid response with actual steps to improve the product and resumed the account.
+
+## Why
+
+The pause highlighted areas where we can be more diligent about what gets sent through useSend and ensure alignment with SES guidelines and broader email standards.
+
+## What's done till now
+
+- Added a waitlist on signup; we'll screen users before enabling sending.
+- Made the unsubscribe link mandatory in the marketing email editor.
+- Focusing on users sending transactional and product emails for now.
+
+## Long-term improvements
+
+- More monitoring and pre-send checks (including email screening).
+- Double opt-in for contacts.
+- A backup SES account to improve resilience.
+- Considering a BYO SES option, with useSend managing it for a flat fee.
+- Exploring a move to a self-hosted email server (Hard but will try my best).
+
+## To my users
+
+Thank you for being patient and supporting during this time. I'll do a better job in the future to avoid such issues. If you have any suggestions, please do send them in discord or [koushik@usesend.com](mailto:koushik@usesend.com).
