@@ -25,13 +25,40 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queueName = `${region}-${suffix}`;
 
-  const queue = new Queue(queueName, { connection });
+  const queue = new Queue(queueName, { 
+    connection,
+    defaultJobOptions: {
+      removeOnComplete: 100,
+      removeOnFail: 50,
+    },
+  });
 
   // TODO: Add team context to job data when queueing
   const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
     concurrency: quota,
     connection,
   });
+
+  // Add error handlers to prevent unhandled errors from causing hangs
+  worker.on('error', (error) => {
+    logger.error(
+      { error, queueName, region },
+      `[EmailQueueService]: Worker error for ${queueName}`
+    );
+  });
+
+  queue.on('error', (error) => {
+    logger.error(
+      { error, queueName, region },
+      `[EmailQueueService]: Queue error for ${queueName}`
+    );
+  });
+
+  // Log successful creation
+  logger.info(
+    { queueName, region, quota },
+    `[EmailQueueService]: Successfully created queue and worker for ${queueName}`
+  );
 
   return { queue, worker };
 }
@@ -43,7 +70,7 @@ export class EmailQueueService {
   public static marketingQueue = new Map<string, Queue<QueueEmailJob>>();
   private static marketingWorker = new Map<string, Worker>();
 
-  public static initializeQueue(
+  public static async initializeQueue(
     region: string,
     quota: number,
     transactionalQuotaPercentage: number
@@ -58,54 +85,98 @@ export class EmailQueueService {
     );
     const marketingQuota = quota - transactionalQuota;
 
-    if (this.transactionalQueue.has(region)) {
-      logger.info(
-        { region, transactionalQuota },
-        `[EmailQueueService]: Updating transactional quota for region`
-      );
-      const transactionalWorker = this.transactionalWorker.get(region);
-      if (transactionalWorker) {
-        transactionalWorker.concurrency =
-          transactionalQuota !== 0 ? transactionalQuota : 1;
-      }
-    } else {
-      logger.info(
-        { region, transactionalQuota },
-        `[EmailQueueService]: Creating transactional queue for region`
-      );
-      const { queue: transactionalQueue, worker: transactionalWorker } =
-        createQueueAndWorker(
-          region,
-          transactionalQuota !== 0 ? transactionalQuota : 1,
-          "transaction"
+    try {
+      if (this.transactionalQueue.has(region)) {
+        logger.info(
+          { region, transactionalQuota },
+          `[EmailQueueService]: Updating transactional quota for region`
         );
-      this.transactionalQueue.set(region, transactionalQueue);
-      this.transactionalWorker.set(region, transactionalWorker);
-    }
+        const transactionalWorker = this.transactionalWorker.get(region);
+        if (transactionalWorker) {
+          transactionalWorker.concurrency =
+            transactionalQuota !== 0 ? transactionalQuota : 1;
+        }
+      } else {
+        logger.info(
+          { region, transactionalQuota },
+          `[EmailQueueService]: Creating transactional queue for region`
+        );
+        
+        const { queue: transactionalQueue, worker: transactionalWorker } =
+          await this.createQueueAndWorkerWithTimeout(
+            region,
+            transactionalQuota !== 0 ? transactionalQuota : 1,
+            "transaction"
+          );
+        this.transactionalQueue.set(region, transactionalQueue);
+        this.transactionalWorker.set(region, transactionalWorker);
+      }
 
-    if (this.marketingQueue.has(region)) {
-      logger.info(
-        { region, marketingQuota },
-        `[EmailQueueService]: Updating marketing quota for region`
-      );
-      const marketingWorker = this.marketingWorker.get(region);
-      if (marketingWorker) {
-        marketingWorker.concurrency = marketingQuota !== 0 ? marketingQuota : 1;
-      }
-    } else {
-      logger.info(
-        { region, marketingQuota },
-        `[EmailQueueService]: Creating marketing queue for region`
-      );
-      const { queue: marketingQueue, worker: marketingWorker } =
-        createQueueAndWorker(
-          region,
-          marketingQuota !== 0 ? marketingQuota : 1,
-          "marketing"
+      if (this.marketingQueue.has(region)) {
+        logger.info(
+          { region, marketingQuota },
+          `[EmailQueueService]: Updating marketing quota for region`
         );
-      this.marketingQueue.set(region, marketingQueue);
-      this.marketingWorker.set(region, marketingWorker);
+        const marketingWorker = this.marketingWorker.get(region);
+        if (marketingWorker) {
+          marketingWorker.concurrency = marketingQuota !== 0 ? marketingQuota : 1;
+        }
+      } else {
+        logger.info(
+          { region, marketingQuota },
+          `[EmailQueueService]: Creating marketing queue for region`
+        );
+        
+        const { queue: marketingQueue, worker: marketingWorker } =
+          await this.createQueueAndWorkerWithTimeout(
+            region,
+            marketingQuota !== 0 ? marketingQuota : 1,
+            "marketing"
+          );
+        this.marketingQueue.set(region, marketingQueue);
+        this.marketingWorker.set(region, marketingWorker);
+      }
+
+      logger.info(
+        { region },
+        `[EmailQueueService]: Successfully initialized queues for region`
+      );
+    } catch (error) {
+      logger.error(
+        { error, region },
+        `[EmailQueueService]: Failed to initialize queues for region`
+      );
+      throw error;
     }
+  }
+
+  private static async createQueueAndWorkerWithTimeout(
+    region: string,
+    quota: number,
+    suffix: string
+  ): Promise<{ queue: Queue<QueueEmailJob>; worker: Worker }> {
+    return new Promise(async (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Timeout creating queue and worker for ${region}-${suffix}`));
+      }, 15000); // 15 second timeout
+
+      try {
+        // Ensure Redis connection is ready before creating queue/worker
+        const connection = getRedis();
+        
+        // Force connection if not already connected
+        if (connection.status !== 'ready' && connection.status !== 'connected') {
+          await connection.connect();
+        }
+
+        const result = createQueueAndWorker(region, quota, suffix);
+        clearTimeout(timeout);
+        resolve(result);
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    });
   }
 
   public static async queueEmail(
@@ -293,7 +364,7 @@ export class EmailQueueService {
   public static async init() {
     const sesSettings = await db.sesSetting.findMany();
     for (const sesSetting of sesSettings) {
-      this.initializeQueue(
+      await this.initializeQueue(
         sesSetting.region,
         sesSetting.sesEmailRateLimit,
         sesSetting.transactionalQuota

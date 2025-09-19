@@ -13,18 +13,29 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs" && !initialized) {
     console.log("Registering instrumentation");
 
-    const { EmailQueueService } = await import(
-      "~/server/service/email-queue-service"
-    );
-    await EmailQueueService.init();
+    try {
+      const { EmailQueueService } = await import(
+        "~/server/service/email-queue-service"
+      );
+      
+      console.log("Initializing EmailQueueService...");
+      await EmailQueueService.init();
+      console.log("EmailQueueService initialized successfully");
 
-    /**
-     * Send usage data to Stripe
-     */
-    if (isCloud()) {
-      await import("~/server/jobs/usage-job");
+      /**
+       * Send usage data to Stripe
+       */
+      if (isCloud()) {
+        await import("~/server/jobs/usage-job");
+      }
+
+      initialized = true;
+      console.log("Instrumentation registration completed");
+    } catch (error) {
+      console.error("Failed to initialize services during instrumentation:", error);
+      // Don't throw here to prevent application from completely failing to start
+      // The error will be logged and the application can still handle requests
+      // Individual services will handle their own initialization as needed
     }
-
-    initialized = true;
   }
 }

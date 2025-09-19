@@ -119,7 +119,7 @@ export class SesSettingsService {
 
       await registerConfigurationSet(setting);
 
-      EmailQueueService.initializeQueue(
+      await EmailQueueService.initializeQueue(
         region,
         setting.sesEmailRateLimit,
         setting.transactionalQuota
@@ -185,7 +185,7 @@ export class SesSettingsService {
       "Email queues before update"
     );
 
-    EmailQueueService.initializeQueue(
+    await EmailQueueService.initializeQueue(
       setting.region,
       setting.sesEmailRateLimit,
       setting.transactionalQuota
