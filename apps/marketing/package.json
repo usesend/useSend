@@ -10,6 +10,10 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "^15.5.3",
+    "@types/mdx": "^2.0.13",
     "@usesend/email-editor": "workspace:*",
     "@usesend/ui": "workspace:*",
     "iconoir-react": "^7.11.0",
