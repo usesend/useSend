@@ -69,6 +69,19 @@ export async function sendTeamInviteEmail(
   await sendMail(email, subject, text, html);
 }
 
+export async function sendSubscriptionConfirmationEmail(email: string) {
+  if (!env.FOUNDER_EMAIL) {
+    logger.error("FOUNDER_EMAIL not configured");
+    return;
+  }
+
+  const subject = "Thanks for subscribing to useSend";
+  const text = `Hey,\n\nThanks for subscribing to useSend, just wanted to let you know you can join the discord server to have a dedicated support channel for your team. So that we can address your queries / bugs asap.\n\nYou can join over using the link: https://discord.com/invite/BU8n8pJv8S\n\nIf you prefer slack, please let me know\n\ncheers,\nkoushik - useSend`;
+  const html = text.replace(/\n/g, "<br />");
+
+  await sendMail(email, subject, text, html, undefined, env.FOUNDER_EMAIL);
+}
+
 export async function sendMail(
   email: string,
   subject: string,

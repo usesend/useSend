@@ -563,6 +563,7 @@ export class TeamService {
       "[TeamService]: Set warning notification cooldown"
     );
   }
+
 }
 
 async function getLimitReachedEmail(
