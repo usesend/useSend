@@ -67,7 +67,7 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
     <div className="flex flex-col gap-16">
       {!statusQuery.isLoading && statusQuery.data ? (
         <div className="w-full h-[450px] border shadow rounded-xl p-4">
-          <div>
+          <div className="p-2 overflow-x-auto">
             {/* <div className="mb-4 text-sm">Emails</div> */}
 
             <div className="flex gap-10">
