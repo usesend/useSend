@@ -6,9 +6,9 @@ services:
     container_name: unsend-db-dev
     restart: always
     environment:
-      - POSTGRES_USER=unsend
+      - POSTGRES_USER=usesend
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=unsend
+      - POSTGRES_DB=usesend
     volumes:
       - database:/var/lib/postgresql/data
     ports:
