@@ -1,7 +1,9 @@
 import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "../db";
+import { sendSubscriptionConfirmationEmail } from "../mailer";
 import { TeamService } from "../service/team-service";
+import { logger } from "../logger/log";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -123,6 +125,8 @@ export async function syncStripeData(customerId: string) {
     return;
   }
 
+  const wasPaid = team.isActive && team.plan !== "FREE";
+
   const subscriptions = await stripe.subscriptions.list({
     customer: customerId,
     limit: 1,
@@ -143,6 +147,10 @@ export async function syncStripeData(customerId: string) {
   const priceIds = subscription.items.data
     .map((item) => item.price?.id)
     .filter((id): id is string => Boolean(id));
+
+  const nextPlan = getPlanFromPriceIds(priceIds);
+  const isNowPaid = subscription.status === "active" && nextPlan !== "FREE";
+  const shouldSendSubscriptionConfirmation = !wasPaid && isNowPaid;
 
   await db.subscription.upsert({
     where: { id: subscription.id },
@@ -182,10 +190,24 @@ export async function syncStripeData(customerId: string) {
   });
 
   await TeamService.updateTeam(team.id, {
-    plan:
-      subscription.status === "canceled"
-        ? "FREE"
-        : getPlanFromPriceIds(priceIds),
+    plan: subscription.status === "canceled" ? "FREE" : nextPlan,
     isActive: subscription.status === "active",
   });
+
+  if (shouldSendSubscriptionConfirmation) {
+    try {
+      const teamUsers = await TeamService.getTeamUsers(team.id);
+      await Promise.all(
+        teamUsers
+          .map((tu) => tu.user?.email)
+          .filter((email): email is string => Boolean(email))
+          .map((email) => sendSubscriptionConfirmationEmail(email))
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId: team.id },
+        "[Billing]: Failed sending subscription confirmation email"
+      );
+    }
+  }
 }
