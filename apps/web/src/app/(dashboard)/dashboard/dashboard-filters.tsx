@@ -29,34 +29,33 @@ export default function DashboardFilters({
   };
 
   return (
-    <div className="flex gap-3">
-      <Select
-        value={domain ?? "All Domains"}
-        onValueChange={(val) => handleDomain(val)}
-      >
-        <SelectTrigger className="w-[180px]">
-          {domain
-            ? domainsQuery?.find((d) => d.id === Number(domain))?.name
-            : "All Domains"}
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="All Domains" className="capitalize">
-            All Domains
-          </SelectItem>
-          {domainsQuery &&
-            domainsQuery.map((domain) => (
-              <SelectItem key={domain.id} value={domain.id.toString()}>
-                {domain.name}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
-      <Tabs value={days || "7"} onValueChange={(value) => setDays(value)}>
-        <TabsList>
-          <TabsTrigger value="7">7 Days</TabsTrigger>
-          <TabsTrigger value="30">30 Days</TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
-  );
+		<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+			<Select value={domain ?? "All Domains"} onValueChange={(val) => handleDomain(val)}>
+				<SelectTrigger className="w-full sm:w-[180px]">
+					{domain ? domainsQuery?.find((d) => d.id === Number(domain))?.name : "All Domains"}
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="All Domains" className="capitalize">
+						All Domains
+					</SelectItem>
+					{domainsQuery &&
+						domainsQuery.map((domain) => (
+							<SelectItem key={domain.id} value={domain.id.toString()}>
+								{domain.name}
+							</SelectItem>
+						))}
+				</SelectContent>
+			</Select>
+			<Tabs value={days || "7"} onValueChange={(value) => setDays(value)}>
+				<TabsList className="w-full sm:w-auto">
+					<TabsTrigger value="7" className="flex-1 sm:flex-none">
+						7 Days
+					</TabsTrigger>
+					<TabsTrigger value="30" className="flex-1 sm:flex-none">
+						30 Days
+					</TabsTrigger>
+				</TabsList>
+			</Tabs>
+		</div>
+	);
 }
