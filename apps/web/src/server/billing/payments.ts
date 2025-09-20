@@ -3,6 +3,7 @@ import { env } from "~/env";
 import { db } from "../db";
 import { sendSubscriptionConfirmationEmail } from "../mailer";
 import { TeamService } from "../service/team-service";
+import { logger } from "../logger/log";
 
 export function getStripe() {
   if (!env.STRIPE_SECRET_KEY) {
@@ -194,12 +195,19 @@ export async function syncStripeData(customerId: string) {
   });
 
   if (shouldSendSubscriptionConfirmation) {
-    const teamUsers = await TeamService.getTeamUsers(team.id);
-    await Promise.all(
-      teamUsers
-        .map((tu) => tu.user?.email)
-        .filter((email): email is string => Boolean(email))
-        .map((email) => sendSubscriptionConfirmationEmail(email))
-    );
+    try {
+      const teamUsers = await TeamService.getTeamUsers(team.id);
+      await Promise.all(
+        teamUsers
+          .map((tu) => tu.user?.email)
+          .filter((email): email is string => Boolean(email))
+          .map((email) => sendSubscriptionConfirmationEmail(email))
+      );
+    } catch (err) {
+      logger.error(
+        { err, teamId: team.id },
+        "[Billing]: Failed sending subscription confirmation email"
+      );
+    }
   }
 }
