@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,7 +14,7 @@ import { H2 } from "@usesend/ui";
 
 import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
-import { use } from "react";
+import { use, useMemo } from "react";
 
 export default function CampaignDetailsPage({
   params,
@@ -38,7 +39,8 @@ export default function CampaignDetailsPage({
     return <div>Campaign not found</div>;
   }
 
-  const statusCards = [
+  // Memoize expensive calculations to prevent recalculation on every render
+  const statusCards = useMemo(() => [
     {
       status: "delivered",
       count: campaign.delivered,
@@ -59,7 +61,7 @@ export default function CampaignDetailsPage({
       count: campaign.opened,
       percentage: (campaign.opened / campaign.delivered) * 100,
     },
-  ];
+  ], [campaign.delivered, campaign.unsubscribed, campaign.clicked, campaign.opened]);
 
   return (
     <div className="container mx-auto">
@@ -146,7 +148,8 @@ export default function CampaignDetailsPage({
   );
 }
 
-const CampaignStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+// Memoized component to prevent unnecessary re-renders
+const CampaignStatusBadge = React.memo<{ status: string }>(({ status }) => {
   let outsideColor = "bg-gray";
   let insideColor = "bg-gray/50";
 
@@ -185,4 +188,6 @@ const CampaignStatusBadge: React.FC<{ status: string }> = ({ status }) => {
       <div className={`h-2 w-2 rounded-full ${insideColor}`}></div>
     </div>
   );
-};
+});
+
+CampaignStatusBadge.displayName = "CampaignStatusBadge";
