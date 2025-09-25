@@ -71,6 +71,7 @@ function Hero() {
               width={200}
               height={100}
               className="dark:hidden"
+              rel="noopener noreferrer"
             />
           </a>
           <a
@@ -83,6 +84,7 @@ function Hero() {
               width={200}
               height={100}
               className="hidden dark:block"
+              rel="noopener noreferrer"
             />
           </a>
         </div>
