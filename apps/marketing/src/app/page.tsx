@@ -59,6 +59,34 @@ function Hero() {
           Open source • Self-host in minutes • Free tier
         </p>
 
+        <div className="mt-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+          <p className="text-xs">Proudly sponsored by</p>
+          <a
+            href="https://coderabbit.ai/?utm_source=useSend.com"
+            target="_blank"
+          >
+            <Image
+              src="/code-rabbit-usesend-dark.svg"
+              alt="Code Rabbit"
+              width={200}
+              height={100}
+              className="dark:hidden"
+            />
+          </a>
+          <a
+            href="https://coderabbit.ai/?utm_source=useSend.com"
+            target="_blank"
+          >
+            <Image
+              src="/code-rabbit-usesend-light.svg"
+              alt="Code Rabbit"
+              width={200}
+              height={100}
+              className="hidden dark:block"
+            />
+          </a>
+        </div>
+
         <div className=" mt-32 mx-auto max-w-5xl">
           <div className="rounded-[18px] bg-primary/10 p-1 sm:p-1 ">
             <div className="rounded-2xl bg-primary/20 p-1 sm:p-1 ">
