@@ -118,9 +118,13 @@ Railway provides the quickest way to spin up useSend. Read the [Railway self-hos
 
 We are grateful for the support of our sponsors.
 
-### Our Sponsors
+<a href="https://coderabbit.ai/?utm_source=useSend.com" target="_blank">
+  <img src="https://usesend.com/coderabbit-wordmark.png" alt="coderabbit.ai" style="width:200px;height:100px;">
+</a>
 
-<a href="https://doras.to/" target="_blank">
+### Other Sponsors
+
+<a href="https://doras.to/?utm_source=useSend.com" target="_blank">
   <img src="https://cdn.doras.to/doras/assets/05c5db48-cfba-49d7-82a1-5b4a3751aa40/49ca4647-65ed-412e-95c6-c475633d62af.png" alt="doras.to" style="width:60px;height:60px;">
 </a>
 
