@@ -167,7 +167,7 @@ export default function EmailsList() {
       <div className="flex justify-between items-center">
         <Input
           placeholder="Search by subject or email"
-          className="w-[350px] mr-4"
+          className="w-[350px] mr-4 h-9"
           defaultValue={search ?? ""}
           onChange={(e) => debouncedSearch(e.target.value)}
         />
@@ -176,7 +176,7 @@ export default function EmailsList() {
             value={apiKey ?? "All API Keys"}
             onValueChange={(val) => handleApiKey(val)}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[140px]">
               {apiKey
                 ? apiKeysQuery?.find((apikey) => apikey.id === Number(apiKey))
                     ?.name
@@ -196,7 +196,7 @@ export default function EmailsList() {
             value={domain ?? "All Domains"}
             onValueChange={(val) => handleDomain(val)}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[140px]">
               {domain
                 ? domainsQuery?.find((d) => d.id === Number(domain))?.name
                 : "All Domains"}
@@ -219,7 +219,7 @@ export default function EmailsList() {
               setStatus(val === "All statuses" ? null : val)
             }
           >
-            <SelectTrigger className="w-[180px] capitalize">
+            <SelectTrigger className="w-[140px] capitalize">
               {status ? status.toLowerCase().replace("_", " ") : "All statuses"}
             </SelectTrigger>
             <SelectContent>
