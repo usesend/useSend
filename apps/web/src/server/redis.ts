@@ -7,6 +7,23 @@ export const getRedis = () => {
   if (!connection) {
     connection = new IORedis(`${env.REDIS_URL}?family=0`, {
       maxRetriesPerRequest: null,
+      connectTimeout: 10000, // 10 seconds
+      lazyConnect: true,
+      retryDelayOnClusterFailover: 100,
+      enableReadyCheck: false,
+    });
+
+    // Add error handler to prevent unhandled connection errors
+    connection.on('error', (error) => {
+      console.error('[Redis]: Connection error:', error);
+    });
+
+    connection.on('connect', () => {
+      console.log('[Redis]: Connected successfully');
+    });
+
+    connection.on('ready', () => {
+      console.log('[Redis]: Ready to accept commands');
     });
   }
   return connection;
