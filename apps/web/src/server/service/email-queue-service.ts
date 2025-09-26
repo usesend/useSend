@@ -10,6 +10,7 @@ import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
+import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 // Notifications about limits are handled inside LimitService.
 
 type QueueEmailJob = TeamJob<{
@@ -127,7 +128,13 @@ export class EmailQueueService {
     }
     queue.add(
       emailId,
-      { emailId, timestamp: Date.now(), unsubUrl, isBulk, teamId },
+      {
+        emailId,
+        timestamp: Date.now(),
+        unsubUrl,
+        isBulk,
+        teamId,
+      },
       { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS }
     );
   }
@@ -390,6 +397,16 @@ async function executeEmail(job: QueueEmailJob) {
       return;
     }
 
+    const storedHeaders = (() => {
+      const headers = (email as any)?.headers;
+      if (!headers || typeof headers !== "object" || Array.isArray(headers)) {
+        return undefined;
+      }
+      return headers as Record<string, string | null | undefined>;
+    })();
+
+    const customHeaders = sanitizeCustomHeaders(storedHeaders);
+
     const messageId = await sendRawEmail({
       to: email.to,
       from: email.from,
@@ -407,6 +424,7 @@ async function executeEmail(job: QueueEmailJob) {
       inReplyToMessageId,
       emailId: email.id,
       sesTenantId: domain?.sesTenantId,
+      headers: customHeaders,
     });
 
     logger.info(

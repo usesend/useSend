@@ -19,6 +19,13 @@ export const emailSchema = z
     bcc: z.string().or(z.array(z.string())).optional(),
     text: z.string().min(1).optional().nullable(),
     html: z.coerce.string().min(1).optional().nullable(),
+    headers: z
+      .record(z.string().min(1))
+      .optional()
+      .openapi({
+        description:
+          "Custom headers to include with the message. All headers are forwarded except `X-Usesend-Email-ID` and `References`, which useSend manages.",
+      }),
     attachments: z
       .array(
         z.object({

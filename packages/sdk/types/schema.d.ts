@@ -542,6 +542,9 @@ export interface paths {
                         /** Format: date-time */
                         scheduledAt?: string;
                         inReplyToId?: string | null;
+                        headers?: {
+                            [key: string]: string;
+                        };
                     };
                 };
             };
@@ -605,6 +608,9 @@ export interface paths {
                         /** Format: date-time */
                         scheduledAt?: string;
                         inReplyToId?: string | null;
+                        headers?: {
+                            [key: string]: string;
+                        };
                     }[];
                 };
             };
