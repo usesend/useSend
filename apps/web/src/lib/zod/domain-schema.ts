@@ -3,6 +3,34 @@ import { z } from "zod";
 
 export const DomainStatusSchema = z.nativeEnum(DomainStatus);
 
+export const DomainDnsRecordSchema = z.object({
+  type: z.enum(["MX", "TXT"]).openapi({
+    description: "DNS record type",
+    example: "TXT",
+  }),
+  name: z
+    .string()
+    .openapi({ description: "DNS record name", example: "mail" }),
+  value: z
+    .string()
+    .openapi({
+      description: "DNS record value",
+      example: "v=spf1 include:amazonses.com ~all",
+    }),
+  ttl: z
+    .string()
+    .openapi({ description: "DNS record TTL", example: "Auto" }),
+  priority: z
+    .string()
+    .nullish()
+    .openapi({ description: "DNS record priority", example: "10" }),
+  status: DomainStatusSchema,
+  recommended: z
+    .boolean()
+    .optional()
+    .openapi({ description: "Whether the record is recommended" }),
+});
+
 export const DomainSchema = z.object({
   id: z.number().openapi({ description: "The ID of the domain", example: 1 }),
   name: z
@@ -22,4 +50,7 @@ export const DomainSchema = z.object({
   isVerifying: z.boolean().default(false),
   errorMessage: z.string().optional().nullish(),
   subdomain: z.string().optional().nullish(),
+  verificationError: z.string().optional().nullish(),
+  lastCheckedTime: z.string().optional().nullish(),
+  dnsRecords: z.array(DomainDnsRecordSchema),
 });

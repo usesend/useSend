@@ -3,12 +3,14 @@
 import { Button } from "@usesend/ui/src/button";
 import { api } from "~/trpc/react";
 import React from "react";
-import { Domain } from "@prisma/client";
 import { toast } from "@usesend/ui/src/toaster";
 import { SendHorizonal } from "lucide-react";
+import type { DomainWithDnsRecords } from "~/types/domain";
 // Removed dialog and example code. Clicking the button now sends the email directly.
 
-export const SendTestMail: React.FC<{ domain: Domain }> = ({ domain }) => {
+export const SendTestMail: React.FC<{ domain: DomainWithDnsRecords }> = ({
+  domain,
+}) => {
   const sendTestEmailFromDomainMutation =
     api.domain.sendTestEmailFromDomain.useMutation();
 

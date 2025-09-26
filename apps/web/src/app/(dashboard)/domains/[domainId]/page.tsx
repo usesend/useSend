@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "~/trpc/react";
-import { Domain, DomainStatus } from "@prisma/client";
+import { DomainStatus } from "@prisma/client";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -27,7 +27,11 @@ import SendTestMail from "./send-test-mail";
 import { Button } from "@usesend/ui/src/button";
 import Link from "next/link";
 import { toast } from "@usesend/ui/src/toaster";
-import { H1 } from "@usesend/ui";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "~/server/api/root";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type DomainResponse = NonNullable<RouterOutputs["domain"]["getDomain"]>;
 
 export default function DomainItemPage({
   params,
@@ -124,98 +128,39 @@ export default function DomainItemPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell className="">MX</TableCell>
-                  <TableCell>
-                    <TextWithCopyButton
-                      value={`mail${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
-                    />
-                  </TableCell>
-                  <TableCell className="">
-                    <TextWithCopyButton
-                      value={`feedback-smtp.${domainQuery.data?.region}.amazonses.com`}
-                      className="w-[200px] overflow-hidden text-ellipsis text-nowrap"
-                    />
-                    {/* <div className="w-[200px] overflow-hidden text-ellipsis text-nowrap">
-                      {`feedback-smtp.${domainQuery.data?.region}.amazonses.com`}
-                    </div> */}
-                  </TableCell>
-                  <TableCell className="">Auto</TableCell>
-                  <TableCell className="">10</TableCell>
-                  <TableCell className="">
-                    <DnsVerificationStatus
-                      status={domainQuery.data?.spfDetails ?? "NOT_STARTED"}
-                    />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="">TXT</TableCell>
-                  <TableCell>
-                    <TextWithCopyButton
-                      value={`${domainQuery.data?.dkimSelector ?? "unsend"}._domainkey${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
-                    />
-                  </TableCell>
-                  <TableCell className="">
-                    <TextWithCopyButton
-                      value={`p=${domainQuery.data?.publicKey}`}
-                      className="w-[200px] overflow-hidden text-ellipsis"
-                    />
-                  </TableCell>
-                  <TableCell className="">Auto</TableCell>
-                  <TableCell className=""></TableCell>
-                  <TableCell className="">
-                    <DnsVerificationStatus
-                      status={domainQuery.data?.dkimStatus ?? "NOT_STARTED"}
-                    />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="">TXT</TableCell>
-                  <TableCell>
-                    <TextWithCopyButton
-                      value={`mail${domainQuery.data?.subdomain ? `.${domainQuery.data.subdomain}` : ""}`}
-                    />
-                  </TableCell>
-                  <TableCell className="">
-                    <TextWithCopyButton
-                      value={`v=spf1 include:amazonses.com ~all`}
-                      className="w-[200px] overflow-hidden text-ellipsis text-nowrap"
-                    />
-                  </TableCell>
-                  <TableCell className="">Auto</TableCell>
-                  <TableCell className=""></TableCell>
-                  <TableCell className="">
-                    <DnsVerificationStatus
-                      status={domainQuery.data?.spfDetails ?? "NOT_STARTED"}
-                    />
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="">TXT</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2 items-center">
-                      <span className="text-sm text-muted-foreground">
-                        (recommended)
-                      </span>
-                      <TextWithCopyButton value="_dmarc" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="">
-                    <TextWithCopyButton
-                      value={`v=DMARC1; p=none;`}
-                      className="w-[200px] overflow-hidden text-ellipsis text-nowrap"
-                    />
-                  </TableCell>
-                  <TableCell className="">Auto</TableCell>
-                  <TableCell className=""></TableCell>
-                  <TableCell className="">
-                    <DnsVerificationStatus
-                      status={
-                        domainQuery.data?.dmarcAdded ? "SUCCESS" : "NOT_STARTED"
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
+                {(domainQuery.data?.dnsRecords ?? []).map((record) => {
+                  const key = `${record.type}-${record.name}`;
+                  const valueClassName = record.name.includes("_domainkey")
+                    ? "w-[200px] overflow-hidden text-ellipsis"
+                    : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
+
+                  return (
+                    <TableRow key={key}>
+                      <TableCell className="">{record.type}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2 items-center">
+                          {record.recommended ? (
+                            <span className="text-sm text-muted-foreground">
+                              (recommended)
+                            </span>
+                          ) : null}
+                          <TextWithCopyButton value={record.name} />
+                        </div>
+                      </TableCell>
+                      <TableCell className="">
+                        <TextWithCopyButton
+                          value={record.value}
+                          className={valueClassName}
+                        />
+                      </TableCell>
+                      <TableCell className="">{record.ttl}</TableCell>
+                      <TableCell className="">{record.priority ?? ""}</TableCell>
+                      <TableCell className="">
+                        <DnsVerificationStatus status={record.status} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -228,7 +173,7 @@ export default function DomainItemPage({
   );
 }
 
-const DomainSettings: React.FC<{ domain: Domain }> = ({ domain }) => {
+const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
   const updateDomain = api.domain.updateDomain.useMutation();
   const utils = api.useUtils();
 
@@ -303,7 +248,7 @@ const DomainSettings: React.FC<{ domain: Domain }> = ({ domain }) => {
   );
 };
 
-const DnsVerificationStatus: React.FC<{ status: string }> = ({ status }) => {
+const DnsVerificationStatus: React.FC<{ status: DomainStatus }> = ({ status }) => {
   let badgeColor = "bg-gray/10 text-gray border-gray/10"; // Default color
   switch (status) {
     case DomainStatus.SUCCESS:

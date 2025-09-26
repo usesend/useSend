@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { DomainSchema } from "~/lib/zod/domain-schema";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { db } from "~/server/db";
+import { getDomains as getDomainsService } from "~/server/service/domain-service";
 
 const route = createRoute({
   method: "get",
@@ -23,11 +23,9 @@ function getDomains(app: PublicAPIApp) {
     const team = c.var.team;
 
     // If API key is restricted to a specific domain, only return that domain; else return all team domains
-    const domains = team.apiKey.domainId
-      ? await db.domain.findMany({
-          where: { teamId: team.id, id: team.apiKey.domainId },
-        })
-      : await db.domain.findMany({ where: { teamId: team.id } });
+    const domains = await getDomainsService(team.id, {
+      domainId: team.apiKey.domainId ?? undefined,
+    });
 
     return c.json(domains);
   });

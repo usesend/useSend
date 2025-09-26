@@ -11,6 +11,7 @@ import {
   createDomain,
   deleteDomain,
   getDomain,
+  getDomains,
   updateDomain,
 } from "~/server/service/domain-service";
 import { sendEmail } from "~/server/service/email-service";
@@ -41,16 +42,7 @@ export const domainRouter = createTRPCRouter({
   }),
 
   domains: teamProcedure.query(async ({ ctx }) => {
-    const domains = await db.domain.findMany({
-      where: {
-        teamId: ctx.team.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    return domains;
+    return getDomains(ctx.team.id);
   }),
 
   getDomain: domainProcedure.query(async ({ input }) => {
