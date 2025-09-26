@@ -78,7 +78,7 @@ Check out the editor code for [here](https://github.com/usesend/usesend/tree/mai
 
 Follow our detailed guide to run useSend locally
 
-[https://usesend.com/docs/get-started/local](https://usesend.com/docs/get-started/local)
+[https://docs.usesend.com/get-started/local](https://docs.usesend.com/get-started/local)
 
 ## Docker
 
