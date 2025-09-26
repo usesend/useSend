@@ -7,7 +7,6 @@ import { db } from "../db";
 import { sendRawEmail } from "../aws/ses";
 import { getRedis } from "../redis";
 import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
-import { Prisma } from "@prisma/client";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
@@ -418,7 +417,7 @@ async function executeEmail(job: QueueEmailJob) {
     // Delete attachments after sending the email
     await db.email.update({
       where: { id: email.id },
-      data: { sesEmailId: messageId, text, attachments: undefined },
+      data: { sesEmailId: messageId, text, attachments: null },
     });
   } catch (error: any) {
     await db.emailEvent.create({
