@@ -29,6 +29,14 @@ type VerifyDomainResponse = {
 type VerifyDomainResponseSuccess =
   paths["/v1/domains/{id}/verify"]["put"]["responses"]["200"]["content"]["application/json"];
 
+type GetDomainResponse = {
+  data: GetDomainResponseSuccess | null;
+  error: ErrorResponse | null;
+};
+
+type GetDomainResponseSuccess =
+  paths["/v1/domains/{id}"]["get"]["responses"]["200"]["content"]["application/json"];
+
 export class Domains {
   constructor(private readonly usesend: UseSend) {
     this.usesend = usesend;
@@ -52,6 +60,14 @@ export class Domains {
       `/domains/${id}/verify`,
       {}
     );
+    return data;
+  }
+
+  async get(id: number): Promise<GetDomainResponse> {
+    const data = await this.usesend.get<GetDomainResponseSuccess>(
+      `/domains/${id}`
+    );
+
     return data;
   }
 }

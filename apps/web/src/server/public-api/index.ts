@@ -13,6 +13,7 @@ import upsertContact from "./api/contacts/upsert-contact";
 import createDomain from "./api/domains/create-domain";
 import deleteContact from "./api/contacts/delete-contact";
 import verifyDomain from "./api/domains/verify-domain";
+import getDomain from "./api/domains/get-domain";
 import sendBatch from "./api/emails/batch-email";
 
 export const app = getApp();
@@ -21,6 +22,7 @@ export const app = getApp();
 getDomains(app);
 createDomain(app);
 verifyDomain(app);
+getDomain(app);
 
 /**Email related APIs */
 getEmail(app);

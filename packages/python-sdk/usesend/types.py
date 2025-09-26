@@ -22,6 +22,21 @@ DomainStatus = Literal[
     'TEMPORARY_FAILURE',
 ]
 
+DNSRecordType = Literal['MX', 'TXT']
+
+
+class DNSRecord(TypedDict, total=False):
+    type: DNSRecordType
+    name: str
+    value: str
+    ttl: str
+    priority: Optional[str]
+    status: DomainStatus
+    recommended: Optional[bool]
+
+
+DNSRecords = List[DNSRecord]
+
 
 class Domain(TypedDict, total=False):
     id: float
@@ -40,6 +55,9 @@ class Domain(TypedDict, total=False):
     isVerifying: bool
     errorMessage: Optional[str]
     subdomain: Optional[str]
+    verificationError: Optional[str]
+    lastCheckedTime: Optional[str]
+    dnsRecords: DNSRecords
 
 
 DomainList = List[Domain]
@@ -67,6 +85,9 @@ class DomainCreateResponse(TypedDict, total=False):
     isVerifying: bool
     errorMessage: Optional[str]
     subdomain: Optional[str]
+    verificationError: Optional[str]
+    lastCheckedTime: Optional[str]
+    dnsRecords: DNSRecords
 
 
 class DomainVerifyResponse(TypedDict):

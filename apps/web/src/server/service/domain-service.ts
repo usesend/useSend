@@ -6,8 +6,79 @@ import { db } from "~/server/db";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
-import { ApiKey } from "@prisma/client";
+import { ApiKey, DomainStatus, type Domain } from "@prisma/client";
 import { LimitService } from "./limit-service";
+import type { DomainDnsRecord } from "~/types/domain";
+
+const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
+
+function parseDomainStatus(status?: string | null): DomainStatus {
+  if (!status) {
+    return DomainStatus.NOT_STARTED;
+  }
+
+  const normalized = status.toUpperCase();
+
+  if (DOMAIN_STATUS_VALUES.has(normalized as DomainStatus)) {
+    return normalized as DomainStatus;
+  }
+
+  return DomainStatus.NOT_STARTED;
+}
+
+function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
+  const subdomainSuffix = domain.subdomain ? `.${domain.subdomain}` : "";
+  const mailDomain = `mail${subdomainSuffix}`;
+  const dkimSelector = domain.dkimSelector ?? "usesend";
+
+  const spfStatus = parseDomainStatus(domain.spfDetails);
+  const dkimStatus = parseDomainStatus(domain.dkimStatus);
+  const dmarcStatus = domain.dmarcAdded
+    ? DomainStatus.SUCCESS
+    : DomainStatus.NOT_STARTED;
+
+  return [
+    {
+      type: "MX",
+      name: mailDomain,
+      value: `feedback-smtp.${domain.region}.amazonses.com`,
+      ttl: "Auto",
+      priority: "10",
+      status: spfStatus,
+    },
+    {
+      type: "TXT",
+      name: `${dkimSelector}._domainkey${subdomainSuffix}`,
+      value: `p=${domain.publicKey}`,
+      ttl: "Auto",
+      status: dkimStatus,
+    },
+    {
+      type: "TXT",
+      name: mailDomain,
+      value: "v=spf1 include:amazonses.com ~all",
+      ttl: "Auto",
+      status: spfStatus,
+    },
+    {
+      type: "TXT",
+      name: "_dmarc",
+      value: "v=DMARC1; p=none;",
+      ttl: "Auto",
+      status: dmarcStatus,
+      recommended: true,
+    },
+  ];
+}
+
+function withDnsRecords<T extends Domain>(
+  domain: T
+): T & { dnsRecords: DomainDnsRecord[] } {
+  return {
+    ...domain,
+    dnsRecords: buildDnsRecords(domain),
+  };
+}
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
 
@@ -63,12 +134,12 @@ export async function validateApiKeyDomainAccess(
 ) {
   // First validate the domain exists and is verified
   const domain = await validateDomainFromEmail(email, teamId);
-  
+
   // If API key has no domain restriction (domainId is null), allow all domains
   if (!apiKey.domainId) {
     return domain;
   }
-  
+
   // If API key is restricted to a specific domain, check if it matches
   if (apiKey.domainId !== domain.id) {
     throw new UnsendApiError({
@@ -76,7 +147,7 @@ export async function validateApiKeyDomainAccess(
       message: `API key does not have access to domain: ${domain.name}`,
     });
   }
-  
+
   return domain;
 }
 
@@ -128,21 +199,27 @@ export async function createDomain(
       region,
       sesTenantId,
       dkimSelector,
+      dkimStatus: DomainStatus.NOT_STARTED,
+      spfDetails: DomainStatus.NOT_STARTED,
     },
   });
 
-  return domain;
+  return withDnsRecords(domain);
 }
 
-export async function getDomain(id: number) {
+export async function getDomain(id: number, teamId: number) {
   let domain = await db.domain.findUnique({
     where: {
       id,
+      teamId,
     },
   });
 
   if (!domain) {
-    throw new Error("Domain not found");
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Domain not found",
+    });
   }
 
   if (domain.isVerifying) {
@@ -178,17 +255,30 @@ export async function getDomain(id: number) {
       },
     });
 
-    return {
+    const normalizedDomain = {
       ...domain,
       dkimStatus: dkimStatus?.toString() ?? null,
       spfDetails: spfDetails?.toString() ?? null,
-      verificationError: verificationError?.toString() ?? null,
-      lastCheckedTime,
       dmarcAdded: dmarcRecord ? true : false,
+    } satisfies Domain;
+
+    const domainWithDns = withDnsRecords(normalizedDomain);
+    const normalizedLastCheckedTime =
+      lastCheckedTime instanceof Date
+        ? lastCheckedTime.toISOString()
+        : (lastCheckedTime ?? null);
+
+    return {
+      ...domainWithDns,
+      dkimStatus: normalizedDomain.dkimStatus,
+      spfDetails: normalizedDomain.spfDetails,
+      verificationError: verificationError?.toString() ?? null,
+      lastCheckedTime: normalizedLastCheckedTime,
+      dmarcAdded: normalizedDomain.dmarcAdded,
     };
   }
 
-  return domain;
+  return withDnsRecords(domain);
 }
 
 export async function updateDomain(
@@ -225,15 +315,21 @@ export async function deleteDomain(id: number) {
   return deletedRecord;
 }
 
-export async function getDomains(teamId: number) {
-  return db.domain.findMany({
+export async function getDomains(
+  teamId: number,
+  options?: { domainId?: number }
+) {
+  const domains = await db.domain.findMany({
     where: {
       teamId,
+      ...(options?.domainId ? { id: options.domainId } : {}),
     },
     orderBy: {
       createdAt: "desc",
     },
   });
+
+  return domains.map((d) => withDnsRecords(d));
 }
 
 async function getDmarcRecord(domain: string) {

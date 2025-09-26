@@ -112,6 +112,7 @@ export class Emails {
     const data = await this.usesend.get<GetEmailResponseSuccess>(
       `/emails/${id}`
     );
+
     return data;
   }
 

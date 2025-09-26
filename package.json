@@ -31,7 +31,7 @@
     "@usesend/eslint-config": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
     "dotenv-cli": "^8.0.0",
-    "mintlify": "4.0.510",
+    "mintlify": "4.2.128",
     "prettier": "^3.5.3"
   },
   "packageManager": "pnpm@8.9.0",
