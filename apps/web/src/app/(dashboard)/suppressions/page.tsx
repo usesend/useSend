@@ -16,7 +16,7 @@ export default function SuppressionsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-10">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-10">
         <H1>Suppression List</H1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowBulkAddDialog(true)}>
