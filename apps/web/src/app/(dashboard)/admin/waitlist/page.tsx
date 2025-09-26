@@ -78,6 +78,15 @@ export default function AdminWaitlistPage() {
     },
   });
 
+  const rejectWaitlist = api.admin.rejectWaitlistUser.useMutation({
+    onSuccess: () => {
+      toast.success("Rejection email sent");
+    },
+    onError: (error) => {
+      toast.error(error.message ?? "Unable to send rejection email");
+    },
+  });
+
   const onSubmit = (values: SearchInput) => {
     setHasSearched(false);
     setUserResult(null);
@@ -87,6 +96,11 @@ export default function AdminWaitlistPage() {
   const handleToggle = (checked: boolean) => {
     if (!userResult) return;
     updateWaitlist.mutate({ userId: userResult.id, isWaitlisted: checked });
+  };
+
+  const handleReject = () => {
+    if (!userResult) return;
+    rejectWaitlist.mutate({ userId: userResult.id });
   };
 
   if (!isCloud()) {
@@ -166,22 +180,47 @@ export default function AdminWaitlistPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-            <div>
-              <p className="text-sm font-medium">Waitlist access</p>
-              <p className="text-sm text-muted-foreground">
-                Toggle to control whether the user remains on the waitlist.
-              </p>
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Waitlist access</p>
+                <p className="text-sm text-muted-foreground">
+                  Toggle to control whether the user remains on the waitlist.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={userResult.isWaitlisted}
+                  onCheckedChange={handleToggle}
+                  disabled={updateWaitlist.isPending}
+                />
+                {updateWaitlist.isPending ? (
+                  <Spinner className="h-4 w-4" />
+                ) : null}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={userResult.isWaitlisted}
-                onCheckedChange={handleToggle}
-                disabled={updateWaitlist.isPending}
-              />
-              {updateWaitlist.isPending ? (
-                <Spinner className="h-4 w-4" />
-              ) : null}
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Reject waitlist request</p>
+                <p className="text-sm text-muted-foreground">
+                  Send the applicant a rejection email without changing their waitlist status.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleReject}
+                disabled={rejectWaitlist.isPending}
+              >
+                {rejectWaitlist.isPending ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" /> Sending...
+                  </>
+                ) : (
+                  "Send rejection email"
+                )}
+              </Button>
             </div>
           </div>
         </div>
