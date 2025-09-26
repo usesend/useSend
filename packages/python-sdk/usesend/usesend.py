@@ -71,6 +71,7 @@ class UseSend:
         # Lazily initialise resource clients.
         self.emails = Emails(self)
         self.contacts = Contacts(self)
+        self.domains = Domains(self)
 
     # ------------------------------------------------------------------
     # Internal request helper
@@ -123,3 +124,4 @@ class UseSend:
 # Import here to avoid circular dependency during type checking
 from .emails import Emails  # noqa: E402  pylint: disable=wrong-import-position
 from .contacts import Contacts  # noqa: E402  pylint: disable=wrong-import-position
+from .domains import Domains  # type: ignore  # noqa: E402

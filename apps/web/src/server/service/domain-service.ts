@@ -6,11 +6,7 @@ import { db } from "~/server/db";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
-import {
-  ApiKey,
-  DomainStatus,
-  type Domain,
-} from "@prisma/client";
+import { ApiKey, DomainStatus, type Domain } from "@prisma/client";
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
 
@@ -76,7 +72,7 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
 }
 
 function withDnsRecords<T extends Domain>(
-  domain: T,
+  domain: T
 ): T & { dnsRecords: DomainDnsRecord[] } {
   return {
     ...domain,
@@ -138,12 +134,12 @@ export async function validateApiKeyDomainAccess(
 ) {
   // First validate the domain exists and is verified
   const domain = await validateDomainFromEmail(email, teamId);
-  
+
   // If API key has no domain restriction (domainId is null), allow all domains
   if (!apiKey.domainId) {
     return domain;
   }
-  
+
   // If API key is restricted to a specific domain, check if it matches
   if (apiKey.domainId !== domain.id) {
     throw new UnsendApiError({
@@ -151,7 +147,7 @@ export async function validateApiKeyDomainAccess(
       message: `API key does not have access to domain: ${domain.name}`,
     });
   }
-  
+
   return domain;
 }
 
@@ -203,18 +199,19 @@ export async function createDomain(
       region,
       sesTenantId,
       dkimSelector,
-      dkimStatus: DomainStatus.PENDING,
-      spfDetails: DomainStatus.PENDING,
+      dkimStatus: DomainStatus.NOT_STARTED,
+      spfDetails: DomainStatus.NOT_STARTED,
     },
   });
 
   return withDnsRecords(domain);
 }
 
-export async function getDomain(id: number) {
+export async function getDomain(id: number, teamId: number) {
   let domain = await db.domain.findUnique({
     where: {
       id,
+      teamId,
     },
   });
 
@@ -266,7 +263,7 @@ export async function getDomain(id: number) {
     const normalizedLastCheckedTime =
       lastCheckedTime instanceof Date
         ? lastCheckedTime.toISOString()
-        : lastCheckedTime ?? null;
+        : (lastCheckedTime ?? null);
 
     return {
       ...domainWithDns,
