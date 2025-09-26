@@ -41,11 +41,14 @@ payload: types.EmailCreate = {
     "from": "no-reply@yourdomain.com",
     "subject": "Welcome",
     "html": "<strong>Hello!</strong>",
+    "headers": {"X-Campaign": "welcome"},
 }
 
 data, err = client.emails.send(payload)
 print(data or err)
 ```
+
+useSend forwards your custom headers to SES. Only the `X-Usesend-Email-ID` and `References` headers are managed automatically.
 
 Attachments and scheduling:
 

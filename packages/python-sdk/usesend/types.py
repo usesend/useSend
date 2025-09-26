@@ -194,6 +194,7 @@ EmailCreate = TypedDict(
         'attachments': NotRequired[List[Attachment]],
         'scheduledAt': NotRequired[Union[datetime, str]],
         'inReplyToId': NotRequired[str],
+        'headers': NotRequired[Dict[str, str]],
     }
 )
 
@@ -218,6 +219,7 @@ EmailBatchItem = TypedDict(
         'attachments': NotRequired[List[Attachment]],
         'scheduledAt': NotRequired[Union[datetime, str]],
         'inReplyToId': NotRequired[str],
+        'headers': NotRequired[Dict[str, str]],
     }
 )
 

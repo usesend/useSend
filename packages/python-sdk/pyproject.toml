@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "usesend"
-version = "0.2.3"
+version = "0.2.4"
 description = "Python SDK for the UseSend API"
 authors = ["UseSend"]
 license = "MIT"
