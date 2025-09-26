@@ -6,6 +6,7 @@ import { validateDomainFromEmail, validateApiKeyDomainAccess } from "./domain-se
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
+import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -66,9 +67,11 @@ export async function sendEmail(
     scheduledAt,
     apiKeyId,
     inReplyToId,
+    headers,
   } = emailContent;
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
+  const sanitizedHeaders = sanitizeCustomHeaders(headers);
 
   let domain: Awaited<ReturnType<typeof validateDomainFromEmail>>;
   
@@ -128,21 +131,27 @@ export async function sendEmail(
       "All TO recipients are suppressed. No emails to send."
     );
 
+    const emailCreateData: Record<string, unknown> = {
+      to: toEmails,
+      from,
+      subject: subject as string,
+      teamId,
+      domainId: domain.id,
+      latestStatus: "SUPPRESSED",
+      apiId: apiKeyId,
+      text,
+      html,
+      cc: ccEmails.length > 0 ? ccEmails : undefined,
+      bcc: bccEmails.length > 0 ? bccEmails : undefined,
+      inReplyToId,
+    };
+
+    if (sanitizedHeaders) {
+      emailCreateData.headers = sanitizedHeaders;
+    }
+
     const email = await db.email.create({
-      data: {
-        to: toEmails,
-        from,
-        subject: subject as string,
-        teamId,
-        domainId: domain.id,
-        latestStatus: "SUPPRESSED",
-        apiId: apiKeyId,
-        text,
-        html,
-        cc: ccEmails.length > 0 ? ccEmails : undefined,
-        bcc: bccEmails.length > 0 ? bccEmails : undefined,
-        inReplyToId,
-      },
+      data: emailCreateData as any,
     });
 
     await db.emailEvent.create({
@@ -240,28 +249,34 @@ export async function sendEmail(
     ? Math.max(0, scheduledAtDate.getTime() - Date.now())
     : undefined;
 
+  const emailCreateData: Record<string, unknown> = {
+    to: filteredToEmails,
+    from,
+    subject: subject as string,
+    replyTo: replyTo
+      ? Array.isArray(replyTo)
+        ? replyTo
+        : [replyTo]
+      : undefined,
+    cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
+    bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
+    text,
+    html,
+    teamId,
+    domainId: domain.id,
+    attachments: attachments ? JSON.stringify(attachments) : undefined,
+    scheduledAt: scheduledAtDate,
+    latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
+    apiId: apiKeyId,
+    inReplyToId,
+  };
+
+  if (sanitizedHeaders) {
+    emailCreateData.headers = sanitizedHeaders;
+  }
+
   const email = await db.email.create({
-    data: {
-      to: filteredToEmails,
-      from,
-      subject: subject as string,
-      replyTo: replyTo
-        ? Array.isArray(replyTo)
-          ? replyTo
-          : [replyTo]
-        : undefined,
-      cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
-      bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
-      text,
-      html,
-      teamId,
-      domainId: domain.id,
-      attachments: attachments ? JSON.stringify(attachments) : undefined,
-      scheduledAt: scheduledAtDate,
-      latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
-      apiId: apiKeyId,
-      inReplyToId,
-    },
+    data: emailCreateData as any,
   });
 
   try {
@@ -535,28 +550,36 @@ export async function sendBulkEmails(
         : [originalContent.bcc]
       : [];
 
+    const sanitizedHeaders = sanitizeCustomHeaders(originalContent.headers);
+
+    const emailCreateData: Record<string, unknown> = {
+      to: originalToEmails,
+      from,
+      subject: subject as string,
+      replyTo: replyTo
+        ? Array.isArray(replyTo)
+          ? replyTo
+          : [replyTo]
+        : undefined,
+      cc: originalCcEmails.length > 0 ? originalCcEmails : undefined,
+      bcc: originalBccEmails.length > 0 ? originalBccEmails : undefined,
+      text,
+      html,
+      teamId,
+      domainId: domain.id,
+      attachments: attachments ? JSON.stringify(attachments) : undefined,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+      latestStatus: "SUPPRESSED",
+      apiId: apiKeyId,
+      inReplyToId,
+    };
+
+    if (sanitizedHeaders) {
+      emailCreateData.headers = sanitizedHeaders;
+    }
+
     const email = await db.email.create({
-      data: {
-        to: originalToEmails,
-        from,
-        subject: subject as string,
-        replyTo: replyTo
-          ? Array.isArray(replyTo)
-            ? replyTo
-            : [replyTo]
-          : undefined,
-        cc: originalCcEmails.length > 0 ? originalCcEmails : undefined,
-        bcc: originalBccEmails.length > 0 ? originalBccEmails : undefined,
-        text,
-        html,
-        teamId,
-        domainId: domain.id,
-        attachments: attachments ? JSON.stringify(attachments) : undefined,
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-        latestStatus: "SUPPRESSED",
-        apiId: apiKeyId,
-        inReplyToId,
-      },
+      data: emailCreateData as any,
     });
 
     await db.emailEvent.create({
@@ -628,6 +651,7 @@ export async function sendBulkEmails(
         bcc,
         scheduledAt,
         apiKeyId,
+        headers,
       } = content;
 
       // Find the original index for this email
@@ -637,6 +661,7 @@ export async function sendBulkEmails(
 
       let subject = subjectFromApiCall;
       let html = htmlFromApiCall;
+      const sanitizedHeaders = sanitizeCustomHeaders(headers);
 
       // Process template if specified
       if (templateId) {
@@ -692,27 +717,33 @@ export async function sendBulkEmails(
 
       try {
         // Create email record
+        const emailCreateData: Record<string, unknown> = {
+          to: Array.isArray(to) ? to : [to],
+          from,
+          subject: subject as string,
+          replyTo: replyTo
+            ? Array.isArray(replyTo)
+              ? replyTo
+              : [replyTo]
+            : undefined,
+          cc: cc && cc.length > 0 ? cc : undefined,
+          bcc: bcc && bcc.length > 0 ? bcc : undefined,
+          text,
+          html,
+          teamId,
+          domainId: domain.id,
+          attachments: attachments ? JSON.stringify(attachments) : undefined,
+          scheduledAt: scheduledAtDate,
+          latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
+          apiId: apiKeyId,
+        };
+
+        if (sanitizedHeaders) {
+          emailCreateData.headers = sanitizedHeaders;
+        }
+
         const email = await db.email.create({
-          data: {
-            to: Array.isArray(to) ? to : [to],
-            from,
-            subject: subject as string,
-            replyTo: replyTo
-              ? Array.isArray(replyTo)
-                ? replyTo
-                : [replyTo]
-              : undefined,
-            cc: cc && cc.length > 0 ? cc : undefined,
-            bcc: bcc && bcc.length > 0 ? bcc : undefined,
-            text,
-            html,
-            teamId,
-            domainId: domain.id,
-            attachments: attachments ? JSON.stringify(attachments) : undefined,
-            scheduledAt: scheduledAtDate,
-            latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
-            apiId: apiKeyId,
-          },
+          data: emailCreateData as any,
         });
 
         createdEmails.push({ email, originalIndex });

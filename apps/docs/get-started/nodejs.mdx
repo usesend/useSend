@@ -57,8 +57,13 @@ icon: node-js
       subject: "useSend email",
       html: "<p>useSend is the best open source product to send emails</p>",
       text: "useSend is the best open source product to send emails",
+      headers: {
+        "X-Campaign": "welcome",
+      },
     });
     ```
+
+    > Custom headers are forwarded as-is. useSend only manages the `X-Usesend-Email-ID` and `References` headers.
   </Step>
 </Steps>
 
