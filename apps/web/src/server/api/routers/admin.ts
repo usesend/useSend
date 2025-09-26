@@ -214,6 +214,67 @@ export const adminRouter = createTRPCRouter({
       return updatedUser;
     }),
 
+  rejectWaitlistUser: adminProcedure
+    .input(
+      z.object({
+        userId: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const user = await db.user.findUnique({
+        where: { id: input.userId },
+        select: waitlistUserSelection,
+      });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (!user.email) {
+        throw new Error("User email is missing");
+      }
+
+      const founderEmail = env.FOUNDER_EMAIL ?? undefined;
+      const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
+
+      const replyTo = founderEmail ?? fallbackFrom;
+
+      if (!replyTo) {
+        throw new Error("No sender email configured");
+      }
+
+      const fromOverride = founderEmail ?? undefined;
+
+      const text = [
+        "Hello,",
+        "",
+        "Sorry, We cannot proceed with this request at this time, this might affect useSend\u2019s sending reputation.",
+        "",
+        "",
+        "cheers,",
+        "koushik - useSend.com",
+      ].join("\n");
+
+      try {
+        await sendMail(
+          user.email,
+          "useSend: Waitlist request update",
+          text,
+          toPlainHtml(text),
+          replyTo,
+          fromOverride
+        );
+      } catch (error) {
+        logger.error(
+          { userId: user.id, error },
+          "Failed to send waitlist rejection email"
+        );
+        throw new Error("Failed to send waitlist rejection email");
+      }
+
+      return { sent: true };
+    }),
+
   findTeam: adminProcedure
     .input(
       z.object({
