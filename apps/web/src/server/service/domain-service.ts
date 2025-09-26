@@ -216,7 +216,10 @@ export async function getDomain(id: number, teamId: number) {
   });
 
   if (!domain) {
-    throw new Error("Domain not found");
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Domain not found",
+    });
   }
 
   if (domain.isVerifying) {

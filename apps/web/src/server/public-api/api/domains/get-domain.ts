@@ -47,8 +47,8 @@ function getDomain(app: PublicAPIApp) {
       enriched = await getDomainService(id, team.id);
     } catch (e) {
       throw new UnsendApiError({
-        code: "NOT_FOUND",
-        message: "Domain not found",
+        code: "INTERNAL_SERVER_ERROR",
+        message: e instanceof Error ? e.message : "Internal server error",
       });
     }
 
