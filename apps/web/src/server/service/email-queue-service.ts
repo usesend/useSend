@@ -397,15 +397,7 @@ async function executeEmail(job: QueueEmailJob) {
       return;
     }
 
-    const storedHeaders = (() => {
-      const headers = (email as any)?.headers;
-      if (!headers || typeof headers !== "object" || Array.isArray(headers)) {
-        return undefined;
-      }
-      return headers as Record<string, string | null | undefined>;
-    })();
-
-    const customHeaders = sanitizeCustomHeaders(storedHeaders);
+    const customHeaders = email.headers ? JSON.parse(email.headers) : undefined;
 
     const messageId = await sendRawEmail({
       to: email.to,
@@ -432,10 +424,10 @@ async function executeEmail(job: QueueEmailJob) {
       `[EmailQueueService]: Email sent`
     );
 
-    // Delete attachments after sending the email
+    // Delete attachments and headers after sending the email
     await db.email.update({
       where: { id: email.id },
-      data: { sesEmailId: messageId, text, attachments: null },
+      data: { sesEmailId: messageId, text, attachments: null, headers: null },
     });
   } catch (error: any) {
     await db.emailEvent.create({

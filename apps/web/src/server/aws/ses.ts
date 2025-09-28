@@ -17,9 +17,8 @@ import { generateKeyPairSync } from "crypto";
 import nodemailer from "nodemailer";
 import { env } from "~/env";
 import { EmailContent } from "~/types";
-import { nanoid } from "../nanoid";
 import { logger } from "../logger/log";
-import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
+import { buildHeaders } from "~/server/utils/email-headers";
 
 let accountId: string | undefined = undefined;
 
@@ -218,51 +217,6 @@ export async function sendRawEmail({
 }) {
   const sesClient = getSesClient(region);
 
-  const sanitizedHeaders = sanitizeCustomHeaders(headers);
-  const sanitizedHeaderNames = new Set(
-    Object.keys(sanitizedHeaders ?? {}).map((name) => name.toLowerCase())
-  );
-
-  const defaultHeaders: Record<string, string> = {};
-
-  if (!sanitizedHeaderNames.has("x-entity-ref-id")) {
-    defaultHeaders["X-Entity-Ref-ID"] = nanoid();
-  }
-
-  if (emailId) {
-    defaultHeaders["X-Usesend-Email-ID"] = emailId;
-
-    if (!sanitizedHeaderNames.has("x-unsend-email-id")) {
-      defaultHeaders["X-Unsend-Email-ID"] = emailId;
-    }
-  }
-
-  if (unsubUrl) {
-    if (!sanitizedHeaderNames.has("list-unsubscribe")) {
-      defaultHeaders["List-Unsubscribe"] = `<${unsubUrl}>`;
-    }
-
-    if (!sanitizedHeaderNames.has("list-unsubscribe-post")) {
-      defaultHeaders["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
-    }
-  }
-
-  if (isBulk && !sanitizedHeaderNames.has("precedence")) {
-    defaultHeaders["Precedence"] = "bulk";
-  }
-
-  if (inReplyToMessageId) {
-    const formattedMessageId = `<${inReplyToMessageId}@email.amazonses.com>`;
-
-    if (!sanitizedHeaderNames.has("in-reply-to")) {
-      defaultHeaders["In-Reply-To"] = formattedMessageId;
-    }
-
-    if (!sanitizedHeaderNames.has("references")) {
-      defaultHeaders["References"] = formattedMessageId;
-    }
-  }
-
   const { message: messageStream } = await nodemailer
     .createTransport({ streamTransport: true })
     .sendMail({
@@ -279,10 +233,13 @@ export async function sendRawEmail({
       replyTo,
       cc,
       bcc,
-      headers: {
-        ...defaultHeaders,
-        ...(sanitizedHeaders ?? {}),
-      },
+      headers: buildHeaders({
+        emailId,
+        headers,
+        unsubUrl,
+        isBulk,
+        inReplyToMessageId,
+      }),
     });
 
   const chunks = [];

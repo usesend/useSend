@@ -2,11 +2,15 @@ import { EmailContent } from "~/types";
 import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { EmailQueueService } from "./email-queue-service";
-import { validateDomainFromEmail, validateApiKeyDomainAccess } from "./domain-service";
+import {
+  validateDomainFromEmail,
+  validateApiKeyDomainAccess,
+} from "./domain-service";
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
+import { Prisma } from "@prisma/client";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -71,24 +75,23 @@ export async function sendEmail(
   } = emailContent;
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
-  const sanitizedHeaders = sanitizeCustomHeaders(headers);
 
   let domain: Awaited<ReturnType<typeof validateDomainFromEmail>>;
-  
+
   // If this is an API call with an API key, validate domain access
   if (apiKeyId) {
     const apiKey = await db.apiKey.findUnique({
       where: { id: apiKeyId },
       include: { domain: true },
     });
-    
+
     if (!apiKey) {
       throw new UnsendApiError({
         code: "BAD_REQUEST",
         message: "Invalid API key",
       });
     }
-    
+
     domain = await validateApiKeyDomainAccess(from, teamId, apiKey);
   } else {
     // For non-API calls (dashboard, etc.), use regular domain validation
@@ -131,27 +134,21 @@ export async function sendEmail(
       "All TO recipients are suppressed. No emails to send."
     );
 
-    const emailCreateData: Record<string, unknown> = {
-      to: toEmails,
-      from,
-      subject: subject as string,
-      teamId,
-      domainId: domain.id,
-      latestStatus: "SUPPRESSED",
-      apiId: apiKeyId,
-      text,
-      html,
-      cc: ccEmails.length > 0 ? ccEmails : undefined,
-      bcc: bccEmails.length > 0 ? bccEmails : undefined,
-      inReplyToId,
-    };
-
-    if (sanitizedHeaders) {
-      emailCreateData.headers = sanitizedHeaders;
-    }
-
     const email = await db.email.create({
-      data: emailCreateData as any,
+      data: {
+        to: toEmails,
+        from,
+        subject: subject as string,
+        teamId,
+        domainId: domain.id,
+        latestStatus: "SUPPRESSED",
+        apiId: apiKeyId,
+        text,
+        html,
+        cc: ccEmails.length > 0 ? ccEmails : undefined,
+        bcc: bccEmails.length > 0 ? bccEmails : undefined,
+        inReplyToId,
+      },
     });
 
     await db.emailEvent.create({
@@ -249,34 +246,29 @@ export async function sendEmail(
     ? Math.max(0, scheduledAtDate.getTime() - Date.now())
     : undefined;
 
-  const emailCreateData: Record<string, unknown> = {
-    to: filteredToEmails,
-    from,
-    subject: subject as string,
-    replyTo: replyTo
-      ? Array.isArray(replyTo)
-        ? replyTo
-        : [replyTo]
-      : undefined,
-    cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
-    bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
-    text,
-    html,
-    teamId,
-    domainId: domain.id,
-    attachments: attachments ? JSON.stringify(attachments) : undefined,
-    scheduledAt: scheduledAtDate,
-    latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
-    apiId: apiKeyId,
-    inReplyToId,
-  };
-
-  if (sanitizedHeaders) {
-    emailCreateData.headers = sanitizedHeaders;
-  }
-
   const email = await db.email.create({
-    data: emailCreateData as any,
+    data: {
+      to: filteredToEmails,
+      from,
+      subject: subject as string,
+      replyTo: replyTo
+        ? Array.isArray(replyTo)
+          ? replyTo
+          : [replyTo]
+        : undefined,
+      cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
+      bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
+      text,
+      html,
+      teamId,
+      domainId: domain.id,
+      attachments: attachments ? JSON.stringify(attachments) : undefined,
+      scheduledAt: scheduledAtDate,
+      latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
+      apiId: apiKeyId,
+      inReplyToId,
+      headers: headers ? JSON.stringify(headers) : undefined,
+    },
   });
 
   try {

@@ -1,7 +1,7 @@
+import { nanoid } from "../nanoid";
+
 const RESERVED_EMAIL_HEADERS = new Set(
-  ["x-usesend-email-id", "references"].map((header) =>
-    header.toLowerCase()
-  )
+  ["x-usesend-email-id"].map((header) => header.toLowerCase())
 );
 
 const HEADER_INJECTION_PATTERN = /[\r\n]/;
@@ -43,14 +43,79 @@ export function sanitizeCustomHeaders(
 
   const sanitizedEntries = Object.entries(headers)
     .map(([name, value]) => sanitizeHeader(name, value))
-    .filter((entry): entry is { name: string; value: string } => Boolean(entry));
+    .filter((entry): entry is { name: string; value: string } =>
+      Boolean(entry)
+    );
 
   if (sanitizedEntries.length === 0) {
     return undefined;
   }
 
-  return sanitizedEntries.reduce((acc, { name, value }) => {
-    acc[name] = value;
-    return acc;
-  }, {} as Record<string, string>);
+  return sanitizedEntries.reduce(
+    (acc, { name, value }) => {
+      acc[name] = value;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+}
+
+export function buildHeaders({
+  emailId,
+  headers,
+  unsubUrl,
+  isBulk,
+  inReplyToMessageId,
+}: {
+  emailId?: string | undefined;
+  headers?: Record<string, string> | undefined;
+  unsubUrl?: string;
+  isBulk?: boolean;
+  inReplyToMessageId?: string | undefined;
+}) {
+  const sanitizedHeaders = sanitizeCustomHeaders(headers);
+  const sanitizedHeaderNames = new Set(
+    Object.keys(sanitizedHeaders ?? {}).map((name) => name.toLowerCase())
+  );
+
+  const defaultHeaders: Record<string, string> = {};
+
+  if (!sanitizedHeaderNames.has("x-entity-ref-id")) {
+    defaultHeaders["X-Entity-Ref-ID"] = nanoid();
+  }
+
+  if (emailId) {
+    defaultHeaders["X-Usesend-Email-ID"] = emailId;
+  }
+
+  if (unsubUrl) {
+    if (!sanitizedHeaderNames.has("list-unsubscribe")) {
+      defaultHeaders["List-Unsubscribe"] = `<${unsubUrl}>`;
+    }
+
+    if (!sanitizedHeaderNames.has("list-unsubscribe-post")) {
+      defaultHeaders["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+    }
+  }
+
+  if (isBulk && !sanitizedHeaderNames.has("precedence")) {
+    defaultHeaders["Precedence"] = "bulk";
+  }
+
+  if (inReplyToMessageId) {
+    const formattedMessageId = `<${inReplyToMessageId}@email.amazonses.com>`;
+
+    if (!sanitizedHeaderNames.has("in-reply-to")) {
+      defaultHeaders["In-Reply-To"] = formattedMessageId;
+    }
+
+    if (!sanitizedHeaderNames.has("references")) {
+      defaultHeaders["References"] = formattedMessageId;
+    }
+  }
+
+  return {
+    ...defaultHeaders,
+    ...(sanitizedHeaders ?? {}),
+  };
 }

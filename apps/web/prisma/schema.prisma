@@ -259,7 +259,7 @@ model Email {
   campaignId   String?
   contactId    String?
   inReplyToId  String?
-  headers      Json?
+  headers      String?
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
