@@ -542,36 +542,31 @@ export async function sendBulkEmails(
         : [originalContent.bcc]
       : [];
 
-    const sanitizedHeaders = sanitizeCustomHeaders(originalContent.headers);
-
-    const emailCreateData: Record<string, unknown> = {
-      to: originalToEmails,
-      from,
-      subject: subject as string,
-      replyTo: replyTo
-        ? Array.isArray(replyTo)
-          ? replyTo
-          : [replyTo]
-        : undefined,
-      cc: originalCcEmails.length > 0 ? originalCcEmails : undefined,
-      bcc: originalBccEmails.length > 0 ? originalBccEmails : undefined,
-      text,
-      html,
-      teamId,
-      domainId: domain.id,
-      attachments: attachments ? JSON.stringify(attachments) : undefined,
-      scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-      latestStatus: "SUPPRESSED",
-      apiId: apiKeyId,
-      inReplyToId,
-    };
-
-    if (sanitizedHeaders) {
-      emailCreateData.headers = sanitizedHeaders;
-    }
-
     const email = await db.email.create({
-      data: emailCreateData as any,
+      data: {
+        to: originalToEmails,
+        from,
+        subject: subject as string,
+        replyTo: replyTo
+          ? Array.isArray(replyTo)
+            ? replyTo
+            : [replyTo]
+          : undefined,
+        cc: originalCcEmails.length > 0 ? originalCcEmails : undefined,
+        bcc: originalBccEmails.length > 0 ? originalBccEmails : undefined,
+        text,
+        html,
+        teamId,
+        domainId: domain.id,
+        attachments: attachments ? JSON.stringify(attachments) : undefined,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+        latestStatus: "SUPPRESSED",
+        apiId: apiKeyId,
+        inReplyToId,
+        headers: originalContent.headers
+          ? JSON.stringify(originalContent.headers)
+          : undefined,
+      },
     });
 
     await db.emailEvent.create({
@@ -653,7 +648,6 @@ export async function sendBulkEmails(
 
       let subject = subjectFromApiCall;
       let html = htmlFromApiCall;
-      const sanitizedHeaders = sanitizeCustomHeaders(headers);
 
       // Process template if specified
       if (templateId) {
@@ -708,34 +702,28 @@ export async function sendBulkEmails(
         : undefined;
 
       try {
-        // Create email record
-        const emailCreateData: Record<string, unknown> = {
-          to: Array.isArray(to) ? to : [to],
-          from,
-          subject: subject as string,
-          replyTo: replyTo
-            ? Array.isArray(replyTo)
-              ? replyTo
-              : [replyTo]
-            : undefined,
-          cc: cc && cc.length > 0 ? cc : undefined,
-          bcc: bcc && bcc.length > 0 ? bcc : undefined,
-          text,
-          html,
-          teamId,
-          domainId: domain.id,
-          attachments: attachments ? JSON.stringify(attachments) : undefined,
-          scheduledAt: scheduledAtDate,
-          latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
-          apiId: apiKeyId,
-        };
-
-        if (sanitizedHeaders) {
-          emailCreateData.headers = sanitizedHeaders;
-        }
-
         const email = await db.email.create({
-          data: emailCreateData as any,
+          data: {
+            to: Array.isArray(to) ? to : [to],
+            from,
+            subject: subject as string,
+            replyTo: replyTo
+              ? Array.isArray(replyTo)
+                ? replyTo
+                : [replyTo]
+              : undefined,
+            cc: cc && cc.length > 0 ? cc : undefined,
+            bcc: bcc && bcc.length > 0 ? bcc : undefined,
+            text,
+            html,
+            teamId,
+            domainId: domain.id,
+            attachments: attachments ? JSON.stringify(attachments) : undefined,
+            scheduledAt: scheduledAtDate,
+            latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
+            apiId: apiKeyId,
+            headers: headers ? JSON.stringify(headers) : undefined,
+          },
         });
 
         createdEmails.push({ email, originalIndex });
