@@ -10,6 +10,7 @@ import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
+import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 // Notifications about limits are handled inside LimitService.
 
 type QueueEmailJob = TeamJob<{
@@ -127,7 +128,13 @@ export class EmailQueueService {
     }
     queue.add(
       emailId,
-      { emailId, timestamp: Date.now(), unsubUrl, isBulk, teamId },
+      {
+        emailId,
+        timestamp: Date.now(),
+        unsubUrl,
+        isBulk,
+        teamId,
+      },
       { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS }
     );
   }
@@ -390,6 +397,8 @@ async function executeEmail(job: QueueEmailJob) {
       return;
     }
 
+    const customHeaders = email.headers ? JSON.parse(email.headers) : undefined;
+
     const messageId = await sendRawEmail({
       to: email.to,
       from: email.from,
@@ -407,6 +416,7 @@ async function executeEmail(job: QueueEmailJob) {
       inReplyToMessageId,
       emailId: email.id,
       sesTenantId: domain?.sesTenantId,
+      headers: customHeaders,
     });
 
     logger.info(
@@ -414,10 +424,10 @@ async function executeEmail(job: QueueEmailJob) {
       `[EmailQueueService]: Email sent`
     );
 
-    // Delete attachments after sending the email
+    // Delete attachments and headers after sending the email
     await db.email.update({
       where: { id: email.id },
-      data: { sesEmailId: messageId, text, attachments: null },
+      data: { sesEmailId: messageId, text, attachments: null, headers: null },
     });
   } catch (error: any) {
     await db.emailEvent.create({

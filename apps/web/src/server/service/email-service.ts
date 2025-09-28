@@ -2,10 +2,15 @@ import { EmailContent } from "~/types";
 import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { EmailQueueService } from "./email-queue-service";
-import { validateDomainFromEmail, validateApiKeyDomainAccess } from "./domain-service";
+import {
+  validateDomainFromEmail,
+  validateApiKeyDomainAccess,
+} from "./domain-service";
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
+import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
+import { Prisma } from "@prisma/client";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -66,26 +71,27 @@ export async function sendEmail(
     scheduledAt,
     apiKeyId,
     inReplyToId,
+    headers,
   } = emailContent;
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
 
   let domain: Awaited<ReturnType<typeof validateDomainFromEmail>>;
-  
+
   // If this is an API call with an API key, validate domain access
   if (apiKeyId) {
     const apiKey = await db.apiKey.findUnique({
       where: { id: apiKeyId },
       include: { domain: true },
     });
-    
+
     if (!apiKey) {
       throw new UnsendApiError({
         code: "BAD_REQUEST",
         message: "Invalid API key",
       });
     }
-    
+
     domain = await validateApiKeyDomainAccess(from, teamId, apiKey);
   } else {
     // For non-API calls (dashboard, etc.), use regular domain validation
@@ -261,6 +267,7 @@ export async function sendEmail(
       latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
       apiId: apiKeyId,
       inReplyToId,
+      headers: headers ? JSON.stringify(headers) : undefined,
     },
   });
 
@@ -556,6 +563,9 @@ export async function sendBulkEmails(
         latestStatus: "SUPPRESSED",
         apiId: apiKeyId,
         inReplyToId,
+        headers: originalContent.headers
+          ? JSON.stringify(originalContent.headers)
+          : undefined,
       },
     });
 
@@ -628,6 +638,7 @@ export async function sendBulkEmails(
         bcc,
         scheduledAt,
         apiKeyId,
+        headers,
       } = content;
 
       // Find the original index for this email
@@ -691,7 +702,6 @@ export async function sendBulkEmails(
         : undefined;
 
       try {
-        // Create email record
         const email = await db.email.create({
           data: {
             to: Array.isArray(to) ? to : [to],
@@ -712,6 +722,7 @@ export async function sendBulkEmails(
             scheduledAt: scheduledAtDate,
             latestStatus: scheduledAtDate ? "SCHEDULED" : "QUEUED",
             apiId: apiKeyId,
+            headers: headers ? JSON.stringify(headers) : undefined,
           },
         });
 

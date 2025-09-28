@@ -17,8 +17,8 @@ import { generateKeyPairSync } from "crypto";
 import nodemailer from "nodemailer";
 import { env } from "~/env";
 import { EmailContent } from "~/types";
-import { nanoid } from "../nanoid";
 import { logger } from "../logger/log";
+import { buildHeaders } from "~/server/utils/email-headers";
 
 let accountId: string | undefined = undefined;
 
@@ -201,6 +201,7 @@ export async function sendRawEmail({
   inReplyToMessageId,
   emailId,
   sesTenantId,
+  headers,
 }: Partial<EmailContent> & {
   region: string;
   configurationSetName: string;
@@ -232,25 +233,13 @@ export async function sendRawEmail({
       replyTo,
       cc,
       bcc,
-      headers: {
-        "X-Entity-Ref-ID": nanoid(),
-        ...(emailId
-          ? { "X-Usesend-Email-ID": emailId, "X-Unsend-Email-ID": emailId }
-          : {}),
-        ...(unsubUrl
-          ? {
-              "List-Unsubscribe": `<${unsubUrl}>`,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            }
-          : {}),
-        ...(isBulk ? { Precedence: "bulk" } : {}),
-        ...(inReplyToMessageId
-          ? {
-              "In-Reply-To": `<${inReplyToMessageId}@email.amazonses.com>`,
-              References: `<${inReplyToMessageId}@email.amazonses.com>`,
-            }
-          : {}),
-      },
+      headers: buildHeaders({
+        emailId,
+        headers,
+        unsubUrl,
+        isBulk,
+        inReplyToMessageId,
+      }),
     });
 
   const chunks = [];

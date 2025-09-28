@@ -535,6 +535,10 @@ export interface paths {
                         bcc?: string | string[];
                         text?: string | null;
                         html?: string | null;
+                        /** @description Custom headers to included with the emails */
+                        headers?: {
+                            [key: string]: string;
+                        };
                         attachments?: {
                             filename: string;
                             content: string;
@@ -598,6 +602,10 @@ export interface paths {
                         bcc?: string | string[];
                         text?: string | null;
                         html?: string | null;
+                        /** @description Custom headers to included with the emails */
+                        headers?: {
+                            [key: string]: string;
+                        };
                         attachments?: {
                             filename: string;
                             content: string;

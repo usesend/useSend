@@ -19,6 +19,9 @@ export const emailSchema = z
     bcc: z.string().or(z.array(z.string())).optional(),
     text: z.string().min(1).optional().nullable(),
     html: z.coerce.string().min(1).optional().nullable(),
+    headers: z.record(z.string().min(1)).optional().openapi({
+      description: "Custom headers to included with the emails",
+    }),
     attachments: z
       .array(
         z.object({

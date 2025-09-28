@@ -1140,6 +1140,14 @@
                     "nullable": true,
                     "minLength": 1
                   },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Custom headers to included with the emails"
+                  },
                   "attachments": {
                     "type": "array",
                     "items": {
@@ -1287,6 +1295,14 @@
                       "type": "string",
                       "nullable": true,
                       "minLength": 1
+                    },
+                    "headers": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "description": "Custom headers to included with the emails"
                     },
                     "attachments": {
                       "type": "array",
