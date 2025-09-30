@@ -164,19 +164,19 @@ export default function EmailsList() {
 
   return (
     <div className="mt-10 flex flex-col gap-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col  sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0">
         <Input
           placeholder="Search by subject or email"
-          className="w-[350px] mr-4"
+          className="w-full sm:w-[350px] sm:mr-4"
           defaultValue={search ?? ""}
           onChange={(e) => debouncedSearch(e.target.value)}
         />
-        <div className="flex justify-center items-center gap-x-3">
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
           <Select
             value={apiKey ?? "All API Keys"}
             onValueChange={(val) => handleApiKey(val)}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               {apiKey
                 ? apiKeysQuery?.find((apikey) => apikey.id === Number(apiKey))
                     ?.name
@@ -196,7 +196,7 @@ export default function EmailsList() {
             value={domain ?? "All Domains"}
             onValueChange={(val) => handleDomain(val)}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               {domain
                 ? domainsQuery?.find((d) => d.id === Number(domain))?.name
                 : "All Domains"}
@@ -219,7 +219,7 @@ export default function EmailsList() {
               setStatus(val === "All statuses" ? null : val)
             }
           >
-            <SelectTrigger className="w-[180px] capitalize">
+            <SelectTrigger className="w-full sm:w-[180px] capitalize">
               {status ? status.toLowerCase().replace("_", " ") : "All statuses"}
             </SelectTrigger>
             <SelectContent>
@@ -248,6 +248,7 @@ export default function EmailsList() {
             variant="outline"
             onClick={handleExport}
             disabled={exportQuery.isFetching}
+            className="w-full sm:w-auto"
           >
             <Download className="h-4 w-4 mr-2" />
             Export
