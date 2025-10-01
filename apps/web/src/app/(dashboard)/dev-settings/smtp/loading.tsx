@@ -1,10 +1,4 @@
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-  } from "@usesend/ui/src/card";
+import {Card,CardContent,CardDescription,CardHeader,CardTitle,} from "@usesend/ui/src/card";
   
   export default function Loading() {
     return (
@@ -23,7 +17,7 @@ import {
               <div className="ml-1 border bg-primary/10 rounded-lg mt-1 p-2 w-full h-10 animate-pulse" />
             </div>
             <div>
-              <strong>Port:</strong>
+              <label>Port:</label>
               <div className="ml-1 rounded-lg mt-1 p-2 w-full bg-primary/10 h-10 animate-pulse" />
               <p className="ml-1 mt-1 text-zinc-500 text-sm">
                 For encrypted/TLS connections use{" "}
@@ -33,11 +27,11 @@ import {
               </p>
             </div>
             <div>
-              <strong>User:</strong>
+              <label>User:</label>
               <div className="ml-1 rounded-lg mt-1 p-2 w-full bg-primary/10 h-10 animate-pulse" />
             </div>
             <div>
-              <strong>Password:</strong>
+              <label>Password:</label>
               <div className="ml-1 rounded-lg mt-1 p-2 w-full bg-primary/10 h-10 animate-pulse" />
             </div>
           </div>
