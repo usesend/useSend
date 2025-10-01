@@ -1,5 +1,4 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@usesend/ui/src/card";
-  
   export default function Loading() {
     return (
       <Card className="mt-9 max-w-xl">
