@@ -51,7 +51,8 @@ export const contactsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {
-      return contactBookService.updateContactBook(contactBook.id, input);
+      const { contactBookId, ...data } = input;
+      return contactBookService.updateContactBook(contactBook.id, data);
     }),
 
   deleteContactBook: contactBookProcedure
