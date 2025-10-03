@@ -37,6 +37,14 @@ type GetDomainResponse = {
 type GetDomainResponseSuccess =
   paths["/v1/domains/{id}"]["get"]["responses"]["200"]["content"]["application/json"];
 
+type DeleteDomainResponse = {
+  data: DeleteDomainResponseSuccess | null;
+  error: ErrorResponse | null;
+};
+
+type DeleteDomainResponseSuccess =
+  paths["/v1/domains/{id}"]["delete"]["responses"]["200"]["content"]["application/json"];
+
 export class Domains {
   constructor(private readonly usesend: UseSend) {
     this.usesend = usesend;
@@ -50,7 +58,7 @@ export class Domains {
   async create(payload: CreateDomainPayload): Promise<CreateDomainResponse> {
     const data = await this.usesend.post<CreateDomainResponseSuccess>(
       "/domains",
-      payload
+      payload,
     );
     return data;
   }
@@ -58,14 +66,22 @@ export class Domains {
   async verify(id: number): Promise<VerifyDomainResponse> {
     const data = await this.usesend.put<VerifyDomainResponseSuccess>(
       `/domains/${id}/verify`,
-      {}
+      {},
     );
     return data;
   }
 
   async get(id: number): Promise<GetDomainResponse> {
     const data = await this.usesend.get<GetDomainResponseSuccess>(
-      `/domains/${id}`
+      `/domains/${id}`,
+    );
+
+    return data;
+  }
+
+  async delete(id: number): Promise<DeleteDomainResponse> {
+    const data = await this.usesend.delete<DeleteDomainResponseSuccess>(
+      `/domains/${id}`,
     );
 
     return data;

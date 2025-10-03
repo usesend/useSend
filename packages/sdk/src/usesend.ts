@@ -1,6 +1,7 @@
 import { ErrorResponse } from "../types";
 import { Contacts } from "./contact";
 import { Emails } from "./email";
+import { Domains } from "./domain";
 
 const defaultBaseUrl = "https://app.usesend.com";
 // eslint-disable-next-line turbo/no-undeclared-env-vars
@@ -15,12 +16,13 @@ export class UseSend {
 
   // readonly domains = new Domains(this);
   readonly emails = new Emails(this);
+  readonly domains = new Domains(this);
   readonly contacts = new Contacts(this);
   url = baseUrl;
 
   constructor(
     readonly key?: string,
-    url?: string
+    url?: string,
   ) {
     if (!key) {
       if (typeof process !== "undefined" && process.env) {
@@ -29,7 +31,7 @@ export class UseSend {
 
       if (!this.key) {
         throw new Error(
-          'Missing API key. Pass it to the constructor `new UseSend("us_123")`'
+          'Missing API key. Pass it to the constructor `new UseSend("us_123")`',
         );
       }
     }
@@ -46,7 +48,7 @@ export class UseSend {
 
   async fetchRequest<T>(
     path: string,
-    options = {}
+    options = {},
   ): Promise<{ data: T | null; error: ErrorResponse | null }> {
     const response = await fetch(`${this.url}${path}`, options);
     const defaultError = {
