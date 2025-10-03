@@ -34,4 +34,8 @@ class Domains:
         data, err = self.usesend.get(f"/domains/{domain_id}")
         return (data, err)  # type: ignore[return-value]
 
+    def delete(self, domain_id: int) -> Tuple[Optional[Domain], Optional[APIError]]:
+        data, err = self.usesend.delete(f"/domains/{domain_id}")
+        return (data, err)  # type: ignore[return-value]
+
 from .usesend import UseSend  # noqa: E402  pylint: disable=wrong-import-position
