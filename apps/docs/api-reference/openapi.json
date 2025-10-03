@@ -626,17 +626,17 @@
           {
             "schema": {
               "type": "number",
-              "nullable": true,
+              "nullable": false,
               "example": 1
             },
-            "required": false,
+            "required": true,
             "name": "id",
             "in": "path"
           }
         ],
         "responses": {
           "200": {
-            "description": "Retrieve the domain",
+            "description": "Domain deleted successfully",
             "content": {
               "application/json": {
                 "schema": {

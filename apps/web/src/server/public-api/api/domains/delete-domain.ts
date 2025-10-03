@@ -2,6 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "../../hono";
 import { db } from "~/server/db";
 import { UnsendApiError } from "../../api-error";
+import { deleteDomain as deleteDomainService } from "~/server/service/domain-service";
 
 const route = createRoute({
     method: "delete",
@@ -77,9 +78,9 @@ function deleteDomain(app: PublicAPIApp) {
             });
         }
 
-        await db.domain.delete({ where: { id: domainId } });
+        const deletedDomain = await deleteDomainService(domainId);
 
-        return c.json({ success: true, message: "Domain deleted successfully" });
+        return c.json(deletedDomain);
     });
 }
 
