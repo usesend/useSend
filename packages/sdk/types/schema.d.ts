@@ -369,13 +369,13 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number | null;
+                    id: number;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Retrieve the domain */
+                /** @description Domain deleted successfully */
                 200: {
                     headers: {
                         [name: string]: unknown;
