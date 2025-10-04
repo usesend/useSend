@@ -119,7 +119,7 @@ function TemplateEditor({
   return (
     <div className="p-4 container mx-auto">
       <div className="mx-auto">
-        <div className="mb-4 flex justify-between items-center w-[700px] mx-auto">
+        <div className="mb-4 flex justify-between items-center w-full sm:w-[700px] mx-auto">
           <div className="flex items-center gap-3">
             <Link href="/templates">
               <ArrowLeft className="h-4 w-4" />
@@ -128,7 +128,7 @@ function TemplateEditor({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className=" border-0 focus:ring-0 focus:outline-none px-0.5 w-[300px]"
+              className=" border-0 focus:ring-0 focus:outline-none px-0.5 w-full sm:w-[300px]"
               onBlur={() => {
                 if (name === template.name || !name) {
                   return;
@@ -149,7 +149,7 @@ function TemplateEditor({
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 whitespace-nowrap">
             <div className="flex items-center gap-2 text-sm text-gray-500">
               {isSaving ? (
                 <div className="h-2 w-2 bg-yellow rounded-full" />
@@ -163,7 +163,7 @@ function TemplateEditor({
           </div>
         </div>
 
-        <div className="flex flex-col mt-4 mb-4 p-4 w-[700px] mx-auto z-50">
+        <div className="flex flex-col mt-4 mb-4 p-4 w-full sm:w-[700px] mx-auto z-50">
           <div className="flex items-center gap-4">
             <label className="block text-sm  w-[80px] text-muted-foreground">
               Subject
@@ -196,8 +196,8 @@ function TemplateEditor({
           </div>
         </div>
 
-        <div className=" rounded-lg bg-gray-50 w-[700px] mx-auto p-10">
-          <div className="w-[600px] mx-auto">
+        <div className=" rounded-lg bg-gray-50 w-full sm:w-[700px] mx-auto p-4 sm:p-10">
+          <div className="w-full sm:w-[600px] mx-auto">
             <Editor
               initialContent={json}
               onUpdate={(content) => {
