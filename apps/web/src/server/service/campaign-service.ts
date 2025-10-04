@@ -357,6 +357,18 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       },
     });
 
+    try {
+      await db.campaignEmail.create({
+        data: {
+          campaignId: emailConfig.campaignId,
+          contactId: contact.id,
+          emailId: email.id,
+        },
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Failed to create campaign email record");
+    }
+
     return;
   }
 
@@ -402,6 +414,22 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       domainId: emailConfig.domainId,
     },
   });
+
+  try {
+    await db.campaignEmail.create({
+      data: {
+        campaignId: emailConfig.campaignId,
+        contactId: contact.id,
+        emailId: email.id,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      { err: error },
+      "Failed to create campaign email record so skipping email sending"
+    );
+    return;
+  }
 
   // Queue email for sending
   await EmailQueueService.queueEmail(
@@ -559,7 +587,7 @@ class CampaignEmailService {
 
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 
-class CampaignBatchService {
+export class CampaignBatchService {
   private static batchQueue = new Queue<CampaignBatchJob>(
     CAMPAIGN_BATCH_QUEUE,
     {
@@ -626,7 +654,7 @@ class CampaignBatchService {
       if (!domain) return;
 
       // Bulk existence check to avoid duplicates while unique is not enforced
-      const existing = await db.email.findMany({
+      const existing = await db.campaignEmail.findMany({
         where: {
           campaignId: campaign.id,
           contactId: { in: contacts.map((c) => c.id) },
@@ -674,6 +702,33 @@ class CampaignBatchService {
     campaignId: string;
     teamId?: number;
   }) {
+    // Defensive check: avoid enqueue if window not elapsed (scheduler already enforces)
+    try {
+      const campaign = await db.campaign.findUnique({
+        where: { id: campaignId },
+        select: { lastSentAt: true, batchWindowMinutes: true, status: true },
+      });
+      if (!campaign) return;
+      if (campaign.status === "PAUSED" || campaign.status === "SENT") return;
+      const windowMin = campaign.batchWindowMinutes ?? 0;
+      if (windowMin > 0 && campaign.lastSentAt) {
+        const elapsedMs = Date.now() - new Date(campaign.lastSentAt).getTime();
+        const windowMs = windowMin * 60 * 1000;
+        if (elapsedMs < windowMs) {
+          logger.debug(
+            { campaignId, remainingMs: windowMs - elapsedMs },
+            "Defensive skip enqueue; window not elapsed"
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        { err, campaignId },
+        "Failed defensive window check; proceeding to enqueue"
+      );
+    }
+
     await this.batchQueue.add(
       `campaign-${campaignId}`,
       { campaignId, teamId },
@@ -681,65 +736,3 @@ class CampaignBatchService {
     );
   }
 }
-
-// ---------------------------
-// Scheduler: BullMQ repeatable job
-// ---------------------------
-
-const SCHEDULER_TICK_MS = 1500;
-
-type SchedulerJob = TeamJob<{}>;
-
-class CampaignSchedulerService {
-  private static schedulerQueue = new Queue<SchedulerJob>(
-    CAMPAIGN_SCHEDULER_QUEUE,
-    {
-      connection: getRedis(),
-    }
-  );
-
-  static worker = new Worker(
-    CAMPAIGN_SCHEDULER_QUEUE,
-    createWorkerHandler(async (_job: SchedulerJob) => {
-      try {
-        const now = new Date();
-        const campaigns = await db.campaign.findMany({
-          where: {
-            status: { in: ["SCHEDULED", "RUNNING"] },
-            OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }],
-          },
-          select: { id: true, teamId: true },
-        });
-
-        for (const c of campaigns) {
-          await CampaignBatchService.queueBatch({
-            campaignId: c.id,
-            teamId: c.teamId,
-          });
-        }
-      } catch (err) {
-        logger.error({ err }, "Campaign scheduler tick failed");
-      }
-    }),
-    { connection: getRedis(), concurrency: 1 }
-  );
-
-  static async ensureRepeatable() {
-    try {
-      await this.schedulerQueue.add(
-        "tick",
-        {},
-        {
-          jobId: "campaign-scheduler",
-          repeat: { every: SCHEDULER_TICK_MS },
-          ...DEFAULT_QUEUE_OPTIONS,
-        }
-      );
-    } catch (err) {
-      // Adding the same repeatable job is idempotent; ignore job-exists errors
-      logger.info({ err }, "Scheduler ensureRepeatable attempted");
-    }
-  }
-}
-
-CampaignSchedulerService.ensureRepeatable();
