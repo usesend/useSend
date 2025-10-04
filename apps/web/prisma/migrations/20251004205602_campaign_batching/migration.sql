@@ -11,9 +11,19 @@ ALTER TYPE "CampaignStatus" ADD VALUE 'PAUSED';
 
 -- AlterTable
 ALTER TABLE "Campaign" ADD COLUMN     "batchSize" INTEGER NOT NULL DEFAULT 500,
+ADD COLUMN     "batchWindowMinutes" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN     "lastCursor" TEXT,
 ADD COLUMN     "lastSentAt" TIMESTAMP(3),
 ADD COLUMN     "scheduledAt" TIMESTAMP(3);
+
+-- CreateTable
+CREATE TABLE "CampaignEmail" (
+    "campaignId" TEXT NOT NULL,
+    "contactId" TEXT NOT NULL,
+    "emailId" TEXT NOT NULL,
+
+    CONSTRAINT "CampaignEmail_pkey" PRIMARY KEY ("campaignId","contactId")
+);
 
 -- CreateIndex
 CREATE INDEX "Campaign_status_scheduledAt_idx" ON "Campaign"("status", "scheduledAt");

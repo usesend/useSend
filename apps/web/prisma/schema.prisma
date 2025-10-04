@@ -267,6 +267,14 @@ model Email {
   @@index([createdAt(sort: Desc)])
 }
 
+model CampaignEmail {
+  campaignId String
+  contactId  String
+  emailId    String
+
+  @@id([campaignId, contactId])
+}
+
 model EmailEvent {
   id        String      @id @default(cuid())
   emailId   String
@@ -333,35 +341,36 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id            String         @id @default(cuid())
-  name          String
-  teamId        Int
-  from          String
-  cc            String[]
-  bcc           String[]
-  replyTo       String[]
-  domainId      Int
-  subject       String
-  previewText   String?
-  html          String?
-  content       String?
-  contactBookId String?
-  scheduledAt   DateTime?
-  total         Int            @default(0)
-  sent          Int            @default(0)
-  delivered     Int            @default(0)
-  opened        Int            @default(0)
-  clicked       Int            @default(0)
-  unsubscribed  Int            @default(0)
-  bounced       Int            @default(0)
-  hardBounced   Int            @default(0)
-  complained    Int            @default(0)
-  status        CampaignStatus @default(DRAFT)
-  batchSize     Int            @default(500)
-  lastCursor    String?
-  lastSentAt    DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  name               String
+  teamId             Int
+  from               String
+  cc                 String[]
+  bcc                String[]
+  replyTo            String[]
+  domainId           Int
+  subject            String
+  previewText        String?
+  html               String?
+  content            String?
+  contactBookId      String?
+  scheduledAt        DateTime?
+  total              Int            @default(0)
+  sent               Int            @default(0)
+  delivered          Int            @default(0)
+  opened             Int            @default(0)
+  clicked            Int            @default(0)
+  unsubscribed       Int            @default(0)
+  bounced            Int            @default(0)
+  hardBounced        Int            @default(0)
+  complained         Int            @default(0)
+  status             CampaignStatus @default(DRAFT)
+  batchSize          Int            @default(500)
+  batchWindowMinutes Int            @default(0)
+  lastCursor         String?
+  lastSentAt         DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
