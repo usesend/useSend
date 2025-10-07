@@ -7,6 +7,7 @@ import { useTeam } from "~/providers/team-context";
 import { Badge } from "@usesend/ui/src/badge";
 import { format } from "date-fns";
 
+
 export const PlanDetails = () => {
   const subscriptionQuery = api.billing.getSubscriptionDetails.useQuery();
   const { currentTeam } = useTeam();
