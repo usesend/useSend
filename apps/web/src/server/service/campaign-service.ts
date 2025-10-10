@@ -1,7 +1,6 @@
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
-import { TRPCError } from "@trpc/server";
 import { env } from "~/env";
 import {
   Campaign,
@@ -9,14 +8,11 @@ import {
   EmailStatus,
   UnsubscribeReason,
 } from "@prisma/client";
-import { validateDomainFromEmail } from "./domain-service";
 import { EmailQueueService } from "./email-queue-service";
 import { Queue, Worker } from "bullmq";
 import { getRedis } from "../redis";
 import {
-  CAMPAIGN_MAIL_PROCESSING_QUEUE,
   CAMPAIGN_BATCH_QUEUE,
-  CAMPAIGN_SCHEDULER_QUEUE,
   DEFAULT_QUEUE_OPTIONS,
 } from "../queue/queue-constants";
 import { logger } from "../logger/log";
@@ -355,19 +351,6 @@ export async function deleteCampaign(id: string) {
   return campaign;
 }
 
-type CampainEmail = {
-  campaignId: string;
-  from: string;
-  subject: string;
-  html: string;
-  previewText?: string;
-  replyTo?: string[];
-  cc?: string[];
-  bcc?: string[];
-  teamId: number;
-  contacts: Array<Contact>;
-};
-
 type CampaignEmailJob = {
   contact: Contact;
   campaign: Campaign;
@@ -384,8 +367,6 @@ type CampaignEmailJob = {
     region: string;
   };
 };
-
-type QueueCampaignEmailJob = TeamJob<CampaignEmailJob>;
 
 async function processContactEmail(jobData: CampaignEmailJob) {
   const { contact, campaign, emailConfig } = jobData;
@@ -564,50 +545,6 @@ async function processContactEmail(jobData: CampaignEmailJob) {
   );
 }
 
-export async function sendCampaignEmail(
-  campaign: Campaign,
-  emailData: CampainEmail
-) {
-  const {
-    campaignId,
-    from,
-    subject,
-    replyTo,
-    cc,
-    bcc,
-    teamId,
-    contacts,
-    previewText,
-  } = emailData;
-
-  const domain = await validateDomainFromEmail(from, teamId);
-
-  logger.info("Bulk queueing contacts");
-
-  await CampaignEmailService.queueBulkContacts(
-    contacts.map((contact) => ({
-      contact,
-      campaign,
-      emailConfig: {
-        from,
-        subject,
-        replyTo: replyTo
-          ? Array.isArray(replyTo)
-            ? replyTo
-            : [replyTo]
-          : undefined,
-        cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
-        bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
-        teamId,
-        campaignId,
-        previewText,
-        domainId: domain.id,
-        region: domain.region,
-      },
-    }))
-  );
-}
-
 export async function updateCampaignAnalytics(
   campaignId: string,
   emailStatus: EmailStatus,
@@ -653,55 +590,6 @@ export async function updateCampaignAnalytics(
     where: { id: campaignId },
     data: updateData,
   });
-}
-
-const CAMPAIGN_EMAIL_CONCURRENCY = 50;
-
-class CampaignEmailService {
-  private static campaignQueue = new Queue<QueueCampaignEmailJob>(
-    CAMPAIGN_MAIL_PROCESSING_QUEUE,
-    {
-      connection: getRedis(),
-    }
-  );
-
-  // TODO: Add team context to job data when queueing
-  static worker = new Worker(
-    CAMPAIGN_MAIL_PROCESSING_QUEUE,
-    createWorkerHandler(async (job: QueueCampaignEmailJob) => {
-      await processContactEmail(job.data);
-    }),
-    {
-      connection: getRedis(),
-      concurrency: CAMPAIGN_EMAIL_CONCURRENCY,
-    }
-  );
-
-  static async queueContact(data: CampaignEmailJob) {
-    return await this.campaignQueue.add(
-      `contact-${data.contact.id}`,
-      {
-        ...data,
-        teamId: data.emailConfig.teamId,
-      },
-      DEFAULT_QUEUE_OPTIONS
-    );
-  }
-
-  static async queueBulkContacts(data: CampaignEmailJob[]) {
-    return await this.campaignQueue.addBulk(
-      data.map((item) => ({
-        name: `contact-${item.contact.id}`,
-        data: {
-          ...item,
-          teamId: item.emailConfig.teamId,
-        },
-        opts: {
-          ...DEFAULT_QUEUE_OPTIONS,
-        },
-      }))
-    );
-  }
 }
 
 // ---------------------------

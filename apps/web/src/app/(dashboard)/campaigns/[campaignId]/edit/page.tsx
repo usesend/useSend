@@ -121,10 +121,6 @@ function CampaignEditor({
   });
   const getUploadUrl = api.campaign.generateImagePresignedUrl.useMutation();
 
-  const sendForm = useForm<z.infer<typeof sendSchema>>({
-    resolver: zodResolver(sendSchema),
-  });
-
   function updateEditorContent() {
     updateCampaignMutation.mutate({
       campaignId: campaign.id,
@@ -163,8 +159,6 @@ function CampaignEditor({
 
     return imageUrl;
   };
-
-  const confirmation = sendForm.watch("confirmation");
 
   const contactBook = contactBooksQuery.data?.find(
     (book) => book.id === contactBookId
