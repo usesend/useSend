@@ -369,7 +369,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number;
+                    id: number | null;
                 };
                 cookie?: never;
             };
@@ -382,78 +382,13 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            /**
-                             * @description The ID of the domain
-                             * @example 1
-                             */
                             id: number;
-                            /**
-                             * @description The name of the domain
-                             * @example example.com
-                             */
-                            name: string;
-                            /**
-                             * @description The ID of the team
-                             * @example 1
-                             */
-                            teamId: number;
-                            /** @enum {string} */
-                            status: "NOT_STARTED" | "PENDING" | "SUCCESS" | "FAILED" | "TEMPORARY_FAILURE";
-                            /** @default us-east-1 */
-                            region: string;
-                            /** @default false */
-                            clickTracking: boolean;
-                            /** @default false */
-                            openTracking: boolean;
-                            publicKey: string;
-                            dkimStatus?: string | null;
-                            spfDetails?: string | null;
-                            createdAt: string;
-                            updatedAt: string;
-                            /** @default false */
-                            dmarcAdded: boolean;
-                            /** @default false */
-                            isVerifying: boolean;
-                            errorMessage?: string | null;
-                            subdomain?: string | null;
-                            verificationError?: string | null;
-                            lastCheckedTime?: string | null;
-                            dnsRecords: {
-                                /**
-                                 * @description DNS record type
-                                 * @example TXT
-                                 * @enum {string}
-                                 */
-                                type: "MX" | "TXT";
-                                /**
-                                 * @description DNS record name
-                                 * @example mail
-                                 */
-                                name: string;
-                                /**
-                                 * @description DNS record value
-                                 * @example v=spf1 include:amazonses.com ~all
-                                 */
-                                value: string;
-                                /**
-                                 * @description DNS record TTL
-                                 * @example Auto
-                                 */
-                                ttl: string;
-                                /**
-                                 * @description DNS record priority
-                                 * @example 10
-                                 */
-                                priority?: string | null;
-                                /** @enum {string} */
-                                status: "NOT_STARTED" | "PENDING" | "SUCCESS" | "FAILED" | "TEMPORARY_FAILURE";
-                                /** @description Whether the record is recommended */
-                                recommended?: boolean;
-                            }[];
+                            success: boolean;
+                            message: string;
                         };
                     };
                 };
-                /** @description Forbidden - API key doesn't have access to this domain */
+                /** @description Forbidden - API key doesn't have access */
                 403: {
                     headers: {
                         [name: string]: unknown;
