@@ -105,7 +105,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div
-      className="bg-white rounded-md text-black p-8 unsend-editor light"
+      className="bg-white rounded-md text-black p-4 sm:p-8 unsend-editor light"
       ref={menuContainerRef}
     >
       <EditorContent editor={editor} className="min-h-[50vh]" />
