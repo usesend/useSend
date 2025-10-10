@@ -112,7 +112,6 @@ function CampaignEditor({
   const [previewText, setPreviewText] = useState<string | null>(
     campaign.previewText
   );
-  const [openSendDialog, setOpenSendDialog] = useState(false);
 
   const updateCampaignMutation = api.campaign.updateCampaign.useMutation({
     onSuccess: () => {
@@ -120,7 +119,6 @@ function CampaignEditor({
       setIsSaving(false);
     },
   });
-  const sendCampaignMutation = api.campaign.sendCampaign.useMutation();
   const getUploadUrl = api.campaign.generateImagePresignedUrl.useMutation();
 
   const sendForm = useForm<z.infer<typeof sendSchema>>({
@@ -138,32 +136,6 @@ function CampaignEditor({
     updateEditorContent,
     1000
   );
-
-  async function onSendCampaign(values: z.infer<typeof sendSchema>) {
-    if (
-      values.confirmation?.toLocaleLowerCase() !== "Send".toLocaleLowerCase()
-    ) {
-      sendForm.setError("confirmation", {
-        message: "Please type 'Send' to confirm",
-      });
-      return;
-    }
-
-    sendCampaignMutation.mutate(
-      {
-        campaignId: campaign.id,
-      },
-      {
-        onSuccess: () => {
-          setOpenSendDialog(false);
-          toast.success(`Campaign sent successfully`);
-        },
-        onError: (error) => {
-          toast.error(`Failed to send campaign: ${error.message}`);
-        },
-      }
-    );
-  }
 
   const handleFileChange = async (file: File) => {
     if (file.size > IMAGE_SIZE_LIMIT) {

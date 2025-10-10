@@ -21,6 +21,7 @@ CREATE TABLE "CampaignEmail" (
     "campaignId" TEXT NOT NULL,
     "contactId" TEXT NOT NULL,
     "emailId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "CampaignEmail_pkey" PRIMARY KEY ("campaignId","contactId")
 );
