@@ -94,6 +94,11 @@ class DomainVerifyResponse(TypedDict):
     message: str
 
 
+class DomainDeleteResponse(TypedDict):
+    id: int
+    success: bool
+    message: str
+
 # ---------------------------------------------------------------------------
 # Emails
 # ---------------------------------------------------------------------------
