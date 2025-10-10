@@ -14,6 +14,7 @@ import { nanoid } from "~/server/nanoid";
 import {
   subscribeContact,
   scheduleCampaign as scheduleCampaignService,
+  deleteCampaign,
 } from "~/server/service/campaign-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
 import {
@@ -155,14 +156,9 @@ export const campaignRouter = createTRPCRouter({
       return campaign;
     }),
 
-  deleteCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, team }, input }) => {
-      const campaign = await db.campaign.delete({
-        where: { id: input.campaignId, teamId: team.id },
-      });
-      return campaign;
-    }
-  ),
+  deleteCampaign: campaignProcedure.mutation(async ({ input }) => {
+    return await deleteCampaign(input.campaignId);
+  }),
 
   getCampaign: campaignProcedure.query(async ({ ctx: { db, team }, input }) => {
     const campaign = await db.campaign.findUnique({
