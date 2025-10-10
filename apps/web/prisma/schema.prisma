@@ -271,6 +271,7 @@ model CampaignEmail {
   campaignId String
   contactId  String
   emailId    String
+  createdAt  DateTime @default(now())
 
   @@id([campaignId, contactId])
 }

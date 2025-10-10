@@ -1,6 +1,7 @@
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
+import { TRPCError } from "@trpc/server";
 import { env } from "~/env";
 import {
   Campaign,
@@ -21,6 +22,7 @@ import {
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { SuppressionService } from "./suppression-service";
+import { UnsendApiError } from "../public-api/api-error";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -94,6 +96,111 @@ export async function sendCampaign(id: string) {
     campaignId: id,
     teamId: campaign.teamId,
   });
+}
+
+export async function scheduleCampaign({
+  campaignId,
+  teamId,
+  scheduledAt: scheduledAtInput,
+  batchSize,
+}: {
+  campaignId: string;
+  teamId: number;
+  scheduledAt?: Date | string;
+  batchSize?: number;
+}) {
+  let campaign = await db.campaign.findUnique({
+    where: { id: campaignId, teamId },
+  });
+  if (!campaign) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
+  if (!campaign.content) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "No content added for campaign",
+    });
+  }
+
+  // Parse & render HTML (idempotent) similar to sendCampaign
+  try {
+    const jsonContent = JSON.parse(campaign.content);
+    const renderer = new EmailRenderer(jsonContent);
+    const html = await renderer.render();
+    campaign = await db.campaign.update({
+      where: { id: campaign.id },
+      data: { html },
+    });
+  } catch (err) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Invalid content",
+    });
+  }
+
+  if (!campaign.contactBookId) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "No contact book found for campaign",
+    });
+  }
+
+  if (!campaign.html) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "No HTML content for campaign",
+    });
+  }
+
+  const unsubPlaceholderFound = CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.some(
+    (placeholder) =>
+      campaign.content?.includes(placeholder) ||
+      campaign.html?.includes(placeholder)
+  );
+  if (!unsubPlaceholderFound) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Campaign must include an unsubscribe link before scheduling",
+    });
+  }
+
+  // Count subscribed contacts for total
+  const total = await db.contact.count({
+    where: { contactBookId: campaign.contactBookId, subscribed: true },
+  });
+
+  if (total === 0) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "No subscribed contacts to send",
+    });
+  }
+
+  const scheduledAt = scheduledAtInput
+    ? scheduledAtInput instanceof Date
+      ? scheduledAtInput
+      : new Date(scheduledAtInput)
+    : new Date();
+
+  const shouldResetCursor =
+    campaign.status === "DRAFT" || campaign.status === "SENT";
+
+  await db.campaign.update({
+    where: { id: campaign.id },
+    data: {
+      status: "SCHEDULED",
+      scheduledAt,
+      total,
+      ...(batchSize ? { batchSize } : {}),
+      ...(shouldResetCursor ? { lastCursor: null } : {}),
+    },
+  });
+
+  return { ok: true };
 }
 
 export function createUnsubUrl(contactId: string, campaignId: string) {
@@ -230,6 +337,18 @@ export async function subscribeContact(id: string, hash: string) {
     logger.error({ err: error }, "Error subscribing contact");
     throw new Error("Failed to subscribe contact");
   }
+}
+
+export async function deleteCampaign(id: string) {
+  const campaign = await db.campaign.delete({
+    where: { id },
+  });
+
+  await db.campaignEmail.deleteMany({
+    where: { campaignId: id },
+  });
+
+  return campaign;
 }
 
 type CampainEmail = {
