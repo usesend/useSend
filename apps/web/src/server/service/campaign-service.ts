@@ -340,12 +340,16 @@ export async function subscribeContact(id: string, hash: string) {
 }
 
 export async function deleteCampaign(id: string) {
-  const campaign = await db.campaign.delete({
-    where: { id },
-  });
+  const campaign = await db.$transaction(async (tx) => {
+    await tx.campaignEmail.deleteMany({
+      where: { campaignId: id },
+    });
 
-  await db.campaignEmail.deleteMany({
-    where: { campaignId: id },
+    const campaign = await tx.campaign.delete({
+      where: { id },
+    });
+
+    return campaign;
   });
 
   return campaign;
