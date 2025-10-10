@@ -12,8 +12,9 @@ import {
 import { logger } from "~/server/logger/log";
 import { nanoid } from "~/server/nanoid";
 import {
-  sendCampaign,
   subscribeContact,
+  scheduleCampaign as scheduleCampaignService,
+  deleteCampaign,
 } from "~/server/service/campaign-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
 import {
@@ -29,7 +30,7 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         page: z.number().optional(),
         status: z.enum(statuses).optional().nullable(),
-      }),
+      })
     )
     .query(async ({ ctx: { db, team }, input }) => {
       let completeTime = performance.now();
@@ -68,14 +69,14 @@ export const campaignRouter = createTRPCRouter({
 
       campaignsP.then((campaigns) => {
         logger.info(
-          `Time taken to get campaigns: ${performance.now() - time} milliseconds`,
+          `Time taken to get campaigns: ${performance.now() - time} milliseconds`
         );
       });
 
       const [campaigns, count] = await Promise.all([campaignsP, countP]);
       logger.info(
         { duration: performance.now() - completeTime },
-        `Time taken to complete request`,
+        `Time taken to complete request`
       );
 
       return { campaigns, totalPage: Math.ceil(count / limit) };
@@ -87,7 +88,7 @@ export const campaignRouter = createTRPCRouter({
         name: z.string(),
         from: z.string(),
         subject: z.string(),
-      }),
+      })
     )
     .mutation(async ({ ctx: { db, team }, input }) => {
       const domain = await validateDomainFromEmail(input.from, team.id);
@@ -113,7 +114,7 @@ export const campaignRouter = createTRPCRouter({
         content: z.string().optional(),
         contactBookId: z.string().optional(),
         replyTo: z.string().array().optional(),
-      }),
+      })
     )
     .mutation(async ({ ctx: { db, team, campaign: campaignOld }, input }) => {
       const { campaignId, ...data } = input;
@@ -155,14 +156,9 @@ export const campaignRouter = createTRPCRouter({
       return campaign;
     }),
 
-  deleteCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, team }, input }) => {
-      const campaign = await db.campaign.delete({
-        where: { id: input.campaignId, teamId: team.id },
-      });
-      return campaign;
-    },
-  ),
+  deleteCampaign: campaignProcedure.mutation(async ({ input }) => {
+    return await deleteCampaign(input.campaignId);
+  }),
 
   getCampaign: campaignProcedure.query(async ({ ctx: { db, team }, input }) => {
     const campaign = await db.campaign.findUnique({
@@ -178,31 +174,30 @@ export const campaignRouter = createTRPCRouter({
 
     const imageUploadSupported = isStorageConfigured();
 
+    const processed = await db.email.count({
+      where: { campaignId: input.campaignId },
+    });
+
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
         where: { id: campaign.contactBookId },
       });
-      return { ...campaign, contactBook, imageUploadSupported };
+      return { ...campaign, contactBook, imageUploadSupported, processed };
     }
     return {
       ...campaign,
       contactBook: null,
       imageUploadSupported,
+      processed,
     };
   }),
-
-  sendCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, team }, input }) => {
-      await sendCampaign(input.campaignId);
-    },
-  ),
 
   reSubscribeContact: publicProcedure
     .input(
       z.object({
         id: z.string(),
         hash: z.string(),
-      }),
+      })
     )
     .mutation(async ({ ctx: { db }, input }) => {
       await subscribeContact(input.id, input.hash);
@@ -223,7 +218,45 @@ export const campaignRouter = createTRPCRouter({
       });
 
       return newCampaign;
-    },
+    }
+  ),
+
+  scheduleCampaign: campaignProcedure
+    .input(
+      z.object({
+        campaignId: z.string(),
+        scheduledAt: z.union([z.string().datetime(), z.date()]).optional(),
+        batchSize: z.number().min(1).max(100_000).optional(),
+      })
+    )
+    .mutation(async ({ ctx: { team }, input }) => {
+      await scheduleCampaignService({
+        campaignId: input.campaignId,
+        teamId: team.id,
+        scheduledAt: input.scheduledAt,
+        batchSize: input.batchSize,
+      });
+      return { ok: true };
+    }),
+
+  pauseCampaign: campaignProcedure.mutation(
+    async ({ ctx: { db, campaign } }) => {
+      await db.campaign.update({
+        where: { id: campaign.id },
+        data: { status: "PAUSED" },
+      });
+      return { ok: true };
+    }
+  ),
+
+  resumeCampaign: campaignProcedure.mutation(
+    async ({ ctx: { db, campaign } }) => {
+      await db.campaign.update({
+        where: { id: campaign.id },
+        data: { status: "SCHEDULED" },
+      });
+      return { ok: true };
+    }
   ),
 
   generateImagePresignedUrl: campaignProcedure
@@ -231,7 +264,7 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         type: z.string(),
-      }),
+      })
     )
     .mutation(async ({ ctx: { team }, input }) => {
       const extension = input.name.split(".").pop();
@@ -239,7 +272,7 @@ export const campaignRouter = createTRPCRouter({
 
       const url = await getDocumentUploadUrl(
         `${team.id}/${randomName}`,
-        input.type,
+        input.type
       );
 
       const imageUrl = `${env.S3_COMPATIBLE_PUBLIC_URL}/${team.id}/${randomName}`;

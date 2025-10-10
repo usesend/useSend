@@ -263,7 +263,17 @@ model Email {
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
+  @@index([campaignId, contactId])
   @@index([createdAt(sort: Desc)])
+}
+
+model CampaignEmail {
+  campaignId String
+  contactId  String
+  emailId    String
+  createdAt  DateTime @default(now())
+
+  @@id([campaignId, contactId])
 }
 
 model EmailEvent {
@@ -320,44 +330,53 @@ model Contact {
   contactBook ContactBook @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
 
   @@unique([contactBookId, email])
+  @@index([contactBookId, id])
 }
 
 enum CampaignStatus {
   DRAFT
   SCHEDULED
+  RUNNING
+  PAUSED
   SENT
 }
 
 model Campaign {
-  id            String         @id @default(cuid())
-  name          String
-  teamId        Int
-  from          String
-  cc            String[]
-  bcc           String[]
-  replyTo       String[]
-  domainId      Int
-  subject       String
-  previewText   String?
-  html          String?
-  content       String?
-  contactBookId String?
-  total         Int            @default(0)
-  sent          Int            @default(0)
-  delivered     Int            @default(0)
-  opened        Int            @default(0)
-  clicked       Int            @default(0)
-  unsubscribed  Int            @default(0)
-  bounced       Int            @default(0)
-  hardBounced   Int            @default(0)
-  complained    Int            @default(0)
-  status        CampaignStatus @default(DRAFT)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  name               String
+  teamId             Int
+  from               String
+  cc                 String[]
+  bcc                String[]
+  replyTo            String[]
+  domainId           Int
+  subject            String
+  previewText        String?
+  html               String?
+  content            String?
+  contactBookId      String?
+  scheduledAt        DateTime?
+  total              Int            @default(0)
+  sent               Int            @default(0)
+  delivered          Int            @default(0)
+  opened             Int            @default(0)
+  clicked            Int            @default(0)
+  unsubscribed       Int            @default(0)
+  bounced            Int            @default(0)
+  hardBounced        Int            @default(0)
+  complained         Int            @default(0)
+  status             CampaignStatus @default(DRAFT)
+  batchSize          Int            @default(500)
+  batchWindowMinutes Int            @default(0)
+  lastCursor         String?
+  lastSentAt         DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([createdAt(sort: Desc)])
+  @@index([status, scheduledAt])
 }
 
 model Template {
