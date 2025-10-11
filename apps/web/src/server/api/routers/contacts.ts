@@ -20,7 +20,7 @@ export const contactsRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
       const { name } = input;
@@ -38,7 +38,7 @@ export const contactsRouter = createTRPCRouter({
         unsubscribedContacts,
         campaigns,
       };
-    }
+    },
   ),
 
   updateContactBook: contactBookProcedure
@@ -48,7 +48,7 @@ export const contactsRouter = createTRPCRouter({
         name: z.string().optional(),
         properties: z.record(z.string()).optional(),
         emoji: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {
       const { contactBookId, ...data } = input;
@@ -67,7 +67,7 @@ export const contactsRouter = createTRPCRouter({
         page: z.number().optional(),
         subscribed: z.boolean().optional(),
         search: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ ctx: { db }, input }) => {
       const page = input.page || 1;
@@ -126,12 +126,16 @@ export const contactsRouter = createTRPCRouter({
             lastName: z.string().optional(),
             properties: z.record(z.string()).optional(),
             subscribed: z.boolean().optional(),
-          })
+          }),
         ),
-      })
+      }),
     )
-    .mutation(async ({ ctx: { contactBook }, input }) => {
-      return contactService.bulkAddContacts(contactBook.id, input.contacts);
+    .mutation(async ({ ctx: { contactBook, team }, input }) => {
+      return contactService.bulkAddContacts(
+        contactBook.id,
+        input.contacts,
+        team.id,
+      );
     }),
 
   updateContact: contactBookProcedure
@@ -143,7 +147,7 @@ export const contactsRouter = createTRPCRouter({
         lastName: z.string().optional(),
         properties: z.record(z.string()).optional(),
         subscribed: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { contactId, ...contact } = input;

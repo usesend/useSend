@@ -66,7 +66,7 @@ export default function AddContact({
         onSuccess: async () => {
           utils.contacts.contacts.invalidate();
           setOpen(false);
-          toast.success("Contacts added successfully");
+          toast.success("Contacts queued for processing");
         },
         onError: async (error) => {
           toast.error(error.message);
