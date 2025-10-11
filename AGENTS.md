@@ -27,7 +27,7 @@
 - Formatting: Prettier 3; run `pnpm format`.
 - Files: React components PascalCase (e.g., `AppSideBar.tsx`); folders kebab/lowercase.
 - Paths (web): use alias `~/` for src imports (e.g., `import { x } from "~/utils/x"`).
-- Never use dynamic imports
+- NEVER USE DYNAMIC IMPORTS. ALWAYS IMPORT ON THE TOP
 
 ## Rules
 

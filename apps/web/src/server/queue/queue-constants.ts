@@ -1,5 +1,6 @@
 export const SES_WEBHOOK_QUEUE = "ses-webhook";
 export const CAMPAIGN_MAIL_PROCESSING_QUEUE = "campaign-emails-processing";
+export const CONTACT_BULK_ADD_QUEUE = "contact-bulk-add";
 
 export const DEFAULT_QUEUE_OPTIONS = {
   removeOnComplete: true,

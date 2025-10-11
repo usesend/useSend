@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { ContactQueueService } from "./contact-queue-service";
 
 export type ContactInput = {
   email: string;
@@ -60,13 +61,15 @@ export async function deleteContact(contactId: string) {
 
 export async function bulkAddContacts(
   contactBookId: string,
-  contacts: Array<ContactInput>
+  contacts: Array<ContactInput>,
+  teamId?: number
 ) {
-  const createdContacts = await Promise.all(
-    contacts.map((contact) => addOrUpdateContact(contactBookId, contact))
-  );
+  await ContactQueueService.addBulkContactJobs(contactBookId, contacts, teamId);
 
-  return createdContacts;
+  return {
+    message: `Queued ${contacts.length} contacts for processing`,
+    count: contacts.length,
+  };
 }
 
 export async function unsubscribeContact(contactId: string) {
