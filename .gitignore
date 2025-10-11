@@ -42,3 +42,6 @@ prod_db.tar
 
 bin
 __pycache__
+memory-profiles
+memory-baseline.json
+memory-analysis-report.html

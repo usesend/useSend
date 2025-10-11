@@ -14,7 +14,12 @@
     "db:migrate-dev": "prisma migrate dev",
     "db:migrate-deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:migrate-reset": "prisma migrate reset"
+    "db:migrate-reset": "prisma migrate reset",
+    "memory:monitor": "node --expose-gc scripts/memory-monitor.cjs",
+    "memory:profile": "node --expose-gc scripts/memory-profiler.cjs",
+    "memory:baseline": "node --expose-gc scripts/baseline-test.cjs",
+    "memory:report": "node scripts/memory-reporter.cjs && open memory-analysis-report.html",
+    "memory:analyze": "npm run memory:baseline && npm run memory:monitor && npm run memory:report"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.0",
