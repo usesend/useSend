@@ -25,6 +25,11 @@ export async function register() {
       await import("~/server/jobs/usage-job");
     }
 
+    const { CampaignSchedulerService } = await import(
+      "~/server/jobs/campaign-scheduler-job"
+    );
+    await CampaignSchedulerService.start();
+
     initialized = true;
   }
 }

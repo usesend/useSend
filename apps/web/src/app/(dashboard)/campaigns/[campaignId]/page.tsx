@@ -14,6 +14,14 @@ import { H2 } from "@usesend/ui";
 import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { use } from "react";
+import { CampaignStatus } from "@prisma/client";
+import { formatDistanceToNow } from "date-fns";
+import TogglePauseCampaign from "../toggle-pause-campaign";
+import CampaignStatusBadge from "../../campaigns/campaign-status-badge";
+import { Button } from "@usesend/ui/src/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
+import { EmailStatusBadge } from "../../emails/email-status-badge";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function CampaignDetailsPage({
   params,
@@ -22,9 +30,31 @@ export default function CampaignDetailsPage({
 }) {
   const { campaignId } = use(params);
 
-  const { data: campaign, isLoading } = api.campaign.getCampaign.useQuery({
-    campaignId: campaignId,
-  });
+  const { data: campaign, isLoading } = api.campaign.getCampaign.useQuery(
+    { campaignId: campaignId },
+    {
+      refetchInterval: (query) => {
+        const c: any = query.state.data;
+        if (!c) return false;
+
+        if (
+          c.status === CampaignStatus.RUNNING ||
+          c.status === CampaignStatus.PAUSED
+        ) {
+          return 5000;
+        }
+        return false;
+      },
+    }
+  );
+
+  const { data: latestEmails, isLoading: latestEmailsLoading } =
+    api.campaign.latestEmails.useQuery(
+      { campaignId: campaignId },
+      {
+        refetchInterval: 5000,
+      }
+    );
 
   if (isLoading) {
     return (
@@ -38,74 +68,181 @@ export default function CampaignDetailsPage({
     return <div>Campaign not found</div>;
   }
 
-  const statusCards = [
+  const deliveredCount = campaign.delivered ?? 0;
+  const openedCount = campaign.opened ?? 0;
+  const clickedCount = campaign.clicked ?? 0;
+  const unsubscribedCount = campaign.unsubscribed ?? 0;
+  const deliveredDenominator = deliveredCount > 0 ? deliveredCount : 0;
+  const percentageOfDelivered = (value: number) =>
+    deliveredDenominator > 0 ? (value / deliveredDenominator) * 100 : 0;
+
+  const statisticsRows = [
     {
       status: "delivered",
-      count: campaign.delivered,
-      percentage: 100,
+      count: deliveredCount,
+      percentage: deliveredDenominator > 0 ? 100 : 0,
     },
     {
       status: "unsubscribed",
-      count: campaign.unsubscribed,
-      percentage: (campaign.unsubscribed / campaign.delivered) * 100,
+      count: unsubscribedCount,
+      percentage: percentageOfDelivered(unsubscribedCount),
     },
     {
       status: "clicked",
-      count: campaign.clicked,
-      percentage: (campaign.clicked / campaign.delivered) * 100,
+      count: clickedCount,
+      percentage: percentageOfDelivered(clickedCount),
     },
     {
       status: "opened",
-      count: campaign.opened,
-      percentage: (campaign.opened / campaign.delivered) * 100,
+      count: openedCount,
+      percentage: percentageOfDelivered(openedCount),
     },
   ];
 
+  const total = campaign.total ?? 0;
+  const processed = campaign.sent ?? 0;
+
   return (
     <div className="container mx-auto">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link href="/campaigns" className="text-lg">
-                Campaigns
-              </Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator className="text-lg" />
-          <BreadcrumbItem>
-            <BreadcrumbPage className="text-lg ">
-              {campaign.name}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <div className="mt-10">
-        <H2 className="mb-4"> Statistics</H2>
-        <div className="flex  gap-4">
-          {statusCards.map((card) => (
-            <div
-              key={card.status}
-              className="h-[100px] w-1/4  bg-secondary/10 border rounded-lg shadow p-4 flex flex-col gap-3"
-            >
-              <div className="flex items-center gap-3">
-                {card.status !== "total" ? (
-                  <CampaignStatusBadge status={card.status} />
-                ) : null}
-                <div className="capitalize">{card.status.toLowerCase()}</div>
-              </div>
-              <div className="flex justify-between items-end">
-                <div className="text-foreground font-light text-2xl font-mono">
-                  {card.count}
+      <div className="flex justify-between items-center">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/campaigns" className="text-lg">
+                  Campaigns
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="text-lg" />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="text-lg ">
+                <div className="flex items-center gap-2">
+                  <div className="max-w-[300px] truncate">{campaign.name}</div>
+                  <CampaignStatusBadge status={campaign.status} />
                 </div>
-                {card.status !== "total" ? (
-                  <div className="text-sm pb-1">
-                    {card.percentage.toFixed(1)}%
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        {campaign.status === "SCHEDULED" ? (
+          <Link href={`/campaigns/${campaign.id}/edit`}>
+            <Button>Edit</Button>
+          </Link>
+        ) : (
+          <TogglePauseCampaign campaign={campaign} mode="full" />
+        )}
+      </div>
+
+      <div className="mt-10">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-sm font-mono">Statistics</CardTitle>
+                {total > 0 ? (
+                  <div className="text-sm text-muted-foreground font-mono">
+                    {processed.toLocaleString()} of {total.toLocaleString()}{" "}
+                    processed
                   </div>
-                ) : null}
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    No recipients processed yet
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {statisticsRows.map((row, index) => (
+                <div
+                  key={row.status}
+                  className={`flex items-center justify-between gap-4 px-0 pb-3 ${
+                    index !== statisticsRows.length - 1
+                      ? "border-b border-dashed border-border"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CampaignStatusIndicator status={row.status} />
+                    <div>
+                      <div className="text-sm capitalize">{row.status}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-mono">{row.count}</div>
+                    {row.status !== "delivered" ? (
+                      <div className="text-xs text-muted-foreground">
+                        {row.percentage.toFixed(1)}% of delivered
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex gap-2">
+              <CardTitle className="text-sm font-mono">Live activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex h-[300px] flex-col">
+                {latestEmailsLoading ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <Spinner className="h-5 w-5 text-foreground" />
+                  </div>
+                ) : !latestEmails || latestEmails.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <div className="rounded   text-sm text-muted-foreground">
+                      No recent user actions yet.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 overflow-y-auto overscroll-y-contain pr-1 no-scrollbar">
+                    <AnimatePresence initial={true}>
+                      {latestEmails.map((email) => {
+                        const recipients = email.to ?? [];
+                        const primaryRecipient =
+                          recipients.length > 0
+                            ? recipients[0]
+                            : "Unknown recipient";
+                        const timestamp =
+                          email.latestStatus === "SCHEDULED" &&
+                          email.scheduledAt
+                            ? new Date(email.scheduledAt)
+                            : new Date(email.updatedAt ?? email.createdAt);
+                        const relativeTime = formatDistanceToNow(timestamp, {
+                          addSuffix: true,
+                        });
+
+                        return (
+                          <motion.div
+                            key={email.id}
+                            layout
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -12 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className="flex flex-col gap-2 border-b pb-4 last:border-b-0 last:pb-0"
+                          >
+                            <div className="text-sm font-mono">
+                              {primaryRecipient}
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <EmailStatusBadge status={email.latestStatus} />
+                              <span className="whitespace-nowrap text-xs text-muted-foreground font-mono">
+                                {relativeTime}
+                              </span>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -146,43 +283,29 @@ export default function CampaignDetailsPage({
   );
 }
 
-const CampaignStatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  let outsideColor = "bg-gray";
-  let insideColor = "bg-gray/50";
+const CampaignStatusIndicator: React.FC<{ status: string }> = ({ status }) => {
+  let colorClass = "bg-gray";
 
   switch (status) {
     case "delivered":
-      outsideColor = "bg-green/30";
-      insideColor = "bg-green";
+      colorClass = "bg-green";
       break;
     case "bounced":
     case "unsubscribed":
-      outsideColor = "bg-red/30";
-      insideColor = "bg-red";
+      colorClass = "bg-red";
       break;
     case "clicked":
-      outsideColor = "bg-blue/30";
-      insideColor = "bg-blue";
+      colorClass = "bg-blue";
       break;
     case "opened":
-      outsideColor = "bg-purple/30";
-      insideColor = "bg-purple";
+      colorClass = "bg-purple";
       break;
-
     case "complained":
-      outsideColor = "bg-yellow/30";
-      insideColor = "bg-yellow";
+      colorClass = "bg-yellow";
       break;
     default:
-      outsideColor = "bg-gray/40";
-      insideColor = "bg-gray";
+      colorClass = "bg-gray";
   }
 
-  return (
-    <div
-      className={`flex justify-center items-center p-1.5 ${outsideColor} rounded-full`}
-    >
-      <div className={`h-2 w-2 rounded-full ${insideColor}`}></div>
-    </div>
-  );
+  return <div className={`h-2.5 w-2.5 rounded-[2px] ${colorClass}`} />;
 };
