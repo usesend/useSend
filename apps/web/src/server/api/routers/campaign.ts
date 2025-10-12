@@ -194,6 +194,33 @@ export const campaignRouter = createTRPCRouter({
     };
   }),
 
+  latestEmails: campaignProcedure.query(
+    async ({ ctx: { db, team, campaign } }) => {
+      const emails = await db.email.findMany({
+        where: {
+          teamId: team.id,
+          campaignId: campaign.id,
+        },
+        orderBy: [
+          { updatedAt: "desc" },
+          { createdAt: "desc" },
+        ],
+        take: 10,
+        select: {
+          id: true,
+          subject: true,
+          to: true,
+          latestStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          scheduledAt: true,
+        },
+      });
+
+      return emails;
+    }
+  ),
+
   reSubscribeContact: publicProcedure
     .input(
       z.object({

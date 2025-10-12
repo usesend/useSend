@@ -4,6 +4,12 @@ import { CampaignStatus } from "@prisma/client";
 import { format } from "date-fns";
 import Link from "next/link";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@usesend/ui/src/tooltip";
 import DeleteCampaign from "./delete-campaign";
 import DuplicateCampaign from "./duplicate-campaign";
 import TogglePauseCampaign from "./toggle-pause-campaign";
@@ -60,22 +66,26 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
                 </div>
               )
             ) : campaign.status === CampaignStatus.SENT ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <span>
-                  Delivered <strong>{campaign.delivered}</strong>
+                  Delivered <strong>{campaign.delivered},</strong>
                 </span>
+                {/* <span className="text-muted-foreground/50 text-opacity-20">
+                  |
+                </span> */}
                 <span>
-                  • Unsubscribed <strong>{campaign.unsubscribed}</strong>
+                  Unsubscribed <strong>{campaign.unsubscribed}</strong>
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <span>
-                  Sent <strong>{campaign.sent}</strong>
+                  Sent <strong>{campaign.sent},</strong>
                 </span>
+
                 {pendingCount > 0 && (
                   <span>
-                    • Pending <strong>{pendingCount}</strong>
+                    Pending <strong>{pendingCount}</strong>
                   </span>
                 )}
               </div>
@@ -86,15 +96,46 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
         <CampaignStatusBadge status={campaign.status} />
 
         {/* Actions */}
-        <div className="flex gap-4 items-center justify-end w-[150px]">
-          {(campaign.status === CampaignStatus.SCHEDULED ||
-            campaign.status === CampaignStatus.RUNNING ||
-            campaign.status === CampaignStatus.PAUSED) && (
-            <TogglePauseCampaign campaign={campaign} />
-          )}
-          <DuplicateCampaign campaign={campaign} />
-          <DeleteCampaign campaign={campaign} />
-        </div>
+        <TooltipProvider>
+          <div className="flex gap-4 items-center justify-end w-[150px]">
+            {(campaign.status === CampaignStatus.SCHEDULED ||
+              campaign.status === CampaignStatus.RUNNING ||
+              campaign.status === CampaignStatus.PAUSED) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <TogglePauseCampaign campaign={campaign} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">
+                  {campaign.status === CampaignStatus.PAUSED
+                    ? "Resume campaign"
+                    : "Pause campaign"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <DuplicateCampaign campaign={campaign} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                Duplicate campaign
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <DeleteCampaign campaign={campaign} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                Delete campaign
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       {/* Scheduled date for scheduled campaigns */}
