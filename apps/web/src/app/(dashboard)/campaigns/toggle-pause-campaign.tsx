@@ -9,7 +9,8 @@ import { toast } from "@usesend/ui/src/toaster";
 
 export const TogglePauseCampaign: React.FC<{
   campaign: Partial<Campaign> & { id: string; status?: CampaignStatus };
-}> = ({ campaign }) => {
+  mode?: "icon" | "full";
+}> = ({ campaign, mode = "icon" }) => {
   const utils = api.useUtils();
   const pauseMutation = api.campaign.pauseCampaign.useMutation();
   const resumeMutation = api.campaign.resumeCampaign.useMutation();
@@ -23,6 +24,7 @@ export const TogglePauseCampaign: React.FC<{
         {
           onSuccess: () => {
             utils.campaign.getCampaigns.invalidate();
+            utils.campaign.getCampaign.invalidate();
             toast.success("Campaign resumed");
           },
         }
@@ -33,6 +35,7 @@ export const TogglePauseCampaign: React.FC<{
         {
           onSuccess: () => {
             utils.campaign.getCampaigns.invalidate();
+            utils.campaign.getCampaign.invalidate();
             toast.success("Campaign paused");
           },
         }
@@ -42,23 +45,53 @@ export const TogglePauseCampaign: React.FC<{
 
   const pending = pauseMutation.isPending || resumeMutation.isPending;
 
+  if (
+    campaign.status !== CampaignStatus.PAUSED &&
+    campaign.status !== CampaignStatus.RUNNING
+  ) {
+    return null;
+  }
+
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="p-0 hover:bg-transparent"
-      onClick={onToggle}
-      disabled={pending}
-      title={isPaused ? "Resume" : "Pause"}
-    >
-      {isPaused ? (
-        <Play className="h-[18px] w-[18px] text-green/80" />
+    <>
+      {mode === "icon" ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="p-0 hover:bg-transparent"
+          onClick={onToggle}
+          disabled={pending}
+          title={isPaused ? "Resume" : "Pause"}
+        >
+          {isPaused ? (
+            <Play className="h-[18px] w-[18px] text-green/80" />
+          ) : (
+            <Pause className="h-[18px] w-[18px] text-orange/80" />
+          )}
+        </Button>
       ) : (
-        <Pause className="h-[18px] w-[18px] text-orange/80" />
+        <Button
+          variant="default"
+          className="gap-2 border-primary"
+          onClick={onToggle}
+          disabled={pending}
+          title={isPaused ? "Resume" : "Pause"}
+        >
+          {isPaused ? (
+            <>
+              <Play className="h-[18px] w-[18px]" />
+              <span>Resume</span>
+            </>
+          ) : (
+            <>
+              <Pause className="h-[18px] w-[18px] " />
+              <span>Pause</span>
+            </>
+          )}
+        </Button>
       )}
-    </Button>
+    </>
   );
 };
 
 export default TogglePauseCampaign;
-

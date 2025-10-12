@@ -32,7 +32,9 @@ export const ScheduleCampaign: React.FC<{
     : null;
   const [open, setOpen] = useState(false);
   const [scheduleInput, setScheduleInput] = useState<string>(
-    initialScheduledAtDate ? format(initialScheduledAtDate, "yyyy-MM-dd HH:mm") : ""
+    initialScheduledAtDate
+      ? format(initialScheduledAtDate, "yyyy-MM-dd HH:mm")
+      : ""
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(
     initialScheduledAtDate ?? new Date()
@@ -199,10 +201,10 @@ export const ScheduleCampaign: React.FC<{
                         onSelect={(d) => {
                           if (d) setDatePreserveTime(d);
                         }}
-                        className="rounded-md border w-[250px] h-[300px]  shrink-0"
+                        className="rounded-md border w-[250px] h-[300px]  shrink-0 font-mono"
                       />
                       <div
-                        className="h-[300px] overflow-y-auto no-scrollbar overscroll-contain rounded-md border p-1 w-[140px] min-h-0"
+                        className="h-[300px] overflow-y-auto no-scrollbar overscroll-contain rounded-md border p-1 w-[140px] min-h-0 font-mono"
                         onWheelCapture={(e) => {
                           e.stopPropagation();
                         }}

@@ -28,7 +28,7 @@ export async function register() {
     const { CampaignSchedulerService } = await import(
       "~/server/jobs/campaign-scheduler-job"
     );
-    await CampaignSchedulerService.ensureRepeatable();
+    await CampaignSchedulerService.start();
 
     initialized = true;
   }

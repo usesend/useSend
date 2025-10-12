@@ -11,11 +11,7 @@ import {
 } from "~/server/api/trpc";
 import { logger } from "~/server/logger/log";
 import { nanoid } from "~/server/nanoid";
-import {
-  subscribeContact,
-  scheduleCampaign as scheduleCampaignService,
-  deleteCampaign,
-} from "~/server/service/campaign-service";
+import * as campaignService from "~/server/service/campaign-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
 import {
   getDocumentUploadUrl,
@@ -30,10 +26,10 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         page: z.number().optional(),
         status: z.enum(statuses).optional().nullable(),
+        search: z.string().optional().nullable(),
       })
     )
     .query(async ({ ctx: { db, team }, input }) => {
-      let completeTime = performance.now();
       const page = input.page || 1;
       const limit = 30;
       const offset = (page - 1) * limit;
@@ -44,6 +40,23 @@ export const campaignRouter = createTRPCRouter({
 
       if (input.status) {
         whereConditions.status = input.status;
+      }
+
+      if (input.search) {
+        whereConditions.OR = [
+          {
+            name: {
+              contains: input.search,
+              mode: "insensitive",
+            },
+          },
+          {
+            subject: {
+              contains: input.search,
+              mode: "insensitive",
+            },
+          },
+        ];
       }
 
       const countP = db.campaign.count({ where: whereConditions });
@@ -58,6 +71,11 @@ export const campaignRouter = createTRPCRouter({
           createdAt: true,
           updatedAt: true,
           status: true,
+          scheduledAt: true,
+          total: true,
+          sent: true,
+          delivered: true,
+          unsubscribed: true,
         },
         orderBy: {
           createdAt: "desc",
@@ -65,19 +83,8 @@ export const campaignRouter = createTRPCRouter({
         skip: offset,
         take: limit,
       });
-      let time = performance.now();
-
-      campaignsP.then((campaigns) => {
-        logger.info(
-          `Time taken to get campaigns: ${performance.now() - time} milliseconds`
-        );
-      });
 
       const [campaigns, count] = await Promise.all([campaignsP, countP]);
-      logger.info(
-        { duration: performance.now() - completeTime },
-        `Time taken to complete request`
-      );
 
       return { campaigns, totalPage: Math.ceil(count / limit) };
     }),
@@ -157,7 +164,7 @@ export const campaignRouter = createTRPCRouter({
     }),
 
   deleteCampaign: campaignProcedure.mutation(async ({ input }) => {
-    return await deleteCampaign(input.campaignId);
+    return await campaignService.deleteCampaign(input.campaignId);
   }),
 
   getCampaign: campaignProcedure.query(async ({ ctx: { db, team }, input }) => {
@@ -174,21 +181,16 @@ export const campaignRouter = createTRPCRouter({
 
     const imageUploadSupported = isStorageConfigured();
 
-    const processed = await db.email.count({
-      where: { campaignId: input.campaignId },
-    });
-
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
         where: { id: campaign.contactBookId },
       });
-      return { ...campaign, contactBook, imageUploadSupported, processed };
+      return { ...campaign, contactBook, imageUploadSupported };
     }
     return {
       ...campaign,
       contactBook: null,
       imageUploadSupported,
-      processed,
     };
   }),
 
@@ -199,12 +201,12 @@ export const campaignRouter = createTRPCRouter({
         hash: z.string(),
       })
     )
-    .mutation(async ({ ctx: { db }, input }) => {
-      await subscribeContact(input.id, input.hash);
+    .mutation(async ({ input }) => {
+      await campaignService.subscribeContact(input.id, input.hash);
     }),
 
   duplicateCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, team, campaign }, input }) => {
+    async ({ ctx: { db, team, campaign } }) => {
       const newCampaign = await db.campaign.create({
         data: {
           name: `${campaign.name} (Copy)`,
@@ -230,7 +232,7 @@ export const campaignRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx: { team }, input }) => {
-      await scheduleCampaignService({
+      await campaignService.scheduleCampaign({
         campaignId: input.campaignId,
         teamId: team.id,
         scheduledAt: input.scheduledAt,
@@ -239,25 +241,21 @@ export const campaignRouter = createTRPCRouter({
       return { ok: true };
     }),
 
-  pauseCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, campaign } }) => {
-      await db.campaign.update({
-        where: { id: campaign.id },
-        data: { status: "PAUSED" },
-      });
-      return { ok: true };
-    }
-  ),
+  pauseCampaign: campaignProcedure.mutation(async ({ ctx: { campaign } }) => {
+    await campaignService.pauseCampaign({
+      campaignId: campaign.id,
+      teamId: campaign.teamId,
+    });
+    return { ok: true };
+  }),
 
-  resumeCampaign: campaignProcedure.mutation(
-    async ({ ctx: { db, campaign } }) => {
-      await db.campaign.update({
-        where: { id: campaign.id },
-        data: { status: "SCHEDULED" },
-      });
-      return { ok: true };
-    }
-  ),
+  resumeCampaign: campaignProcedure.mutation(async ({ ctx: { campaign } }) => {
+    await campaignService.resumeCampaign({
+      campaignId: campaign.id,
+      teamId: campaign.teamId,
+    });
+    return { ok: true };
+  }),
 
   generateImagePresignedUrl: campaignProcedure
     .input(

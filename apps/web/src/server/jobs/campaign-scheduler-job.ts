@@ -18,7 +18,7 @@ export class CampaignSchedulerService {
     CAMPAIGN_SCHEDULER_QUEUE,
     {
       connection: getRedis(),
-    },
+    }
   );
 
   static worker = new Worker(
@@ -49,7 +49,7 @@ export class CampaignSchedulerService {
               const remainingMs = windowMs - elapsedMs;
               logger.debug(
                 { campaignId: c.id, remainingMs, windowMs },
-                "Skip queueing batch; window not elapsed",
+                "Skip queueing batch; window not elapsed"
               );
               continue;
             }
@@ -61,31 +61,31 @@ export class CampaignSchedulerService {
             }).catch((err) => {
               logger.error(
                 { err, campaignId: c.id },
-                "Failed to enqueue campaign batch",
+                "Failed to enqueue campaign batch"
               );
-            }),
+            })
           );
         }
 
         if (enqueuePromises.length > 0) {
           const results = await Promise.allSettled(enqueuePromises);
           const rejected = results.filter(
-            (r) => r.status === "rejected",
+            (r) => r.status === "rejected"
           ).length;
           const fulfilled = results.length - rejected;
           logger.debug(
             { total: results.length, fulfilled, rejected },
-            "Scheduler enqueue summary",
+            "Scheduler enqueue summary"
           );
         }
       } catch (err) {
         logger.error({ err }, "Campaign scheduler tick failed");
       }
     }),
-    { connection: getRedis(), concurrency: 1 },
+    { connection: getRedis(), concurrency: 1 }
   );
 
-  static async ensureRepeatable() {
+  static async start() {
     try {
       await this.schedulerQueue.add(
         "tick",
@@ -94,11 +94,11 @@ export class CampaignSchedulerService {
           jobId: "campaign-scheduler",
           repeat: { every: SCHEDULER_TICK_MS },
           ...DEFAULT_QUEUE_OPTIONS,
-        },
+        }
       );
     } catch (err) {
       // Adding the same repeatable job is idempotent; ignore job-exists errors
-      logger.info({ err }, "Scheduler ensureRepeatable attempted");
+      logger.info({ err }, "Scheduler start attempted");
     }
   }
 }

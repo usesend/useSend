@@ -199,6 +199,65 @@ export async function scheduleCampaign({
   return { ok: true };
 }
 
+export async function pauseCampaign({
+  campaignId,
+  teamId,
+}: {
+  campaignId: string;
+  teamId: number;
+}) {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId, teamId },
+  });
+
+  if (!campaign) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
+  await db.campaign.update({
+    where: { id: campaignId },
+    data: { status: "PAUSED" },
+  });
+
+  return { ok: true };
+}
+
+export async function resumeCampaign({
+  campaignId,
+  teamId,
+}: {
+  campaignId: string;
+  teamId: number;
+}) {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId, teamId },
+  });
+
+  if (!campaign) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
+  if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
+    await db.campaign.update({
+      where: { id: campaignId },
+      data: { status: "SCHEDULED" },
+    });
+  } else {
+    await db.campaign.update({
+      where: { id: campaignId },
+      data: { status: "RUNNING" },
+    });
+  }
+
+  return { ok: true };
+}
+
 export function createUnsubUrl(contactId: string, campaignId: string) {
   const unsubId = `${contactId}-${campaignId}`;
 
