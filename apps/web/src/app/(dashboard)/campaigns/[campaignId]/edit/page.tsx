@@ -42,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@usesend/ui/src/accordion";
 import ScheduleCampaign from "../../schedule-campaign";
+import { useRouter } from "next/navigation";
 
 const sendSchema = z.object({
   confirmation: z.string(),
@@ -95,6 +96,7 @@ function CampaignEditor({
 }: {
   campaign: Campaign & { imageUploadSupported: boolean };
 }) {
+  const router = useRouter();
   const contactBooksQuery = api.contacts.getContactBooks.useQuery({});
   const utils = api.useUtils();
 
@@ -203,7 +205,12 @@ function CampaignEditor({
                 : `${formatDistanceToNow(campaign.updatedAt)} ago`}
             </div>
 
-            <ScheduleCampaign campaign={campaign} />
+            <ScheduleCampaign
+              campaign={campaign}
+              onScheduled={() => {
+                router.push(`/campaigns/${campaign.id}`);
+              }}
+            />
           </div>
         </div>
 

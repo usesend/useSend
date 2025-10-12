@@ -26,7 +26,8 @@ import { Spinner } from "@usesend/ui/src/spinner";
 
 export const ScheduleCampaign: React.FC<{
   campaign: Partial<Campaign> & { id: string };
-}> = ({ campaign }) => {
+  onScheduled?: () => void;
+}> = ({ campaign, onScheduled }) => {
   const initialScheduledAtDate = campaign.scheduledAt
     ? new Date(campaign.scheduledAt)
     : null;
@@ -80,6 +81,7 @@ export const ScheduleCampaign: React.FC<{
           setIsConfirmNow(false);
           setError(null);
           toast.success("Campaign scheduled");
+          onScheduled?.();
         },
         onError: (error) => {
           setError(error.message || "Failed to schedule campaign");
@@ -264,7 +266,7 @@ export const ScheduleCampaign: React.FC<{
                   <Button
                     size="sm"
                     onClick={() => {
-                      onSchedule(new Date());
+                      onSchedule();
                     }}
                     disabled={scheduleMutation.isPending}
                   >

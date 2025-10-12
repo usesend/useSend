@@ -193,9 +193,8 @@ export default function CampaignDetailsPage({
                   </div>
                 ) : !latestEmails || latestEmails.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center">
-                    <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
-                      No recent user actions yet. This section updates
-                      automatically.
+                    <div className="rounded   text-sm text-muted-foreground">
+                      No recent user actions yet.
                     </div>
                   </div>
                 ) : (
