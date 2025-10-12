@@ -266,7 +266,7 @@ export const ScheduleCampaign: React.FC<{
                   <Button
                     size="sm"
                     onClick={() => {
-                      onSchedule();
+                      onSchedule(new Date());
                     }}
                     disabled={scheduleMutation.isPending}
                   >
