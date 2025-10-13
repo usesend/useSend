@@ -243,6 +243,18 @@ export async function createCampaignFromApi({
   const sanitizedHtml = html?.trim();
   const sanitizedContent = content ?? null;
 
+  const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
+    sanitizedContent,
+    sanitizedHtml
+  );
+
+  if (!unsubPlaceholderFound) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Campaign must include an unsubscribe link before sending",
+    });
+  }
+
   const campaign = await db.campaign.create({
     data: {
       name,

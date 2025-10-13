@@ -18,7 +18,11 @@ export const campaignCreateSchema = z
     cc: stringOrStringArray.optional(),
     bcc: stringOrStringArray.optional(),
     sendNow: z.boolean().optional(),
-    scheduledAt: z.string().datetime({ offset: true }).optional(),
+    scheduledAt: z
+      .string()
+      .datetime()
+      .optional()
+      .describe("Timestamp in ISO 8601 format"),
     batchSize: z.number().int().min(1).max(100_000).optional(),
   })
   .refine(
