@@ -4,6 +4,7 @@ import {
   campaignScheduleSchema,
   CampaignScheduleInput,
   campaignResponseSchema,
+  parseScheduledAt,
 } from "~/server/public-api/schemas/campaign-schema";
 import {
   getCampaignForTeam,
@@ -57,7 +58,7 @@ function scheduleCampaign(app: PublicAPIApp) {
     await scheduleCampaignService({
       campaignId,
       teamId: team.id,
-      scheduledAt: body.scheduledAt,
+      scheduledAt: parseScheduledAt(body.scheduledAt),
       batchSize: body.batchSize,
     });
 

@@ -260,6 +260,7 @@ export async function createCampaignFromApi({
       name,
       from,
       subject,
+      isApi: true,
       ...(previewText !== undefined ? { previewText } : {}),
       content: sanitizedContent,
       ...(sanitizedHtml && sanitizedHtml.length > 0

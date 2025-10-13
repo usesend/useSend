@@ -365,6 +365,7 @@ model Campaign {
   bounced            Int            @default(0)
   hardBounced        Int            @default(0)
   complained         Int            @default(0)
+  isApi              Boolean        @default(false)
   status             CampaignStatus @default(DRAFT)
   batchSize          Int            @default(500)
   batchWindowMinutes Int            @default(0)

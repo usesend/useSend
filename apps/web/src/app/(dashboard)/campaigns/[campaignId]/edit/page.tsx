@@ -97,6 +97,7 @@ function CampaignEditor({
   campaign: Campaign & { imageUploadSupported: boolean };
 }) {
   const router = useRouter();
+  const isApiCampaign = campaign.isApi;
   const contactBooksQuery = api.contacts.getContactBooks.useQuery({});
   const utils = api.useUtils();
 
@@ -124,6 +125,9 @@ function CampaignEditor({
   const getUploadUrl = api.campaign.generateImagePresignedUrl.useMutation();
 
   function updateEditorContent() {
+    if (isApiCampaign) {
+      return;
+    }
     updateCampaignMutation.mutate({
       campaignId: campaign.id,
       content: JSON.stringify(json),
@@ -175,7 +179,12 @@ function CampaignEditor({
             value={name}
             onChange={(e) => setName(e.target.value)}
             className=" border-0 focus:ring-0 focus:outline-none px-0.5 w-[300px]"
+            disabled={isApiCampaign}
+            readOnly={isApiCampaign}
             onBlur={() => {
+              if (isApiCampaign) {
+                return;
+              }
               if (name === campaign.name || !name) {
                 return;
               }
@@ -228,6 +237,9 @@ function CampaignEditor({
                     setSubject(e.target.value);
                   }}
                   onBlur={() => {
+                    if (isApiCampaign) {
+                      return;
+                    }
                     if (subject === campaign.subject || !subject) {
                       return;
                     }
@@ -245,6 +257,8 @@ function CampaignEditor({
                     );
                   }}
                   className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent  focus:border-border bg-transparent"
+                  disabled={isApiCampaign}
+                  readOnly={isApiCampaign}
                 />
                 <AccordionTrigger className="py-0"></AccordionTrigger>
               </div>
@@ -263,6 +277,9 @@ function CampaignEditor({
                     className="mt-1 py-1 w-full text-sm outline-none border-b border-transparent  focus:border-border bg-transparent"
                     placeholder="Friendly name<hello@example.com>"
                     onBlur={() => {
+                      if (isApiCampaign) {
+                        return;
+                      }
                       if (from === campaign.from || !from) {
                         return;
                       }
@@ -279,6 +296,8 @@ function CampaignEditor({
                         }
                       );
                     }}
+                    disabled={isApiCampaign}
+                    readOnly={isApiCampaign}
                   />
                 </div>
                 <div className="flex items-center gap-4">
@@ -294,6 +313,9 @@ function CampaignEditor({
                     className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent bg-transparent focus:border-border"
                     placeholder="hello@example.com"
                     onBlur={() => {
+                      if (isApiCampaign) {
+                        return;
+                      }
                       if (replyTo === campaign.replyTo[0]) {
                         return;
                       }
@@ -310,6 +332,8 @@ function CampaignEditor({
                         }
                       );
                     }}
+                    disabled={isApiCampaign}
+                    readOnly={isApiCampaign}
                   />
                 </div>
 
@@ -324,6 +348,9 @@ function CampaignEditor({
                       setPreviewText(e.target.value);
                     }}
                     onBlur={() => {
+                      if (isApiCampaign) {
+                        return;
+                      }
                       if (
                         previewText === campaign.previewText ||
                         !previewText
@@ -344,6 +371,8 @@ function CampaignEditor({
                       );
                     }}
                     className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent bg-transparent  focus:border-border"
+                    disabled={isApiCampaign}
+                    readOnly={isApiCampaign}
                   />
                 </div>
                 <div className=" flex items-center gap-2">
@@ -355,7 +384,11 @@ function CampaignEditor({
                   ) : (
                     <Select
                       value={contactBookId ?? ""}
+                      disabled={isApiCampaign}
                       onValueChange={(val) => {
+                        if (isApiCampaign) {
+                          return;
+                        }
                         // Update the campaign's contactBookId
                         updateCampaignMutation.mutate(
                           {
@@ -395,22 +428,29 @@ function CampaignEditor({
           </AccordionItem>
         </Accordion>
 
-        <div className=" rounded-lg bg-gray-50 w-[700px] mx-auto p-10">
-          <div className="w-[600px] mx-auto">
-            <Editor
-              initialContent={json}
-              onUpdate={(content) => {
-                setJson(content.getJSON());
-                setIsSaving(true);
-                deboucedUpdateCampaign();
-              }}
-              variables={["email", "firstName", "lastName"]}
-              uploadImage={
-                campaign.imageUploadSupported ? handleFileChange : undefined
-              }
-            />
+        {isApiCampaign ? (
+          <p className="text-sm text-center text-muted-foreground">
+            Email created from API. Campaign content can only be updated via
+            API.
+          </p>
+        ) : (
+          <div className=" rounded-lg bg-gray-50 w-[700px] mx-auto p-10">
+            <div className="w-[600px] mx-auto">
+              <Editor
+                initialContent={json}
+                onUpdate={(content) => {
+                  setJson(content.getJSON());
+                  setIsSaving(true);
+                  deboucedUpdateCampaign();
+                }}
+                variables={["email", "firstName", "lastName"]}
+                uploadImage={
+                  campaign.imageUploadSupported ? handleFileChange : undefined
+                }
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

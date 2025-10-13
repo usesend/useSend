@@ -4,6 +4,7 @@ import {
   campaignCreateSchema,
   CampaignCreateInput,
   campaignResponseSchema,
+  parseScheduledAt,
 } from "~/server/public-api/schemas/campaign-schema";
 import {
   createCampaignFromApi,
@@ -57,7 +58,9 @@ function createCampaign(app: PublicAPIApp) {
     });
 
     if (body.sendNow || body.scheduledAt) {
-      const scheduledAtInput = body.sendNow ? new Date() : body.scheduledAt;
+      const scheduledAtInput = body.sendNow
+        ? new Date()
+        : parseScheduledAt(body.scheduledAt);
 
       await scheduleCampaign({
         campaignId: campaign.id,

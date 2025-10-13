@@ -4,7 +4,10 @@ import {
   getCampaignForTeam,
   resumeCampaign as resumeCampaignService,
 } from "~/server/service/campaign-service";
-import { campaignResponseSchema } from "~/server/public-api/schemas/campaign-schema";
+import {
+  campaignResponseSchema,
+  parseScheduledAt,
+} from "~/server/public-api/schemas/campaign-schema";
 
 const route = createRoute({
   method: "post",

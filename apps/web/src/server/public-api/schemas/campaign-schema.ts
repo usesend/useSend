@@ -1,9 +1,32 @@
 import { z } from "@hono/zod-openapi";
+import * as chrono from "chrono-node";
+import { UnsendApiError } from "../api-error";
 
 const stringOrStringArray = z.union([
   z.string().min(1),
   z.array(z.string().min(1)),
 ]);
+
+export const parseScheduledAt = (scheduledAt?: string): Date | undefined => {
+  if (!scheduledAt) return undefined;
+
+  // Try parsing as ISO date first
+  const isoDate = new Date(scheduledAt);
+  if (!isNaN(isoDate.getTime())) {
+    return isoDate;
+  }
+
+  // Try parsing with chrono for natural language
+  const chronoDate = chrono.parseDate(scheduledAt);
+  if (chronoDate) {
+    return chronoDate;
+  }
+
+  throw new UnsendApiError({
+    code: "BAD_REQUEST",
+    message: `Invalid date format: ${scheduledAt}. Use ISO 8601 format or natural language like 'tomorrow 9am'.`,
+  });
+};
 
 export const campaignCreateSchema = z
   .object({
@@ -20,9 +43,10 @@ export const campaignCreateSchema = z
     sendNow: z.boolean().optional(),
     scheduledAt: z
       .string()
-      .datetime()
       .optional()
-      .describe("Timestamp in ISO 8601 format"),
+      .describe(
+        "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+      ),
     batchSize: z.number().int().min(1).max(100_000).optional(),
   })
   .refine(
@@ -31,7 +55,12 @@ export const campaignCreateSchema = z
   );
 
 export const campaignScheduleSchema = z.object({
-  scheduledAt: z.string().datetime({ offset: true }).optional(),
+  scheduledAt: z
+    .string()
+    .optional()
+    .describe(
+      "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+    ),
   batchSize: z.number().int().min(1).max(100_000).optional(),
 });
 
