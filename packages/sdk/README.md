@@ -49,3 +49,38 @@ usesend.emails.send({
   text: "useSend is the best open source product to send emails",
 });
 ```
+
+## Campaigns
+
+Create and manage email campaigns:
+
+```javascript
+import { UseSend } from "usesend";
+
+const usesend = new UseSend("us_12345");
+
+// Create a campaign
+const campaign = await usesend.campaigns.create({
+  name: "Welcome Series",
+  from: "hello@company.com",
+  subject: "Welcome to our platform!",
+  contactBookId: "cb_12345",
+  html: "<h1>Welcome!</h1><p>Thanks for joining us.</p>",
+  sendNow: false,
+});
+
+// Schedule a campaign
+await usesend.campaigns.schedule(campaign.data.id, {
+  scheduledAt: "2024-12-01T09:00:00Z",
+  batchSize: 1000,
+});
+
+// Get campaign details
+const details = await usesend.campaigns.get(campaign.data.id);
+
+// Pause a campaign
+await usesend.campaigns.pause(campaign.data.id);
+
+// Resume a campaign
+await usesend.campaigns.resume(campaign.data.id);
+```

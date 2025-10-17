@@ -37,6 +37,29 @@ resp, _ = client.emails.send(payload={
     "html": "<strong>Hi!</strong>",
 })
 
+# 3) Campaigns
+campaign_payload: types.CampaignCreate = {
+    "name": "Welcome Series",
+    "subject": "Welcome to our service!",
+    "html": "<p>Thanks for joining us!</p>",
+    "from": "welcome@example.com",
+    "to": "user@example.com",
+}
+campaign_resp, _ = client.campaigns.create(payload=campaign_payload)
+
+# Schedule a campaign
+schedule_payload: types.CampaignSchedule = {
+    "scheduledAt": "2024-12-01T10:00:00Z",
+}
+schedule_resp, _ = client.campaigns.schedule(
+    campaign_id=campaign_resp["campaign"]["id"],
+    payload=schedule_payload
+)
+
+# Pause/resume campaigns
+client.campaigns.pause(campaign_id="campaign_123")
+client.campaigns.resume(campaign_id="campaign_123")
+
 # Toggle behavior if desired:
 # - raise_on_error=False: return (None, error_dict) instead of raising
 # No model parsing occurs; methods return plain dicts following the typed shapes.
@@ -55,7 +78,14 @@ This package is managed with Poetry. Models are maintained in-repo under
 
 It is published as `usesend` on PyPI.
 
+## Available Resources
+
+- **Emails**: `client.emails.send()`, `client.emails.get()`
+- **Contacts**: `client.contacts.create()`, `client.contacts.get()`, `client.contacts.list()`
+- **Domains**: `client.domains.create()`, `client.domains.get()`, `client.domains.verify()`
+- **Campaigns**: `client.campaigns.create()`, `client.campaigns.get()`, `client.campaigns.schedule()`, `client.campaigns.pause()`, `client.campaigns.resume()`
+
 Notes
 
-- Human-friendly models are available under `usesend.types` (e.g., `EmailCreate`, `Contact`, `APIError`).
+- Human-friendly models are available under `usesend.types` (e.g., `EmailCreate`, `CampaignCreate`, `Contact`, `APIError`).
 - Endpoint methods accept TypedDict payloads or plain dicts via the `payload=` keyword.

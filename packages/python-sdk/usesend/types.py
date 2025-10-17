@@ -336,6 +336,109 @@ class ContactDeleteResponse(TypedDict):
 
 
 # ---------------------------------------------------------------------------
+# Campaigns
+# ---------------------------------------------------------------------------
+
+Campaign = TypedDict(
+    'Campaign',
+    {
+        'id': str,
+        'name': str,
+        'from': str,
+        'subject': str,
+        'previewText': Optional[str],
+        'contactBookId': Optional[str],
+        'html': Optional[str],
+        'content': Optional[str],
+        'status': str,
+        'scheduledAt': Optional[str],
+        'batchSize': int,
+        'batchWindowMinutes': int,
+        'total': int,
+        'sent': int,
+        'delivered': int,
+        'opened': int,
+        'clicked': int,
+        'unsubscribed': int,
+        'bounced': int,
+        'hardBounced': int,
+        'complained': int,
+        'replyTo': List[str],
+        'cc': List[str],
+        'bcc': List[str],
+        'createdAt': str,
+        'updatedAt': str,
+    }
+)
+
+
+CampaignCreate = TypedDict(
+    'CampaignCreate',
+    {
+        'name': Required[str],
+        'from': Required[str],
+        'subject': Required[str],
+        'previewText': NotRequired[str],
+        'contactBookId': Required[str],
+        'content': NotRequired[str],
+        'html': NotRequired[str],
+        'replyTo': NotRequired[Union[str, List[str]]],
+        'cc': NotRequired[Union[str, List[str]]],
+        'bcc': NotRequired[Union[str, List[str]]],
+        'sendNow': NotRequired[bool],
+        'scheduledAt': NotRequired[str],
+        'batchSize': NotRequired[int],
+    }
+)
+
+
+CampaignCreateResponse = TypedDict(
+    'CampaignCreateResponse',
+    {
+        'id': str,
+        'name': str,
+        'from': str,
+        'subject': str,
+        'previewText': Optional[str],
+        'contactBookId': Optional[str],
+        'html': Optional[str],
+        'content': Optional[str],
+        'status': str,
+        'scheduledAt': Optional[str],
+        'batchSize': int,
+        'batchWindowMinutes': int,
+        'total': int,
+        'sent': int,
+        'delivered': int,
+        'opened': int,
+        'clicked': int,
+        'unsubscribed': int,
+        'bounced': int,
+        'hardBounced': int,
+        'complained': int,
+        'replyTo': List[str],
+        'cc': List[str],
+        'bcc': List[str],
+        'createdAt': str,
+        'updatedAt': str,
+    }
+)
+
+
+class CampaignSchedule(TypedDict, total=False):
+    scheduledAt: Optional[str]
+    batchSize: Optional[int]
+
+
+class CampaignScheduleResponse(TypedDict, total=False):
+    success: bool
+
+
+class CampaignActionResponse(TypedDict, total=False):
+    success: bool
+
+
+# ---------------------------------------------------------------------------
 # Common
 # ---------------------------------------------------------------------------
 
