@@ -47,11 +47,6 @@ function pauseCampaign(app: PublicAPIApp) {
       teamId: team.id,
     });
 
-    await getCampaignForTeam({
-      campaignId,
-      teamId: team.id,
-    });
-
     return c.json({ success: true });
   });
 }

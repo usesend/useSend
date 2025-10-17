@@ -125,7 +125,8 @@ export const campaignRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx: { db, team, campaign: campaignOld }, input }) => {
-      const { campaignId, html: htmlInput, ...data } = input;
+      const { html: htmlInput, ...data } = input;
+      const campaignId = campaignOld.id;
       if (data.contactBookId) {
         const contactBook = await db.contactBook.findUnique({
           where: { id: data.contactBookId },
@@ -209,10 +210,7 @@ export const campaignRouter = createTRPCRouter({
           teamId: team.id,
           campaignId: campaign.id,
         },
-        orderBy: [
-          { updatedAt: "desc" },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
         take: 10,
         select: {
           id: true,

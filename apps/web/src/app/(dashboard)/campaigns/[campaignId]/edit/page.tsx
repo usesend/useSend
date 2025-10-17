@@ -146,8 +146,6 @@ function CampaignEditor({
       );
     }
 
-    console.log("file type: ", file.type);
-
     const { uploadUrl, imageUrl } = await getUploadUrl.mutateAsync({
       name: file.name,
       type: file.type,

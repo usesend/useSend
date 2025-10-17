@@ -62,11 +62,6 @@ function scheduleCampaign(app: PublicAPIApp) {
       batchSize: body.batchSize,
     });
 
-    await getCampaignForTeam({
-      campaignId,
-      teamId: team.id,
-    });
-
     return c.json({ success: true });
   });
 }
