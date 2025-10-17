@@ -72,6 +72,7 @@ class UseSend:
         self.emails = Emails(self)
         self.contacts = Contacts(self)
         self.domains = Domains(self)
+        self.campaigns = Campaigns(self)
 
     # ------------------------------------------------------------------
     # Internal request helper
@@ -125,3 +126,4 @@ class UseSend:
 from .emails import Emails  # noqa: E402  pylint: disable=wrong-import-position
 from .contacts import Contacts  # noqa: E402  pylint: disable=wrong-import-position
 from .domains import Domains  # type: ignore  # noqa: E402
+from .campaigns import Campaigns  # type: ignore  # noqa: E402

@@ -959,6 +959,282 @@ export interface paths {
         };
         trace?: never;
     };
+    "/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        from: string;
+                        subject: string;
+                        previewText?: string;
+                        contactBookId: string;
+                        content?: string;
+                        html?: string;
+                        replyTo?: string | string[];
+                        cc?: string | string[];
+                        bcc?: string | string[];
+                        sendNow?: boolean;
+                        /** @description Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30') */
+                        scheduledAt?: string;
+                        batchSize?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Create a campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            from: string;
+                            subject: string;
+                            previewText: string | null;
+                            contactBookId: string | null;
+                            html: string | null;
+                            content: string | null;
+                            status: string;
+                            /** Format: date-time */
+                            scheduledAt: string | null;
+                            batchSize: number;
+                            batchWindowMinutes: number;
+                            total: number;
+                            sent: number;
+                            delivered: number;
+                            opened: number;
+                            clicked: number;
+                            unsubscribed: number;
+                            bounced: number;
+                            hardBounced: number;
+                            complained: number;
+                            replyTo: string[];
+                            cc: string[];
+                            bcc: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{campaignId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Get campaign details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            from: string;
+                            subject: string;
+                            previewText: string | null;
+                            contactBookId: string | null;
+                            html: string | null;
+                            content: string | null;
+                            status: string;
+                            /** Format: date-time */
+                            scheduledAt: string | null;
+                            batchSize: number;
+                            batchWindowMinutes: number;
+                            total: number;
+                            sent: number;
+                            delivered: number;
+                            opened: number;
+                            clicked: number;
+                            unsubscribed: number;
+                            bounced: number;
+                            hardBounced: number;
+                            complained: number;
+                            replyTo: string[];
+                            cc: string[];
+                            bcc: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{campaignId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30') */
+                        scheduledAt?: string;
+                        batchSize?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Schedule a campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{campaignId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Pause a campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{campaignId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resume a campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

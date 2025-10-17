@@ -84,6 +84,16 @@
               "api-reference/domains/verify-domain",
               "api-reference/domains/delete-domain"
             ]
+          },
+          {
+            "group": "Campaigns",
+            "pages": [
+              "api-reference/campaigns/create-campaign",
+              "api-reference/campaigns/get-campaign",
+              "api-reference/campaigns/schedule-campaign",
+              "api-reference/campaigns/pause-campaign",
+              "api-reference/campaigns/resume-campaign"
+            ]
           }
         ]
       }

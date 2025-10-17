@@ -19,11 +19,314 @@ import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { SuppressionService } from "./suppression-service";
 import { UnsendApiError } from "../public-api/api-error";
+import {
+  validateApiKeyDomainAccess,
+  validateDomainFromEmail,
+} from "./domain-service";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
   "{{usesend_unsubscribe_url}}",
-];
+] as const;
+
+const CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES =
+  CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.map((placeholder) => {
+    const inner = placeholder.replace(/[{}]/g, "").trim();
+    return new RegExp(`\\{\\{\\s*${inner}\\s*\\}}`, "i");
+  });
+
+const CONTACT_VARIABLE_REGEX =
+  /\{\{\s*(?:contact\.)?(email|firstName|lastName)(?:,fallback=([^}]+))?\s*\}\}/gi;
+
+function campaignHasUnsubscribePlaceholder(
+  ...sources: Array<string | null | undefined>
+) {
+  return CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES.some((regex) =>
+    sources.some((source) => (source ? regex.test(source) : false))
+  );
+}
+
+function replaceUnsubscribePlaceholders(html: string, url: string) {
+  return CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES.reduce((acc, regex) => {
+    return acc.replace(new RegExp(regex.source, "gi"), url);
+  }, html);
+}
+
+function replaceContactVariables(html: string, contact: Contact) {
+  return html.replace(
+    CONTACT_VARIABLE_REGEX,
+    (_, key: string, fallback?: string) => {
+      const valueMap: Record<string, string | null | undefined> = {
+        email: contact.email,
+        firstname: contact.firstName,
+        lastname: contact.lastName,
+      };
+
+      const normalizedKey = key.toLowerCase();
+      const contactValue = valueMap[normalizedKey];
+
+      if (contactValue && contactValue.length > 0) {
+        return contactValue;
+      }
+
+      return fallback ?? "";
+    }
+  );
+}
+
+function sanitizeAddressList(addresses?: string | string[]) {
+  if (!addresses) {
+    return [] as string[];
+  }
+
+  const list = Array.isArray(addresses) ? addresses : [addresses];
+
+  return list
+    .map((address) => address.trim())
+    .filter((address) => address.length > 0);
+}
+
+async function prepareCampaignHtml(
+  campaign: Campaign
+): Promise<{ campaign: Campaign; html: string }> {
+  if (campaign.content) {
+    try {
+      const jsonContent = JSON.parse(campaign.content);
+      const renderer = new EmailRenderer(jsonContent);
+      const html = await renderer.render();
+
+      if (campaign.html !== html) {
+        campaign = await db.campaign.update({
+          where: { id: campaign.id },
+          data: { html },
+        });
+      }
+
+      return { campaign, html };
+    } catch (error) {
+      logger.error({ err: error }, "Failed to parse campaign content");
+      throw new Error("Failed to parse campaign content");
+    }
+  }
+
+  if (campaign.html) {
+    return { campaign, html: campaign.html };
+  }
+
+  throw new Error("No content added for campaign");
+}
+
+async function renderCampaignHtmlForContact({
+  campaign,
+  contact,
+  unsubscribeUrl,
+}: {
+  campaign: Campaign;
+  contact: Contact;
+  unsubscribeUrl: string;
+}) {
+  if (campaign.content) {
+    try {
+      const jsonContent = JSON.parse(campaign.content);
+      const renderer = new EmailRenderer(jsonContent);
+      const linkValues: Record<string, string> = {};
+
+      for (const token of CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS) {
+        linkValues[token] = unsubscribeUrl;
+      }
+
+      return renderer.render({
+        shouldReplaceVariableValues: true,
+        variableValues: {
+          email: contact.email,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+        },
+        linkValues,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Failed to parse campaign content");
+      throw new Error("Failed to parse campaign content");
+    }
+  }
+
+  if (!campaign.html) {
+    throw new Error("No HTML content for campaign");
+  }
+
+  let html = replaceUnsubscribePlaceholders(campaign.html, unsubscribeUrl);
+  html = replaceContactVariables(html, contact);
+
+  return html;
+}
+
+export async function createCampaignFromApi({
+  teamId,
+  apiKeyId,
+  name,
+  from,
+  subject,
+  previewText,
+  content,
+  html,
+  contactBookId,
+  replyTo,
+  cc,
+  bcc,
+  batchSize,
+}: {
+  teamId: number;
+  apiKeyId?: number;
+  name: string;
+  from: string;
+  subject: string;
+  previewText?: string;
+  content?: string;
+  html?: string;
+  contactBookId: string;
+  replyTo?: string | string[];
+  cc?: string | string[];
+  bcc?: string | string[];
+  batchSize?: number;
+}) {
+  if (!content && !html) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Either content or html must be provided",
+    });
+  }
+
+  if (content) {
+    try {
+      JSON.parse(content);
+    } catch (error) {
+      logger.error({ err: error }, "Invalid campaign content JSON from API");
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "Invalid content JSON",
+      });
+    }
+  }
+
+  const contactBook = await db.contactBook.findUnique({
+    where: { id: contactBookId, teamId },
+    select: { id: true },
+  });
+
+  if (!contactBook) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Contact book not found",
+    });
+  }
+
+  let domain;
+
+  if (apiKeyId) {
+    const apiKey = await db.apiKey.findUnique({
+      where: { id: apiKeyId },
+      include: { domain: true },
+    });
+
+    if (!apiKey || apiKey.teamId !== teamId) {
+      throw new UnsendApiError({
+        code: "FORBIDDEN",
+        message: "Invalid API key",
+      });
+    }
+
+    domain = await validateApiKeyDomainAccess(from, teamId, apiKey);
+  } else {
+    domain = await validateDomainFromEmail(from, teamId);
+  }
+
+  const sanitizedHtml = html?.trim();
+  const sanitizedContent = content ?? null;
+
+  const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
+    sanitizedContent,
+    sanitizedHtml
+  );
+
+  if (!unsubPlaceholderFound) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Campaign must include an unsubscribe link before sending",
+    });
+  }
+
+  const campaign = await db.campaign.create({
+    data: {
+      name,
+      from,
+      subject,
+      isApi: true,
+      ...(previewText !== undefined ? { previewText } : {}),
+      content: sanitizedContent,
+      ...(sanitizedHtml && sanitizedHtml.length > 0
+        ? { html: sanitizedHtml }
+        : {}),
+      contactBookId,
+      replyTo: sanitizeAddressList(replyTo),
+      cc: sanitizeAddressList(cc),
+      bcc: sanitizeAddressList(bcc),
+      teamId,
+      domainId: domain.id,
+      ...(typeof batchSize === "number" ? { batchSize } : {}),
+    },
+  });
+
+  return campaign;
+}
+
+export async function getCampaignForTeam({
+  campaignId,
+  teamId,
+}: {
+  campaignId: string;
+  teamId: number;
+}) {
+  const campaign = await db.campaign.findFirst({
+    where: { id: campaignId, teamId },
+    select: {
+      id: true,
+      name: true,
+      from: true,
+      subject: true,
+      previewText: true,
+      contactBookId: true,
+      html: true,
+      content: true,
+      status: true,
+      scheduledAt: true,
+      batchSize: true,
+      batchWindowMinutes: true,
+      total: true,
+      sent: true,
+      delivered: true,
+      opened: true,
+      clicked: true,
+      unsubscribed: true,
+      bounced: true,
+      hardBounced: true,
+      complained: true,
+      replyTo: true,
+      cc: true,
+      bcc: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!campaign) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
+  return campaign;
+}
 
 export async function sendCampaign(id: string) {
   let campaign = await db.campaign.findUnique({
@@ -34,37 +337,21 @@ export async function sendCampaign(id: string) {
     throw new Error("Campaign not found");
   }
 
-  if (!campaign.content) {
-    throw new Error("No content added for campaign");
-  }
-
-  let jsonContent: Record<string, any>;
-
-  try {
-    jsonContent = JSON.parse(campaign.content);
-    const renderer = new EmailRenderer(jsonContent);
-    const html = await renderer.render();
-    campaign = await db.campaign.update({
-      where: { id },
-      data: { html },
-    });
-  } catch (error) {
-    logger.error({ err: error }, "Failed to parse campaign content");
-    throw new Error("Failed to parse campaign content");
-  }
+  const prepared = await prepareCampaignHtml(campaign);
+  campaign = prepared.campaign;
+  const html = prepared.html;
 
   if (!campaign.contactBookId) {
     throw new Error("No contact book found for campaign");
   }
 
-  if (!campaign.html) {
+  if (!html) {
     throw new Error("No HTML content for campaign");
   }
 
-  const unsubPlaceholderFound = CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.some(
-    (placeholder) =>
-      campaign.content?.includes(placeholder) ||
-      campaign.html?.includes(placeholder)
+  const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
+    campaign.content,
+    html
   );
 
   if (!unsubPlaceholderFound) {
@@ -115,26 +402,15 @@ export async function scheduleCampaign({
     });
   }
 
-  if (!campaign.content) {
-    throw new UnsendApiError({
-      code: "BAD_REQUEST",
-      message: "No content added for campaign",
-    });
-  }
-
-  // Parse & render HTML (idempotent) similar to sendCampaign
+  let html: string;
   try {
-    const jsonContent = JSON.parse(campaign.content);
-    const renderer = new EmailRenderer(jsonContent);
-    const html = await renderer.render();
-    campaign = await db.campaign.update({
-      where: { id: campaign.id },
-      data: { html },
-    });
+    const prepared = await prepareCampaignHtml(campaign);
+    campaign = prepared.campaign;
+    html = prepared.html;
   } catch (err) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
-      message: "Invalid content",
+      message: err instanceof Error ? err.message : "Invalid campaign content",
     });
   }
 
@@ -145,17 +421,16 @@ export async function scheduleCampaign({
     });
   }
 
-  if (!campaign.html) {
+  if (!html) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
       message: "No HTML content for campaign",
     });
   }
 
-  const unsubPlaceholderFound = CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.some(
-    (placeholder) =>
-      campaign.content?.includes(placeholder) ||
-      campaign.html?.includes(placeholder)
+  const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
+    campaign.content,
+    html
   );
   if (!unsubPlaceholderFound) {
     throw new UnsendApiError({
@@ -429,8 +704,6 @@ type CampaignEmailJob = {
 
 async function processContactEmail(jobData: CampaignEmailJob) {
   const { contact, campaign, emailConfig } = jobData;
-  const jsonContent = JSON.parse(campaign.content || "{}");
-  const renderer = new EmailRenderer(jsonContent);
 
   const unsubscribeUrl = createUnsubUrl(contact.id, emailConfig.campaignId);
   const oneClickUnsubUrl = createOneClickUnsubUrl(
@@ -467,17 +740,10 @@ async function processContactEmail(jobData: CampaignEmailJob) {
   // Check if the contact's email (TO recipient) is suppressed
   const isContactSuppressed = filteredToEmails.length === 0;
 
-  const html = await renderer.render({
-    shouldReplaceVariableValues: true,
-    variableValues: {
-      email: contact.email,
-      firstName: contact.firstName,
-      lastName: contact.lastName,
-    },
-    linkValues: {
-      "{{unsend_unsubscribe_url}}": unsubscribeUrl,
-      "{{usesend_unsubscribe_url}}": unsubscribeUrl,
-    },
+  const html = await renderCampaignHtmlForContact({
+    campaign,
+    contact,
+    unsubscribeUrl,
   });
 
   if (isContactSuppressed) {

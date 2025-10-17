@@ -2,6 +2,7 @@ import { ErrorResponse } from "../types";
 import { Contacts } from "./contact";
 import { Emails } from "./email";
 import { Domains } from "./domain";
+import { Campaigns } from "./campaign";
 
 const defaultBaseUrl = "https://app.usesend.com";
 // eslint-disable-next-line turbo/no-undeclared-env-vars
@@ -18,6 +19,7 @@ export class UseSend {
   readonly emails = new Emails(this);
   readonly domains = new Domains(this);
   readonly contacts = new Contacts(this);
+  readonly campaigns = new Campaigns(this);
   url = baseUrl;
 
   constructor(

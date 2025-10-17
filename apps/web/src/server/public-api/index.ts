@@ -16,6 +16,11 @@ import verifyDomain from "./api/domains/verify-domain";
 import getDomain from "./api/domains/get-domain";
 import deleteDomain from "./api/domains/delete-domain";
 import sendBatch from "./api/emails/batch-email";
+import createCampaign from "./api/campaigns/create-campaign";
+import getCampaign from "./api/campaigns/get-campaign";
+import scheduleCampaign from "./api/campaigns/schedule-campaign";
+import pauseCampaign from "./api/campaigns/pause-campaign";
+import resumeCampaign from "./api/campaigns/resume-campaign";
 
 export const app = getApp();
 
@@ -41,5 +46,12 @@ getContact(app);
 getContacts(app);
 upsertContact(app);
 deleteContact(app);
+
+/**Campaign related APIs */
+createCampaign(app);
+getCampaign(app);
+scheduleCampaign(app);
+pauseCampaign(app);
+resumeCampaign(app);
 
 export default app;

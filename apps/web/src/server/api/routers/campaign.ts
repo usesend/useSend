@@ -119,12 +119,14 @@ export const campaignRouter = createTRPCRouter({
         subject: z.string().optional(),
         previewText: z.string().optional(),
         content: z.string().optional(),
+        html: z.string().optional(),
         contactBookId: z.string().optional(),
         replyTo: z.string().array().optional(),
       })
     )
     .mutation(async ({ ctx: { db, team, campaign: campaignOld }, input }) => {
-      const { campaignId, ...data } = input;
+      const { html: htmlInput, ...data } = input;
+      const campaignId = campaignOld.id;
       if (data.contactBookId) {
         const contactBook = await db.contactBook.findUnique({
           where: { id: data.contactBookId },
@@ -143,22 +145,29 @@ export const campaignRouter = createTRPCRouter({
         domainId = domain.id;
       }
 
-      let html: string | null = null;
+      let htmlToSave: string | undefined;
 
       if (data.content) {
         const jsonContent = data.content ? JSON.parse(data.content) : null;
 
         const renderer = new EmailRenderer(jsonContent);
-        html = await renderer.render();
+        htmlToSave = await renderer.render();
+      } else if (typeof htmlInput === "string") {
+        htmlToSave = htmlInput;
+      }
+
+      const campaignUpdateData: Prisma.CampaignUpdateInput = {
+        ...data,
+        domainId,
+      };
+
+      if (htmlToSave !== undefined) {
+        campaignUpdateData.html = htmlToSave;
       }
 
       const campaign = await db.campaign.update({
         where: { id: campaignId },
-        data: {
-          ...data,
-          html,
-          domainId,
-        },
+        data: campaignUpdateData,
       });
       return campaign;
     }),
@@ -201,10 +210,7 @@ export const campaignRouter = createTRPCRouter({
           teamId: team.id,
           campaignId: campaign.id,
         },
-        orderBy: [
-          { updatedAt: "desc" },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
         take: 10,
         select: {
           id: true,
@@ -240,6 +246,7 @@ export const campaignRouter = createTRPCRouter({
           from: campaign.from,
           subject: campaign.subject,
           content: campaign.content,
+          html: campaign.html,
           teamId: team.id,
           domainId: campaign.domainId,
           contactBookId: campaign.contactBookId,
