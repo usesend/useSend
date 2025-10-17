@@ -15,14 +15,14 @@ from typing_extensions import NotRequired, Required, Literal
 # ---------------------------------------------------------------------------
 
 DomainStatus = Literal[
-    'NOT_STARTED',
-    'PENDING',
-    'SUCCESS',
-    'FAILED',
-    'TEMPORARY_FAILURE',
+    "NOT_STARTED",
+    "PENDING",
+    "SUCCESS",
+    "FAILED",
+    "TEMPORARY_FAILURE",
 ]
 
-DNSRecordType = Literal['MX', 'TXT']
+DNSRecordType = Literal["MX", "TXT"]
 
 
 class DNSRecord(TypedDict, total=False):
@@ -99,24 +99,25 @@ class DomainDeleteResponse(TypedDict):
     success: bool
     message: str
 
+
 # ---------------------------------------------------------------------------
 # Emails
 # ---------------------------------------------------------------------------
 
 EmailEventStatus = Literal[
-    'SCHEDULED',
-    'QUEUED',
-    'SENT',
-    'DELIVERY_DELAYED',
-    'BOUNCED',
-    'REJECTED',
-    'RENDERING_FAILURE',
-    'DELIVERED',
-    'OPENED',
-    'CLICKED',
-    'COMPLAINED',
-    'FAILED',
-    'CANCELLED',
+    "SCHEDULED",
+    "QUEUED",
+    "SENT",
+    "DELIVERY_DELAYED",
+    "BOUNCED",
+    "REJECTED",
+    "RENDERING_FAILURE",
+    "DELIVERED",
+    "OPENED",
+    "CLICKED",
+    "COMPLAINED",
+    "FAILED",
+    "CANCELLED",
 ]
 
 
@@ -128,22 +129,22 @@ class EmailEvent(TypedDict, total=False):
 
 
 Email = TypedDict(
-    'Email',
+    "Email",
     {
-        'id': str,
-        'teamId': float,
-        'to': Union[str, List[str]],
-        'replyTo': NotRequired[Union[str, List[str]]],
-        'cc': NotRequired[Union[str, List[str]]],
-        'bcc': NotRequired[Union[str, List[str]]],
-        'from': str,
-        'subject': str,
-        'html': str,
-        'text': str,
-        'createdAt': str,
-        'updatedAt': str,
-        'emailEvents': List[EmailEvent],
-    }
+        "id": str,
+        "teamId": float,
+        "to": Union[str, List[str]],
+        "replyTo": NotRequired[Union[str, List[str]]],
+        "cc": NotRequired[Union[str, List[str]]],
+        "bcc": NotRequired[Union[str, List[str]]],
+        "from": str,
+        "subject": str,
+        "html": str,
+        "text": str,
+        "createdAt": str,
+        "updatedAt": str,
+        "emailEvents": List[EmailEvent],
+    },
 )
 
 
@@ -157,40 +158,40 @@ class EmailUpdateResponse(TypedDict, total=False):
 
 
 EmailLatestStatus = Literal[
-    'SCHEDULED',
-    'QUEUED',
-    'SENT',
-    'DELIVERY_DELAYED',
-    'BOUNCED',
-    'REJECTED',
-    'RENDERING_FAILURE',
-    'DELIVERED',
-    'OPENED',
-    'CLICKED',
-    'COMPLAINED',
-    'FAILED',
-    'CANCELLED',
+    "SCHEDULED",
+    "QUEUED",
+    "SENT",
+    "DELIVERY_DELAYED",
+    "BOUNCED",
+    "REJECTED",
+    "RENDERING_FAILURE",
+    "DELIVERED",
+    "OPENED",
+    "CLICKED",
+    "COMPLAINED",
+    "FAILED",
+    "CANCELLED",
 ]
 
 
 EmailListItem = TypedDict(
-    'EmailListItem',
+    "EmailListItem",
     {
-        'id': str,
-        'to': Union[str, List[str]],
-        'replyTo': NotRequired[Union[str, List[str]]],
-        'cc': NotRequired[Union[str, List[str]]],
-        'bcc': NotRequired[Union[str, List[str]]],
-        'from': str,
-        'subject': str,
-        'html': str,
-        'text': str,
-        'createdAt': str,
-        'updatedAt': str,
-        'latestStatus': EmailLatestStatus,
-        'scheduledAt': str,
-        'domainId': float,
-    }
+        "id": str,
+        "to": Union[str, List[str]],
+        "replyTo": NotRequired[Union[str, List[str]]],
+        "cc": NotRequired[Union[str, List[str]]],
+        "bcc": NotRequired[Union[str, List[str]]],
+        "from": str,
+        "subject": str,
+        "html": str,
+        "text": str,
+        "createdAt": str,
+        "updatedAt": str,
+        "latestStatus": EmailLatestStatus,
+        "scheduledAt": str,
+        "domainId": float,
+    },
 )
 
 
@@ -205,23 +206,23 @@ class Attachment(TypedDict):
 
 
 EmailCreate = TypedDict(
-    'EmailCreate',
+    "EmailCreate",
     {
-        'to': Required[Union[str, List[str]]],
-        'from': Required[str],
-        'subject': NotRequired[str],
-        'templateId': NotRequired[str],
-        'variables': NotRequired[Dict[str, str]],
-        'replyTo': NotRequired[Union[str, List[str]]],
-        'cc': NotRequired[Union[str, List[str]]],
-        'bcc': NotRequired[Union[str, List[str]]],
-        'text': NotRequired[str],
-        'html': NotRequired[str],
-        'attachments': NotRequired[List[Attachment]],
-        'scheduledAt': NotRequired[Union[datetime, str]],
-        'inReplyToId': NotRequired[str],
-        'headers': NotRequired[Dict[str, str]],
-    }
+        "to": Required[Union[str, List[str]]],
+        "from": Required[str],
+        "subject": NotRequired[str],
+        "templateId": NotRequired[str],
+        "variables": NotRequired[Dict[str, str]],
+        "replyTo": NotRequired[Union[str, List[str]]],
+        "cc": NotRequired[Union[str, List[str]]],
+        "bcc": NotRequired[Union[str, List[str]]],
+        "text": NotRequired[str],
+        "html": NotRequired[str],
+        "attachments": NotRequired[List[Attachment]],
+        "scheduledAt": NotRequired[Union[datetime, str]],
+        "inReplyToId": NotRequired[str],
+        "headers": NotRequired[Dict[str, str]],
+    },
 )
 
 
@@ -230,23 +231,23 @@ class EmailCreateResponse(TypedDict, total=False):
 
 
 EmailBatchItem = TypedDict(
-    'EmailBatchItem',
+    "EmailBatchItem",
     {
-        'to': Required[Union[str, List[str]]],
-        'from': Required[str],
-        'subject': NotRequired[str],
-        'templateId': NotRequired[str],
-        'variables': NotRequired[Dict[str, str]],
-        'replyTo': NotRequired[Union[str, List[str]]],
-        'cc': NotRequired[Union[str, List[str]]],
-        'bcc': NotRequired[Union[str, List[str]]],
-        'text': NotRequired[str],
-        'html': NotRequired[str],
-        'attachments': NotRequired[List[Attachment]],
-        'scheduledAt': NotRequired[Union[datetime, str]],
-        'inReplyToId': NotRequired[str],
-        'headers': NotRequired[Dict[str, str]],
-    }
+        "to": Required[Union[str, List[str]]],
+        "from": Required[str],
+        "subject": NotRequired[str],
+        "templateId": NotRequired[str],
+        "variables": NotRequired[Dict[str, str]],
+        "replyTo": NotRequired[Union[str, List[str]]],
+        "cc": NotRequired[Union[str, List[str]]],
+        "bcc": NotRequired[Union[str, List[str]]],
+        "text": NotRequired[str],
+        "html": NotRequired[str],
+        "attachments": NotRequired[List[Attachment]],
+        "scheduledAt": NotRequired[Union[datetime, str]],
+        "inReplyToId": NotRequired[str],
+        "headers": NotRequired[Dict[str, str]],
+    },
 )
 
 
@@ -268,6 +269,7 @@ class EmailCancelResponse(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 # Contacts
 # ---------------------------------------------------------------------------
+
 
 class ContactCreate(TypedDict, total=False):
     email: str
@@ -340,94 +342,95 @@ class ContactDeleteResponse(TypedDict):
 # ---------------------------------------------------------------------------
 
 Campaign = TypedDict(
-    'Campaign',
+    "Campaign",
     {
-        'id': str,
-        'name': str,
-        'from': str,
-        'subject': str,
-        'previewText': Optional[str],
-        'contactBookId': Optional[str],
-        'html': Optional[str],
-        'content': Optional[str],
-        'status': str,
-        'scheduledAt': Optional[str],
-        'batchSize': int,
-        'batchWindowMinutes': int,
-        'total': int,
-        'sent': int,
-        'delivered': int,
-        'opened': int,
-        'clicked': int,
-        'unsubscribed': int,
-        'bounced': int,
-        'hardBounced': int,
-        'complained': int,
-        'replyTo': List[str],
-        'cc': List[str],
-        'bcc': List[str],
-        'createdAt': str,
-        'updatedAt': str,
-    }
+        "id": str,
+        "name": str,
+        "from": str,
+        "subject": str,
+        "previewText": Optional[str],
+        "contactBookId": Optional[str],
+        "html": Optional[str],
+        "content": Optional[str],
+        "status": str,
+        "scheduledAt": Optional[str],
+        "batchSize": int,
+        "batchWindowMinutes": int,
+        "total": int,
+        "sent": int,
+        "delivered": int,
+        "opened": int,
+        "clicked": int,
+        "unsubscribed": int,
+        "bounced": int,
+        "hardBounced": int,
+        "complained": int,
+        "replyTo": List[str],
+        "cc": List[str],
+        "bcc": List[str],
+        "createdAt": str,
+        "updatedAt": str,
+    },
 )
 
 
 CampaignCreate = TypedDict(
-    'CampaignCreate',
+    "CampaignCreate",
     {
-        'name': Required[str],
-        'from': Required[str],
-        'subject': Required[str],
-        'previewText': NotRequired[str],
-        'contactBookId': Required[str],
-        'content': NotRequired[str],
-        'html': NotRequired[str],
-        'replyTo': NotRequired[Union[str, List[str]]],
-        'cc': NotRequired[Union[str, List[str]]],
-        'bcc': NotRequired[Union[str, List[str]]],
-        'sendNow': NotRequired[bool],
-        'scheduledAt': NotRequired[str],
-        'batchSize': NotRequired[int],
-    }
+        "name": Required[str],
+        "from": Required[str],
+        "subject": Required[str],
+        "previewText": NotRequired[str],
+        "contactBookId": Required[str],
+        "content": NotRequired[str],
+        "html": NotRequired[str],
+        "replyTo": NotRequired[Union[str, List[str]]],
+        "cc": NotRequired[Union[str, List[str]]],
+        "bcc": NotRequired[Union[str, List[str]]],
+        "sendNow": NotRequired[bool],
+        "scheduledAt": NotRequired[str],
+        "batchSize": NotRequired[int],
+    },
 )
 
 
 CampaignCreateResponse = TypedDict(
-    'CampaignCreateResponse',
+    "CampaignCreateResponse",
     {
-        'id': str,
-        'name': str,
-        'from': str,
-        'subject': str,
-        'previewText': Optional[str],
-        'contactBookId': Optional[str],
-        'html': Optional[str],
-        'content': Optional[str],
-        'status': str,
-        'scheduledAt': Optional[str],
-        'batchSize': int,
-        'batchWindowMinutes': int,
-        'total': int,
-        'sent': int,
-        'delivered': int,
-        'opened': int,
-        'clicked': int,
-        'unsubscribed': int,
-        'bounced': int,
-        'hardBounced': int,
-        'complained': int,
-        'replyTo': List[str],
-        'cc': List[str],
-        'bcc': List[str],
-        'createdAt': str,
-        'updatedAt': str,
-    }
+        "id": str,
+        "name": str,
+        "from": str,
+        "subject": str,
+        "previewText": Optional[str],
+        "contactBookId": Optional[str],
+        "html": Optional[str],
+        "content": Optional[str],
+        "status": str,
+        "scheduledAt": Optional[str],
+        "batchSize": int,
+        "batchWindowMinutes": int,
+        "total": int,
+        "sent": int,
+        "delivered": int,
+        "opened": int,
+        "clicked": int,
+        "unsubscribed": int,
+        "bounced": int,
+        "hardBounced": int,
+        "complained": int,
+        "replyTo": List[str],
+        "cc": List[str],
+        "bcc": List[str],
+        "createdAt": str,
+        "updatedAt": str,
+    },
 )
 
 
 class CampaignSchedule(TypedDict, total=False):
     scheduledAt: Optional[str]
     batchSize: Optional[int]
+    sendNow: Optional[bool]
 
 
 class CampaignScheduleResponse(TypedDict, total=False):
@@ -442,7 +445,7 @@ class CampaignActionResponse(TypedDict, total=False):
 # Common
 # ---------------------------------------------------------------------------
 
+
 class APIError(TypedDict):
     code: str
     message: str
-

@@ -43,7 +43,7 @@ campaign_payload: types.CampaignCreate = {
     "subject": "Welcome to our service!",
     "html": "<p>Thanks for joining us!</p>",
     "from": "welcome@example.com",
-    "to": "user@example.com",
+    "contactBookId": "cb_1234567890",
 }
 campaign_resp, _ = client.campaigns.create(payload=campaign_payload)
 
@@ -52,7 +52,7 @@ schedule_payload: types.CampaignSchedule = {
     "scheduledAt": "2024-12-01T10:00:00Z",
 }
 schedule_resp, _ = client.campaigns.schedule(
-    campaign_id=campaign_resp["campaign"]["id"],
+    campaign_id=campaign_resp["id"],
     payload=schedule_payload
 )
 
