@@ -27,7 +27,7 @@ export const campaignRouter = createTRPCRouter({
         page: z.number().optional(),
         status: z.enum(statuses).optional().nullable(),
         search: z.string().optional().nullable(),
-      })
+      }),
     )
     .query(async ({ ctx: { db, team }, input }) => {
       const page = input.page || 1;
@@ -95,7 +95,7 @@ export const campaignRouter = createTRPCRouter({
         name: z.string(),
         from: z.string(),
         subject: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { db, team }, input }) => {
       const domain = await validateDomainFromEmail(input.from, team.id);
@@ -122,11 +122,10 @@ export const campaignRouter = createTRPCRouter({
         html: z.string().optional(),
         contactBookId: z.string().optional(),
         replyTo: z.string().array().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { db, team, campaign: campaignOld }, input }) => {
-      const { html: htmlInput, ...data } = input;
-      const campaignId = campaignOld.id;
+      const { html: htmlInput, campaignId, ...data } = input;
       if (data.contactBookId) {
         const contactBook = await db.contactBook.findUnique({
           where: { id: data.contactBookId },
@@ -224,7 +223,7 @@ export const campaignRouter = createTRPCRouter({
       });
 
       return emails;
-    }
+    },
   ),
 
   reSubscribeContact: publicProcedure
@@ -232,7 +231,7 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         hash: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       await campaignService.subscribeContact(input.id, input.hash);
@@ -254,7 +253,7 @@ export const campaignRouter = createTRPCRouter({
       });
 
       return newCampaign;
-    }
+    },
   ),
 
   scheduleCampaign: campaignProcedure
@@ -263,7 +262,7 @@ export const campaignRouter = createTRPCRouter({
         campaignId: z.string(),
         scheduledAt: z.union([z.string().datetime(), z.date()]).optional(),
         batchSize: z.number().min(1).max(100_000).optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
       await campaignService.scheduleCampaign({
@@ -296,7 +295,7 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         type: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
       const extension = input.name.split(".").pop();
@@ -304,7 +303,7 @@ export const campaignRouter = createTRPCRouter({
 
       const url = await getDocumentUploadUrl(
         `${team.id}/${randomName}`,
-        input.type
+        input.type,
       );
 
       const imageUrl = `${env.S3_COMPATIBLE_PUBLIC_URL}/${team.id}/${randomName}`;
