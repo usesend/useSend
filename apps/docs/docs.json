@@ -96,6 +96,15 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Changelog",
+        "groups": [
+          {
+            "group": "Updates",
+            "pages": ["changelog"]
+          }
+        ]
       }
     ],
     "global": {
