@@ -8,6 +8,8 @@ import { getAccount } from "~/server/aws/ses";
 import { db } from "~/server/db";
 import { sendMail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
+import { UseSend } from "usesend-js";
+import { isCloud } from "~/utils/common";
 
 const waitlistUserSelection = {
   id: true,
@@ -79,7 +81,7 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const acc = await getAccount(input.region);
@@ -93,7 +95,7 @@ export const adminRouter = createTRPCRouter({
         usesendUrl: z.string().url(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.createSesSetting({
@@ -110,7 +112,7 @@ export const adminRouter = createTRPCRouter({
         settingsId: z.string(),
         sendRate: z.number(),
         transactionalQuota: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       return SesSettingsService.updateSesSetting({
@@ -124,11 +126,11 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         region: z.string().optional().nullable(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       return SesSettingsService.getSetting(
-        input.region ?? env.AWS_DEFAULT_REGION
+        input.region ?? env.AWS_DEFAULT_REGION,
       );
     }),
 
@@ -139,7 +141,7 @@ export const adminRouter = createTRPCRouter({
           .string()
           .email()
           .transform((value) => value.toLowerCase()),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const user = await db.user.findUnique({
@@ -155,7 +157,7 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.number(),
         isWaitlisted: z.boolean(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const existingUser = await db.user.findUnique({
@@ -182,6 +184,56 @@ export const adminRouter = createTRPCRouter({
         Boolean(updatedUser.email) &&
         (founderEmail || fallbackFrom);
 
+      // Add user to contact book when removed from waitlist (cloud only)
+      if (
+        existingUser.isWaitlisted &&
+        !input.isWaitlisted &&
+        isCloud() &&
+        env.CONTACT_BOOK_ID &&
+        updatedUser.email
+      ) {
+        try {
+          const client = new UseSend(env.USESEND_API_KEY);
+
+          // Split name into first and last name if available
+          const firstName = updatedUser.name || "";
+
+          const result = await client.contacts.create(env.CONTACT_BOOK_ID, {
+            email: updatedUser.email,
+            firstName: firstName,
+          });
+
+          if (result.error) {
+            logger.error(
+              {
+                userId: updatedUser.id,
+                email: updatedUser.email,
+                error: result.error,
+              },
+              "Failed to add user to contact book",
+            );
+          } else {
+            logger.info(
+              {
+                userId: updatedUser.id,
+                email: updatedUser.email,
+                contactId: result.data?.contactId,
+              },
+              "Successfully added user to contact book",
+            );
+          }
+        } catch (error) {
+          logger.error(
+            {
+              userId: updatedUser.id,
+              email: updatedUser.email,
+              error,
+            },
+            "Error adding user to contact book",
+          );
+        }
+      }
+
       if (shouldSendAcceptanceEmail) {
         const recipient = updatedUser.email as string;
         const replyTo = founderEmail ?? fallbackFrom;
@@ -201,12 +253,12 @@ export const adminRouter = createTRPCRouter({
             text,
             toPlainHtml(text),
             replyTo,
-            fromOverride
+            fromOverride,
           );
         } catch (error) {
           logger.error(
             { userId: updatedUser.id, error },
-            "Failed to send waitlist acceptance email"
+            "Failed to send waitlist acceptance email",
           );
         }
       }
@@ -218,7 +270,7 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const user = await db.user.findUnique({
@@ -262,12 +314,12 @@ export const adminRouter = createTRPCRouter({
           text,
           toPlainHtml(text),
           replyTo,
-          fromOverride
+          fromOverride,
         );
       } catch (error) {
         logger.error(
           { userId: user.id, error },
-          "Failed to send waitlist rejection email"
+          "Failed to send waitlist rejection email",
         );
         throw new Error("Failed to send waitlist rejection email");
       }
@@ -282,7 +334,7 @@ export const adminRouter = createTRPCRouter({
           .string({ required_error: "Search query is required" })
           .trim()
           .min(1, "Search query is required"),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const query = input.query.trim();
@@ -338,7 +390,7 @@ export const adminRouter = createTRPCRouter({
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { teamId, ...data } = input;
@@ -357,7 +409,7 @@ export const adminRouter = createTRPCRouter({
       z.object({
         timeframe: z.enum(["today", "thisMonth"]),
         paidOnly: z.boolean().optional(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const timeframe = input.timeframe;
@@ -366,7 +418,7 @@ export const adminRouter = createTRPCRouter({
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
       const monthStartDate = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
       );
       const monthStart = monthStartDate.toISOString().slice(0, 10);
 
@@ -427,7 +479,7 @@ export const adminRouter = createTRPCRouter({
           bounced: 0,
           complained: 0,
           hardBounced: 0,
-        }
+        },
       );
 
       return {
