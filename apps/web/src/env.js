@@ -13,7 +13,7 @@ export const env = createEnv({
       .url()
       .refine(
         (str) => !str.includes("YOUR_MYSQL_URL_HERE"),
-        "You forgot to change the default URL"
+        "You forgot to change the default URL",
       ),
     NODE_ENV: z
       .enum(["development", "test", "production"])
@@ -27,7 +27,7 @@ export const env = createEnv({
       // Since NextAuth.js automatically uses the VERCEL_URL if present.
       (str) => process.env.VERCEL_URL ?? str,
       // VERCEL_URL doesn't include `https` so it cant be validated as a URL
-      process.env.VERCEL ? z.string() : z.string().url()
+      process.env.VERCEL ? z.string() : z.string().url(),
     ),
     GITHUB_ID: z.string().optional(),
     GITHUB_SECRET: z.string().optional(),
@@ -65,6 +65,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     SMTP_HOST: z.string().default("smtp.usesend.com"),
     SMTP_USER: z.string().default("usesend"),
+    CONTACT_BOOK_ID: z.string().optional(),
   },
 
   /**
@@ -120,6 +121,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
+    CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
