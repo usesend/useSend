@@ -100,6 +100,7 @@ export class LimitService {
   // Side effects:
   // - Sends "warning" emails when nearing daily/monthly limits (rate-limited in TeamService)
   // - Sends "limit reached" notifications when limits are exceeded (rate-limited in TeamService)
+  // - Teams with inactive subscriptions are treated like FREE plans for monthly limit alerts
   static async checkEmailLimit(teamId: number): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -163,16 +164,18 @@ export class LimitService {
       };
     }
 
-    if (team.plan === "FREE") {
+    // Apply monthly limit logic for FREE plan or inactive subscriptions
+    if (team.plan === "FREE" || !team.isActive) {
       const monthlyUsage = usage.month.reduce(
         (acc, curr) => acc + curr.sent,
         0
       );
-      const monthlyLimit = PLAN_LIMITS[team.plan].emailsPerMonth;
+      // Use FREE plan limits for inactive subscriptions
+      const monthlyLimit = PLAN_LIMITS.FREE.emailsPerMonth;
 
       logger.info(
-        { monthlyUsage, monthlyLimit, team },
-        `[LimitService]: Monthly usage and limit`
+        { monthlyUsage, monthlyLimit, team, isActive: team.isActive },
+        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`
       );
 
       if (monthlyUsage / monthlyLimit > 0.8 && monthlyUsage < monthlyLimit) {
@@ -185,12 +188,12 @@ export class LimitService {
       }
 
       logger.info(
-        { monthlyUsage, monthlyLimit, team },
-        `[LimitService]: Monthly usage and limit`
+        { monthlyUsage, monthlyLimit, team, isActive: team.isActive },
+        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`
       );
 
       if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
-        // Notify: monthly (free plan) limit reached
+        // Notify: monthly (free plan or inactive subscription) limit reached
         try {
           await TeamService.maybeNotifyEmailLimitReached(
             teamId,
