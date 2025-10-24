@@ -118,6 +118,7 @@ export default function AdminEmailAnalyticsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Team</TableHead>
+                <TableHead>Team ID</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead className="text-right">Sent</TableHead>
                 <TableHead className="text-right">Delivered</TableHead>
@@ -131,13 +132,13 @@ export default function AdminEmailAnalyticsPage() {
             <TableBody>
               {analyticsQuery.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center">
+                  <TableCell colSpan={10} className="py-12 text-center">
                     <Spinner className="h-6 w-6" />
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center">
+                  <TableCell colSpan={10} className="py-12 text-center">
                     No email activity found for this period.
                   </TableCell>
                 </TableRow>
@@ -145,6 +146,7 @@ export default function AdminEmailAnalyticsPage() {
                 rows.map((row) => (
                   <TableRow key={row.teamId}>
                     <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.teamId}</TableCell>
                     <TableCell>{row.plan}</TableCell>
                     <TableCell className="text-right">{row.sent}</TableCell>
                     <TableCell className="text-right">
