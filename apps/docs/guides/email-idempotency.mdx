@@ -1,0 +1,49 @@
+---
+title: Email idempotency
+description: Deduplicate email send requests by reusing the same queued job.
+---
+
+## Overview
+
+When you provide an `idempotencyKey` with the email send endpoint, useSend will
+short-circuit duplicate requests and return the first queued email. The key is
+scoped to the team and automatically expires after three days so you do not need
+any manual cleanup.
+
+## JavaScript SDK example
+
+```ts
+import { UseSend } from "usesend-js";
+
+const usesend = new UseSend(process.env.USESEND_API_KEY!);
+
+await usesend.emails.send({
+  to: "recipient@example.com",
+  from: "hello@example.com",
+  subject: "Receipt",
+  html: "<p>Thanks for your order!</p>",
+  idempotencyKey: "order-123",
+});
+```
+
+## Python SDK example
+
+```py
+from usesend import UseSend
+
+client = UseSend("us_your_api_key")
+
+client.emails.send({
+    "to": "recipient@example.com",
+    "from": "hello@example.com",
+    "subject": "Receipt",
+    "html": "<p>Thanks for your order!</p>",
+    "idempotencyKey": "order-123",
+})
+```
+
+:::note
+Repeated calls with the same key will reuse the cached response until the
+three-day expiration window passes. If a send fails, a new request can reuse the
+same key after the failure record is cleared automatically.
+:::

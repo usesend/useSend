@@ -48,3 +48,52 @@ export async function withCache<T>(
 
   return value;
 }
+
+export type RedisSetJsonOptions = {
+  ttlSeconds?: number;
+  mode?: "NX" | "XX";
+};
+
+export async function setJsonValue(
+  key: string,
+  value: unknown,
+  options?: RedisSetJsonOptions
+): Promise<"OK" | null> {
+  const redis = getRedis();
+  const payload = JSON.stringify(value);
+  const mode = options?.mode;
+  const ttlSeconds = options?.ttlSeconds;
+
+  if (mode && ttlSeconds) {
+    return redis.set(key, payload, mode, "EX", ttlSeconds);
+  }
+
+  if (mode) {
+    return redis.set(key, payload, mode);
+  }
+
+  if (ttlSeconds) {
+    return redis.set(key, payload, "EX", ttlSeconds);
+  }
+
+  return redis.set(key, payload);
+}
+
+export async function getJsonValue<T>(key: string): Promise<T | null> {
+  const redis = getRedis();
+  const cached = await redis.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(cached) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteKey(key: string): Promise<number> {
+  const redis = getRedis();
+  return redis.del(key);
+}

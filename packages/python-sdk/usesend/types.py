@@ -210,6 +210,7 @@ EmailCreate = TypedDict(
     {
         "to": Required[Union[str, List[str]]],
         "from": Required[str],
+        "idempotencyKey": NotRequired[str],
         "subject": NotRequired[str],
         "templateId": NotRequired[str],
         "variables": NotRequired[Dict[str, str]],

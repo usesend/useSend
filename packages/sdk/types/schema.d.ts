@@ -570,6 +570,8 @@ export interface paths {
                     "application/json": {
                         to: string | string[];
                         from: string;
+                        /** @description Optional key to deduplicate send requests. Duplicate keys reuse results. */
+                        idempotencyKey?: string;
                         /** @description Optional when templateId is provided */
                         subject?: string;
                         /** @description ID of a template from the dashboard */

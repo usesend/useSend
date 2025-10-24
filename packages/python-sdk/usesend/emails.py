@@ -42,6 +42,13 @@ class Emails:
         if isinstance(body.get("scheduledAt"), datetime):
             body["scheduledAt"] = body["scheduledAt"].isoformat()
 
+        if body.get("idempotencyKey") is not None:
+            key = str(body["idempotencyKey"]).strip()
+            if key:
+                body["idempotencyKey"] = key
+            else:
+                body.pop("idempotencyKey", None)
+
         data, err = self.usesend.post("/emails", body)
         return (data, err)  # type: ignore[return-value]
 

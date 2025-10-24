@@ -32,19 +32,21 @@ function send(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
 
+    const body = c.req.valid("json");
+
     let html = undefined;
 
-    const _html = c.req.valid("json")?.html?.toString();
+    const _html = body?.html?.toString();
 
     if (_html && _html !== "true" && _html !== "false") {
       html = _html;
     }
 
     const email = await sendEmail({
-      ...c.req.valid("json"),
+      ...body,
       teamId: team.id,
       apiKeyId: team.apiKeyId,
-      text: c.req.valid("json").text ?? undefined,
+      text: body.text ?? undefined,
       html: html,
     });
 

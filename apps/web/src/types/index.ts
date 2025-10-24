@@ -1,6 +1,7 @@
 export type EmailContent = {
   to: string | string[];
   from: string;
+  idempotencyKey?: string;
   subject?: string;
   templateId?: string;
   variables?: Record<string, string>;

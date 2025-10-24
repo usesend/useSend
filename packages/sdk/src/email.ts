@@ -82,6 +82,16 @@ export class Emails {
       delete payload.react;
     }
 
+    if (payload.idempotencyKey !== undefined) {
+      const normalizedKey = String(payload.idempotencyKey).trim();
+
+      if (normalizedKey.length > 0) {
+        payload.idempotencyKey = normalizedKey;
+      } else {
+        delete payload.idempotencyKey;
+      }
+    }
+
     const data = await this.usesend.post<CreateEmailResponseSuccess>(
       "/emails",
       payload

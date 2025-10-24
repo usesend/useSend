@@ -11,6 +11,65 @@ import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 import { Prisma } from "@prisma/client";
+import { deleteKey, getJsonValue, setJsonValue } from "../redis";
+
+const IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24 * 3; // 3 days
+const IDEMPOTENCY_WAIT_ATTEMPTS = 5;
+const IDEMPOTENCY_WAIT_DELAY_MS = 100;
+
+type EmailIdempotencyStatus = "PENDING" | "CREATED" | "QUEUED" | "FAILED";
+
+type EmailIdempotencyRecord = {
+  status: EmailIdempotencyStatus;
+  emailId?: string;
+  createdAt: string;
+  queuedAt?: string;
+  lastUpdatedAt: string;
+  error?: string;
+};
+
+async function waitForIdempotentRecord(
+  redisKey: string
+): Promise<EmailIdempotencyRecord | null> {
+  for (let attempt = 0; attempt < IDEMPOTENCY_WAIT_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_WAIT_DELAY_MS));
+    const record = await getJsonValue<EmailIdempotencyRecord>(redisKey);
+    if (!record || record.status === "FAILED" || record.emailId) {
+      return record ?? null;
+    }
+  }
+
+  return getJsonValue<EmailIdempotencyRecord>(redisKey);
+}
+
+async function resolveEmailFromRecord(
+  record: EmailIdempotencyRecord | null,
+  redisKey: string,
+  teamId: number
+) {
+  if (!record || !record.emailId) {
+    return null;
+  }
+
+  const email = await db.email.findUnique({ where: { id: record.emailId } });
+
+  if (!email) {
+    await deleteKey(redisKey);
+    return null;
+  }
+
+  logger.info(
+    {
+      emailId: email.id,
+      teamId,
+      redisKey,
+      status: record.status,
+    },
+    "Returning cached idempotent email send result (entries expire after 3 days)."
+  );
+
+  return email;
+}
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -72,9 +131,97 @@ export async function sendEmail(
     apiKeyId,
     inReplyToId,
     headers,
+    idempotencyKey,
   } = emailContent;
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
+
+  const normalizedIdempotencyKey = idempotencyKey?.trim();
+  const idempotencyRedisKey = normalizedIdempotencyKey
+    ? `email-idempotency:${teamId}:${normalizedIdempotencyKey}`
+    : null;
+  let idempotencyRecordSnapshot: EmailIdempotencyRecord | null = null;
+  let idempotencyCreatedAt = new Date().toISOString();
+
+  if (idempotencyRedisKey) {
+    let existingRecord = await getJsonValue<EmailIdempotencyRecord>(
+      idempotencyRedisKey
+    );
+
+    if (existingRecord?.status === "FAILED") {
+      await deleteKey(idempotencyRedisKey);
+      existingRecord = null;
+    } else {
+      const cachedEmail = await resolveEmailFromRecord(
+        existingRecord,
+        idempotencyRedisKey,
+        teamId
+      );
+
+      if (cachedEmail) {
+        return cachedEmail;
+      }
+
+      if (existingRecord?.status === "PENDING") {
+        const awaitedRecord = await waitForIdempotentRecord(
+          idempotencyRedisKey
+        );
+        const awaitedEmail = await resolveEmailFromRecord(
+          awaitedRecord,
+          idempotencyRedisKey,
+          teamId
+        );
+
+        if (awaitedEmail) {
+          return awaitedEmail;
+        }
+
+        if (awaitedRecord?.status === "FAILED") {
+          await deleteKey(idempotencyRedisKey);
+          existingRecord = null;
+        } else {
+          existingRecord = awaitedRecord;
+        }
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const pendingRecord: EmailIdempotencyRecord = {
+      status: "PENDING",
+      createdAt: existingRecord?.createdAt ?? nowIso,
+      lastUpdatedAt: nowIso,
+    };
+
+    const setResult = await setJsonValue(idempotencyRedisKey, pendingRecord, {
+      ttlSeconds: IDEMPOTENCY_TTL_SECONDS,
+      mode: "NX",
+    });
+
+    if (setResult !== "OK") {
+      const latestRecord = await waitForIdempotentRecord(idempotencyRedisKey);
+      const latestEmail = await resolveEmailFromRecord(
+        latestRecord,
+        idempotencyRedisKey,
+        teamId
+      );
+
+      if (latestEmail) {
+        return latestEmail;
+      }
+
+      if (latestRecord?.status === "FAILED") {
+        await deleteKey(idempotencyRedisKey);
+      }
+
+      throw new UnsendApiError({
+        code: "NOT_UNIQUE",
+        message: "A request with this idempotency key is already in progress.",
+      });
+    }
+
+    idempotencyCreatedAt = pendingRecord.createdAt;
+    idempotencyRecordSnapshot = pendingRecord;
+  }
 
   let domain: Awaited<ReturnType<typeof validateDomainFromEmail>>;
 
@@ -271,6 +418,22 @@ export async function sendEmail(
     },
   });
 
+  if (idempotencyRedisKey) {
+    const createdAtIso = new Date().toISOString();
+    const createdRecord: EmailIdempotencyRecord = {
+      status: "CREATED",
+      emailId: email.id,
+      createdAt: idempotencyCreatedAt,
+      lastUpdatedAt: createdAtIso,
+    };
+
+    await setJsonValue(idempotencyRedisKey, createdRecord, {
+      ttlSeconds: IDEMPOTENCY_TTL_SECONDS,
+    });
+
+    idempotencyRecordSnapshot = createdRecord;
+  }
+
   try {
     await EmailQueueService.queueEmail(
       email.id,
@@ -280,6 +443,23 @@ export async function sendEmail(
       undefined,
       delay
     );
+
+    if (idempotencyRedisKey) {
+      const queuedAt = new Date().toISOString();
+      const queuedRecord: EmailIdempotencyRecord = {
+        status: "QUEUED",
+        emailId: email.id,
+        createdAt: idempotencyRecordSnapshot?.createdAt ?? idempotencyCreatedAt,
+        queuedAt,
+        lastUpdatedAt: queuedAt,
+      };
+
+      await setJsonValue(idempotencyRedisKey, queuedRecord, {
+        ttlSeconds: IDEMPOTENCY_TTL_SECONDS,
+      });
+
+      idempotencyRecordSnapshot = queuedRecord;
+    }
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
@@ -295,6 +475,22 @@ export async function sendEmail(
       where: { id: email.id },
       data: { latestStatus: "FAILED" },
     });
+
+    if (idempotencyRedisKey) {
+      const failedAt = new Date().toISOString();
+      const failureRecord: EmailIdempotencyRecord = {
+        status: "FAILED",
+        emailId: email.id,
+        createdAt:
+          idempotencyRecordSnapshot?.createdAt ?? idempotencyCreatedAt,
+        lastUpdatedAt: failedAt,
+        error: error instanceof Error ? error.message : String(error),
+      };
+
+      await setJsonValue(idempotencyRedisKey, failureRecord, {
+        ttlSeconds: IDEMPOTENCY_TTL_SECONDS,
+      });
+    }
     throw error;
   }
 

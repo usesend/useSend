@@ -7,6 +7,16 @@ export const emailSchema = z
   .object({
     to: z.string().or(z.array(z.string())),
     from: z.string(),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .optional()
+      .openapi({
+        description:
+          "Optional key to deduplicate send requests. Duplicate keys reuse results.",
+      }),
     subject: z.string().min(1).optional().openapi({
       description: "Optional when templateId is provided",
     }),

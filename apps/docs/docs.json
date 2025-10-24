@@ -38,7 +38,10 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/use-with-react-email"]
+            "pages": [
+              "guides/use-with-react-email",
+              "guides/email-idempotency"
+            ]
           },
           {
             "group": "Community SDKs",
