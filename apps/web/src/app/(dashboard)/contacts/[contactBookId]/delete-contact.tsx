@@ -8,21 +8,22 @@ import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
-const contactSchema = z.object({
-  confirmation: z.string().email("Please enter a valid email address"),
-});
-
 export const DeleteContact: React.FC<{
   contact: Partial<Contact> & { id: string; contactBookId: string };
 }> = ({ contact }) => {
   const deleteContactMutation = api.contacts.deleteContact.useMutation();
   const utils = api.useUtils();
 
-  async function onContactDelete(values: z.infer<typeof contactSchema>) {
-    if (values.confirmation !== contact.email) {
-      throw new Error("Email does not match");
-    }
+  const contactSchema = z
+    .object({
+      confirmation: z.string().email("Please enter a valid email address"),
+    })
+    .refine((data) => data.confirmation === contact.email, {
+      message: "Email does not match",
+      path: ["confirmation"],
+    });
 
+  async function onContactDelete(values: z.infer<typeof contactSchema>) {
     deleteContactMutation.mutate(
       {
         contactId: contact.id,

@@ -8,12 +8,6 @@ import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
-const contactBookSchema = z.object({
-  confirmation: z
-    .string()
-    .min(1, "Please type the contact book name to confirm"),
-});
-
 export const DeleteContactBook: React.FC<{
   contactBook: Partial<ContactBook> & { id: string };
 }> = ({ contactBook }) => {
@@ -21,13 +15,20 @@ export const DeleteContactBook: React.FC<{
     api.contacts.deleteContactBook.useMutation();
   const utils = api.useUtils();
 
+  const contactBookSchema = z
+    .object({
+      confirmation: z
+        .string()
+        .min(1, "Please type the contact book name to confirm"),
+    })
+    .refine((data) => data.confirmation === contactBook.name, {
+      message: "Contact book name does not match",
+      path: ["confirmation"],
+    });
+
   async function onContactBookDelete(
     values: z.infer<typeof contactBookSchema>,
   ) {
-    if (values.confirmation !== contactBook.name) {
-      throw new Error("Contact book name does not match");
-    }
-
     deleteContactBookMutation.mutate(
       {
         contactBookId: contactBook.id,

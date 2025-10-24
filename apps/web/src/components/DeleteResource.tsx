@@ -22,34 +22,47 @@ import {
 } from "@usesend/ui/src/form";
 
 import { Copy, Check } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, type ReactNode } from "react";
 import { toast } from "@usesend/ui/src/toaster";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ReactNode } from "react";
 
 const defaultSchema = z.object({
   confirmation: z.string(),
 });
 
-export interface DeleteResourceProps {
+type ConfirmationValues = {
+  confirmation: string;
+};
+
+type ConfirmationSchema = z.ZodType<
+  ConfirmationValues,
+  z.ZodTypeDef,
+  ConfirmationValues
+>;
+
+export interface DeleteResourceProps<
+  Schema extends ConfirmationSchema = typeof defaultSchema,
+> {
   title: string;
   resourceName: string;
   descriptionBody?: ReactNode | string;
   confirmLabel?: string;
   isLoading?: boolean;
   // eslint-disable-next-line no-unused-vars
-  onConfirm: (values: z.infer<typeof defaultSchema>) => void | Promise<void>;
+  onConfirm: (values: z.infer<Schema>) => void | Promise<void>;
   open?: boolean;
   // eslint-disable-next-line no-unused-vars
   onOpenChange?: (open: boolean) => void;
-  schema?: typeof defaultSchema;
+  schema?: Schema;
   trigger?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export const DeleteResource: React.FC<DeleteResourceProps> = ({
+export const DeleteResource = <
+  Schema extends ConfirmationSchema = typeof defaultSchema,
+>({
   title,
   resourceName,
   descriptionBody,
@@ -58,14 +71,15 @@ export const DeleteResource: React.FC<DeleteResourceProps> = ({
   onConfirm,
   open: controlledOpen,
   onOpenChange,
-  schema = defaultSchema,
+  schema: providedSchema,
   trigger,
   children,
-}) => {
+}: DeleteResourceProps<Schema>) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const setOpen = onOpenChange || setInternalOpen;
+  const schema = (providedSchema ?? defaultSchema) as Schema;
 
-  const form = useForm<z.infer<typeof schema>>({
+  const form = useForm<z.infer<Schema>>({
     resolver: zodResolver(schema),
   });
 
@@ -85,7 +99,7 @@ export const DeleteResource: React.FC<DeleteResourceProps> = ({
     }
   };
 
-  const handleSubmit = async (values: z.infer<typeof schema>) => {
+  const handleSubmit = async (values: z.infer<Schema>) => {
     await onConfirm(values);
   };
 
@@ -144,7 +158,7 @@ export const DeleteResource: React.FC<DeleteResourceProps> = ({
               </div>
               <FormField
                 control={form.control}
-                name="confirmation"
+                name={"confirmation" as FieldPath<z.infer<Schema>>}
                 render={({ field, formState }) => (
                   <FormItem>
                     <FormControl>

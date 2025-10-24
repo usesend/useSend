@@ -8,20 +8,21 @@ import { useRouter } from "next/navigation";
 import { toast } from "@usesend/ui/src/toaster";
 import { z } from "zod";
 
-const domainSchema = z.object({
-  confirmation: z.string().min(1, "Please type the domain name to confirm"),
-});
-
 export const DeleteDomain: React.FC<{ domain: Domain }> = ({ domain }) => {
   const deleteDomainMutation = api.domain.deleteDomain.useMutation();
   const utils = api.useUtils();
   const router = useRouter();
 
-  async function onDomainDelete(values: z.infer<typeof domainSchema>) {
-    if (values.confirmation !== domain.name) {
-      throw new Error("Domain name does not match");
-    }
+  const domainSchema = z
+    .object({
+      confirmation: z.string().min(1, "Please type the domain name to confirm"),
+    })
+    .refine((data) => data.confirmation === domain.name, {
+      message: "Domain name does not match",
+      path: ["confirmation"],
+    });
 
+  async function onDomainDelete(values: z.infer<typeof domainSchema>) {
     deleteDomainMutation.mutate(
       {
         id: domain.id,

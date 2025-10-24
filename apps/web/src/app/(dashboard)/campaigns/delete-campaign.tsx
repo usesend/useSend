@@ -8,21 +8,24 @@ import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
-const campaignSchema = z.object({
-  confirmation: z.string().min(1, "Please type the campaign name to confirm"),
-});
-
 export const DeleteCampaign: React.FC<{
   campaign: Partial<Campaign> & { id: string };
 }> = ({ campaign }) => {
   const deleteCampaignMutation = api.campaign.deleteCampaign.useMutation();
   const utils = api.useUtils();
 
-  async function onCampaignDelete(values: z.infer<typeof campaignSchema>) {
-    if (values.confirmation !== campaign.name) {
-      throw new Error("Campaign name does not match");
-    }
+  const campaignSchema = z
+    .object({
+      confirmation: z
+        .string()
+        .min(1, "Please type the campaign name to confirm"),
+    })
+    .refine((data) => data.confirmation === campaign.name, {
+      message: "Campaign name does not match",
+      path: ["confirmation"],
+    });
 
+  async function onCampaignDelete(values: z.infer<typeof campaignSchema>) {
     deleteCampaignMutation.mutate(
       {
         campaignId: campaign.id,

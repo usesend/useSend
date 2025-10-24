@@ -8,21 +8,24 @@ import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
-const templateSchema = z.object({
-  confirmation: z.string().min(1, "Please type the template name to confirm"),
-});
-
 export const DeleteTemplate: React.FC<{
   template: Partial<Template> & { id: string };
 }> = ({ template }) => {
   const deleteTemplateMutation = api.template.deleteTemplate.useMutation();
   const utils = api.useUtils();
 
-  async function onTemplateDelete(values: z.infer<typeof templateSchema>) {
-    if (values.confirmation !== template.name) {
-      throw new Error("Template name does not match");
-    }
+  const templateSchema = z
+    .object({
+      confirmation: z
+        .string()
+        .min(1, "Please type the template name to confirm"),
+    })
+    .refine((data) => data.confirmation === template.name, {
+      message: "Template name does not match",
+      path: ["confirmation"],
+    });
 
+  async function onTemplateDelete(values: z.infer<typeof templateSchema>) {
     deleteTemplateMutation.mutate(
       {
         templateId: template.id,
