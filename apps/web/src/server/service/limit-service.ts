@@ -12,7 +12,7 @@ function isLimitExceeded(current: number, limit: number): boolean {
   return current >= limit;
 }
 
-function getActivePlan(team: { plan: string; isActive: boolean }): Plan {
+function getActivePlan(team: { plan: Plan; isActive: boolean }): Plan {
   return team.isActive ? team.plan : "FREE";
 }
 
