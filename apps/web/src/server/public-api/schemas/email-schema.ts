@@ -33,6 +33,19 @@ export const emailSchema = z
       .optional(),
     scheduledAt: z.string().datetime({ offset: true }).optional(), // Ensure ISO 8601 format with offset
     inReplyToId: z.string().optional().nullable(),
+    idempotencyKey: z
+      .string()
+      .min(1)
+      .max(255)
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "Only alphanumeric characters, hyphens, and underscores allowed"
+      )
+      .optional()
+      .openapi({
+        description:
+          "Optional idempotency key to prevent duplicate email sends. Same key within 3 days returns the original email.",
+      }),
   })
   .refine(
     (data) => !!data.subject || !!data.templateId,

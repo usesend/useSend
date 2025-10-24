@@ -15,6 +15,7 @@ export type EmailContent = {
   scheduledAt?: string;
   inReplyToId?: string | null;
   sesTenantId?: string | null;
+  idempotencyKey?: string;
 };
 
 export type EmailAttachment = {

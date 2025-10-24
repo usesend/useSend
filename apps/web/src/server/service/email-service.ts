@@ -11,6 +11,7 @@ import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 import { Prisma } from "@prisma/client";
+import { IdempotencyService } from "./idempotency-service";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -72,7 +73,41 @@ export async function sendEmail(
     apiKeyId,
     inReplyToId,
     headers,
+    idempotencyKey,
   } = emailContent;
+
+  // Check idempotency key if provided
+  if (idempotencyKey) {
+    // Validate format
+    if (!IdempotencyService.validateKey(idempotencyKey)) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message:
+          "Invalid idempotency key format. Only alphanumeric characters, hyphens, and underscores allowed (max 255 chars)",
+      });
+    }
+
+    // Check if key already exists
+    const existing = await IdempotencyService.checkKey(teamId, idempotencyKey);
+
+    if (existing) {
+      // Key found - retrieve and return existing email
+      const email = await db.email.findUnique({
+        where: { id: existing.emailId },
+        include: { emailEvents: true },
+      });
+
+      if (email) {
+        logger.info(
+          { teamId, idempotencyKey, emailId: email.id },
+          "Returning existing email for idempotency key"
+        );
+        return email;
+      }
+      // If email not found (unlikely), proceed to send new one
+    }
+  }
+
   let subject = subjectFromApiCall;
   let html = htmlFromApiCall;
 
@@ -161,6 +196,16 @@ export async function sendEmail(
         teamId,
       },
     });
+
+    // Store idempotency key even for suppressed emails
+    if (idempotencyKey) {
+      await IdempotencyService.storeKey(
+        teamId,
+        idempotencyKey,
+        email.id,
+        email.latestStatus
+      );
+    }
 
     return email;
   }
@@ -296,6 +341,16 @@ export async function sendEmail(
       data: { latestStatus: "FAILED" },
     });
     throw error;
+  }
+
+  // Store idempotency key after successful email creation
+  if (idempotencyKey) {
+    await IdempotencyService.storeKey(
+      teamId,
+      idempotencyKey,
+      email.id,
+      email.latestStatus
+    );
   }
 
   return email;
@@ -639,12 +694,50 @@ export async function sendBulkEmails(
         scheduledAt,
         apiKeyId,
         headers,
+        idempotencyKey,
       } = content;
 
       // Find the original index for this email
       const originalIndex =
         validEmails.find((check) => check.content === content)?.originalIndex ??
         -1;
+
+      // Check idempotency key if provided
+      if (idempotencyKey) {
+        // Validate format
+        if (!IdempotencyService.validateKey(idempotencyKey)) {
+          logger.error(
+            { idempotencyKey, teamId },
+            "Invalid idempotency key format in bulk send, skipping email"
+          );
+          continue; // Skip this email
+        }
+
+        // Check if key already exists
+        const existing = await IdempotencyService.checkKey(
+          teamId,
+          idempotencyKey
+        );
+
+        if (existing) {
+          // Key found - retrieve existing email and add to results
+          const existingEmail = await db.email.findUnique({
+            where: { id: existing.emailId },
+          });
+
+          if (existingEmail) {
+            logger.info(
+              { teamId, idempotencyKey, emailId: existingEmail.id },
+              "Reusing existing email for idempotency key in bulk send"
+            );
+            createdEmails.push({
+              email: existingEmail,
+              originalIndex,
+            });
+            continue; // Skip creating new email
+          }
+        }
+      }
 
       let subject = subjectFromApiCall;
       let html = htmlFromApiCall;
@@ -727,6 +820,16 @@ export async function sendBulkEmails(
         });
 
         createdEmails.push({ email, originalIndex });
+
+        // Store idempotency key if provided
+        if (idempotencyKey) {
+          await IdempotencyService.storeKey(
+            teamId,
+            idempotencyKey,
+            email.id,
+            email.latestStatus
+          );
+        }
 
         // Prepare queue job
         queueJobs.push({
