@@ -101,7 +101,7 @@ export const DeleteDomain: React.FC<{ domain: Domain }> = ({ domain }) => {
                 <FormItem>
                   <FormLabel>Domain</FormLabel>
                   <FormControl>
-                    <Input placeholder="subdomain.example.com" {...field} />
+                    <Input placeholder={domain.name} {...field} />
                   </FormControl>
                   {formState.errors.domain ? (
                     <FormMessage />
@@ -117,7 +117,10 @@ export const DeleteDomain: React.FC<{ domain: Domain }> = ({ domain }) => {
               <Button
                 type="submit"
                 variant="destructive"
-                disabled={deleteDomainMutation.isPending}
+                disabled={
+                  deleteDomainMutation.isPending ||
+                  domainForm.watch("domain") !== domain.name
+                }
               >
                 {deleteDomainMutation.isPending ? "Deleting..." : "Delete"}
               </Button>
