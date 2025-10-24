@@ -8,21 +8,24 @@ import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
-const apiKeySchema = z.object({
-  confirmation: z.string().min(1, "Please type the API key name to confirm"),
-});
-
 export const DeleteApiKey: React.FC<{
   apiKey: Partial<ApiKey> & { id: number };
 }> = ({ apiKey }) => {
   const deleteApiKeyMutation = api.apiKey.deleteApiKey.useMutation();
   const utils = api.useUtils();
 
-  async function onApiKeyDelete(values: z.infer<typeof apiKeySchema>) {
-    if (values.confirmation !== apiKey.name) {
-      throw new Error("API key name does not match");
-    }
+  const apiKeySchema = z
+    .object({
+      confirmation: z
+        .string()
+        .min(1, "Please type the API key name to confirm"),
+    })
+    .refine((data) => data.confirmation === apiKey.name, {
+      message: "API key name does not match",
+      path: ["confirmation"],
+    });
 
+  async function onApiKeyDelete(values: z.infer<typeof apiKeySchema>) {
     deleteApiKeyMutation.mutate(
       {
         id: apiKey.id,
