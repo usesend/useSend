@@ -5,10 +5,15 @@ import { TeamService } from "./team-service";
 import { withCache } from "../redis";
 import { db } from "../db";
 import { logger } from "../logger/log";
+import { Plan } from "@prisma/client";
 
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
   return current >= limit;
+}
+
+function getActivePlan(team: { plan: string; isActive: boolean }): Plan {
+  return team.isActive ? team.plan : "FREE";
 }
 
 export class LimitService {
@@ -25,7 +30,7 @@ export class LimitService {
     const team = await TeamService.getTeamCached(teamId);
     const currentCount = await db.domain.count({ where: { teamId } });
 
-    const limit = PLAN_LIMITS[team.plan].domains;
+    const limit = PLAN_LIMITS[getActivePlan(team)].domains;
     if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
@@ -53,7 +58,7 @@ export class LimitService {
     const team = await TeamService.getTeamCached(teamId);
     const currentCount = await db.contactBook.count({ where: { teamId } });
 
-    const limit = PLAN_LIMITS[team.plan].contactBooks;
+    const limit = PLAN_LIMITS[getActivePlan(team)].contactBooks;
     if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
@@ -81,7 +86,7 @@ export class LimitService {
     const team = await TeamService.getTeamCached(teamId);
     const currentCount = await db.teamUser.count({ where: { teamId } });
 
-    const limit = PLAN_LIMITS[team.plan].teamMembers;
+    const limit = PLAN_LIMITS[getActivePlan(team)].teamMembers;
     if (isLimitExceeded(currentCount, limit)) {
       return {
         isLimitReached: true,
@@ -127,7 +132,7 @@ export class LimitService {
     const usage = await withCache(
       `usage:this-month:${teamId}`,
       () => getThisMonthUsage(teamId),
-      { ttlSeconds: 60 }
+      { ttlSeconds: 60 },
     );
 
     const dailyUsage = usage.day.reduce((acc, curr) => acc + curr.sent, 0);
@@ -138,7 +143,7 @@ export class LimitService {
 
     logger.info(
       { dailyUsage, dailyLimit, team },
-      `[LimitService]: Daily usage and limit`
+      `[LimitService]: Daily usage and limit`,
     );
 
     if (isLimitExceeded(dailyUsage, dailyLimit)) {
@@ -147,12 +152,12 @@ export class LimitService {
         await TeamService.maybeNotifyEmailLimitReached(
           teamId,
           dailyLimit,
-          LimitReason.EMAIL_DAILY_LIMIT_REACHED
+          LimitReason.EMAIL_DAILY_LIMIT_REACHED,
         );
       } catch (e) {
         logger.warn(
           { err: e },
-          "Failed to send daily limit reached notification"
+          "Failed to send daily limit reached notification",
         );
       }
 
@@ -165,17 +170,17 @@ export class LimitService {
     }
 
     // Apply monthly limit logic for FREE plan or inactive subscriptions
-    if (team.plan === "FREE" || !team.isActive) {
+    if (getActivePlan(team) === "FREE") {
       const monthlyUsage = usage.month.reduce(
         (acc, curr) => acc + curr.sent,
-        0
+        0,
       );
       // Use FREE plan limits for inactive subscriptions
       const monthlyLimit = PLAN_LIMITS.FREE.emailsPerMonth;
 
       logger.info(
         { monthlyUsage, monthlyLimit, team, isActive: team.isActive },
-        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`
+        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`,
       );
 
       if (monthlyUsage / monthlyLimit > 0.8 && monthlyUsage < monthlyLimit) {
@@ -183,13 +188,13 @@ export class LimitService {
           teamId,
           monthlyUsage,
           monthlyLimit,
-          LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+          LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
         );
       }
 
       logger.info(
         { monthlyUsage, monthlyLimit, team, isActive: team.isActive },
-        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`
+        `[LimitService]: Monthly usage and limit (FREE plan or inactive subscription)`,
       );
 
       if (isLimitExceeded(monthlyUsage, monthlyLimit)) {
@@ -198,12 +203,12 @@ export class LimitService {
           await TeamService.maybeNotifyEmailLimitReached(
             teamId,
             monthlyLimit,
-            LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
+            LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED,
           );
         } catch (e) {
           logger.warn(
             { err: e },
-            "Failed to send monthly limit reached notification"
+            "Failed to send monthly limit reached notification",
           );
         }
 
@@ -228,7 +233,7 @@ export class LimitService {
           teamId,
           dailyUsage,
           dailyLimit,
-          LimitReason.EMAIL_DAILY_LIMIT_REACHED
+          LimitReason.EMAIL_DAILY_LIMIT_REACHED,
         );
       } catch (e) {
         logger.warn({ err: e }, "Failed to send daily warning email");
