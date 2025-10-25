@@ -373,6 +373,13 @@ export const adminRouter = createTRPCRouter({
                   },
                 },
               },
+              {
+                subscription: {
+                  some: {
+                    id: { equals: query, mode: "insensitive" },
+                  },
+                },
+              },
             ],
           },
           select: teamAdminSelection,
