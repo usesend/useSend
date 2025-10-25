@@ -22,7 +22,3 @@ Authorization: Bearer us_12345
 ```
 
 You can create a new token/API key under your useSend [Developer Settings](https://app.usesend.com/dev-settings/api-keys).
-
-## Idempotency
-
-Use the optional `Idempotency-Key` header on `POST /v1/emails` and `POST /v1/emails/batch` to make requests safe to retry. Reusing a key with the same request body returns the original response; reusing it with different input returns `409 Conflict` so you can detect mistakes. Keys expire after 24 hours.
