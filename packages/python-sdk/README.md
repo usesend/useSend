@@ -37,6 +37,19 @@ resp, _ = client.emails.send(payload={
     "html": "<strong>Hi!</strong>",
 })
 
+# Idempotent retries: same payload + same key returns the original response
+resp, _ = client.emails.send(
+    payload=payload,
+    idempotency_key="signup-123",
+)
+
+# Works for batch requests as well
+resp, _ = client.emails.batch(
+    payload=[payload],
+    idempotency_key="bulk-welcome-1",
+)
+# If the same key is reused with a different payload, the API responds with HTTP 409.
+
 # 3) Campaigns
 campaign_payload: types.CampaignCreate = {
     "name": "Welcome Series",

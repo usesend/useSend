@@ -3,3 +3,13 @@ openapi: post /v1/emails/batch
 ---
 
 Send up to 100 emails in a single request.
+
+## Idempotency
+
+Bulk sends also accept the `Idempotency-Key` header. The key applies to the entire batch payload:
+
+- Same key + identical batch body (all items) → returns the original list of `emailId`s with `200 OK`.
+- Same key + different payload → returns `409 Conflict` with `code: NOT_UNIQUE` so you can detect accidental reuse.
+- Same key while another batch is still being processed → returns `409 Conflict`; retry after the first request finishes.
+
+Keys live for 24 hours.

@@ -18,6 +18,12 @@ from .types import (
 )
 
 
+def _idem_headers(idempotency_key: Optional[str]) -> Optional[Dict[str, str]]:
+    if idempotency_key:
+        return {"Idempotency-Key": idempotency_key}
+    return None
+
+
 class Emails:
     """Client for `/emails` endpoints."""
 
@@ -25,11 +31,21 @@ class Emails:
         self.usesend = usesend
 
     # Basic operations -------------------------------------------------
-    def send(self, payload: EmailCreate) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
+    def send(
+        self,
+        payload: EmailCreate,
+        *,
+        idempotency_key: Optional[str] = None,
+    ) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
         """Alias for :meth:`create`."""
-        return self.create(payload)
+        return self.create(payload, idempotency_key=idempotency_key)
 
-    def create(self, payload: Union[EmailCreate, Dict[str, Any]]) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
+    def create(
+        self,
+        payload: Union[EmailCreate, Dict[str, Any]],
+        *,
+        idempotency_key: Optional[str] = None,
+    ) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
         if isinstance(payload, dict):
             payload = dict(payload)
 
@@ -42,10 +58,17 @@ class Emails:
         if isinstance(body.get("scheduledAt"), datetime):
             body["scheduledAt"] = body["scheduledAt"].isoformat()
 
-        data, err = self.usesend.post("/emails", body)
+        data, err = self.usesend.post(
+            "/emails", body, headers=_idem_headers(idempotency_key)
+        )
         return (data, err)  # type: ignore[return-value]
 
-    def batch(self, payload: Sequence[Union[EmailBatchItem, Dict[str, Any]]]) -> Tuple[Optional[EmailBatchResponse], Optional[APIError]]:
+    def batch(
+        self,
+        payload: Sequence[Union[EmailBatchItem, Dict[str, Any]]],
+        *,
+        idempotency_key: Optional[str] = None,
+    ) -> Tuple[Optional[EmailBatchResponse], Optional[APIError]]:
         items: List[Dict[str, Any]] = []
         for item in payload:
             d = dict(item)
@@ -54,7 +77,9 @@ class Emails:
             if isinstance(d.get("scheduledAt"), datetime):
                 d["scheduledAt"] = d["scheduledAt"].isoformat()
             items.append(d)
-        data, err = self.usesend.post("/emails/batch", items)
+        data, err = self.usesend.post(
+            "/emails/batch", items, headers=_idem_headers(idempotency_key)
+        )
         return (data, err)  # type: ignore[return-value]
 
     def get(self, email_id: str) -> Tuple[Optional[Email], Optional[APIError]]:

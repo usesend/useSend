@@ -1,3 +1,15 @@
 ---
 openapi: post /v1/emails
 ---
+
+Send a transactional email via the public API.
+
+## Idempotency
+
+Pass the optional `Idempotency-Key` header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:
+
+- Same key + same request body → returns the original `emailId` with `200 OK` without re‑sending.
+- Same key + different request body → returns `409 Conflict` with `code: NOT_UNIQUE` so you can detect the mismatch.
+- Same key while another request is still being processed → returns `409 Conflict`; retry after a short delay or once the first request completes.
+
+Entries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID).
