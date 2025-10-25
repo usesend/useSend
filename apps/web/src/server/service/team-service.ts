@@ -400,7 +400,8 @@ export class TeamService {
     }
 
     const team = await TeamService.getTeamCached(teamId);
-    const isPaidPlan = team.plan !== "FREE";
+    // Only consider it a paid plan if the subscription is active
+    const isPaidPlan = team.isActive && team.plan !== "FREE";
 
     const html = await getLimitReachedEmail(teamId, limit, reason);
 
@@ -501,7 +502,8 @@ export class TeamService {
     }
 
     const team = await TeamService.getTeamCached(teamId);
-    const isPaidPlan = team.plan !== "FREE";
+    // Only consider it a paid plan if the subscription is active
+    const isPaidPlan = team.isActive && team.plan !== "FREE";
 
     const period =
       reason === LimitReason.EMAIL_FREE_PLAN_MONTHLY_LIMIT_REACHED
