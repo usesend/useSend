@@ -34,9 +34,9 @@ import { isCloud } from "~/utils/common";
 
 const searchSchema = z.object({
   query: z
-    .string({ required_error: "Enter a team ID, name, domain, or member email" })
+    .string({ required_error: "Enter a team ID, name, domain, member email, or subscription ID" })
     .trim()
-    .min(1, "Enter a team ID, name, domain, or member email"),
+    .min(1, "Enter a team ID, name, domain, member email, or subscription ID"),
 });
 
 type SearchInput = z.infer<typeof searchSchema>;
@@ -150,7 +150,7 @@ export default function AdminTeamsPage() {
                   <FormLabel>Team lookup</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Team ID, team name, domain, or member email"
+                      placeholder="Team ID, team name, domain, member email, or subscription ID"
                       autoComplete="off"
                       {...field}
                       value={field.value}
