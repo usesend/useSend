@@ -12,8 +12,12 @@ function isUseSendErrorResponse(error: { error: ErrorResponse }) {
   return error.error.code !== undefined;
 }
 
+type RequestOptions = {
+  headers?: HeadersInit;
+};
+
 export class UseSend {
-  private readonly headers: Headers;
+  private readonly baseHeaders: Headers;
 
   // readonly domains = new Domains(this);
   readonly emails = new Emails(this);
@@ -42,17 +46,36 @@ export class UseSend {
       this.url = `${url}/api/v1`;
     }
 
-    this.headers = new Headers({
+    this.baseHeaders = new Headers({
       Authorization: `Bearer ${this.key}`,
       "Content-Type": "application/json",
     });
   }
 
+  private mergeHeaders(extra?: HeadersInit) {
+    const headers = new Headers(this.baseHeaders);
+    if (!extra) {
+      return headers;
+    }
+
+    const additional = new Headers(extra);
+    additional.forEach((value, key) => {
+      headers.set(key, value);
+    });
+
+    return headers;
+  }
+
   async fetchRequest<T>(
     path: string,
-    options = {},
+    options: RequestInit = {},
   ): Promise<{ data: T | null; error: ErrorResponse | null }> {
-    const response = await fetch(`${this.url}${path}`, options);
+    const requestOptions: RequestInit = {
+      ...options,
+      headers: this.mergeHeaders(options.headers),
+    };
+
+    const response = await fetch(`${this.url}${path}`, requestOptions);
     const defaultError = {
       code: "INTERNAL_SERVER_ERROR",
       message: response.statusText,
@@ -82,51 +105,69 @@ export class UseSend {
     return { data, error: null };
   }
 
-  async post<T>(path: string, body: unknown) {
-    const requestOptions = {
+  async post<T>(path: string, body: unknown, options?: RequestOptions) {
+    const requestOptions: RequestInit = {
       method: "POST",
-      headers: this.headers,
       body: JSON.stringify(body),
     };
+
+    if (options?.headers) {
+      requestOptions.headers = options.headers;
+    }
 
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async get<T>(path: string) {
-    const requestOptions = {
+  async get<T>(path: string, options?: RequestOptions) {
+    const requestOptions: RequestInit = {
       method: "GET",
-      headers: this.headers,
     };
+
+    if (options?.headers) {
+      requestOptions.headers = options.headers;
+    }
 
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async put<T>(path: string, body: any) {
-    const requestOptions = {
+  async put<T>(path: string, body: any, options?: RequestOptions) {
+    const requestOptions: RequestInit = {
       method: "PUT",
-      headers: this.headers,
       body: JSON.stringify(body),
     };
+
+    if (options?.headers) {
+      requestOptions.headers = options.headers;
+    }
 
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async patch<T>(path: string, body: any) {
-    const requestOptions = {
+  async patch<T>(path: string, body: any, options?: RequestOptions) {
+    const requestOptions: RequestInit = {
       method: "PATCH",
-      headers: this.headers,
       body: JSON.stringify(body),
     };
+
+    if (options?.headers) {
+      requestOptions.headers = options.headers;
+    }
 
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async delete<T>(path: string, body?: unknown) {
-    const requestOptions = {
+  async delete<T>(path: string, body?: unknown, options?: RequestOptions) {
+    const requestOptions: RequestInit = {
       method: "DELETE",
-      headers: this.headers,
-      body: JSON.stringify(body),
     };
+
+    if (body !== undefined) {
+      requestOptions.body = JSON.stringify(body);
+    }
+
+    if (options?.headers) {
+      requestOptions.headers = options.headers;
+    }
 
     return this.fetchRequest<T>(path, requestOptions);
   }
