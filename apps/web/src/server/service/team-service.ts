@@ -29,7 +29,7 @@ export class TeamService {
     await redis.setex(
       TeamService.cacheKey(teamId),
       TEAM_CACHE_TTL_SECONDS,
-      JSON.stringify(team)
+      JSON.stringify(team),
     );
     return team;
   }
@@ -54,7 +54,7 @@ export class TeamService {
 
   static async createTeam(
     userId: number,
-    name: string
+    name: string,
   ): Promise<Team | undefined> {
     const teams = await db.team.findMany({
       where: {
@@ -103,7 +103,7 @@ export class TeamService {
    */
   static async updateTeam(
     teamId: number,
-    data: Prisma.TeamUpdateInput
+    data: Prisma.TeamUpdateInput,
   ): Promise<Team> {
     const updated = await db.team.update({ where: { id: teamId }, data });
     await TeamService.refreshTeamCache(teamId);
@@ -153,7 +153,7 @@ export class TeamService {
     email: string,
     role: "MEMBER" | "ADMIN",
     teamName: string,
-    sendEmail: boolean = true
+    sendEmail: boolean = true,
   ): Promise<TeamInvite> {
     if (!email) {
       throw new TRPCError({
@@ -206,7 +206,7 @@ export class TeamService {
   static async updateTeamUserRole(
     teamId: number,
     userId: string,
-    role: "MEMBER" | "ADMIN"
+    role: "MEMBER" | "ADMIN",
   ) {
     const teamUser = await db.teamUser.findFirst({
       where: {
@@ -257,7 +257,7 @@ export class TeamService {
     teamId: number,
     userId: string,
     requestorRole: string,
-    requestorId: number
+    requestorId: number,
   ) {
     const teamUser = await db.teamUser.findFirst({
       where: {
@@ -361,16 +361,16 @@ export class TeamService {
   static async maybeNotifyEmailLimitReached(
     teamId: number,
     limit: number,
-    reason: LimitReason | undefined
+    reason: LimitReason | undefined,
   ) {
     logger.info(
       { teamId, limit, reason },
-      "[TeamService]: maybeNotifyEmailLimitReached called"
+      "[TeamService]: maybeNotifyEmailLimitReached called",
     );
     if (!reason) {
       logger.info(
         { teamId },
-        "[TeamService]: Skipping notify — no reason provided"
+        "[TeamService]: Skipping notify — no reason provided",
       );
       return;
     }
@@ -383,7 +383,7 @@ export class TeamService {
     ) {
       logger.info(
         { teamId, reason },
-        "[TeamService]: Skipping notify — reason not eligible"
+        "[TeamService]: Skipping notify — reason not eligible",
       );
       return;
     }
@@ -394,7 +394,7 @@ export class TeamService {
     if (alreadySent) {
       logger.info(
         { teamId, cacheKey },
-        "[TeamService]: Skipping notify — cooldown active"
+        "[TeamService]: Skipping notify — cooldown active",
       );
       return; // within cooldown window
     }
@@ -425,24 +425,24 @@ export class TeamService {
 
     logger.info(
       { teamId, recipientsCount: recipients.length, reason },
-      "[TeamService]: Sending limit reached notifications"
+      "[TeamService]: Sending limit reached notifications",
     );
 
     // Send individually to all team users
     try {
       await Promise.all(
         recipients.map((to) =>
-          sendMail(to, subject, text, html, "hey@usesend.com")
-        )
+          sendMail(to, subject, text, html, "hey@usesend.com"),
+        ),
       );
       logger.info(
         { teamId, recipientsCount: recipients.length },
-        "[TeamService]: Limit reached notifications sent"
+        "[TeamService]: Limit reached notifications sent",
       );
     } catch (err) {
       logger.error(
         { err, teamId },
-        "[TeamService]: Failed sending limit reached notifications"
+        "[TeamService]: Failed sending limit reached notifications",
       );
       throw err;
     }
@@ -451,7 +451,7 @@ export class TeamService {
     await redis.setex(cacheKey, 6 * 60 * 60, "1");
     logger.info(
       { teamId, cacheKey },
-      "[TeamService]: Set limit reached notification cooldown"
+      "[TeamService]: Set limit reached notification cooldown",
     );
   }
 
@@ -463,16 +463,16 @@ export class TeamService {
     teamId: number,
     used: number,
     limit: number,
-    reason: LimitReason | undefined
+    reason: LimitReason | undefined,
   ) {
     logger.info(
       { teamId, used, limit, reason },
-      "[TeamService]: sendWarningEmail called"
+      "[TeamService]: sendWarningEmail called",
     );
     if (!reason) {
       logger.info(
         { teamId },
-        "[TeamService]: Skipping warning — no reason provided"
+        "[TeamService]: Skipping warning — no reason provided",
       );
       return;
     }
@@ -485,7 +485,7 @@ export class TeamService {
     ) {
       logger.info(
         { teamId, reason },
-        "[TeamService]: Skipping warning — reason not eligible"
+        "[TeamService]: Skipping warning — reason not eligible",
       );
       return;
     }
@@ -496,7 +496,7 @@ export class TeamService {
     if (alreadySent) {
       logger.info(
         { teamId, cacheKey },
-        "[TeamService]: Skipping warning — cooldown active"
+        "[TeamService]: Skipping warning — cooldown active",
       );
       return; // within cooldown window
     }
@@ -537,23 +537,23 @@ export class TeamService {
 
     logger.info(
       { teamId, recipientsCount: recipients.length, reason },
-      "[TeamService]: Sending warning notifications"
+      "[TeamService]: Sending warning notifications",
     );
 
     try {
       await Promise.all(
         recipients.map((to) =>
-          sendMail(to, subject, text, html, "hey@usesend.com")
-        )
+          sendMail(to, subject, text, html, "hey@usesend.com"),
+        ),
       );
       logger.info(
         { teamId, recipientsCount: recipients.length },
-        "[TeamService]: Warning notifications sent"
+        "[TeamService]: Warning notifications sent",
       );
     } catch (err) {
       logger.error(
         { err, teamId },
-        "[TeamService]: Failed sending warning notifications"
+        "[TeamService]: Failed sending warning notifications",
       );
       throw err;
     }
@@ -562,19 +562,18 @@ export class TeamService {
     await redis.setex(cacheKey, 6 * 60 * 60, "1");
     logger.info(
       { teamId, cacheKey },
-      "[TeamService]: Set warning notification cooldown"
+      "[TeamService]: Set warning notification cooldown",
     );
   }
-
 }
 
 async function getLimitReachedEmail(
   teamId: number,
   limit: number,
-  reason: LimitReason
+  reason: LimitReason,
 ) {
   const team = await TeamService.getTeamCached(teamId);
-  const isPaidPlan = team.plan !== "FREE";
+  const isPaidPlan = team.isActive && team.plan !== "FREE";
   const email = await renderUsageLimitReachedEmail({
     teamName: team.name,
     limit,
