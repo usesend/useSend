@@ -12,6 +12,7 @@ datasource db {
   // Further reading:
   // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
   // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+  // Tests: `pnpm infra:test:start` writes DATABASE_URL/DATABASE_URL_TEST before migrations run.
   url      = env("DATABASE_URL")
 }
 

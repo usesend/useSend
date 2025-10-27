@@ -25,7 +25,10 @@
     "d": "pnpm dx && pnpm dev",
     "dx": "pnpm i && pnpm dx:up && pnpm db:migrate-dev",
     "dx:up": "docker compose -f docker/dev/compose.yml up -d",
-    "dx:down": "docker compose -f docker/dev/compose.yml down"
+    "dx:down": "docker compose -f docker/dev/compose.yml down",
+    "infra:test:start": "node scripts/infra-test-start.js",
+    "infra:test:stop": "node scripts/infra-test-stop.js",
+    "infra:test:reset": "dotenv -e .env.test -- pnpm --filter web exec tsx tests/helpers/reset-test-state.ts"
   },
   "devDependencies": {
     "@usesend/eslint-config": "workspace:*",
