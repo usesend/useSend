@@ -174,7 +174,10 @@ export function VariableComponent(props: NodeViewProps) {
       draggable="false"
       data-drag-handle=""
     >
-      <Popover open={isEditing} onOpenChange={setIsEditing}>
+      <Popover
+        open={isEditing}
+        onOpenChange={(open) => !open && setIsEditing(false)}
+      >
         <PopoverTrigger asChild>
           <button
             className={cn(

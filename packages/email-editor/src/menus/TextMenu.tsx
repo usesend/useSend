@@ -249,60 +249,36 @@ export function TextMenu(props: TextMenuProps) {
     [editor, editor?.state]
   );
 
-  let showTimer: number | null = null;
-  let lastShowResult = false;
-
-  const delayedShouldShow = () => {
-    if (showTimer) clearTimeout(showTimer);
-
-    showTimer = setTimeout(
-      ({
-        editor,
-        state,
-        from,
-        to,
-      }: {
-        editor: Editor;
-        state: EditorState;
-        from: number;
-        to: number;
-      }) => {
-        const {doc, selection} = state;
-        const {empty} = selection;
-
-        // Sometime check for `empty` is not enough.
-        // Doubleclick an empty paragraph returns a node size of 2.
-        // So we check also for an empty text size.
-        const isEmptyTextBlock =
-          !doc.textBetween(from, to).length && isTextSelection(state.selection);
-
-        if (
-          empty ||
-          isEmptyTextBlock ||
-          !editor.isEditable ||
-          editor.isActive("image") ||
-          editor.isActive("logo") ||
-          editor.isActive("spacer") ||
-          editor.isActive("variable") ||
-          editor.isActive("link") ||
-          editor.isActive({
-            component: "button",
-          })
-        ) {
-          return false;
-        }
-
-        return true;
-      },
-      500
-    );
-
-    return lastShowResult;
-  };
-
   const bubbleMenuProps: TextMenuProps = {
     ...props,
-    shouldShow: delayedShouldShow,
+    shouldShow: ({editor, state, from, to}) => {
+      const {doc, selection} = state;
+      const {empty} = selection;
+
+      // Sometime check for `empty` is not enough.
+      // Doubleclick an empty paragraph returns a node size of 2.
+      // So we check also for an empty text size.
+      const isEmptyTextBlock =
+        !doc.textBetween(from, to).length && isTextSelection(state.selection);
+
+      if (
+        empty ||
+        isEmptyTextBlock ||
+        !editor.isEditable ||
+        editor.isActive("image") ||
+        editor.isActive("logo") ||
+        editor.isActive("spacer") ||
+        editor.isActive("variable") ||
+        editor.isActive("link") ||
+        editor.isActive({
+          component: "button",
+        })
+      ) {
+        return false;
+      }
+
+      return true;
+    },
     tippyOptions: {
       maxWidth: "100%",
       moveTransition: "transform 0.15s ease-out",
