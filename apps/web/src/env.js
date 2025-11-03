@@ -66,7 +66,14 @@ export const env = createEnv({
     SMTP_HOST: z.string().default("smtp.usesend.com"),
     SMTP_USER: z.string().default("usesend"),
     CONTACT_BOOK_ID: z.string().optional(),
-    EMAIL_CLEANUP_DAYS: z.number().default(90),
+    EMAIL_CLEANUP_DAYS: z
+        .string()
+        .default("90")
+        .transform((str) => parseInt(str, 10)),
+    EMAIL_CLEANUP_ENABLED: z
+        .string()
+        .default("false")
+        .transform((str) => str === "true"),
   },
 
   /**
@@ -80,10 +87,6 @@ export const env = createEnv({
       .string()
       .default("false")
       .transform((str) => str === "true"),
-    EMAIL_CLEANUP_ENABLED: z
-        .string()
-        .default("false")
-        .transform((str) => str === "true"),
   },
 
   /**
@@ -127,7 +130,8 @@ export const env = createEnv({
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
-    EMAIL_CLEANUP_ENABLED : process.env.EMAIL_CLEANUP_ENABLED,
+    EMAIL_CLEANUP_ENABLED: process.env.EMAIL_CLEANUP_ENABLED,
+    EMAIL_CLEANUP_DAYS: process.env.EMAIL_CLEANUP_DAYS,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
