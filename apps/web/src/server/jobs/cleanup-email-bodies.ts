@@ -7,8 +7,8 @@ import {env} from "~/env";
 
 const CLEANUP_QUEUE_NAME = "cleanup-email-bodies";
 
-const CLEANUP_CRON = "* * * * *"; // default: midnight UTC
-let CLEANUP_DAYS = Number(env.EMAIL_CLEANUP_DAYS ?? 90);
+const CLEANUP_CRON = "0 0 * * *"; // default: midnight UTC
+let CLEANUP_DAYS = Number(env.EMAIL_CLEANUP_DAYS);
 
 if (isNaN(CLEANUP_DAYS) || CLEANUP_DAYS <= 0) {
     logger.warn(
