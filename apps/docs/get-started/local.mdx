@@ -101,6 +101,14 @@ openssl rand -base64 32
 ```
 
   </Step>
+  <Step title="Create symlink for Next.js">
+  Create a symlink so that Next.js can access the root `.env` file:
+
+```bash
+ln -s ../../.env apps/web/.env
+```
+
+  </Step>
   <Step title="Setup GitHub Oauth (optional)">
   <Note>
     You don't need this setup if you have `FROM_EMAIL` set in your environment
