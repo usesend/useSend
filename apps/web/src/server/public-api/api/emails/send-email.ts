@@ -16,7 +16,9 @@ const route = createRoute({
         "Idempotency-Key": z.string().min(1).max(256).optional(),
       })
       .partial()
-      .openapi("Idempotency headers"),
+      .openapi({
+        description: "Idempotency headers",
+      }),
     body: {
       required: true,
       content: {
@@ -89,7 +91,7 @@ function send(app: PublicAPIApp) {
           if (again.bodyHash === payloadHash) {
             logger.info(
               { teamId: team.id },
-              "Idempotency hit after contention for email send"
+              "Idempotency hit after contention for email send",
             );
             return c.json({ emailId: again.emailIds[0] });
           }
