@@ -7,3 +7,9 @@ export function isCloud() {
 export function isSelfHosted() {
   return !isCloud();
 }
+
+export function isEmailCleanupEnabled() {
+  return env.EMAIL_CLEANUP_ENABLED;
+}
+
+
