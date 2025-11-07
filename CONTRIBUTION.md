@@ -55,6 +55,14 @@ openssl rand -base64 32
 
 - Add this to `.env` as `NEXTAUTH_SECRET`.
 
+- Create symlink for Next.js:
+
+```bash
+ln -s ../../.env apps/web/.env
+```
+
+> Next.js requires the `.env` file in its directory. This symlink ensures both root and `apps/web` can access the same environment variables.
+
 ### 4. GitHub OAuth (Optional for Dev)
 
 Set up a GitHub OAuth App:
