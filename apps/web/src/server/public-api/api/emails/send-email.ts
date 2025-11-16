@@ -3,9 +3,6 @@ import { PublicAPIApp } from "~/server/public-api/hono";
 import { sendEmail } from "~/server/service/email-service";
 import { emailSchema } from "../../schemas/email-schema";
 import { IdempotencyService } from "~/server/service/idempotency-service";
-import { canonicalizePayload } from "~/server/utils/idempotency";
-import { UnsendApiError } from "~/server/public-api/api-error";
-import { logger } from "~/server/logger/log";
 
 const route = createRoute({
   method: "post",
@@ -13,12 +10,22 @@ const route = createRoute({
   request: {
     headers: z
       .object({
-        "Idempotency-Key": z.string().min(1).max(256).optional(),
+        "Idempotency-Key": z
+          .string()
+          .min(1)
+          .max(256)
+          .optional()
+          .openapi({
+            description: `Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:
+
+- Same key + same request body → returns the original emailId with 200 OK without re-sending.
+- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.
+- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.
+
+Entries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID).`,
+          }),
       })
-      .partial()
-      .openapi({
-        description: "Idempotency headers",
-      }),
+      .partial(),
     body: {
       required: true,
       content: {
@@ -58,78 +65,28 @@ function send(app: PublicAPIApp) {
     };
 
     const idemKey = c.req.header("Idempotency-Key") ?? undefined;
-    if (idemKey !== undefined && (idemKey.length < 1 || idemKey.length > 256)) {
-      throw new UnsendApiError({
-        code: "BAD_REQUEST",
-        message: "Invalid Idempotency-Key length",
-      });
-    }
 
-    let payloadHash: string | undefined;
-    let lockAcquired = false;
-
-    if (idemKey) {
-      ({ bodyHash: payloadHash } = canonicalizePayload(clientPayload));
-
-      const existing = await IdempotencyService.getResult(team.id, idemKey);
-      if (existing) {
-        if (existing.bodyHash === payloadHash) {
-          logger.info({ teamId: team.id }, "Idempotency hit for email send");
-          return c.json({ emailId: existing.emailIds[0] });
-        }
-
-        throw new UnsendApiError({
-          code: "NOT_UNIQUE",
-          message: "Idempotency-Key already used with a different payload",
+    const result = await IdempotencyService.withIdempotency<
+      typeof clientPayload,
+      { emailId?: string }
+    >({
+      teamId: team.id,
+      idemKey,
+      payload: clientPayload,
+      operation: async () => {
+        const email = await sendEmail({
+          ...clientPayload,
+          teamId: team.id,
+          apiKeyId: team.apiKeyId,
         });
-      }
+        return { emailId: email?.id };
+      },
+      extractEmailIds: (result) => (result.emailId ? [result.emailId] : []),
+      formatCachedResponse: (emailIds) => ({ emailId: emailIds[0] }),
+      logContext: "email send",
+    });
 
-      lockAcquired = await IdempotencyService.acquireLock(team.id, idemKey);
-      if (!lockAcquired) {
-        const again = await IdempotencyService.getResult(team.id, idemKey);
-        if (again) {
-          if (again.bodyHash === payloadHash) {
-            logger.info(
-              { teamId: team.id },
-              "Idempotency hit after contention for email send",
-            );
-            return c.json({ emailId: again.emailIds[0] });
-          }
-
-          throw new UnsendApiError({
-            code: "NOT_UNIQUE",
-            message: "Idempotency-Key already used with a different payload",
-          });
-        }
-
-        throw new UnsendApiError({
-          code: "NOT_UNIQUE",
-          message:
-            "Request with same Idempotency-Key is in progress. Retry later.",
-        });
-      }
-    }
-
-    try {
-      const email = await sendEmail({
-        ...clientPayload,
-        teamId: team.id,
-        apiKeyId: team.apiKeyId,
-      });
-
-      if (idemKey && payloadHash) {
-        await IdempotencyService.setResult(team.id, idemKey, {
-          bodyHash: payloadHash,
-          emailIds: [email.id],
-        });
-      }
-
-      return c.json({ emailId: email?.id });
-    } finally {
-      if (idemKey && lockAcquired) {
-        await IdempotencyService.releaseLock(team.id, idemKey);
-      }
-    }
+    return c.json(result);
   });
 }
 
