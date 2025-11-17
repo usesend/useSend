@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "info": { "version": "1.0.0", "title": "useSend API" },
-  "servers": [{ "url": "http://localhost:3000/api" }],
+  "servers": [{ "url": "https://app.usesend.com/api" }],
   "components": {
     "securitySchemes": { "Bearer": { "type": "http", "scheme": "bearer" } },
     "schemas": {},
