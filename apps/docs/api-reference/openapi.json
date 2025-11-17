@@ -1,21 +1,9 @@
 {
   "openapi": "3.0.0",
-  "info": {
-    "version": "1.0.0",
-    "title": "useSend API"
-  },
-  "servers": [
-    {
-      "url": "https://app.usesend.com/api"
-    }
-  ],
+  "info": { "version": "1.0.0", "title": "useSend API" },
+  "servers": [{ "url": "https://app.usesend.com/api" }],
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    },
+    "securitySchemes": { "Bearer": { "type": "http", "scheme": "bearer" } },
     "schemas": {},
     "parameters": {}
   },
@@ -57,59 +45,23 @@
                           "TEMPORARY_FAILURE"
                         ]
                       },
-                      "region": {
-                        "type": "string",
-                        "default": "us-east-1"
-                      },
-                      "clickTracking": {
-                        "type": "boolean",
-                        "default": false
-                      },
-                      "openTracking": {
-                        "type": "boolean",
-                        "default": false
-                      },
-                      "publicKey": {
-                        "type": "string"
-                      },
-                      "dkimStatus": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "spfDetails": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      },
-                      "updatedAt": {
-                        "type": "string"
-                      },
-                      "dmarcAdded": {
-                        "type": "boolean",
-                        "default": false
-                      },
-                      "isVerifying": {
-                        "type": "boolean",
-                        "default": false
-                      },
-                      "errorMessage": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "subdomain": {
-                        "type": "string",
-                        "nullable": true
-                      },
+                      "region": { "type": "string", "default": "us-east-1" },
+                      "clickTracking": { "type": "boolean", "default": false },
+                      "openTracking": { "type": "boolean", "default": false },
+                      "publicKey": { "type": "string" },
+                      "dkimStatus": { "type": "string", "nullable": true },
+                      "spfDetails": { "type": "string", "nullable": true },
+                      "createdAt": { "type": "string" },
+                      "updatedAt": { "type": "string" },
+                      "dmarcAdded": { "type": "boolean", "default": false },
+                      "isVerifying": { "type": "boolean", "default": false },
+                      "errorMessage": { "type": "string", "nullable": true },
+                      "subdomain": { "type": "string", "nullable": true },
                       "verificationError": {
                         "type": "string",
                         "nullable": true
                       },
-                      "lastCheckedTime": {
-                        "type": "string",
-                        "nullable": true
-                      },
+                      "lastCheckedTime": { "type": "string", "nullable": true },
                       "dnsRecords": {
                         "type": "array",
                         "items": {
@@ -117,10 +69,7 @@
                           "properties": {
                             "type": {
                               "type": "string",
-                              "enum": [
-                                "MX",
-                                "TXT"
-                              ],
+                              "enum": ["MX", "TXT"],
                               "description": "DNS record type",
                               "example": "TXT"
                             },
@@ -160,13 +109,7 @@
                               "description": "Whether the record is recommended"
                             }
                           },
-                          "required": [
-                            "type",
-                            "name",
-                            "value",
-                            "ttl",
-                            "status"
-                          ]
+                          "required": ["type", "name", "value", "ttl", "status"]
                         }
                       }
                     },
@@ -195,17 +138,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "region": {
-                    "type": "string"
-                  }
+                  "name": { "type": "string" },
+                  "region": { "type": "string" }
                 },
-                "required": [
-                  "name",
-                  "region"
-                ]
+                "required": ["name", "region"]
               }
             }
           }
@@ -243,59 +179,20 @@
                         "TEMPORARY_FAILURE"
                       ]
                     },
-                    "region": {
-                      "type": "string",
-                      "default": "us-east-1"
-                    },
-                    "clickTracking": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "openTracking": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "publicKey": {
-                      "type": "string"
-                    },
-                    "dkimStatus": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "spfDetails": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    },
-                    "dmarcAdded": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "isVerifying": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "errorMessage": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "subdomain": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "verificationError": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "lastCheckedTime": {
-                      "type": "string",
-                      "nullable": true
-                    },
+                    "region": { "type": "string", "default": "us-east-1" },
+                    "clickTracking": { "type": "boolean", "default": false },
+                    "openTracking": { "type": "boolean", "default": false },
+                    "publicKey": { "type": "string" },
+                    "dkimStatus": { "type": "string", "nullable": true },
+                    "spfDetails": { "type": "string", "nullable": true },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" },
+                    "dmarcAdded": { "type": "boolean", "default": false },
+                    "isVerifying": { "type": "boolean", "default": false },
+                    "errorMessage": { "type": "string", "nullable": true },
+                    "subdomain": { "type": "string", "nullable": true },
+                    "verificationError": { "type": "string", "nullable": true },
+                    "lastCheckedTime": { "type": "string", "nullable": true },
                     "dnsRecords": {
                       "type": "array",
                       "items": {
@@ -303,10 +200,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "MX",
-                              "TXT"
-                            ],
+                            "enum": ["MX", "TXT"],
                             "description": "DNS record type",
                             "example": "TXT"
                           },
@@ -346,13 +240,7 @@
                             "description": "Whether the record is recommended"
                           }
                         },
-                        "required": [
-                          "type",
-                          "name",
-                          "value",
-                          "ttl",
-                          "status"
-                        ]
+                        "required": ["type", "name", "value", "ttl", "status"]
                       }
                     }
                   },
@@ -377,11 +265,7 @@
       "put": {
         "parameters": [
           {
-            "schema": {
-              "type": "number",
-              "nullable": true,
-              "example": 1
-            },
+            "schema": { "type": "number", "nullable": true, "example": 1 },
             "required": false,
             "name": "id",
             "in": "path"
@@ -394,14 +278,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message"
-                  ]
+                  "properties": { "message": { "type": "string" } },
+                  "required": ["message"]
                 }
               }
             }
@@ -412,14 +290,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
+                  "properties": { "error": { "type": "string" } },
+                  "required": ["error"]
                 }
               }
             }
@@ -430,14 +302,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
+                  "properties": { "error": { "type": "string" } },
+                  "required": ["error"]
                 }
               }
             }
@@ -449,11 +315,7 @@
       "get": {
         "parameters": [
           {
-            "schema": {
-              "type": "number",
-              "nullable": true,
-              "example": 1
-            },
+            "schema": { "type": "number", "nullable": true, "example": 1 },
             "required": false,
             "name": "id",
             "in": "path"
@@ -492,59 +354,20 @@
                         "TEMPORARY_FAILURE"
                       ]
                     },
-                    "region": {
-                      "type": "string",
-                      "default": "us-east-1"
-                    },
-                    "clickTracking": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "openTracking": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "publicKey": {
-                      "type": "string"
-                    },
-                    "dkimStatus": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "spfDetails": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    },
-                    "dmarcAdded": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "isVerifying": {
-                      "type": "boolean",
-                      "default": false
-                    },
-                    "errorMessage": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "subdomain": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "verificationError": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "lastCheckedTime": {
-                      "type": "string",
-                      "nullable": true
-                    },
+                    "region": { "type": "string", "default": "us-east-1" },
+                    "clickTracking": { "type": "boolean", "default": false },
+                    "openTracking": { "type": "boolean", "default": false },
+                    "publicKey": { "type": "string" },
+                    "dkimStatus": { "type": "string", "nullable": true },
+                    "spfDetails": { "type": "string", "nullable": true },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" },
+                    "dmarcAdded": { "type": "boolean", "default": false },
+                    "isVerifying": { "type": "boolean", "default": false },
+                    "errorMessage": { "type": "string", "nullable": true },
+                    "subdomain": { "type": "string", "nullable": true },
+                    "verificationError": { "type": "string", "nullable": true },
+                    "lastCheckedTime": { "type": "string", "nullable": true },
                     "dnsRecords": {
                       "type": "array",
                       "items": {
@@ -552,10 +375,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "MX",
-                              "TXT"
-                            ],
+                            "enum": ["MX", "TXT"],
                             "description": "DNS record type",
                             "example": "TXT"
                           },
@@ -595,13 +415,7 @@
                             "description": "Whether the record is recommended"
                           }
                         },
-                        "required": [
-                          "type",
-                          "name",
-                          "value",
-                          "ttl",
-                          "status"
-                        ]
+                        "required": ["type", "name", "value", "ttl", "status"]
                       }
                     }
                   },
@@ -624,11 +438,7 @@
       "delete": {
         "parameters": [
           {
-            "schema": {
-              "type": "number",
-              "nullable": true,
-              "example": 1
-            },
+            "schema": { "type": "number", "nullable": true, "example": 1 },
             "required": false,
             "name": "id",
             "in": "path"
@@ -642,21 +452,11 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "number"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "id": { "type": "number" },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
                   },
-                  "required": [
-                    "id",
-                    "success",
-                    "message"
-                  ]
+                  "required": ["id", "success", "message"]
                 }
               }
             }
@@ -667,14 +467,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
+                  "properties": { "error": { "type": "string" } },
+                  "required": ["error"]
                 }
               }
             }
@@ -685,14 +479,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
+                  "properties": { "error": { "type": "string" } },
+                  "required": ["error"]
                 }
               }
             }
@@ -722,92 +510,44 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "teamId": {
-                      "type": "number"
-                    },
+                    "id": { "type": "string" },
+                    "teamId": { "type": "number" },
                     "to": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "replyTo": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "cc": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "bcc": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
-                    "from": {
-                      "type": "string"
-                    },
-                    "subject": {
-                      "type": "string"
-                    },
-                    "html": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "text": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    },
+                    "from": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "html": { "type": "string", "nullable": true },
+                    "text": { "type": "string", "nullable": true },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" },
                     "emailEvents": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "emailId": {
-                            "type": "string"
-                          },
+                          "emailId": { "type": "string" },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -827,18 +567,10 @@
                               "SUPPRESSED"
                             ]
                           },
-                          "createdAt": {
-                            "type": "string"
-                          },
-                          "data": {
-                            "nullable": true
-                          }
+                          "createdAt": { "type": "string" },
+                          "data": { "nullable": true }
                         },
-                        "required": [
-                          "emailId",
-                          "status",
-                          "createdAt"
-                        ]
+                        "required": ["emailId", "status", "createdAt"]
                       }
                     }
                   },
@@ -880,14 +612,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "scheduledAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  }
+                  "scheduledAt": { "type": "string", "format": "date-time" }
                 },
-                "required": [
-                  "scheduledAt"
-                ]
+                "required": ["scheduledAt"]
               }
             }
           }
@@ -899,11 +626,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "emailId": {
-                      "type": "string"
-                    }
-                  }
+                  "properties": { "emailId": { "type": "string" } }
                 }
               }
             }
@@ -915,21 +638,13 @@
       "get": {
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "default": "1",
-              "example": "1"
-            },
+            "schema": { "type": "string", "default": "1", "example": "1" },
             "required": false,
             "name": "page",
             "in": "query"
           },
           {
-            "schema": {
-              "type": "string",
-              "default": "50",
-              "example": "50"
-            },
+            "schema": { "type": "string", "default": "50", "example": "50" },
             "required": false,
             "name": "limit",
             "in": "query"
@@ -957,15 +672,8 @@
           {
             "schema": {
               "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
               ],
               "example": "123"
             },
@@ -987,90 +695,49 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {
-                            "type": "string"
-                          },
+                          "id": { "type": "string" },
                           "to": {
                             "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
+                              { "type": "string" },
+                              { "type": "array", "items": { "type": "string" } }
                             ]
                           },
                           "replyTo": {
                             "anyOf": [
-                              {
-                                "type": "string"
-                              },
+                              { "type": "string" },
                               {
                                 "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
+                                "items": { "type": "string" }
                               },
-                              {
-                                "nullable": true
-                              }
+                              { "nullable": true }
                             ]
                           },
                           "cc": {
                             "anyOf": [
-                              {
-                                "type": "string"
-                              },
+                              { "type": "string" },
                               {
                                 "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
+                                "items": { "type": "string" }
                               },
-                              {
-                                "nullable": true
-                              }
+                              { "nullable": true }
                             ]
                           },
                           "bcc": {
                             "anyOf": [
-                              {
-                                "type": "string"
-                              },
+                              { "type": "string" },
                               {
                                 "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
+                                "items": { "type": "string" }
                               },
-                              {
-                                "nullable": true
-                              }
+                              { "nullable": true }
                             ]
                           },
-                          "from": {
-                            "type": "string"
-                          },
-                          "subject": {
-                            "type": "string"
-                          },
-                          "html": {
-                            "type": "string",
-                            "nullable": true
-                          },
-                          "text": {
-                            "type": "string",
-                            "nullable": true
-                          },
-                          "createdAt": {
-                            "type": "string"
-                          },
-                          "updatedAt": {
-                            "type": "string"
-                          },
+                          "from": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "html": { "type": "string", "nullable": true },
+                          "text": { "type": "string", "nullable": true },
+                          "createdAt": { "type": "string" },
+                          "updatedAt": { "type": "string" },
                           "latestStatus": {
                             "type": "string",
                             "nullable": true,
@@ -1096,10 +763,7 @@
                             "nullable": true,
                             "format": "date-time"
                           },
-                          "domainId": {
-                            "type": "number",
-                            "nullable": true
-                          }
+                          "domainId": { "type": "number", "nullable": true }
                         },
                         "required": [
                           "id",
@@ -1116,14 +780,9 @@
                         ]
                       }
                     },
-                    "count": {
-                      "type": "number"
-                    }
+                    "count": { "type": "number" }
                   },
-                  "required": [
-                    "data",
-                    "count"
-                  ]
+                  "required": ["data", "count"]
                 }
               }
             }
@@ -1131,6 +790,19 @@
         }
       },
       "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1140,20 +812,11 @@
                 "properties": {
                   "to": {
                     "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
                     ]
                   },
-                  "from": {
-                    "type": "string"
-                  },
+                  "from": { "type": "string" },
                   "subject": {
                     "type": "string",
                     "minLength": 1,
@@ -1165,47 +828,24 @@
                   },
                   "variables": {
                     "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                   },
                   "replyTo": {
                     "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
                     ]
                   },
                   "cc": {
                     "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
                     ]
                   },
                   "bcc": {
                     "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
                     ]
                   },
                   "text": {
@@ -1231,35 +871,17 @@
                     "items": {
                       "type": "object",
                       "properties": {
-                        "filename": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "content": {
-                          "type": "string",
-                          "minLength": 1
-                        }
+                        "filename": { "type": "string", "minLength": 1 },
+                        "content": { "type": "string", "minLength": 1 }
                       },
-                      "required": [
-                        "filename",
-                        "content"
-                      ]
+                      "required": ["filename", "content"]
                     },
                     "maxItems": 10
                   },
-                  "scheduledAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "inReplyToId": {
-                    "type": "string",
-                    "nullable": true
-                  }
+                  "scheduledAt": { "type": "string", "format": "date-time" },
+                  "inReplyToId": { "type": "string", "nullable": true }
                 },
-                "required": [
-                  "to",
-                  "from"
-                ]
+                "required": ["to", "from"]
               }
             }
           }
@@ -1271,11 +893,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "emailId": {
-                      "type": "string"
-                    }
-                  }
+                  "properties": { "emailId": { "type": "string" } }
                 }
               }
             }
@@ -1285,6 +903,19 @@
     },
     "/v1/emails/batch": {
       "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
+            },
+            "required": false,
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1296,20 +927,11 @@
                   "properties": {
                     "to": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
-                    "from": {
-                      "type": "string"
-                    },
+                    "from": { "type": "string" },
                     "subject": {
                       "type": "string",
                       "minLength": 1,
@@ -1321,47 +943,24 @@
                     },
                     "variables": {
                       "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
+                      "additionalProperties": { "type": "string" }
                     },
                     "replyTo": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "cc": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "bcc": {
                       "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
                       ]
                     },
                     "text": {
@@ -1387,35 +986,17 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "filename": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "content": {
-                            "type": "string",
-                            "minLength": 1
-                          }
+                          "filename": { "type": "string", "minLength": 1 },
+                          "content": { "type": "string", "minLength": 1 }
                         },
-                        "required": [
-                          "filename",
-                          "content"
-                        ]
+                        "required": ["filename", "content"]
                       },
                       "maxItems": 10
                     },
-                    "scheduledAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "inReplyToId": {
-                      "type": "string",
-                      "nullable": true
-                    }
+                    "scheduledAt": { "type": "string", "format": "date-time" },
+                    "inReplyToId": { "type": "string", "nullable": true }
                   },
-                  "required": [
-                    "to",
-                    "from"
-                  ]
+                  "required": ["to", "from"]
                 },
                 "maxItems": 100
               }
@@ -1434,20 +1015,12 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "properties": {
-                          "emailId": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "emailId"
-                        ]
+                        "properties": { "emailId": { "type": "string" } },
+                        "required": ["emailId"]
                       }
                     }
                   },
-                  "required": [
-                    "data"
-                  ]
+                  "required": ["data"]
                 }
               }
             }
@@ -1476,11 +1049,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "emailId": {
-                      "type": "string"
-                    }
-                  }
+                  "properties": { "emailId": { "type": "string" } }
                 }
               }
             }
@@ -1509,28 +1078,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "firstName": {
-                    "type": "string"
-                  },
-                  "lastName": {
-                    "type": "string"
-                  },
+                  "email": { "type": "string" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
                   "properties": {
                     "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                   },
-                  "subscribed": {
-                    "type": "boolean"
-                  }
+                  "subscribed": { "type": "boolean" }
                 },
-                "required": [
-                  "email"
-                ]
+                "required": ["email"]
               }
             }
           }
@@ -1542,11 +1099,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "contactId": {
-                      "type": "string"
-                    }
-                  }
+                  "properties": { "contactId": { "type": "string" } }
                 }
               }
             }
@@ -1556,42 +1109,31 @@
       "get": {
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactBookId",
             "in": "path"
           },
           {
-            "schema": {
-              "type": "string"
-            },
+            "schema": { "type": "string" },
             "required": false,
             "name": "emails",
             "in": "query"
           },
           {
-            "schema": {
-              "type": "number"
-            },
+            "schema": { "type": "number" },
             "required": false,
             "name": "page",
             "in": "query"
           },
           {
-            "schema": {
-              "type": "number"
-            },
+            "schema": { "type": "number" },
             "required": false,
             "name": "limit",
             "in": "query"
           },
           {
-            "schema": {
-              "type": "string"
-            },
+            "schema": { "type": "string" },
             "required": false,
             "name": "ids",
             "in": "query"
@@ -1607,39 +1149,18 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "firstName": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "lastName": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "email": {
-                        "type": "string"
-                      },
-                      "subscribed": {
-                        "type": "boolean",
-                        "default": true
-                      },
+                      "id": { "type": "string" },
+                      "firstName": { "type": "string", "nullable": true },
+                      "lastName": { "type": "string", "nullable": true },
+                      "email": { "type": "string" },
+                      "subscribed": { "type": "boolean", "default": true },
                       "properties": {
                         "type": "object",
-                        "additionalProperties": {
-                          "type": "string"
-                        }
+                        "additionalProperties": { "type": "string" }
                       },
-                      "contactBookId": {
-                        "type": "string"
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      },
-                      "updatedAt": {
-                        "type": "string"
-                      }
+                      "contactBookId": { "type": "string" },
+                      "createdAt": { "type": "string" },
+                      "updatedAt": { "type": "string" }
                     },
                     "required": [
                       "id",
@@ -1661,19 +1182,13 @@
       "patch": {
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactBookId",
             "in": "path"
           },
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactId",
             "in": "path"
@@ -1686,21 +1201,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "firstName": {
-                    "type": "string"
-                  },
-                  "lastName": {
-                    "type": "string"
-                  },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
                   "properties": {
                     "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                   },
-                  "subscribed": {
-                    "type": "boolean"
-                  }
+                  "subscribed": { "type": "boolean" }
                 }
               }
             }
@@ -1713,11 +1220,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "contactId": {
-                      "type": "string"
-                    }
-                  }
+                  "properties": { "contactId": { "type": "string" } }
                 }
               }
             }
@@ -1727,19 +1230,13 @@
       "get": {
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactBookId",
             "in": "path"
           },
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactId",
             "in": "path"
@@ -1753,39 +1250,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "firstName": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "lastName": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "email": {
-                      "type": "string"
-                    },
-                    "subscribed": {
-                      "type": "boolean",
-                      "default": true
-                    },
+                    "id": { "type": "string" },
+                    "firstName": { "type": "string", "nullable": true },
+                    "lastName": { "type": "string", "nullable": true },
+                    "email": { "type": "string" },
+                    "subscribed": { "type": "boolean", "default": true },
                     "properties": {
                       "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
+                      "additionalProperties": { "type": "string" }
                     },
-                    "contactBookId": {
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "type": "string"
-                    }
+                    "contactBookId": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
                   },
                   "required": [
                     "id",
@@ -1821,28 +1297,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "firstName": {
-                    "type": "string"
-                  },
-                  "lastName": {
-                    "type": "string"
-                  },
+                  "email": { "type": "string" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
                   "properties": {
                     "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                   },
-                  "subscribed": {
-                    "type": "boolean"
-                  }
+                  "subscribed": { "type": "boolean" }
                 },
-                "required": [
-                  "email"
-                ]
+                "required": ["email"]
               }
             }
           }
@@ -1854,14 +1318,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "contactId": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "contactId"
-                  ]
+                  "properties": { "contactId": { "type": "string" } },
+                  "required": ["contactId"]
                 }
               }
             }
@@ -1871,19 +1329,13 @@
       "delete": {
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactBookId",
             "in": "path"
           },
           {
-            "schema": {
-              "type": "string",
-              "example": "cuiwqdj74rygf74"
-            },
+            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
             "required": true,
             "name": "contactId",
             "in": "path"
@@ -1896,14 +1348,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success"
-                  ]
+                  "properties": { "success": { "type": "boolean" } },
+                  "required": ["success"]
                 }
               }
             }
@@ -1920,81 +1366,41 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "from": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "subject": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "previewText": {
-                    "type": "string"
-                  },
-                  "contactBookId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "content": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "html": {
-                    "type": "string",
-                    "minLength": 1
-                  },
+                  "name": { "type": "string", "minLength": 1 },
+                  "from": { "type": "string", "minLength": 1 },
+                  "subject": { "type": "string", "minLength": 1 },
+                  "previewText": { "type": "string" },
+                  "contactBookId": { "type": "string", "minLength": 1 },
+                  "content": { "type": "string", "minLength": 1 },
+                  "html": { "type": "string", "minLength": 1 },
                   "replyTo": {
                     "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
+                      { "type": "string", "minLength": 1 },
                       {
                         "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        }
+                        "items": { "type": "string", "minLength": 1 }
                       }
                     ]
                   },
                   "cc": {
                     "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
+                      { "type": "string", "minLength": 1 },
                       {
                         "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        }
+                        "items": { "type": "string", "minLength": 1 }
                       }
                     ]
                   },
                   "bcc": {
                     "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
+                      { "type": "string", "minLength": 1 },
                       {
                         "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        }
+                        "items": { "type": "string", "minLength": 1 }
                       }
                     ]
                   },
-                  "sendNow": {
-                    "type": "boolean"
-                  },
+                  "sendNow": { "type": "boolean" },
                   "scheduledAt": {
                     "type": "string",
                     "description": "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
@@ -2005,12 +1411,7 @@
                     "maximum": 100000
                   }
                 },
-                "required": [
-                  "name",
-                  "from",
-                  "subject",
-                  "contactBookId"
-                ]
+                "required": ["name", "from", "subject", "contactBookId"]
               }
             }
           }
@@ -2023,101 +1424,39 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "from": {
-                      "type": "string"
-                    },
-                    "subject": {
-                      "type": "string"
-                    },
-                    "previewText": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "contactBookId": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "html": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "content": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "status": {
-                      "type": "string"
-                    },
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "from": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "previewText": { "type": "string", "nullable": true },
+                    "contactBookId": { "type": "string", "nullable": true },
+                    "html": { "type": "string", "nullable": true },
+                    "content": { "type": "string", "nullable": true },
+                    "status": { "type": "string" },
                     "scheduledAt": {
                       "type": "string",
                       "nullable": true,
                       "format": "date-time"
                     },
-                    "batchSize": {
-                      "type": "integer"
-                    },
-                    "batchWindowMinutes": {
-                      "type": "integer"
-                    },
-                    "total": {
-                      "type": "integer"
-                    },
-                    "sent": {
-                      "type": "integer"
-                    },
-                    "delivered": {
-                      "type": "integer"
-                    },
-                    "opened": {
-                      "type": "integer"
-                    },
-                    "clicked": {
-                      "type": "integer"
-                    },
-                    "unsubscribed": {
-                      "type": "integer"
-                    },
-                    "bounced": {
-                      "type": "integer"
-                    },
-                    "hardBounced": {
-                      "type": "integer"
-                    },
-                    "complained": {
-                      "type": "integer"
-                    },
+                    "batchSize": { "type": "integer" },
+                    "batchWindowMinutes": { "type": "integer" },
+                    "total": { "type": "integer" },
+                    "sent": { "type": "integer" },
+                    "delivered": { "type": "integer" },
+                    "opened": { "type": "integer" },
+                    "clicked": { "type": "integer" },
+                    "unsubscribed": { "type": "integer" },
+                    "bounced": { "type": "integer" },
+                    "hardBounced": { "type": "integer" },
+                    "complained": { "type": "integer" },
                     "replyTo": {
                       "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                      "items": { "type": "string" }
                     },
-                    "cc": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "bcc": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "updatedAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
+                    "cc": { "type": "array", "items": { "type": "string" } },
+                    "bcc": { "type": "array", "items": { "type": "string" } },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
                   },
                   "required": [
                     "id",
@@ -2176,101 +1515,39 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "from": {
-                      "type": "string"
-                    },
-                    "subject": {
-                      "type": "string"
-                    },
-                    "previewText": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "contactBookId": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "html": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "content": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "status": {
-                      "type": "string"
-                    },
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "from": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "previewText": { "type": "string", "nullable": true },
+                    "contactBookId": { "type": "string", "nullable": true },
+                    "html": { "type": "string", "nullable": true },
+                    "content": { "type": "string", "nullable": true },
+                    "status": { "type": "string" },
                     "scheduledAt": {
                       "type": "string",
                       "nullable": true,
                       "format": "date-time"
                     },
-                    "batchSize": {
-                      "type": "integer"
-                    },
-                    "batchWindowMinutes": {
-                      "type": "integer"
-                    },
-                    "total": {
-                      "type": "integer"
-                    },
-                    "sent": {
-                      "type": "integer"
-                    },
-                    "delivered": {
-                      "type": "integer"
-                    },
-                    "opened": {
-                      "type": "integer"
-                    },
-                    "clicked": {
-                      "type": "integer"
-                    },
-                    "unsubscribed": {
-                      "type": "integer"
-                    },
-                    "bounced": {
-                      "type": "integer"
-                    },
-                    "hardBounced": {
-                      "type": "integer"
-                    },
-                    "complained": {
-                      "type": "integer"
-                    },
+                    "batchSize": { "type": "integer" },
+                    "batchWindowMinutes": { "type": "integer" },
+                    "total": { "type": "integer" },
+                    "sent": { "type": "integer" },
+                    "delivered": { "type": "integer" },
+                    "opened": { "type": "integer" },
+                    "clicked": { "type": "integer" },
+                    "unsubscribed": { "type": "integer" },
+                    "bounced": { "type": "integer" },
+                    "hardBounced": { "type": "integer" },
+                    "complained": { "type": "integer" },
                     "replyTo": {
                       "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                      "items": { "type": "string" }
                     },
-                    "cc": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "bcc": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "updatedAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
+                    "cc": { "type": "array", "items": { "type": "string" } },
+                    "bcc": { "type": "array", "items": { "type": "string" } },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
                   },
                   "required": [
                     "id",
@@ -2349,14 +1626,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success"
-                  ]
+                  "properties": { "success": { "type": "boolean" } },
+                  "required": ["success"]
                 }
               }
             }
@@ -2385,14 +1656,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success"
-                  ]
+                  "properties": { "success": { "type": "boolean" } },
+                  "required": ["success"]
                 }
               }
             }
@@ -2421,14 +1686,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success"
-                  ]
+                  "properties": { "success": { "type": "boolean" } },
+                  "required": ["success"]
                 }
               }
             }

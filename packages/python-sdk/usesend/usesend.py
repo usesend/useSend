@@ -77,12 +77,25 @@ class UseSend:
     # ------------------------------------------------------------------
     # Internal request helper
     # ------------------------------------------------------------------
+    def _build_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        headers = dict(self.headers)
+        if extra:
+            headers.update({k: v for k, v in extra.items() if v is not None})
+        return headers
+
     def _request(
-        self, method: str, path: str, json: Optional[Any] = None
+        self,
+        method: str,
+        path: str,
+        json: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """Perform an HTTP request and return ``(data, error)``."""
         resp = self._session.request(
-            method, f"{self.url}{path}", headers=self.headers, json=json
+            method,
+            f"{self.url}{path}",
+            headers=self._build_headers(headers),
+            json=json,
         )
         default_error = {"code": "INTERNAL_SERVER_ERROR", "message": resp.reason}
 
@@ -104,22 +117,42 @@ class UseSend:
     # ------------------------------------------------------------------
     # HTTP verb helpers
     # ------------------------------------------------------------------
-    def post(self, path: str, body: Any) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        return self._request("POST", path, json=body)
+    def post(
+        self,
+        path: str,
+        body: Any,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        return self._request("POST", path, json=body, headers=headers)
 
-    def get(self, path: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        return self._request("GET", path)
+    def get(
+        self, path: str, headers: Optional[Dict[str, str]] = None
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        return self._request("GET", path, headers=headers)
 
-    def put(self, path: str, body: Any) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        return self._request("PUT", path, json=body)
+    def put(
+        self,
+        path: str,
+        body: Any,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        return self._request("PUT", path, json=body, headers=headers)
 
-    def patch(self, path: str, body: Any) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        return self._request("PATCH", path, json=body)
+    def patch(
+        self,
+        path: str,
+        body: Any,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        return self._request("PATCH", path, json=body, headers=headers)
 
     def delete(
-        self, path: str, body: Optional[Any] = None
+        self,
+        path: str,
+        body: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        return self._request("DELETE", path, json=body)
+        return self._request("DELETE", path, json=body, headers=headers)
 
 
 # Import here to avoid circular dependency during type checking
