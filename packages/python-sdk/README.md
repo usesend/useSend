@@ -40,13 +40,13 @@ resp, _ = client.emails.send(payload={
 # Idempotent retries: same payload + same key returns the original response
 resp, _ = client.emails.send(
     payload=payload,
-    idempotency_key="signup-123",
+    options={"idempotency_key": "signup-123"},
 )
 
 # Works for batch requests as well
 resp, _ = client.emails.batch(
     payload=[payload],
-    idempotency_key="bulk-welcome-1",
+    options={"idempotency_key": "bulk-welcome-1"},
 )
 # If the same key is reused with a different payload, the API responds with HTTP 409.
 

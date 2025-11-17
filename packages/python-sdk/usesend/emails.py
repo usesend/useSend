@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing_extensions import TypedDict
 
 from .types import (
     APIError,
@@ -16,6 +17,11 @@ from .types import (
     EmailCreate,
     EmailCreateResponse,
 )
+
+
+class EmailOptions(TypedDict, total=False):
+    """Options for email operations."""
+    idempotency_key: Optional[str]
 
 
 def _idem_headers(idempotency_key: Optional[str]) -> Optional[Dict[str, str]]:
@@ -34,17 +40,15 @@ class Emails:
     def send(
         self,
         payload: EmailCreate,
-        *,
-        idempotency_key: Optional[str] = None,
+        options: Optional[EmailOptions] = None,
     ) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
         """Alias for :meth:`create`."""
-        return self.create(payload, idempotency_key=idempotency_key)
+        return self.create(payload, options)
 
     def create(
         self,
         payload: Union[EmailCreate, Dict[str, Any]],
-        *,
-        idempotency_key: Optional[str] = None,
+        options: Optional[EmailOptions] = None,
     ) -> Tuple[Optional[EmailCreateResponse], Optional[APIError]]:
         if isinstance(payload, dict):
             payload = dict(payload)
@@ -58,6 +62,7 @@ class Emails:
         if isinstance(body.get("scheduledAt"), datetime):
             body["scheduledAt"] = body["scheduledAt"].isoformat()
 
+        idempotency_key = options.get("idempotency_key") if options else None
         data, err = self.usesend.post(
             "/emails", body, headers=_idem_headers(idempotency_key)
         )
@@ -66,8 +71,7 @@ class Emails:
     def batch(
         self,
         payload: Sequence[Union[EmailBatchItem, Dict[str, Any]]],
-        *,
-        idempotency_key: Optional[str] = None,
+        options: Optional[EmailOptions] = None,
     ) -> Tuple[Optional[EmailBatchResponse], Optional[APIError]]:
         items: List[Dict[str, Any]] = []
         for item in payload:
@@ -77,6 +81,7 @@ class Emails:
             if isinstance(d.get("scheduledAt"), datetime):
                 d["scheduledAt"] = d["scheduledAt"].isoformat()
             items.append(d)
+        idempotency_key = options.get("idempotency_key") if options else None
         data, err = self.usesend.post(
             "/emails/batch", items, headers=_idem_headers(idempotency_key)
         )
