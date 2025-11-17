@@ -108,6 +108,27 @@ export class EmailQueueService {
     }
   }
 
+  public static async removeRegion(region: string) {
+    logger.info({ region }, `[EmailQueueService]: Removing queues for region`);
+
+    const transactionalQueue = this.transactionalQueue.get(region);
+    const transactionalWorker = this.transactionalWorker.get(region);
+    const marketingQueue = this.marketingQueue.get(region);
+    const marketingWorker = this.marketingWorker.get(region);
+
+    await Promise.all([
+      transactionalWorker?.close(),
+      transactionalQueue?.close(),
+      marketingWorker?.close(),
+      marketingQueue?.close(),
+    ]);
+
+    this.transactionalQueue.delete(region);
+    this.transactionalWorker.delete(region);
+    this.marketingQueue.delete(region);
+    this.marketingWorker.delete(region);
+  }
+
   public static async queueEmail(
     emailId: string,
     teamId: number,
