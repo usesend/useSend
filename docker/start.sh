@@ -4,9 +4,8 @@ set -x
 
 echo "Deploying prisma migrations"
 
-pnpx prisma migrate deploy --schema ./apps/web/prisma/schema.prisma
+./node_modules/.bin/prisma migrate deploy --schema ./apps/web/prisma/schema.prisma
 
 echo "Starting web server"
 
 node apps/web/server.js
-
