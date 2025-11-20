@@ -8,6 +8,7 @@ Before you begin, ensure that you have the following installed:
 
 - Docker
 - Docker Compose (if using the Docker Compose setup)
+- Node.js 20.19 or newer (Prisma requires at least v20.19 in the build image)
 
 ## Option 1: Production Docker Compose Setup
 
