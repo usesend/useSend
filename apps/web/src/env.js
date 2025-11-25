@@ -68,12 +68,8 @@ export const env = createEnv({
     CONTACT_BOOK_ID: z.string().optional(),
     EMAIL_CLEANUP_DAYS: z
         .string()
-        .default("90")
-        .transform((str) => parseInt(str, 10)),
-    EMAIL_CLEANUP_ENABLED: z
-        .string()
-        .default("false")
-        .transform((str) => str === "true"),
+        .optional()
+        .transform((str) => (str ? parseInt(str, 10) : undefined)),
   },
 
   /**
@@ -130,7 +126,6 @@ export const env = createEnv({
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
-    EMAIL_CLEANUP_ENABLED: process.env.EMAIL_CLEANUP_ENABLED,
     EMAIL_CLEANUP_DAYS: process.env.EMAIL_CLEANUP_DAYS,
   },
   /**

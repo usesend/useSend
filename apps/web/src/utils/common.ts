@@ -1,15 +1,17 @@
-import { env } from "~/env";
+import {env} from "~/env";
 
 export function isCloud() {
-  return env.NEXT_PUBLIC_IS_CLOUD;
+    return env.NEXT_PUBLIC_IS_CLOUD;
 }
 
 export function isSelfHosted() {
-  return !isCloud();
+    return !isCloud();
 }
 
 export function isEmailCleanupEnabled() {
-  return env.EMAIL_CLEANUP_ENABLED;
+    const days = env.EMAIL_CLEANUP_DAYS;
+    if (days === undefined || isNaN(days) || days <= 0) {
+        return false;
+    }
+    return true;
 }
-
-
