@@ -101,6 +101,36 @@ export class LimitService {
     };
   }
 
+  static async checkWebhookLimit(teamId: number): Promise<{
+    isLimitReached: boolean;
+    limit: number;
+    reason?: LimitReason;
+  }> {
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return { isLimitReached: false, limit: -1 };
+    }
+
+    const team = await TeamService.getTeamCached(teamId);
+    const currentCount = await db.webhook.count({
+      where: { teamId },
+    });
+
+    const limit = PLAN_LIMITS[getActivePlan(team)].webhooks;
+    if (isLimitExceeded(currentCount, limit)) {
+      return {
+        isLimitReached: true,
+        limit,
+        reason: LimitReason.WEBHOOK,
+      };
+    }
+
+    return {
+      isLimitReached: false,
+      limit,
+    };
+  }
+
   // Checks email sending limits and also triggers usage notifications.
   // Side effects:
   // - Sends "warning" emails when nearing daily/monthly limits (rate-limited in TeamService)

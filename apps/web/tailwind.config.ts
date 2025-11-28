@@ -11,5 +11,6 @@ export default {
     "./src/**/*.tsx",
     path.join(here, "../../packages/ui/src/**/*.{ts,tsx}"),
     path.join(here, "../../packages/email-editor/src/**/*.{ts,tsx}"),
+    path.join(here, "../../packages/lib/src/**/*.{ts,tsx}"),
   ],
 } satisfies Config;
