@@ -22,7 +22,7 @@ export const feedbackRouter = createTRPCRouter({
     .input(
       z.object({
         message: z.string().trim().min(1, "Feedback cannot be empty").max(2000),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       if (!isCloud()) {
@@ -34,7 +34,7 @@ export const feedbackRouter = createTRPCRouter({
 
       if (!env.FOUNDER_EMAIL) {
         throw new TRPCError({
-          code: "FAILED_PRECONDITION",
+          code: "INTERNAL_SERVER_ERROR",
           message: "Feedback email is not configured.",
         });
       }
