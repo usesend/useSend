@@ -1,6 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { getTeamFromToken } from "~/server/public-api/auth";
 import { updateContact } from "~/server/service/contact-service";
 import { getContactBook } from "../../api-utils";
 
@@ -57,7 +56,11 @@ function updateContactInfo(app: PublicAPIApp) {
     await getContactBook(c, team.id);
     const contactId = c.req.param("contactId");
 
-    const contact = await updateContact(contactId, c.req.valid("json"));
+    const contact = await updateContact(
+      contactId,
+      c.req.valid("json"),
+      team.id,
+    );
 
     return c.json({ contactId: contact.id });
   });

@@ -25,6 +25,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@usesend/lib": "workspace:*",
     "@react-email/render": "^1.0.6",
     "react": "^19.1.0"
   }

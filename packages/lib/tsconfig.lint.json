@@ -1,0 +1,8 @@
+{
+  "extends": "@usesend/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  },
+  "include": ["src", "turbo", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

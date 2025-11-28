@@ -115,3 +115,81 @@ await usesend.campaigns.pause(campaign.data.id);
 // Resume a campaign
 await usesend.campaigns.resume(campaign.data.id);
 ```
+
+## Webhooks
+
+Verify webhook signatures and get typed events:
+
+```ts
+import {
+  constructEvent
+} from "usesend";
+
+// In a Next.js App Route
+export async function POST(request: Request) {
+  const rawBody = await request.text(); // important: raw body, not parsed JSON
+  const event = constructEvent({
+    secret: process.env.USESEND_WEBHOOK_SECRET!,
+    headers: request.headers,
+    rawBody,
+  });
+
+  if (event.type === "email.delivered") {
+    // event.data is strongly typed here
+  }
+
+  return new Response("ok");
+}
+```
+
+Need only signature verification? You can call it directly:
+
+```ts
+import { verifyWebhookSignature } from "usesend";
+
+verifyWebhookSignature({
+  secret: process.env.USESEND_WEBHOOK_SECRET!,
+  rawBody,
+  signatureHeader: request.headers.get("X-UseSend-Signature"),
+  timestampHeader: request.headers.get("X-UseSend-Timestamp"),
+});
+```
+
+Express example (ensure raw body is preserved):
+
+```ts
+import express from "express";
+import { constructEvent } from "usesend";
+
+const app = express();
+app.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    try {
+      const event = constructEvent({
+        secret: process.env.USESEND_WEBHOOK_SECRET!,
+        headers: req.headers,
+        rawBody: req.body,
+      });
+
+      if (event.type === "email.bounced") {
+        // handle bounce
+      }
+
+      res.status(200).send("ok");
+    } catch (error) {
+      res.status(400).send((error as Error).message);
+    }
+  },
+);
+```
+
+Headers sent by UseSend:
+
+- `X-UseSend-Signature`: `v1=` + HMAC-SHA256 of `${timestamp}.${rawBody}`
+- `X-UseSend-Timestamp`: Unix epoch in milliseconds
+- `X-UseSend-Event`: webhook event type
+- `X-UseSend-Call`: unique webhook attempt id
+
+By default, signatures are only accepted within 5 minutes of the timestamp. Override with `toleranceMs` if needed.

@@ -1,6 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { getTeamFromToken } from "~/server/public-api/auth";
 import { deleteContact } from "~/server/service/contact-service";
 import { getContactBook } from "../../api-utils";
 
@@ -44,7 +43,7 @@ function deleteContactHandler(app: PublicAPIApp) {
     await getContactBook(c, team.id);
     const contactId = c.req.param("contactId");
 
-    await deleteContact(contactId);
+    await deleteContact(contactId, team.id);
 
     return c.json({ success: true });
   });
