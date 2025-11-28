@@ -1,9 +1,14 @@
 import {
   EmailStatus,
-  Prisma,
-  UnsubscribeReason,
   SuppressionReason,
+  UnsubscribeReason,
+  type Email,
 } from "@prisma/client";
+import {
+  type EmailBasePayload,
+  type EmailEventPayloadMap,
+  type EmailWebhookEventType,
+} from "@usesend/lib/src/webhook/webhook-events";
 import {
   SesBounce,
   SesClick,
@@ -25,6 +30,7 @@ import {
 import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
+import { WebhookService } from "./webhook-service";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -295,7 +301,216 @@ export async function parseSesHook(data: SesEvent) {
 
   logger.info("Email event created");
 
+  try {
+    const occurredAt = data.mail.timestamp
+      ? new Date(data.mail.timestamp).toISOString()
+      : new Date().toISOString();
+
+    const metadata = buildEmailMetadata(mailStatus, mailData);
+
+    await WebhookService.emit(
+      email.teamId,
+      emailStatusToEvent(mailStatus),
+      buildEmailWebhookPayload({
+        email,
+        status: mailStatus,
+        occurredAt,
+        eventData: mailData,
+        metadata,
+      }),
+    );
+  } catch (error) {
+    logger.error(
+      { error, emailId: email.id, mailStatus },
+      "[SesHookParser]: Failed to emit webhook",
+    );
+  }
+
   return true;
+}
+
+type EmailBounceSubType =
+  EmailEventPayloadMap["email.bounced"]["bounce"]["subType"];
+
+function buildEmailWebhookPayload(params: {
+  email: Email;
+  status: EmailStatus;
+  occurredAt: string;
+  eventData: SesEvent | SesEvent[SesEventDataKey];
+  metadata?: Record<string, unknown>;
+}): EmailEventPayloadMap[EmailWebhookEventType] {
+  const { email, status, eventData, occurredAt, metadata } = params;
+
+  const basePayload: EmailBasePayload = {
+    id: email.id,
+    status,
+    from: email.from,
+    to: email.to,
+    occurredAt,
+    campaignId: email.campaignId ?? undefined,
+    contactId: email.contactId ?? undefined,
+    domainId: email.domainId ?? null,
+    subject: email.subject,
+    metadata,
+  };
+
+  switch (status) {
+    case EmailStatus.BOUNCED: {
+      const bounce = eventData as SesBounce | undefined;
+      return {
+        ...basePayload,
+        bounce: {
+          type: bounce?.bounceType ?? "Undetermined",
+          subType: normalizeBounceSubType(bounce?.bounceSubType),
+          message: bounce?.bouncedRecipients?.[0]?.diagnosticCode,
+        },
+      };
+    }
+    case EmailStatus.OPENED: {
+      const openData = eventData as SesEvent["open"];
+      return {
+        ...basePayload,
+        open: {
+          timestamp: openData?.timestamp ?? occurredAt,
+          userAgent: openData?.userAgent,
+          ip: openData?.ipAddress,
+        },
+      };
+    }
+    case EmailStatus.CLICKED: {
+      const clickData = eventData as SesClick | undefined;
+      return {
+        ...basePayload,
+        click: {
+          timestamp: clickData?.timestamp ?? occurredAt,
+          url: clickData?.link ?? "",
+          userAgent: clickData?.userAgent,
+          ip: clickData?.ipAddress,
+        },
+      };
+    }
+    default:
+      return basePayload;
+  }
+}
+
+function normalizeBounceSubType(
+  subType: SesBounce["bounceSubType"] | undefined,
+): EmailBounceSubType {
+  const normalized = subType?.replace(/\s+/g, "") as
+    | EmailBounceSubType
+    | undefined;
+
+  const validSubTypes: EmailBounceSubType[] = [
+    "General",
+    "NoEmail",
+    "Suppressed",
+    "OnAccountSuppressionList",
+    "MailboxFull",
+    "MessageTooLarge",
+    "ContentRejected",
+    "AttachmentRejected",
+  ];
+
+  if (normalized && validSubTypes.includes(normalized)) {
+    return normalized;
+  }
+
+  return "General";
+}
+
+function emailStatusToEvent(status: EmailStatus): EmailWebhookEventType {
+  switch (status) {
+    case EmailStatus.QUEUED:
+      return "email.queued";
+    case EmailStatus.SENT:
+      return "email.sent";
+    case EmailStatus.DELIVERY_DELAYED:
+      return "email.delivery_delayed";
+    case EmailStatus.DELIVERED:
+      return "email.delivered";
+    case EmailStatus.BOUNCED:
+      return "email.bounced";
+    case EmailStatus.REJECTED:
+      return "email.rejected";
+    case EmailStatus.RENDERING_FAILURE:
+      return "email.rendering_failure";
+    case EmailStatus.COMPLAINED:
+      return "email.complained";
+    case EmailStatus.FAILED:
+      return "email.failed";
+    case EmailStatus.CANCELLED:
+      return "email.cancelled";
+    case EmailStatus.SUPPRESSED:
+      return "email.suppressed";
+    case EmailStatus.OPENED:
+      return "email.opened";
+    case EmailStatus.CLICKED:
+      return "email.clicked";
+    default:
+      return "email.queued";
+  }
+}
+
+function buildEmailMetadata(
+  status: EmailStatus,
+  mailData: SesEvent | SesEvent[SesEventDataKey],
+) {
+  switch (status) {
+    case EmailStatus.BOUNCED: {
+      const bounce = mailData as SesBounce;
+      return {
+        bounceType: bounce.bounceType,
+        bounceSubType: bounce.bounceSubType,
+        diagnosticCode: bounce.bouncedRecipients?.[0]?.diagnosticCode,
+      };
+    }
+    case EmailStatus.COMPLAINED: {
+      const complaintInfo = (mailData as any)?.complaint ?? mailData;
+      return {
+        feedbackType: complaintInfo?.complaintFeedbackType,
+        userAgent: complaintInfo?.userAgent,
+      };
+    }
+    case EmailStatus.OPENED: {
+      const openData = (mailData as any)?.open ?? mailData;
+      return {
+        ipAddress: openData?.ipAddress,
+        userAgent: openData?.userAgent,
+      };
+    }
+    case EmailStatus.CLICKED: {
+      const click = mailData as SesClick;
+      return {
+        ipAddress: click.ipAddress,
+        userAgent: click.userAgent,
+        link: click.link,
+      };
+    }
+    case EmailStatus.RENDERING_FAILURE: {
+      const failure = mailData as SesEvent["renderingFailure"];
+      return {
+        errorMessage: failure?.errorMessage,
+        templateName: failure?.templateName,
+      };
+    }
+    case EmailStatus.DELIVERY_DELAYED: {
+      const deliveryDelay = mailData as SesEvent["deliveryDelay"];
+      return {
+        delayType: deliveryDelay?.delayType,
+        expirationTime: deliveryDelay?.expirationTime,
+        delayedRecipients: deliveryDelay?.delayedRecipients,
+      };
+    }
+    case EmailStatus.REJECTED: {
+      const reject = mailData as SesEvent["reject"];
+      return {
+        reason: reject?.reason,
+      };
+    }
+    default:
+      return undefined;
+  }
 }
 
 async function checkUnsubscribe({

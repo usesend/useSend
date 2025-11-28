@@ -61,6 +61,7 @@ function updateContactInfo(app: PublicAPIApp) {
       contactId,
       contactBook.id,
       c.req.valid("json"),
+      team.id,
     );
 
     if (!contact) {

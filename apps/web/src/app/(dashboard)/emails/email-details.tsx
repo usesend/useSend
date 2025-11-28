@@ -19,7 +19,7 @@ import {
   BOUNCE_ERROR_MESSAGES,
   COMPLAINT_ERROR_MESSAGES,
   DELIVERY_DELAY_ERRORS,
-} from "~/lib/constants/ses-errors";
+} from "@usesend/lib/src/constants/ses-errors";
 import CancelEmail from "./cancel-email";
 import { useEffect } from "react";
 import { useState } from "react";
@@ -75,7 +75,7 @@ export default function EmailDetails({ emailId }: { emailId: string }) {
                 <span className="text-sm">
                   {formatDate(
                     emailQuery.data?.scheduledAt,
-                    "MMM dd'th', hh:mm a"
+                    "MMM dd'th', hh:mm a",
                   )}
                 </span>
                 <div className="ml-4">
