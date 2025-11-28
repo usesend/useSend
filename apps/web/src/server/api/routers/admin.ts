@@ -10,6 +10,7 @@ import { sendMail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
 import { UseSend } from "usesend-js";
 import { isCloud } from "~/utils/common";
+import { toPlainHtml } from "~/server/utils/email-content";
 
 const waitlistUserSelection = {
   id: true,
@@ -18,17 +19,6 @@ const waitlistUserSelection = {
   isWaitlisted: true,
   createdAt: true,
 } as const;
-
-function toPlainHtml(text: string) {
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-  return `<pre style="font-family: inherit; white-space: pre-wrap; margin: 0;">${escaped}</pre>`;
-}
 
 function formatDisplayNameFromEmail(email: string) {
   const localPart = email.split("@")[0] ?? email;

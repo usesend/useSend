@@ -5,17 +5,7 @@ import { createTRPCRouter, teamProcedure } from "~/server/api/trpc";
 import { env } from "~/env";
 import { isCloud } from "~/utils/common";
 import { sendMail } from "~/server/mailer";
-
-function toPlainHtml(text: string) {
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-  return `<pre style="font-family: inherit; white-space: pre-wrap; margin: 0;">${escaped}</pre>`;
-}
+import { toPlainHtml } from "~/server/utils/email-content";
 
 export const feedbackRouter = createTRPCRouter({
   send: teamProcedure

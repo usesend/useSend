@@ -76,10 +76,10 @@ export function FeedbackDialog({ trigger }: { trigger?: ReactNode }) {
     const isSubmitShortcut =
       (event.metaKey || event.ctrlKey) && event.key === "Enter";
 
-    if (isSubmitShortcut) {
-      event.preventDefault();
-      form.handleSubmit(onSubmit)();
-    }
+    if (feedbackMutation.isPending || !isSubmitShortcut) return;
+
+    event.preventDefault();
+    form.handleSubmit(onSubmit)();
   }
 
   return (
