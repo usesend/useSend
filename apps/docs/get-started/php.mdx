@@ -1,0 +1,105 @@
+---
+title: PHP (API)
+description: "Use the REST API to send emails and manage contacts from PHP."
+icon: php
+---
+
+useSend doesn't ship an official PHP SDK yet, but you can call the REST API with any HTTP client. The examples below use [Guzzle](https://github.com/guzzle/guzzle).
+
+## Prerequisites
+
+- [useSend API key](https://app.usesend.com/dev-settings/api-keys)
+- [Verified domain](https://app.usesend.com/domains)
+- PHP 8.1+ with Composer
+
+## Install an HTTP client
+
+```bash
+composer require guzzlehttp/guzzle
+```
+
+## Configure a reusable client
+
+```php
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+use GuzzleHttp\\Client;
+
+$apiKey = getenv('USESEND_API_KEY');
+
+$client = new Client([
+    'base_uri' => 'https://app.usesend.com/api/',
+    'headers' => [
+        'Authorization' => "Bearer {$apiKey}",
+        'Content-Type' => 'application/json',
+    ],
+]);
+
+// Self-hosted example:
+// $client = new Client(['base_uri' => 'https://your-self-hosted.example/api/', ...]);
+```
+
+## Send an email
+
+```php
+<?php
+$response = $client->post('v1/emails', [
+    'json' => [
+        'to' => 'hello@example.com',
+        'from' => 'no-reply@yourdomain.com',
+        'subject' => 'Welcome to useSend',
+        'html' => '<p>useSend is the best open source product to send emails</p>',
+        'text' => 'useSend is the best open source product to send emails',
+        'headers' => [
+            'X-Campaign' => 'welcome',
+        ],
+    ],
+]);
+
+$body = json_decode($response->getBody()->getContents(), true);
+```
+
+> Custom headers are forwarded as-is. useSend only manages the `X-Usesend-Email-ID` and `References` headers.
+
+## Create or update contacts
+
+All contact operations require a contact book ID from the [Contacts dashboard](https://app.usesend.com/contacts/).
+
+```php
+<?php
+$bookId = 'contact_book_id';
+
+// Create a contact
+$createResponse = $client->post("v1/contactBooks/{$bookId}/contacts", [
+    'json' => [
+        'email' => 'user@example.com',
+        'firstName' => 'Ada',
+        'properties' => ['plan' => 'pro'],
+    ],
+]);
+
+// Update a contact
+$contactId = 'contact_123';
+$updateResponse = $client->patch("v1/contactBooks/{$bookId}/contacts/{$contactId}", [
+    'json' => [
+        'subscribed' => false,
+    ],
+]);
+```
+
+## Basic error handling
+
+```php
+<?php
+try {
+    $response = $client->get('v1/emails/email_123');
+    $email = json_decode($response->getBody()->getContents(), true);
+} catch (\\GuzzleHttp\\Exception\\ClientException $e) {
+    // 4xx responses
+    error_log($e->getResponse()->getBody()->getContents());
+} catch (\\GuzzleHttp\\Exception\\ServerException $e) {
+    // 5xx responses
+    error_log('Server error: ' . $e->getMessage());
+}
+```

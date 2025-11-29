@@ -28,6 +28,7 @@
               "introduction",
               "get-started/nodejs",
               "get-started/python",
+              "get-started/php",
               "get-started/local",
               "get-started/smtp"
             ]
