@@ -1,6 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { getTeamFromToken } from "~/server/public-api/auth";
 import { addOrUpdateContact } from "~/server/service/contact-service";
 import { getContactBook } from "../../api-utils";
 
@@ -55,7 +54,8 @@ function addContact(app: PublicAPIApp) {
 
     const contact = await addOrUpdateContact(
       contactBook.id,
-      c.req.valid("json")
+      c.req.valid("json"),
+      team.id,
     );
 
     return c.json({ contactId: contact.id });

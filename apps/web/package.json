@@ -39,6 +39,7 @@
     "@trpc/react-query": "^11.1.1",
     "@trpc/server": "^11.1.1",
     "@usesend/email-editor": "workspace:*",
+    "@usesend/lib": "workspace:*",
     "@usesend/ui": "workspace:*",
     "bullmq": "^5.51.1",
     "chrono-node": "^2.8.0",

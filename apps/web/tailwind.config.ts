@@ -7,6 +7,7 @@ export default {
   content: [
     "./src/**/*.tsx",
     `${path.join(require.resolve("@usesend/ui"), "..")}/**/*.{ts,tsx}`,
+    `${path.join(require.resolve("@usesend/lib"), "..")}/**/*.{ts,tsx}`,
     `${path.join(require.resolve("@usesend/email-editor"), "..")}/**/*.{ts,tsx}`,
   ],
 } satisfies Config;
