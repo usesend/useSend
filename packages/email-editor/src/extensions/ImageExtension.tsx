@@ -73,7 +73,7 @@ export const ResizableImageExtension =
                 event.preventDefault();
 
                 const image = Array.from(event.dataTransfer.files).find(
-                  (file) => file.type.startsWith("image/")
+                  (file) => file.type.startsWith("image/"),
                 );
 
                 if (!this.options.uploadImage) {
@@ -98,37 +98,81 @@ export const ResizableImageExtension =
                 });
 
                 const placeholder = URL.createObjectURL(image);
+                const position =
+                  coordinates?.pos ?? view.state.selection.from ?? 0;
                 const node = schema.nodes.image.create({
                   src: placeholder,
                   isUploading: true,
                 });
-                const transaction = view.state.tr.insert(
-                  coordinates?.pos || 0,
-                  node
-                );
+                const transaction = view.state.tr.insert(position, node);
                 view.dispatch(transaction);
 
                 this.options
                   .uploadImage?.(image)
                   .then((url) => {
-                    const updateTransaction = view.state.tr.setNodeMarkup(
-                      coordinates?.pos || 0,
-                      null,
+                    const { state } = view;
+                    let imagePos: number | null = null;
+
+                    state.doc.descendants((node, pos) => {
+                      if (
+                        node.type === schema.nodes.image &&
+                        node.attrs.src === placeholder &&
+                        node.attrs.isUploading
+                      ) {
+                        imagePos = pos;
+                        return false;
+                      }
+                      return true;
+                    });
+
+                    if (imagePos == null) {
+                      URL.revokeObjectURL(placeholder);
+                      return;
+                    }
+
+                    const imageNode = state.doc.nodeAt(imagePos);
+                    if (!imageNode) {
+                      URL.revokeObjectURL(placeholder);
+                      return;
+                    }
+
+                    const updateTransaction = state.tr.setNodeMarkup(
+                      imagePos,
+                      undefined,
                       {
+                        ...imageNode.attrs,
                         src: url,
                         isUploading: false,
-                      }
+                      },
                     );
                     view.dispatch(updateTransaction);
+                    URL.revokeObjectURL(placeholder);
                   })
                   .catch((error) => {
-                    // Remove the placeholder image node if there's an error
-                    const removeTransaction = view.state.tr.delete(
-                      coordinates?.pos || 0,
-                      (coordinates?.pos || 0) + 1
-                    );
-                    view.dispatch(removeTransaction);
-                    toast.error("Error uploading image:", error.message);
+                    const { state } = view;
+                    let from: number | null = null;
+                    let to: number | null = null;
+
+                    state.doc.descendants((node, pos) => {
+                      if (
+                        node.type === schema.nodes.image &&
+                        node.attrs.src === placeholder &&
+                        node.attrs.isUploading
+                      ) {
+                        from = pos;
+                        to = pos + node.nodeSize;
+                        return false;
+                      }
+                      return true;
+                    });
+
+                    if (from != null && to != null) {
+                      const removeTransaction = state.tr.delete(from, to);
+                      view.dispatch(removeTransaction);
+                    }
+
+                    URL.revokeObjectURL(placeholder);
+                    toast.error(error?.message || "Error uploading image");
                     console.error("Error uploading image:", error);
                   });
 
