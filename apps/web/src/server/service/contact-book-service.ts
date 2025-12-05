@@ -1,7 +1,7 @@
 import { CampaignStatus, type ContactBook } from "@prisma/client";
 import { db } from "../db";
 import { LimitService } from "./limit-service";
-import { UnsendApiError } from "../public-api/api-error";
+import { UseSendApiError } from "../public-api/api-error";
 
 export async function getContactBooks(teamId: number, search?: string) {
   return db.contactBook.findMany({
@@ -22,7 +22,7 @@ export async function createContactBook(teamId: number, name: string) {
     await LimitService.checkContactBookLimit(teamId);
 
   if (isLimitReached) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "FORBIDDEN",
       message: reason ?? "Contact book limit reached",
     });

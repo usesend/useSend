@@ -6,7 +6,7 @@ import { env } from "~/env";
 import { getRedis } from "~/server/redis";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { isSelfHosted } from "~/utils/common";
-import { UnsendApiError } from "./api-error";
+import { UseSendApiError } from "./api-error";
 import { Team, ApiKey } from "@prisma/client";
 import { logger } from "../logger/log";
 
@@ -36,11 +36,11 @@ export function getApp() {
       const team = await getTeamFromToken(c as any);
       c.set("team", team);
     } catch (error) {
-      if (error instanceof UnsendApiError) {
+      if (error instanceof UseSendApiError) {
         throw error;
       }
       logger.error({ err: error }, "Error in getTeamFromToken middleware");
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Authentication failed",
       });
@@ -104,7 +104,7 @@ export function getApp() {
         "Retry-After",
         String(ttl > 0 ? ttl : RATE_LIMIT_WINDOW_SECONDS)
       );
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "RATE_LIMITED",
         message: `Rate limit exceeded. Try again in ${ttl > 0 ? ttl : RATE_LIMIT_WINDOW_SECONDS} seconds.`,
       });

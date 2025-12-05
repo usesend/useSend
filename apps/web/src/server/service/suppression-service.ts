@@ -1,6 +1,6 @@
 import { SuppressionReason, SuppressionList } from "@prisma/client";
 import { db } from "../db";
-import { UnsendApiError } from "~/server/public-api/api-error";
+import { UseSendApiError } from "~/server/public-api/api-error";
 import { logger } from "../logger/log";
 
 export type AddSuppressionParams = {
@@ -79,7 +79,7 @@ export class SuppressionService {
         "Failed to add email to suppression list"
       );
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to add email to suppression list",
       });
@@ -166,7 +166,7 @@ export class SuppressionService {
         "Failed to remove email from suppression list"
       );
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to remove email from suppression list",
       });
@@ -230,7 +230,7 @@ export class SuppressionService {
         "Failed to get suppression list"
       );
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get suppression list",
       });
@@ -292,7 +292,7 @@ export class SuppressionService {
         "Failed to add multiple emails to suppression list"
       );
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to add multiple emails to suppression list",
       });
@@ -332,7 +332,7 @@ export class SuppressionService {
         "Failed to get suppression stats"
       );
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to get suppression stats",
       });

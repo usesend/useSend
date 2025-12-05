@@ -4,7 +4,7 @@ import * as tldts from "tldts";
 import * as ses from "~/server/aws/ses";
 import { db } from "~/server/db";
 import { SesSettingsService } from "./ses-settings-service";
-import { UnsendApiError } from "../public-api/api-error";
+import { UseSendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
 import { ApiKey, DomainStatus, type Domain } from "@prisma/client";
 import { LimitService } from "./limit-service";
@@ -100,7 +100,7 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
   }
 
   if (!fromDomain) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "From email is invalid",
     });
@@ -111,14 +111,14 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
   });
 
   if (!domain) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: `Domain: ${fromDomain} of from email is wrong. Use the domain verified by useSend`,
     });
   }
 
   if (domain.status !== "SUCCESS") {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: `Domain: ${fromDomain} is not verified`,
     });
@@ -142,7 +142,7 @@ export async function validateApiKeyDomainAccess(
 
   // If API key is restricted to a specific domain, check if it matches
   if (apiKey.domainId !== domain.id) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "FORBIDDEN",
       message: `API key does not have access to domain: ${domain.name}`,
     });
@@ -175,7 +175,7 @@ export async function createDomain(
     await LimitService.checkDomainLimit(teamId);
 
   if (isLimitReached) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "FORBIDDEN",
       message: reason ?? "Domain limit reached",
     });
@@ -216,7 +216,7 @@ export async function getDomain(id: number, teamId: number) {
   });
 
   if (!domain) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "NOT_FOUND",
       message: "Domain not found",
     });
