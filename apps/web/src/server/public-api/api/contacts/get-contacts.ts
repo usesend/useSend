@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { db } from "~/server/db";
-import { UnsendApiError } from "../../api-error";
+import { UseSendApiError } from "../../api-error";
 import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
