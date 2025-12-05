@@ -1,5 +1,6 @@
 import { Button } from "@usesend/ui/src/button";
 import { CodeBlock } from "@usesend/ui/src/code-block";
+import { CodeBlockWithCopy } from "@usesend/ui/src/code-block-with-copy";
 import { LangToggle } from "./CodeLangToggle";
 
 const TS_CODE = `import { UseSend } from "usesend-js";
@@ -149,12 +150,14 @@ export function CodeExample() {
                     className={idx === 0 ? "block" : "hidden"}
                   >
                     {/* Cast to any to align with shiki BundledLanguage without importing types here */}
-                    <CodeBlock
-                      lang={l.shiki as any}
-                      className="p-4 rounded-[10px]"
-                    >
-                      {l.code}
-                    </CodeBlock>
+                    <CodeBlockWithCopy code={l.code}>
+                      <CodeBlock
+                        lang={l.shiki as any}
+                        className="p-4 rounded-[10px]"
+                      >
+                        {l.code}
+                      </CodeBlock>
+                    </CodeBlockWithCopy>
                   </div>
                 ))}
               </div>
