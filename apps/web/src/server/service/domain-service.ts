@@ -7,8 +7,13 @@ import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
 import { ApiKey, DomainStatus, type Domain } from "@prisma/client";
+import {
+  type DomainPayload,
+  type DomainWebhookEventType,
+} from "@usesend/lib/src/webhook/webhook-events";
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
+import { WebhookService } from "./webhook-service";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
 
@@ -72,7 +77,7 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
 }
 
 function withDnsRecords<T extends Domain>(
-  domain: T
+  domain: T,
 ): T & { dnsRecords: DomainDnsRecord[] } {
   return {
     ...domain,
@@ -81,6 +86,24 @@ function withDnsRecords<T extends Domain>(
 }
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
+
+function buildDomainPayload(domain: Domain): DomainPayload {
+  return {
+    id: domain.id,
+    name: domain.name,
+    status: domain.status,
+    region: domain.region,
+    createdAt: domain.createdAt.toISOString(),
+    updatedAt: domain.updatedAt.toISOString(),
+    clickTracking: domain.clickTracking,
+    openTracking: domain.openTracking,
+    subdomain: domain.subdomain,
+    sesTenantId: domain.sesTenantId,
+    dkimStatus: domain.dkimStatus,
+    spfDetails: domain.spfDetails,
+    dmarcAdded: domain.dmarcAdded,
+  };
+}
 
 export async function validateDomainFromEmail(email: string, teamId: number) {
   // Extract email from format like 'Name <email@domain>' this will allow entries such as "Someone @ something <some@domain.com>" to parse correctly as well.
@@ -130,7 +153,7 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
 export async function validateApiKeyDomainAccess(
   email: string,
   teamId: number,
-  apiKey: ApiKey & { domain?: { name: string } | null }
+  apiKey: ApiKey & { domain?: { name: string } | null },
 ) {
   // First validate the domain exists and is verified
   const domain = await validateDomainFromEmail(email, teamId);
@@ -155,7 +178,7 @@ export async function createDomain(
   teamId: number,
   name: string,
   region: string,
-  sesTenantId?: string
+  sesTenantId?: string,
 ) {
   const domainStr = tldts.getDomain(name);
 
@@ -187,7 +210,7 @@ export async function createDomain(
     name,
     region,
     sesTenantId,
-    dkimSelector
+    dkimSelector,
   );
 
   const domain = await db.domain.create({
@@ -203,6 +226,8 @@ export async function createDomain(
       spfDetails: DomainStatus.NOT_STARTED,
     },
   });
+
+  await emitDomainEvent(domain, "domain.created");
 
   return withDnsRecords(domain);
 }
@@ -223,9 +248,10 @@ export async function getDomain(id: number, teamId: number) {
   }
 
   if (domain.isVerifying) {
+    const previousStatus = domain.status;
     const domainIdentity = await ses.getDomainIdentity(
       domain.name,
-      domain.region
+      domain.region,
     );
 
     const dkimStatus = domainIdentity.DkimAttributes?.Status;
@@ -268,7 +294,7 @@ export async function getDomain(id: number, teamId: number) {
         ? lastCheckedTime.toISOString()
         : (lastCheckedTime ?? null);
 
-    return {
+    const response = {
       ...domainWithDns,
       dkimStatus: normalizedDomain.dkimStatus,
       spfDetails: normalizedDomain.spfDetails,
@@ -276,6 +302,16 @@ export async function getDomain(id: number, teamId: number) {
       lastCheckedTime: normalizedLastCheckedTime,
       dmarcAdded: normalizedDomain.dmarcAdded,
     };
+
+    if (previousStatus !== domainWithDns.status) {
+      const eventType: DomainWebhookEventType =
+        domainWithDns.status === DomainStatus.SUCCESS
+          ? "domain.verified"
+          : "domain.updated";
+      await emitDomainEvent(domainWithDns, eventType);
+    }
+
+    return response;
   }
 
   return withDnsRecords(domain);
@@ -283,12 +319,16 @@ export async function getDomain(id: number, teamId: number) {
 
 export async function updateDomain(
   id: number,
-  data: { clickTracking?: boolean; openTracking?: boolean }
+  data: { clickTracking?: boolean; openTracking?: boolean },
 ) {
-  return db.domain.update({
+  const updated = await db.domain.update({
     where: { id },
     data,
   });
+
+  await emitDomainEvent(updated, "domain.updated");
+
+  return updated;
 }
 
 export async function deleteDomain(id: number) {
@@ -303,7 +343,7 @@ export async function deleteDomain(id: number) {
   const deleted = await ses.deleteDomain(
     domain.name,
     domain.region,
-    domain.sesTenantId ?? undefined
+    domain.sesTenantId ?? undefined,
   );
 
   if (!deleted) {
@@ -312,12 +352,14 @@ export async function deleteDomain(id: number) {
 
   const deletedRecord = await db.domain.delete({ where: { id } });
 
+  await emitDomainEvent(domain, "domain.deleted");
+
   return deletedRecord;
 }
 
 export async function getDomains(
   teamId: number,
-  options?: { domainId?: number }
+  options?: { domainId?: number },
 ) {
   const domains = await db.domain.findMany({
     where: {
@@ -339,5 +381,16 @@ async function getDmarcRecord(domain: string) {
   } catch (error) {
     logger.error({ err: error, domain }, "Error fetching DMARC record");
     return null; // or handle error as appropriate
+  }
+}
+
+async function emitDomainEvent(domain: Domain, type: DomainWebhookEventType) {
+  try {
+    await WebhookService.emit(domain.teamId, type, buildDomainPayload(domain));
+  } catch (error) {
+    logger.error(
+      { error, domainId: domain.id, type },
+      "[DomainService]: Failed to emit domain webhook event",
+    );
   }
 }
