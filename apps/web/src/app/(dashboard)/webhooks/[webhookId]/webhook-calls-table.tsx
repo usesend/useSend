@@ -81,7 +81,6 @@ export function WebhookCallsTable({
               <TableHead className="h-9">Event Type</TableHead>
               <TableHead className="h-9">Time</TableHead>
               <TableHead className="h-9">Status Code</TableHead>
-              <TableHead className="h-9">Duration</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,9 +127,6 @@ export function WebhookCallsTable({
                   </TableCell>
                   <TableCell className="py-2 text-xs font-mono">
                     {call.responseStatus || "-"}
-                  </TableCell>
-                  <TableCell className="py-2 text-xs text-muted-foreground">
-                    {call.responseTimeMs ? `${call.responseTimeMs}ms` : "-"}
                   </TableCell>
                 </TableRow>
               ))
