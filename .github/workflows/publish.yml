@@ -59,8 +59,8 @@ jobs:
           DOCKER_FILE: ${{ matrix.app.dockerfile }}
           CONTEXT: ${{ matrix.app.context }}
         run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
           GIT_SHA="$(git rev-parse HEAD)"
+          APP_VERSION="$(git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo "dev")"
 
           docker build \
             -f "$DOCKER_FILE" \
@@ -116,8 +116,8 @@ jobs:
 
       - name: Create and push DockerHub manifest
         run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
           GIT_SHA="$(git rev-parse HEAD)"
+          APP_VERSION="$(git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo "dev")"
 
           for APP_NAME in usesend smtp-proxy; do
             docker manifest create \
@@ -142,8 +142,8 @@ jobs:
 
       - name: Create and push GitHub Container Registry manifest
         run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
           GIT_SHA="$(git rev-parse HEAD)"
+          APP_VERSION="$(git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo "dev")"
 
           for APP_NAME in usesend smtp-proxy; do
             docker manifest create \
