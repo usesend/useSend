@@ -17,6 +17,8 @@ echo "Git SHA: $GIT_SHA"
 
 docker build -f "$SCRIPT_DIR/Dockerfile" \
     --progress=plain \
+    --build-arg APP_VERSION="$APP_VERSION" \
+    --build-arg GIT_SHA="$GIT_SHA" \
     -t "unsend/unsend:latest" \
     -t "unsend/unsend:$GIT_SHA" \
     -t "unsend/unsend:$APP_VERSION" \

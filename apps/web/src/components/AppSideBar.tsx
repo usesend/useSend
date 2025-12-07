@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@usesend/ui/src/dropdown-menu";
 import { FeedbackDialog } from "./FeedbackDialog";
+import { env } from "~/env";
 
 // General items
 const generalItems = [
@@ -257,6 +258,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
+        {isSelfHosted() && <VersionInfo />}
         <NavUser
           user={{
             name:
@@ -369,5 +371,34 @@ export function NavUser({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+  );
+}
+
+function VersionInfo() {
+  const appVersion = env.NEXT_PUBLIC_APP_VERSION;
+  const gitSha = env.NEXT_PUBLIC_GIT_SHA;
+
+  // If no version info available, don't render anything
+  if (!appVersion && !gitSha) {
+    return null;
+  }
+
+  const displayVersion = appVersion && appVersion !== "unknown"
+    ? appVersion
+    : gitSha && gitSha !== "unknown"
+    ? gitSha.substring(0, 7)
+    : null;
+
+  if (!displayVersion) {
+    return null;
+  }
+
+  return (
+    <div className="px-4 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between">
+        <span>Version</span>
+        <span className="font-mono">{displayVersion}</span>
+      </div>
+    </div>
   );
 }
