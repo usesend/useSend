@@ -18,6 +18,7 @@ import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { log } from "console";
 
 const WEBHOOK_DISPATCH_CONCURRENCY = 25;
 const WEBHOOK_MAX_ATTEMPTS = 6;
@@ -460,13 +461,17 @@ async function processWebhookCall(job: WebhookCallJob) {
 
   try {
     const body = buildPayload(call, attempt);
-    const { responseStatus, responseTimeMs } = await postWebhook({
+    const { responseStatus, responseTimeMs, responseText } = await postWebhook({
       url: call.webhook.url,
       secret: call.webhook.secret,
       type: call.type,
       callId: call.id,
       body,
     });
+
+    logger.info(
+      `Webhook call ${call.id} completed successfully, response status: ${responseStatus}, response time: ${responseTimeMs}ms, `,
+    );
 
     await db.$transaction([
       db.webhookCall.update({
@@ -478,6 +483,7 @@ async function processWebhookCall(job: WebhookCallJob) {
           responseTimeMs,
           lastError: null,
           nextAttemptAt: null,
+          responseText,
         },
       }),
       db.webhook.update({
@@ -697,6 +703,7 @@ async function postWebhook(params: {
       return {
         responseStatus: response.status,
         responseTimeMs,
+        responseText,
       };
     }
 
