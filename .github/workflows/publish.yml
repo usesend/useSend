@@ -65,6 +65,8 @@ jobs:
           docker build \
             -f "$DOCKER_FILE" \
             --progress=plain \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg GIT_SHA="$GIT_SHA" \
             -t "usesend/$APP-$BUILD_PLATFORM:latest" \
             -t "usesend/$APP-$BUILD_PLATFORM:$GIT_SHA" \
             -t "usesend/$APP-$BUILD_PLATFORM:$APP_VERSION" \

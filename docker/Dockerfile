@@ -46,7 +46,13 @@ RUN pnpm turbo run build --filter=web...
 FROM base AS runner
 WORKDIR /app
 
+# Build arguments for version information
+ARG APP_VERSION=unknown
+ARG GIT_SHA=unknown
 
+# Set version as environment variables
+ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION
+ENV NEXT_PUBLIC_GIT_SHA=$GIT_SHA
 
 COPY --from=installer /app/apps/web/next.config.js .
 COPY --from=installer /app/apps/web/package.json .
