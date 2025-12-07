@@ -541,6 +541,9 @@ importers:
       '@react-email/render':
         specifier: ^1.0.6
         version: 1.0.6(react-dom@19.1.0)(react@19.1.0)
+      '@usesend/lib':
+        specifier: workspace:*
+        version: link:../lib
       react:
         specifier: ^19.1.0
         version: 19.1.0
