@@ -9,6 +9,7 @@ import { api } from "~/trpc/react";
 import { toast } from "@usesend/ui/src/toaster";
 import { WebhookCallStatusBadge } from "../webhook-call-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
+import { CodeDisplay } from "~/components/code-display";
 
 export function WebhookCallDetails({ callId }: { callId: string }) {
   const callQuery = api.webhook.getCall.useQuery({ id: callId });
@@ -21,7 +22,9 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
     return (
       <Card className="h-full">
         <CardContent className="p-6 flex items-center justify-center h-full">
-          <p className="text-muted-foreground text-sm">Loading call details...</p>
+          <p className="text-muted-foreground text-sm">
+            Loading call details...
+          </p>
         </CardContent>
       </Card>
     );
@@ -135,11 +138,10 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
 
         <div className="flex flex-col gap-3">
           <h4 className="font-medium text-sm">Request Payload</h4>
-          <div className="bg-muted/30 border rounded-lg p-4 overflow-auto max-h-[300px]">
-            <pre className="text-xs font-mono">
-              {JSON.stringify(parsedPayload, null, 2)}
-            </pre>
-          </div>
+          <CodeDisplay
+            code={JSON.stringify(parsedPayload, null, 2)}
+            language="json"
+          />
         </div>
 
         {call.responseText && (
@@ -147,11 +149,7 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
             <Separator />
             <div className="flex flex-col gap-3">
               <h4 className="font-medium text-sm">Response Body</h4>
-              <div className="bg-muted/30 border rounded-lg p-4 overflow-auto max-h-[300px]">
-                <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                  {call.responseText}
-                </pre>
-              </div>
+              <CodeDisplay code={call.responseText} language="text" />
             </div>
           </>
         )}
