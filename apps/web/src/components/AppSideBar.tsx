@@ -383,18 +383,19 @@ function VersionInfo() {
     return null;
   }
 
-  const displayVersion = appVersion && appVersion !== "unknown"
-    ? appVersion
-    : gitSha && gitSha !== "unknown"
-    ? gitSha.substring(0, 7)
-    : null;
+  const displayVersion =
+    appVersion && appVersion !== "unknown"
+      ? appVersion
+      : gitSha && gitSha !== "unknown"
+        ? gitSha.substring(0, 7)
+        : null;
 
   if (!displayVersion) {
     return null;
   }
 
   return (
-    <div className="px-4 py-2 text-xs text-muted-foreground">
+    <div className="px-2 py-2 text-xs text-muted-foreground">
       <div className="flex items-center justify-between">
         <span>Version</span>
         <span className="font-mono">{displayVersion}</span>
