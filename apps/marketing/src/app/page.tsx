@@ -8,6 +8,7 @@ import { FeatureCard } from "~/components/FeatureCard";
 import { FeatureCardPlain } from "~/components/FeatureCardPlain";
 import { PricingCalculator } from "~/components/PricingCalculator";
 import CodeExample from "~/components/CodeExample";
+import { Avatar, AvatarFallback, AvatarImage } from "@usesend/ui/src/avatar";
 
 const REPO = "usesend/usesend";
 const REPO_URL = `https://github.com/${REPO}`;
@@ -185,13 +186,10 @@ function TrustedBy() {
                 {t.quote}
               </blockquote>
               <div className="mt-5 flex items-center gap-3">
-                <Image
-                  src={t.image}
-                  alt={`${t.author} avatar`}
-                  width={32}
-                  height={32}
-                  className=" rounded-md border-2 border-primary/50"
-                />
+                <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
+                  <AvatarImage src={t.image} alt={`${t.author} avatar`} />
+                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar> 
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>
                   <a
@@ -219,13 +217,10 @@ function TrustedBy() {
                 {t.quote}
               </blockquote>
               <div className="mt-5 flex items-center gap-3">
-                <Image
-                  src={t.image}
-                  alt={`${t.author} avatar`}
-                  width={32}
-                  height={32}
-                  className=" rounded-md border-2 border-primary/50"
-                />
+                <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
+                  <AvatarImage src={t.image} alt={`${t.author} avatar`} />
+                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>
                   <a
