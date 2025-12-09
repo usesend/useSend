@@ -126,15 +126,36 @@ function startServers() {
   const servers: SMTPServer[] = [];
   const watchers: FSWatcher[] = [];
 
-  if (SSL_KEY_PATH && SSL_CERT_PATH) {
-    // Implicit SSL/TLS for ports 465 and 2465
-    [465, 2465].forEach((port) => {
-      const server = new SMTPServer({ ...serverOptions, secure: true });
+  const createServers = () => {
+    // Load latest certificates
+    const certs = loadCertificates();
+    const currentServerOptions = { ...serverOptions, key: certs.key, cert: certs.cert };
+
+    if (SSL_KEY_PATH && SSL_CERT_PATH) {
+      // Implicit SSL/TLS for ports 465 and 2465
+      [465, 2465].forEach((port) => {
+        const server = new SMTPServer({ ...currentServerOptions, secure: true });
+
+        server.listen(port, () => {
+          console.log(
+            `Implicit SSL/TLS SMTP server is listening on port ${port}`,
+          );
+        });
+
+        server.on("error", (err) => {
+          console.error(`Error occurred on port ${port}:`, err);
+        });
+
+        servers.push(server);
+      });
+    }
+
+    // STARTTLS for ports 25, 587, and 2587
+    [25, 587, 2587].forEach((port) => {
+      const server = new SMTPServer(currentServerOptions);
 
       server.listen(port, () => {
-        console.log(
-          `Implicit SSL/TLS SMTP server is listening on port ${port}`,
-        );
+        console.log(`STARTTLS SMTP server is listening on port ${port}`);
       });
 
       server.on("error", (err) => {
@@ -143,34 +164,37 @@ function startServers() {
 
       servers.push(server);
     });
-  }
+  };
 
-  // STARTTLS for ports 25, 587, and 2587
-  [25, 587, 2587].forEach((port) => {
-    const server = new SMTPServer(serverOptions);
-
-    server.listen(port, () => {
-      console.log(`STARTTLS SMTP server is listening on port ${port}`);
-    });
-
-    server.on("error", (err) => {
-      console.error(`Error occurred on port ${port}:`, err);
-    });
-
-    servers.push(server);
-  });
+  // Create initial servers
+  createServers();
 
   if (SSL_KEY_PATH && SSL_CERT_PATH) {
     const reloadCertificates = () => {
-      try {
-        const { key, cert } = loadCertificates();
-        if (key && cert) {
-          servers.forEach((srv) => srv.updateSecureContext({ key, cert }));
-          console.log("TLS certificates reloaded");
+      // Add delay to ensure file write is complete
+      setTimeout(() => {
+        try {
+          console.log("Certificate change detected, reloading servers...");
+
+          // Close all existing servers
+          const oldServers = [...servers];
+          servers.length = 0; // Clear array while keeping reference
+
+          oldServers.forEach((srv) => {
+            srv.close(() => {
+              console.log("Old server closed");
+            });
+          });
+
+          // Wait a bit for servers to close, then create new ones
+          setTimeout(() => {
+            createServers();
+            console.log("TLS certificates reloaded and servers restarted");
+          }, 1000);
+        } catch (err) {
+          console.error("Failed to reload TLS certificates", err);
         }
-      } catch (err) {
-        console.error("Failed to reload TLS certificates", err);
-      }
+      }, 500);
     };
 
     [SSL_KEY_PATH, SSL_CERT_PATH].forEach((file) => {
