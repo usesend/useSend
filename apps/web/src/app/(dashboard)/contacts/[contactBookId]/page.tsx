@@ -11,6 +11,7 @@ import {
 } from "@usesend/ui/src/breadcrumb";
 import Link from "next/link";
 import AddContact from "./add-contact";
+import UploadContactsCsv from "./upload-contacts-csv";
 import ContactList from "./contact-list";
 import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import { formatDistanceToNow } from "date-fns";
@@ -121,6 +122,7 @@ export default function ContactsPage({
         </div>
         <div className="flex gap-4">
           <AddContact contactBookId={contactBookId} />
+          <UploadContactsCsv contactBookId={contactBookId} />
         </div>
       </div>
       <div className="mt-16">
