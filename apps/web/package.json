@@ -52,7 +52,7 @@
     "lucide-react": "^0.503.0",
     "mime-types": "^3.0.1",
     "nanoid": "^5.1.5",
-    "next": "^15.3.6",
+    "next": "15.3.7",
     "next-auth": "^4.24.11",
     "nodemailer": "^7.0.3",
     "pino": "^9.7.0",
