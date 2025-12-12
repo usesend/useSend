@@ -11,6 +11,7 @@ import {
 } from "@usesend/ui/src/breadcrumb";
 import Link from "next/link";
 import AddContact from "./add-contact";
+import BulkUploadContacts from "./bulk-upload-contacts";
 import ContactList from "./contact-list";
 import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import { formatDistanceToNow } from "date-fns";
@@ -120,6 +121,7 @@ export default function ContactsPage({
           </Breadcrumb>
         </div>
         <div className="flex gap-4">
+          <BulkUploadContacts contactBookId={contactBookId} />
           <AddContact contactBookId={contactBookId} />
         </div>
       </div>
