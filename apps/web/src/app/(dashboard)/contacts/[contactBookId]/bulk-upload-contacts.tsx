@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api } from "~/trpc/react";
 import {
   Dialog,
@@ -227,10 +227,22 @@ export default function BulkUploadContacts({
     }
   };
 
-  const parsedContacts = parseContacts(inputText);
-  const validContacts = parsedContacts.filter((c) => c.isValid);
-  const invalidCount = parsedContacts.length - validContacts.length;
-  const previewContacts = parsedContacts.slice(0, 20);
+  const parsedContacts = useMemo(() => parseContacts(inputText), [inputText]);
+
+  const validContacts = useMemo(
+    () => parsedContacts.filter((c) => c.isValid),
+    [parsedContacts],
+  );
+
+  const invalidCount = useMemo(
+    () => parsedContacts.length - validContacts.length,
+    [parsedContacts.length, validContacts.length],
+  );
+
+  const previewContacts = useMemo(
+    () => parsedContacts.slice(0, 20),
+    [parsedContacts],
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
