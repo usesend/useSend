@@ -119,15 +119,17 @@ export const contactsRouter = createTRPCRouter({
   addContacts: contactBookProcedure
     .input(
       z.object({
-        contacts: z.array(
-          z.object({
-            email: z.string(),
-            firstName: z.string().optional(),
-            lastName: z.string().optional(),
-            properties: z.record(z.string()).optional(),
-            subscribed: z.boolean().optional(),
-          }),
-        ),
+        contacts: z
+          .array(
+            z.object({
+              email: z.string(),
+              firstName: z.string().optional(),
+              lastName: z.string().optional(),
+              properties: z.record(z.string()).optional(),
+              subscribed: z.boolean().optional(),
+            }),
+          )
+          .max(10000),
       }),
     )
     .mutation(async ({ ctx: { contactBook, team }, input }) => {
