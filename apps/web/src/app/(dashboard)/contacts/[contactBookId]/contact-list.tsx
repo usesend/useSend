@@ -112,6 +112,14 @@ export default function ContactList({
     },
   );
 
+  const escapeCell = (str: string): string => {
+    // Wrap in quotes if contains comma, newline, or quote
+    if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const handleExport = async () => {
     const result = await exportQuery.refetch();
     if (!result.data) return;
@@ -128,17 +136,17 @@ export default function ContactList({
 
     // CSV Rows
     const rows = result.data.map((contact) => [
-      contact.email ?? "",
-      contact.firstName ?? "",
-      contact.lastName ?? "",
-      contact.subscribed ? "Yes" : "No",
-      contact.unsubscribeReason ?? "",
-      contact.createdAt.toISOString(),
+      escapeCell(contact.email ?? ""),
+      escapeCell(contact.firstName ?? ""),
+      escapeCell(contact.lastName ?? ""),
+      escapeCell(contact.subscribed ? "Yes" : "No"),
+      escapeCell(contact.unsubscribeReason ?? ""),
+      escapeCell(contact.createdAt.toISOString()),
     ]);
 
     // Build CSV with UTF-8 BOM
     const csvContent = [
-      headers.join(","),
+      headers.map(escapeCell).join(","),
       ...rows.map((row) => row.join(",")),
     ].join("\n");
     const blob = new Blob([csvContent], {
