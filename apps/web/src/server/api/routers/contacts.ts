@@ -129,7 +129,7 @@ export const contactsRouter = createTRPCRouter({
               subscribed: z.boolean().optional(),
             }),
           )
-          .max(10000),
+          .max(50000),
       }),
     )
     .mutation(async ({ ctx: { contactBook, team }, input }) => {
@@ -160,5 +160,48 @@ export const contactsRouter = createTRPCRouter({
     .input(z.object({ contactId: z.string() }))
     .mutation(async ({ input }) => {
       return contactService.deleteContact(input.contactId);
+    }),
+
+  exportContacts: contactBookProcedure
+    .input(
+      z.object({
+        subscribed: z.boolean().optional(),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx: { db }, input }) => {
+      const whereConditions: Prisma.ContactFindManyArgs["where"] = {
+        contactBookId: input.contactBookId,
+        ...(input.subscribed !== undefined
+          ? { subscribed: input.subscribed }
+          : {}),
+        ...(input.search
+          ? {
+              OR: [
+                { email: { contains: input.search, mode: "insensitive" } },
+                { firstName: { contains: input.search, mode: "insensitive" } },
+                { lastName: { contains: input.search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      };
+
+      const contacts = await db.contact.findMany({
+        where: whereConditions,
+        select: {
+          email: true,
+          firstName: true,
+          lastName: true,
+          subscribed: true,
+          unsubscribeReason: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100000, // Limit to 100k contacts to prevent memory issues
+      });
+
+      return contacts;
     }),
 });
