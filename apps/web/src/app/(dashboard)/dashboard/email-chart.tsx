@@ -286,7 +286,7 @@ const DashboardItemCard: React.FC<DashboardItemCardProps> = ({
         <div className="text-foreground font-light text-2xl  font-mono">
           {count}
         </div>
-        {status !== "total" ? (
+        {status !== "total" && isFinite(percentage) ? (
           <div className="text-sm pb-1">
             {count > 0 ? (percentage * 100).toFixed(0) : 0}%
           </div>
@@ -337,7 +337,7 @@ const EmailChartItem: React.FC<DashboardItemCardProps> = ({
         <div className="mt-1 -ml-0.5 ">
           <span className="text-xl font-mono">{count}</span>
           <span className="text-xs ml-2 font-mono">
-            {status !== "total"
+            {status !== "total" && isFinite(percentage)
               ? `(${count > 0 ? (percentage * 100).toFixed(0) : 0}%)`
               : null}
           </span>
