@@ -25,7 +25,7 @@ services:
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
 
   local-sen-sns:
-    image: unsend/local-ses-sns:latest
+    image: usesend/local-ses-sns:latest
     container_name: local-ses-sns
     restart: always
     ports:
