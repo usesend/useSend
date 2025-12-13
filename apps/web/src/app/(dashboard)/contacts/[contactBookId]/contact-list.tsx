@@ -96,26 +96,6 @@ export default function ContactList({
     const result = await exportQuery.refetch();
     if (!result.data) return;
 
-    // Helper function to escape cells for CSV (Excel injection prevention)
-    const escapeCell = (value: string | null | undefined): string => {
-      if (!value) return "";
-      const str = String(value);
-      // Prevent Excel formula injection
-      if (
-        str.startsWith("=") ||
-        str.startsWith("+") ||
-        str.startsWith("-") ||
-        str.startsWith("@")
-      ) {
-        return `'${str.replace(/"/g, '""')}'`;
-      }
-      // Escape double quotes and wrap in quotes if contains comma, newline, or quote
-      if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
     // CSV Header
     const headers = [
       "Email",
@@ -128,11 +108,11 @@ export default function ContactList({
 
     // CSV Rows
     const rows = result.data.map((contact) => [
-      escapeCell(contact.email),
-      escapeCell(contact.firstName),
-      escapeCell(contact.lastName),
+      contact.email ?? "",
+      contact.firstName ?? "",
+      contact.lastName ?? "",
       contact.subscribed ? "Yes" : "No",
-      escapeCell(contact.unsubscribeReason),
+      contact.unsubscribeReason ?? "",
       contact.createdAt.toISOString(),
     ]);
 

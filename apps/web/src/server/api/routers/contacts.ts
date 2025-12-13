@@ -199,6 +199,7 @@ export const contactsRouter = createTRPCRouter({
         orderBy: {
           createdAt: "desc",
         },
+        take: 100000, // Limit to 100k contacts to prevent memory issues
       });
 
       return contacts;
