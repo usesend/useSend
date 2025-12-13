@@ -141,8 +141,7 @@ export default function ContactList({
       headers.join(","),
       ...rows.map((row) => row.join(",")),
     ].join("\n");
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], {
+    const blob = new Blob([csvContent], {
       type: "text/csv;charset=utf-8;",
     });
 
