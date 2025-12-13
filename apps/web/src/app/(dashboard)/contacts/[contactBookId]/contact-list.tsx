@@ -34,6 +34,26 @@ import {
 import { UnsubscribeReason } from "@prisma/client";
 import { Download } from "lucide-react";
 
+function sanitizeFilename(
+  name: string | undefined,
+  fallback = "contacts",
+): string {
+  if (!name) return fallback;
+
+  // Remove or replace unsafe characters:
+  // - Path separators: / \
+  // - Reserved characters: : * ? " < > |
+  // - Control characters (0x00-0x1F, 0x7F)
+  // - Single quotes and backticks
+  const sanitized = name.replace(/[/\\:*?"<>|'\x00-\x1F\x7F]/g, "-").trim();
+
+  // Limit length to prevent excessively long filenames (max 100 chars)
+  const limited = sanitized.slice(0, 100).trim();
+
+  // Return fallback if result is empty after sanitization
+  return limited || fallback;
+}
+
 function getUnsubscribeReason(reason: UnsubscribeReason) {
   switch (reason) {
     case UnsubscribeReason.BOUNCED:
@@ -131,7 +151,8 @@ export default function ContactList({
     const link = document.createElement("a");
     link.href = url;
     const today = new Date().toISOString().split("T")[0];
-    link.download = `contacts-${contactBookName}-${today}.csv`;
+    const safeContactBookName = sanitizeFilename(contactBookName);
+    link.download = `contacts-${safeContactBookName}-${today}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
