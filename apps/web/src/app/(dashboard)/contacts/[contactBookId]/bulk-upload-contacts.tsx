@@ -34,6 +34,7 @@ interface ParsedContact {
   email: string;
   firstName?: string;
   lastName?: string;
+  subscribed?: boolean;
   isValid: boolean;
 }
 
@@ -76,45 +77,91 @@ export default function BulkUploadContacts({
 
   const parseContactLine = (
     line: string,
-  ): { email: string; firstName?: string; lastName?: string } | null => {
+    isFirstLine: boolean = false,
+  ): {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    subscribed?: boolean;
+  } | null => {
     const trimmedLine = line.trim();
     if (!trimmedLine) return null;
 
-    // Split by comma
-    const parts = trimmedLine.split(",").map((s) => s.trim());
+    // Split by comma, handling quoted values
+    const parts: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < trimmedLine.length; i++) {
+      const char = trimmedLine[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        parts.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    parts.push(current.trim());
 
     if (parts.length === 0 || !parts[0]) return null;
 
-    const email = parts[0].toLowerCase();
+    // Check if this is a header row (case-insensitive)
+    if (isFirstLine) {
+      const firstPart = parts[0]?.toLowerCase();
+      if (
+        firstPart === "email" ||
+        firstPart === "e-mail" ||
+        firstPart === "email address"
+      ) {
+        return null; // Skip header row
+      }
+    }
+
+    const email = parts[0]!.toLowerCase();
 
     // Skip if doesn't look like an email
     if (!email.includes("@")) return null;
 
-    if (parts.length === 1) {
-      // Just email
-      return { email };
+    // Parse subscribed value (support CSV export format: Email, First Name, Last Name, Subscribed, ...)
+    let subscribed: boolean | undefined = undefined;
+    let firstName: string | undefined = undefined;
+    let lastName: string | undefined = undefined;
+
+    if (parts.length >= 4) {
+      // Could be: email,firstName,lastName,subscribed
+      firstName = parts[1] || undefined;
+      lastName = parts[2] || undefined;
+      const subscribedValue = parts[3]?.toLowerCase();
+      if (subscribedValue === "yes" || subscribedValue === "true") {
+        subscribed = true;
+      } else if (subscribedValue === "no" || subscribedValue === "false") {
+        subscribed = false;
+      }
+    } else if (parts.length === 3) {
+      // email,firstName,lastName
+      firstName = parts[1] || undefined;
+      lastName = parts[2] || undefined;
     } else if (parts.length === 2) {
       // email,firstName
-      return {
-        email,
-        firstName: parts[1] || undefined,
-      };
-    } else {
-      // email,firstName,lastName (ignore anything beyond)
-      return {
-        email,
-        firstName: parts[1] || undefined,
-        lastName: parts[2] || undefined,
-      };
+      firstName = parts[1] || undefined;
     }
+
+    return {
+      email,
+      firstName,
+      lastName,
+      subscribed,
+    };
   };
 
   const parseContacts = (text: string): ParsedContact[] => {
     const lines = text.split("\n");
     const contactsMap = new Map<string, ParsedContact>();
 
-    for (const line of lines) {
-      const parsed = parseContactLine(line);
+    for (let i = 0; i < lines.length; i++) {
+      const parsed = parseContactLine(lines[i]!, i === 0);
       if (parsed) {
         // Use email as key to deduplicate
         if (!contactsMap.has(parsed.email)) {
@@ -201,8 +248,8 @@ export default function BulkUploadContacts({
       return;
     }
 
-    if (validContacts.length > 10000) {
-      setError("Maximum 10,000 contacts allowed per upload");
+    if (validContacts.length > 50000) {
+      setError("Maximum 50,000 contacts allowed per upload");
       setProcessing(false);
       return;
     }
@@ -220,6 +267,7 @@ export default function BulkUploadContacts({
           email: c.email,
           firstName: c.firstName,
           lastName: c.lastName,
+          subscribed: c.subscribed,
         })),
       });
     } catch {
@@ -255,22 +303,22 @@ export default function BulkUploadContacts({
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Bulk Upload Contacts</DialogTitle>
-          <DialogDescription>
-            Upload multiple contacts at once. Supports email only or CSV format
-            (email,firstName,lastName).
+          <DialogDescription className="text-sm">
+            Upload multiple contacts at once. Cannot change from unsubscribed to
+            subscribed via upload
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="text" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="text">
-                <FileText className="h-4 w-4 mr-2" />
-                Text Input
-              </TabsTrigger>
               <TabsTrigger value="file">
                 <Upload className="h-4 w-4 mr-2" />
                 File Upload
+              </TabsTrigger>
+              <TabsTrigger value="text">
+                <FileText className="h-4 w-4 mr-2" />
+                Text Input
               </TabsTrigger>
             </TabsList>
 
@@ -281,11 +329,11 @@ export default function BulkUploadContacts({
                   id="contacts"
                   placeholder={`Enter contacts, one per line:
 
-john@example.com,John,Doe
-jane@example.com,Jane,Smith
+john@example.com,John,Doe,Yes
+jane@example.com,Jane,Smith,No
 bob@example.com
 
-Format: email,firstName,lastName (firstName and lastName are optional)`}
+Format: email,firstName,lastName,subscribed (all fields except email are optional)`}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   className="min-h-[150px] font-mono text-sm"
@@ -337,7 +385,7 @@ Format: email,firstName,lastName (firstName and lastName are optional)`}
                         : "Upload a .txt or .csv file or drag and drop here"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Format: email,firstName,lastName (one per line)
+                      Format: email,firstName,lastName,subscribed (one per line)
                     </p>
                   </div>
                 </div>
@@ -359,6 +407,7 @@ Format: email,firstName,lastName (firstName and lastName are optional)`}
                       <TableHead>Email</TableHead>
                       <TableHead>First Name</TableHead>
                       <TableHead>Last Name</TableHead>
+                      <TableHead>Subscribed</TableHead>
                       <TableHead className="w-[80px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -376,6 +425,17 @@ Format: email,firstName,lastName (firstName and lastName are optional)`}
                         <TableCell className="text-sm">
                           {contact.lastName || (
                             <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {contact.subscribed === undefined ? (
+                            <span className="text-muted-foreground">
+                              Default
+                            </span>
+                          ) : contact.subscribed ? (
+                            <span className="text-green">Yes</span>
+                          ) : (
+                            <span className="text-red">No</span>
                           )}
                         </TableCell>
                         <TableCell>

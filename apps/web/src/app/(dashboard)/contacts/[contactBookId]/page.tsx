@@ -198,7 +198,10 @@ export default function ContactsPage({
           </div>
         </div>
         <div className="mt-16">
-          <ContactList contactBookId={contactBookId} />
+          <ContactList
+            contactBookId={contactBookId}
+            contactBookName={contactBookDetailQuery.data?.name}
+          />
         </div>
       </div>
     </div>
