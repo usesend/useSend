@@ -40,5 +40,10 @@
   },
   "dependencies": {
     "turbo": "^2.5.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "shiki": "3.3.0"
+    }
   }
 }

@@ -7,11 +7,8 @@ await import("./src/env.js");
 /** @type {import("next").NextConfig} */
 const config = {
   output: process.env.DOCKER_OUTPUT ? "standalone" : undefined,
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: ["bullmq"],
-    esmExternals: "loose",
-  },
+  serverExternalPackages: ["bullmq"],
+  transpilePackages: ["@usesend/ui", "@usesend/email-editor"],
   images: {
     remotePatterns: [
       {
