@@ -1,6 +1,5 @@
 "use client";
 
-import { WebhookCall } from "@prisma/client";
 import { formatDate } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@usesend/ui/src/button";
@@ -149,7 +148,7 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
             <Separator />
             <div className="flex flex-col gap-3">
               <h4 className="font-medium text-sm">Response Body</h4>
-              <CodeDisplay code={call.responseText} language="text" />
+              <CodeDisplay code={call.responseText} />
             </div>
           </>
         )}

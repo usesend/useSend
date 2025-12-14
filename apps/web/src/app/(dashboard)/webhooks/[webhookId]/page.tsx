@@ -12,7 +12,15 @@ import {
   BreadcrumbSeparator,
 } from "@usesend/ui/src/breadcrumb";
 import { Button } from "@usesend/ui/src/button";
-import { Edit3, Key, MoreVertical, Pause, Play, TestTube } from "lucide-react";
+import {
+  Edit3,
+  Key,
+  MoreVertical,
+  Pause,
+  Play,
+  TestTube,
+  CircleEllipsis,
+} from "lucide-react";
 import { toast } from "@usesend/ui/src/toaster";
 import { WebhookInfo } from "./webhook-info";
 import { WebhookCallsTable } from "./webhook-calls-table";
@@ -52,8 +60,9 @@ function WebhookDetailActions({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <MoreVertical className="h-4 w-4" />
+        <Button variant="default" className="gap-1">
+          <MoreVertical className="h-4 -ml-2" />
+          Actions
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-52 rounded-xl p-1" align="end">
@@ -122,30 +131,6 @@ function WebhookDetailActions({
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function WebhookStatusBadge({ status }: { status: string }) {
-  let badgeColor = "bg-gray-700/10 text-gray-400 border border-gray-400/10";
-  let label = status;
-
-  if (status === "ACTIVE") {
-    badgeColor = "bg-green/15 text-green border border-green/20";
-    label = "Active";
-  } else if (status === "PAUSED") {
-    badgeColor = "bg-gray-700/10 text-gray-400 border border-gray-400/10";
-    label = "Paused";
-  } else if (status === "AUTO_DISABLED") {
-    badgeColor = "bg-red/15 text-red border border-red/20";
-    label = "Auto disabled";
-  }
-
-  return (
-    <div
-      className={`text-center w-[130px] rounded capitalize py-1 text-xs ${badgeColor}`}
-    >
-      {label}
-    </div>
   );
 }
 
@@ -241,28 +226,25 @@ export default function WebhookDetailPage({
   }
 
   return (
-    <div className="container mx-auto mt-10 flex flex-col gap-6 pb-10">
+    <div className="container mx-auto flex flex-col gap-6 pb-10">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/webhooks" className="text-lg">
-                    Webhooks
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="text-lg" />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="text-lg max-w-[300px] truncate">
-                  {webhook.url}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <WebhookStatusBadge status={webhook.status} />
-        </div>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/webhooks" className="text-lg">
+                  Webhooks
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="text-lg" />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="text-lg max-w-[500px] truncate">
+                {webhook.url}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
         <WebhookDetailActions
           webhook={webhook}

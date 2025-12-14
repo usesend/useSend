@@ -21,7 +21,6 @@ import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { formatDistanceToNow } from "date-fns";
 import { WebhookCallStatusBadge } from "../webhook-call-status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
 
 export function WebhookCallsTable({
   webhookId,
@@ -45,9 +44,9 @@ export function WebhookCallsTable({
   const calls = callsQuery.data?.items ?? [];
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 py-4">
-        <CardTitle className="text-base font-medium">Delivery Logs</CardTitle>
+    <div className="h-full flex flex-col">
+      <div className="flex flex-row items-center justify-between py-4">
+        <h2 className="text-base font-medium">Delivery Logs</h2>
         <Select
           value={statusFilter}
           onValueChange={(value) =>
@@ -72,15 +71,14 @@ export function WebhookCallsTable({
             </SelectItem>
           </SelectContent>
         </Select>
-      </CardHeader>
-      <CardContent className="p-0 flex-1 overflow-auto">
+      </div>
+      <div className="flex-1 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30 border-b-0">
               <TableHead className="h-9">Status</TableHead>
               <TableHead className="h-9">Event Type</TableHead>
               <TableHead className="h-9">Time</TableHead>
-              <TableHead className="h-9">Status Code</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -125,15 +123,12 @@ export function WebhookCallsTable({
                       addSuffix: true,
                     })}
                   </TableCell>
-                  <TableCell className="py-2 text-xs font-mono">
-                    {call.responseStatus || "-"}
-                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

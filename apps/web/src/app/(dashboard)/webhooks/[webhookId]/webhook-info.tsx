@@ -8,6 +8,8 @@ import { Button } from "@usesend/ui/src/button";
 import { toast } from "@usesend/ui/src/toaster";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
+import { Badge } from "@usesend/ui/src/badge";
+import { WebhookStatusBadge } from "../webhook-status-badge";
 
 export function WebhookInfo({ webhook }: { webhook: Webhook }) {
   const [showSecret, setShowSecret] = useState(false);
@@ -42,100 +44,73 @@ export function WebhookInfo({ webhook }: { webhook: Webhook }) {
     toast.success("Secret copied to clipboard");
   };
 
-  const eventsText =
-    webhook.eventTypes.length === 0
-      ? "All events"
-      : `${webhook.eventTypes.length} event${webhook.eventTypes.length === 1 ? "" : "s"}`;
-
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">Configuration</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">URL</span>
-            <span className="text-sm font-mono break-all">{webhook.url}</span>
-          </div>
+    <div className="flex items-start gap-6 justify-between mt-5 mb-10">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-muted-foreground">Events</span>
+        <div className="flex items-center gap-1 flex-wrap font-mono text-sm">
+          {webhook.eventTypes.length === 0 ? (
+            <span className="text-sm">All events</span>
+          ) : (
+            <>
+              {webhook.eventTypes.slice(0, 2).map((event) => (
+                <Badge key={event} variant="outline">
+                  {event}
+                </Badge>
+              ))}
+              {webhook.eventTypes.length > 2 && (
+                <span className="text-xs text-muted-foreground">
+                  +{webhook.eventTypes.length - 2} more
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-muted-foreground">Status</span>
+        <div className="flex items-center">
+          <WebhookStatusBadge status={webhook.status} />
+        </div>
+      </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground">Events</span>
-              <span className="text-sm">{eventsText}</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground">Created</span>
-              <span className="text-sm">
-                {formatDistanceToNow(webhook.createdAt, { addSuffix: true })}
-              </span>
-            </div>
-          </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-muted-foreground">Created</span>
+        <span className="text-sm">
+          {formatDistanceToNow(webhook.createdAt, { addSuffix: true })}
+        </span>
+      </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Signing Secret
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowSecret(!showSecret)}
-                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                >
-                  {showSecret ? (
-                    <EyeOff className="h-3 w-3" />
-                  ) : (
-                    <Eye className="h-3 w-3" />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCopySecret}
-                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-            <code className="text-xs bg-muted px-2 py-1 rounded font-mono break-all">
-              {showSecret ? webhook.secret : "whsec_••••••••••••••••••••••••"}
-            </code>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Signing Secret</span>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowSecret(!showSecret)}
+              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            >
+              {showSecret ? (
+                <EyeOff className="h-3 w-3" />
+              ) : (
+                <Eye className="h-3 w-3" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCopySecret}
+              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">
-            Last 7 Days Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-around h-[140px]">
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-3xl font-bold text-green">
-                {deliveredCount}
-              </span>
-              <span className="text-sm text-muted-foreground">Delivered</span>
-            </div>
-            <div className="h-12 w-px bg-border" />
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-3xl font-bold text-red">{failedCount}</span>
-              <span className="text-sm text-muted-foreground">Failed</span>
-            </div>
-            <div className="h-12 w-px bg-border" />
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-3xl font-bold text-yellow">
-                {pendingCount}
-              </span>
-              <span className="text-sm text-muted-foreground">Pending</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <code className="text-xs bg-muted px-2 py-1 rounded font-mono w-[240px] inline-block truncate">
+          {showSecret ? webhook.secret : "whsec_••••••••••••••••••••••••"}
+        </code>
+      </div>
     </div>
   );
 }
