@@ -79,17 +79,18 @@ model VerificationToken {
 }
 
 model User {
-  id            Int        @id @default(autoincrement())
-  name          String?
-  email         String?    @unique
-  emailVerified DateTime?
-  image         String?
-  isBetaUser    Boolean    @default(false)
-  isWaitlisted  Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  accounts      Account[]
-  sessions      Session[]
-  teamUsers     TeamUser[]
+  id               Int        @id @default(autoincrement())
+  name             String?
+  email            String?    @unique
+  emailVerified    DateTime?
+  image            String?
+  isBetaUser       Boolean    @default(false)
+  isWaitlisted     Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  accounts         Account[]
+  sessions         Session[]
+  teamUsers        TeamUser[]
+  webhookEndpoints Webhook[]
 }
 
 enum Plan {
@@ -122,6 +123,8 @@ model Team {
   subscription     Subscription[]
   invites          TeamInvite[]
   suppressionList  SuppressionList[]
+  webhookEndpoints Webhook[]
+  webhookCalls     WebhookCall[]
 }
 
 model TeamInvite {
@@ -442,4 +445,62 @@ model SuppressionList {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, email])
+}
+
+enum WebhookStatus {
+  ACTIVE
+  PAUSED
+  AUTO_DISABLED
+}
+
+enum WebhookCallStatus {
+  PENDING
+  IN_PROGRESS
+  DELIVERED
+  FAILED
+  DISCARDED
+}
+
+model Webhook {
+  id                  String        @id @default(cuid())
+  teamId              Int
+  url                 String
+  description         String?
+  secret              String
+  status              WebhookStatus @default(ACTIVE)
+  eventTypes          String[]
+  apiVersion          String?
+  consecutiveFailures Int           @default(0)
+  lastFailureAt       DateTime?
+  lastSuccessAt       DateTime?
+  createdByUserId     Int?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  team                Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  calls               WebhookCall[]
+  createdBy           User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+}
+
+model WebhookCall {
+  id             String            @id @default(cuid())
+  webhookId      String
+  teamId         Int
+  type           String
+  payload        String
+  status         WebhookCallStatus @default(PENDING)
+  attempt        Int               @default(0)
+  nextAttemptAt  DateTime?
+  lastError      String?
+  responseStatus Int?
+  responseTimeMs Int?
+  responseText   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  webhook        Webhook           @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  team           Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, webhookId, status])
+  @@index([createdAt(sort: Desc)])
 }

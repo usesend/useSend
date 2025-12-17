@@ -97,7 +97,7 @@ class ContactQueueService {
 }
 
 async function processContactJob(job: ContactJob) {
-  const { contactBookId, contact } = job.data;
+  const { contactBookId, contact, teamId } = job.data;
 
   logger.info(
     { contactEmail: contact.email, contactBookId },
@@ -105,7 +105,7 @@ async function processContactJob(job: ContactJob) {
   );
 
   try {
-    await addOrUpdateContact(contactBookId, contact);
+    await addOrUpdateContact(contactBookId, contact, teamId);
     logger.info(
       { contactEmail: contact.email },
       "[ContactQueueService]: Successfully processed contact job",

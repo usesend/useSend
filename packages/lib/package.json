@@ -1,0 +1,22 @@
+{
+  "name": "@usesend/lib",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "@usesend/eslint-config": "workspace:*",
+    "@usesend/typescript-config": "workspace:*",
+    "eslint": "^8.57.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  }
+}

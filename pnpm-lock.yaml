@@ -206,6 +206,9 @@ importers:
       '@usesend/email-editor':
         specifier: workspace:*
         version: link:../../packages/email-editor
+      '@usesend/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
       '@usesend/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -518,11 +521,35 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
 
+  packages/lib:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.2
+        version: 22.15.2
+      '@usesend/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@usesend/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      eslint:
+        specifier: ^8.57.1
+        version: 8.57.1
+      prettier:
+        specifier: ^3.5.3
+        version: 3.5.3
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
   packages/sdk:
     dependencies:
       '@react-email/render':
         specifier: ^1.0.6
         version: 1.0.6(react-dom@19.1.0)(react@19.1.0)
+      '@usesend/lib':
+        specifier: workspace:*
+        version: link:../lib
       react:
         specifier: ^19.1.0
         version: 19.1.0
