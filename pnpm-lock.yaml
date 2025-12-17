@@ -55,8 +55,8 @@ importers:
         specifier: ^7.11.0
         version: 7.11.0(react@19.1.0)
       next:
-        specifier: 15.5.8
-        version: 15.5.8(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
+        specifier: 15.5.9
+        version: 15.5.9(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -196,7 +196,7 @@ importers:
         version: 11.1.1(@trpc/server@11.1.1)(typescript@5.8.3)
       '@trpc/next':
         specifier: ^11.1.1
-        version: 11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/react-query@11.1.1)(@trpc/server@11.1.1)(next@15.5.8)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3)
+        version: 11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/react-query@11.1.1)(@trpc/server@11.1.1)(next@15.5.9)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3)
       '@trpc/react-query':
         specifier: ^11.1.1
         version: 11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/server@11.1.1)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3)
@@ -246,11 +246,11 @@ importers:
         specifier: ^5.1.5
         version: 5.1.5
       next:
-        specifier: 15.5.8
-        version: 15.5.8(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
+        specifier: 15.5.9
+        version: 15.5.9(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(next@15.5.8)(nodemailer@7.0.3)(react-dom@19.1.0)(react@19.1.0)
+        version: 4.24.11(next@15.5.9)(nodemailer@7.0.3)(react-dom@19.1.0)(react@19.1.0)
       nodemailer:
         specifier: ^7.0.3
         version: 7.0.3
@@ -4204,8 +4204,8 @@ packages:
     dev: true
     optional: true
 
-  /@next/env@15.5.8:
-    resolution: {integrity: sha512-ejZHa3ogTxcy851dFoNtfB5B2h7AbSAtHbR5CymUlnz4yW1QjHNufVpvTu8PTnWBKFKjrd4k6Gbi2SsCiJKvxw==}
+  /@next/env@15.5.9:
+    resolution: {integrity: sha512-4GlTZ+EJM7WaW2HEZcyU317tIQDjkQIyENDLxYJfSWlfqguN+dHkZgyQTV/7ykvobU7yEH5gKvreNrH4B6QgIg==}
     dev: false
 
   /@next/eslint-plugin-next@15.3.1:
@@ -8041,7 +8041,7 @@ packages:
       typescript: 5.8.3
     dev: false
 
-  /@trpc/next@11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/react-query@11.1.1)(@trpc/server@11.1.1)(next@15.5.8)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3):
+  /@trpc/next@11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/react-query@11.1.1)(@trpc/server@11.1.1)(next@15.5.9)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3):
     resolution: {integrity: sha512-4uz4S+QtpVGPENm4Kp7HSvMW+nXocBvI+A+dkwVvM3R9MIU3lIQ35H1fQ1aN/O+PlR4LOs5FceCwC1LjWkScZQ==}
     peerDependencies:
       '@tanstack/react-query': ^5.59.15
@@ -8062,7 +8062,7 @@ packages:
       '@trpc/client': 11.1.1(@trpc/server@11.1.1)(typescript@5.8.3)
       '@trpc/react-query': 11.1.1(@tanstack/react-query@5.74.4)(@trpc/client@11.1.1)(@trpc/server@11.1.1)(react-dom@19.1.0)(react@19.1.0)(typescript@5.8.3)
       '@trpc/server': 11.1.1(typescript@5.8.3)
-      next: 15.5.8(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
+      next: 15.5.9(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
       typescript: 5.8.3
@@ -14383,7 +14383,7 @@ packages:
     engines: {node: '>= 0.4.0'}
     dev: true
 
-  /next-auth@4.24.11(next@15.5.8)(nodemailer@7.0.3)(react-dom@19.1.0)(react@19.1.0):
+  /next-auth@4.24.11(next@15.5.9)(nodemailer@7.0.3)(react-dom@19.1.0)(react@19.1.0):
     resolution: {integrity: sha512-pCFXzIDQX7xmHFs4KVH4luCjaCbuPRtZ9oBUjUhOk84mZ9WVPf94n87TxYI4rSRf9HmfHEF8Yep3JrYDVOo3Cw==}
     peerDependencies:
       '@auth/core': 0.34.2
@@ -14401,7 +14401,7 @@ packages:
       '@panva/hkdf': 1.2.1
       cookie: 0.7.2
       jose: 4.15.9
-      next: 15.5.8(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
+      next: 15.5.9(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0)
       nodemailer: 7.0.3
       oauth: 0.9.15
       openid-client: 5.7.1
@@ -14444,10 +14444,9 @@ packages:
       react-dom: 19.1.0(react@19.1.0)
     dev: false
 
-  /next@15.5.8(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0):
-    resolution: {integrity: sha512-Tma2R50eiM7Fx6fbDeHiThq7sPgl06mBr76j6Ga0lMFGrmaLitFsy31kykgb8Z++DR2uIEKi2RZ0iyjIwFd15Q==}
+  /next@15.5.9(@babel/core@7.26.10)(react-dom@19.1.0)(react@19.1.0):
+    resolution: {integrity: sha512-agNLK89seZEtC5zUHwtut0+tNrc0Xw4FT/Dg+B/VLEo9pAcS9rtTKpek3V6kVcVwsB2YlqMaHdfZL4eLEVYuCg==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
-    deprecated: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
@@ -14466,7 +14465,7 @@ packages:
       sass:
         optional: true
     dependencies:
-      '@next/env': 15.5.8
+      '@next/env': 15.5.9
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001715
       postcss: 8.4.31
