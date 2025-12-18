@@ -13,6 +13,7 @@ import { api } from "~/trpc/react";
 import Spinner from "@usesend/ui/src/spinner";
 import EditSesConfiguration from "./edit-ses-configuration";
 import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
+import DeleteSesConfiguration from "./delete-ses-configuration";
 
 export default function SesConfigurations() {
   const sesSettingsQuery = api.admin.getSesSettings.useQuery();
@@ -71,7 +72,10 @@ export default function SesConfigurations() {
                   <TableCell>{sesSetting.sesEmailRateLimit}</TableCell>
                   <TableCell>{sesSetting.transactionalQuota}%</TableCell>
                   <TableCell>
-                    <EditSesConfiguration setting={sesSetting} />
+                    <div className="flex items-center gap-1">
+                      <EditSesConfiguration setting={sesSetting} />
+                      <DeleteSesConfiguration setting={sesSetting} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
