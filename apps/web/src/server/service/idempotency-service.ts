@@ -1,6 +1,6 @@
 import { getRedis } from "~/server/redis";
 import { canonicalizePayload } from "~/server/utils/idempotency";
-import { UnsendApiError } from "~/server/public-api/api-error";
+import { UseSendApiError } from "~/server/public-api/api-error";
 import { logger } from "~/server/logger/log";
 
 const IDEMPOTENCY_RESULT_TTL_SECONDS = 24 * 60 * 60; // 24h
@@ -98,7 +98,7 @@ export const IdempotencyService = {
 
     // Validate idempotency key length
     if (idemKey !== undefined && (idemKey.length < 1 || idemKey.length > 256)) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "BAD_REQUEST",
         message: "Invalid Idempotency-Key length",
       });
@@ -120,7 +120,7 @@ export const IdempotencyService = {
         return formatCachedResponse(existing.emailIds);
       }
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_UNIQUE",
         message: "Idempotency-Key already used with a different payload",
       });
@@ -140,13 +140,13 @@ export const IdempotencyService = {
           return formatCachedResponse(again.emailIds);
         }
 
-        throw new UnsendApiError({
+        throw new UseSendApiError({
           code: "NOT_UNIQUE",
           message: "Idempotency-Key already used with a different payload",
         });
       }
 
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_UNIQUE",
         message:
           "Request with same Idempotency-Key is in progress. Retry later.",
