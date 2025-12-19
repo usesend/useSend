@@ -17,16 +17,11 @@ import {
 import { Input } from "@usesend/ui/src/input";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { passwordSchema } from "~/server/password-utils";
 
-const passwordSchema = z
+const resetPasswordFormSchema = z
   .object({
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .max(128, "Password must be less than 128 characters")
-      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-      .regex(/[0-9]/, "Password must contain at least one number"),
+    password: passwordSchema,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -43,15 +38,15 @@ function ResetPasswordForm() {
   );
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  const form = useForm<z.infer<typeof passwordSchema>>({
-    resolver: zodResolver(passwordSchema),
+  const form = useForm<z.infer<typeof resetPasswordFormSchema>>({
+    resolver: zodResolver(resetPasswordFormSchema),
     defaultValues: {
       password: "",
       confirmPassword: "",
     },
   });
 
-  async function onSubmit(values: z.infer<typeof passwordSchema>) {
+  async function onSubmit(values: z.infer<typeof resetPasswordFormSchema>) {
     if (!token) {
       setErrorMessage("Invalid reset link");
       setStatus("error");

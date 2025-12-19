@@ -108,7 +108,6 @@ export default function LoginPage({
   async function onOTPSubmit(values: z.infer<typeof otpSchema>) {
     const { origin: baseUrl } = window.location;
     const email = emailForm.getValues().email;
-    console.log("email", email);
 
     const finalCallbackUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`
@@ -221,7 +220,7 @@ export default function LoginPage({
                   type="button"
                   variant={authMode === "password" ? "default" : "outline"}
                   className="flex-1"
-                  onClick={() => setAuthMode("password")}
+                  onClick={() => { setAuthMode("password"); setLoginError(null); }}
                 >
                   Password
                 </Button>
@@ -229,7 +228,7 @@ export default function LoginPage({
                   type="button"
                   variant={authMode === "otp" ? "default" : "outline"}
                   className="flex-1"
-                  onClick={() => setAuthMode("otp")}
+                  onClick={() => { setAuthMode("otp"); setLoginError(null); }}
                 >
                   Magic Link
                 </Button>

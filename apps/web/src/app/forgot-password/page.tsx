@@ -27,6 +27,9 @@ export default function ForgotPasswordPage() {
 
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
+    defaultValues: {
+      email: "",
+    },
   });
 
   async function onSubmit(values: z.infer<typeof emailSchema>) {

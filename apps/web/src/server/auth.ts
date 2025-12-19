@@ -109,12 +109,13 @@ function getProviders() {
 
         const user = await db.user.findUnique({ where: { email } });
 
-        if (!user || !user.passwordHash) {
-          return null;
-        }
+        // Always run hash verification to prevent timing attacks
+        // Use a dummy hash when user doesn't exist to normalize response time
+        const DUMMY_HASH = "0000000000000000:0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        const hashToVerify = user?.passwordHash ?? DUMMY_HASH;
+        const isValid = await verifySecureHash(password, hashToVerify);
 
-        const isValid = await verifySecureHash(password, user.passwordHash);
-        if (!isValid) {
+        if (!user || !user.passwordHash || !isValid) {
           return null;
         }
 

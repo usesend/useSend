@@ -25,26 +25,10 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      if (existingUser.passwordHash) {
-        // User already has password authentication
-        return NextResponse.json(
-          { error: "An account with this email already exists" },
-          { status: 400 }
-        );
-      }
-
-      // User exists via OAuth, allow adding password
-      const passwordHash = await createSecureHash(password);
-      await db.user.update({
-        where: { id: existingUser.id },
-        data: { passwordHash },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message:
-          "Password added to your existing account. You can now sign in with email and password.",
-      });
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in." },
+        { status: 400 }
+      );
     }
 
     // Create new user with password

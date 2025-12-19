@@ -39,23 +39,44 @@ export async function POST(request: Request) {
 
     const passwordHash = await createSecureHash(password);
 
-    await db.user.update({
-      where: { email: resetToken.email },
-      data: {
-        passwordHash,
-        emailVerified: new Date(), // Verify email on password reset
-      },
-    });
+    await db.$transaction(async (tx) => {
+      // Verify user exists
+      const user = await tx.user.findUnique({
+        where: { email: resetToken.email },
+      });
 
-    // Delete used token
-    await db.passwordResetToken.delete({ where: { token } });
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      // Update password
+      await tx.user.update({
+        where: { email: resetToken.email },
+        data: {
+          passwordHash,
+          emailVerified: new Date(),
+        },
+      });
+
+      // Delete used token
+      await tx.passwordResetToken.delete({ where: { token } });
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Reset password error:", error);
+    const message =
+      error instanceof Error && error.message === "User not found"
+        ? "User account not found"
+        : "Something went wrong. Please try again.";
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
+      { error: message },
+      {
+        status:
+          error instanceof Error && error.message === "User not found"
+            ? 400
+            : 500,
+      }
     );
   }
 }
