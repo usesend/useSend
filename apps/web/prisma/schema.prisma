@@ -84,12 +84,24 @@ model User {
   email         String?    @unique
   emailVerified DateTime?
   image         String?
+  passwordHash  String?    // nullable for OAuth-only users
   isBetaUser    Boolean    @default(false)
   isWaitlisted  Boolean    @default(false)
   createdAt     DateTime   @default(now())
   accounts      Account[]
   sessions      Session[]
   teamUsers     TeamUser[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([email, token])
+  @@index([email])
 }
 
 enum Plan {

@@ -8,6 +8,10 @@ export {
   UsageLimitReachedEmail,
   renderUsageLimitReachedEmail,
 } from "./UsageLimitReachedEmail";
+export {
+  PasswordResetEmail,
+  renderPasswordResetEmail,
+} from "./PasswordResetEmail";
 
 export * from "./components/EmailLayout";
 export * from "./components/EmailHeader";

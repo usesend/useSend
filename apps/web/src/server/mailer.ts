@@ -5,7 +5,11 @@ import { db } from "./db";
 import { getDomains } from "./service/domain-service";
 import { sendEmail } from "./service/email-service";
 import { logger } from "./logger/log";
-import { renderOtpEmail, renderTeamInviteEmail } from "./email-templates";
+import {
+  renderOtpEmail,
+  renderTeamInviteEmail,
+  renderPasswordResetEmail,
+} from "./email-templates";
 
 let usesend: UseSend | undefined;
 
@@ -69,6 +73,27 @@ export async function sendTeamInviteEmail(
   await sendMail(email, subject, text, html);
 }
 
+export async function sendPasswordResetEmail(email: string, token: string) {
+  const resetUrl = `${env.NEXTAUTH_URL}/reset-password?token=${token}`;
+
+  if (env.NODE_ENV === "development") {
+    logger.info({ email, resetUrl, token }, "Sending password reset email");
+    return;
+  }
+
+  const subject = "Reset your password";
+
+  // Use jsx-email template for beautiful HTML
+  const html = await renderPasswordResetEmail({
+    resetUrl,
+  });
+
+  // Fallback text version
+  const text = `Hey,\n\nWe received a request to reset your password for your useSend account.\n\nYou can reset your password by clicking the link below:\n${resetUrl}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, you can safely ignore this email.\n\nThanks,\nuseSend Team`;
+
+  await sendMail(email, subject, text, html);
+}
+
 export async function sendSubscriptionConfirmationEmail(email: string) {
   if (!env.FOUNDER_EMAIL) {
     logger.error("FOUNDER_EMAIL not configured");
@@ -92,7 +117,7 @@ export async function sendMail(
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
-    /* 
+    /*
       Self hosted so checking if we can send using one of the available domain
       Assuming self hosted will have only one team
       TODO: fix this
