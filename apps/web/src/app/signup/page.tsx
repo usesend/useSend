@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "~/server/auth";
-import LoginPage from "../login/login-page";
+import SignupPage from "./signup-page";
 import { getProviders } from "next-auth/react";
 
-export default async function Login() {
+export default async function Signup() {
   const session = await getServerAuthSession();
 
   if (session) {
@@ -12,5 +12,5 @@ export default async function Login() {
 
   const providers = await getProviders();
 
-  return <LoginPage providers={Object.values(providers ?? {})} isSignup />;
+  return <SignupPage providers={Object.values(providers ?? {})} />;
 }

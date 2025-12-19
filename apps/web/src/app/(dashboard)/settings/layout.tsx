@@ -26,6 +26,7 @@ export default function ApiKeysPage({
           </SettingsNavButton>
         ) : null}
         <SettingsNavButton href="/settings/team">Team</SettingsNavButton>
+        <SettingsNavButton href="/settings/account">Account</SettingsNavButton>
       </div>
       <div className="mt-8">{children}</div>
     </div>

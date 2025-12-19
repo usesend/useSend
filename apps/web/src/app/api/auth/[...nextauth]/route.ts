@@ -50,8 +50,10 @@ function getClientIp(req: Request): string | null {
 }
 
 export async function POST(req: Request, ctx: any) {
+  const url = new URL(req.url);
+
+  // Rate limiting for email signin
   if (env.AUTH_EMAIL_RATE_LIMIT > 0) {
-    const url = new URL(req.url);
     if (url.pathname.endsWith("/signin/email")) {
       try {
         const ip = getClientIp(req);
@@ -81,5 +83,37 @@ export async function POST(req: Request, ctx: any) {
       }
     }
   }
+
+  // Rate limiting for credentials signin
+  if (url.pathname.endsWith("/callback/credentials")) {
+    try {
+      const ip = getClientIp(req);
+      if (!ip) {
+        logger.warn("Auth credentials rate limit skipped: missing client IP");
+        return handler(req, ctx);
+      }
+      const redis = getRedis();
+      const key = `auth-credentials-rl:${ip}`;
+      const ttl = 60;
+      const limit = 5;
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, ttl);
+      if (count > limit) {
+        logger.warn({ ip }, "Auth credentials rate limit exceeded");
+        return Response.json(
+          {
+            error: {
+              code: "RATE_LIMITED",
+              message: "Too many login attempts. Please try again later.",
+            },
+          },
+          { status: 429 }
+        );
+      }
+    } catch (error) {
+      logger.error({ err: error }, "Auth credentials rate limit failed");
+    }
+  }
+
   return handler(req, ctx);
 }
