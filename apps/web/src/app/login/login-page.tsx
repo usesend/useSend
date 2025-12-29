@@ -27,6 +27,7 @@ import Spinner from "@usesend/ui/src/spinner";
 import Link from "next/link";
 import { useTheme } from "@usesend/ui";
 import { useSearchParams as useNextSearchParams } from "next/navigation";
+import { passwordLoginSchema } from "~/server/password-utils";
 
 const emailSchema = z.object({
   email: z
@@ -72,12 +73,27 @@ export default function LoginPage({
     "idle" | "sending" | "success"
   >("idle");
 
+  const [authMode, setAuthMode] = useState<"password" | "otp">("password");
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const searchParams = useNextSearchParams();
+  const inviteId = searchParams.get("inviteId");
+  const callbackUrl = typeof window !== "undefined" ? window.location.origin : "";
+
   const emailForm = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
   });
 
   const otpForm = useForm<z.infer<typeof otpSchema>>({
     resolver: zodResolver(otpSchema),
+  });
+
+  const passwordForm = useForm<z.infer<typeof passwordLoginSchema>>({
+    resolver: zodResolver(passwordLoginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
   async function onEmailSubmit(values: z.infer<typeof emailSchema>) {
@@ -90,16 +106,38 @@ export default function LoginPage({
   }
 
   async function onOTPSubmit(values: z.infer<typeof otpSchema>) {
-    const { origin: callbackUrl } = window.location;
+    const { origin: baseUrl } = window.location;
     const email = emailForm.getValues().email;
-    console.log("email", email);
+
+    const finalCallbackUrl = inviteId
+      ? `/join-team?inviteId=${inviteId}`
+      : `${baseUrl}/dashboard`;
+    window.location.href = `/api/auth/callback/email?email=${encodeURIComponent(
+      email.toLowerCase()
+    )}&token=${values.otp.toLowerCase()}&callbackUrl=${encodeURIComponent(finalCallbackUrl)}`;
+  }
+
+  async function onPasswordSubmit(values: z.infer<typeof passwordLoginSchema>) {
+    setLoginError(null);
+    setSubmittedProvider("credentials");
+
+    const result = await signIn("credentials", {
+      email: values.email.toLowerCase(),
+      password: values.password,
+      redirect: false,
+    });
+
+    setSubmittedProvider(null);
+
+    if (result?.error) {
+      setLoginError("Invalid email or password");
+      return;
+    }
 
     const finalCallbackUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`
       : `${callbackUrl}/dashboard`;
-    window.location.href = `/api/auth/callback/email?email=${encodeURIComponent(
-      email.toLowerCase()
-    )}&token=${values.otp.toLowerCase()}&callbackUrl=${encodeURIComponent(finalCallbackUrl)}`;
+    window.location.href = finalCallbackUrl;
   }
 
   const emailProvider = providers?.find(
@@ -109,15 +147,12 @@ export default function LoginPage({
   const [submittedProvider, setSubmittedProvider] =
     useState<LiteralUnion<BuiltInProviderType> | null>(null);
 
-  const searchParams = useNextSearchParams();
-  const inviteId = searchParams.get("inviteId");
-
   const handleSubmit = (provider: LiteralUnion<BuiltInProviderType>) => {
     setSubmittedProvider(provider);
-    const callbackUrl = inviteId
+    const redirectUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`
       : "/dashboard";
-    signIn(provider, { callbackUrl });
+    signIn(provider, { callbackUrl: redirectUrl });
   };
 
   const { resolvedTheme } = useTheme();
@@ -178,7 +213,96 @@ export default function LoginPage({
                 </p>
                 <div className="absolute h-[1px] w-[350px]  bg-gradient-to-l from-zinc-300 via-zinc-800 to-zinc-300"></div>
               </div>
-              {emailStatus === "success" ? (
+
+              {/* Auth mode toggle */}
+              <div className="flex gap-2 w-full">
+                <Button
+                  type="button"
+                  variant={authMode === "password" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => { setAuthMode("password"); setLoginError(null); }}
+                >
+                  Password
+                </Button>
+                <Button
+                  type="button"
+                  variant={authMode === "otp" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => { setAuthMode("otp"); setLoginError(null); }}
+                >
+                  Magic Link
+                </Button>
+              </div>
+
+              {/* Error message display */}
+              {loginError && (
+                <p className="text-sm text-destructive text-center">{loginError}</p>
+              )}
+
+              {authMode === "password" ? (
+                /* Password login form */
+                <Form {...passwordForm}>
+                  <form
+                    onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={passwordForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter your email"
+                              className="w-[350px]"
+                              type="email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter your password"
+                              className="w-[350px]"
+                              type="password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex justify-end">
+                      <Link
+                        href="/forgot-password"
+                        className="text-sm text-muted-foreground hover:underline"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Button
+                      className="w-[350px]"
+                      size="lg"
+                      disabled={submittedProvider === "credentials"}
+                    >
+                      {submittedProvider === "credentials" ? (
+                        <Spinner className="w-5 h-5" />
+                      ) : (
+                        "Sign in"
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              ) : emailStatus === "success" ? (
+                /* OTP verification form */
                 <>
                   <p className=" w-[350px] text-center text-sm">
                     We have sent an email with the OTP. Please check your inbox
@@ -238,42 +362,41 @@ export default function LoginPage({
                   </Form>
                 </>
               ) : (
-                <>
-                  <Form {...emailForm}>
-                    <form
-                      onSubmit={emailForm.handleSubmit(onEmailSubmit)}
-                      className="space-y-6"
+                /* Magic link email form */
+                <Form {...emailForm}>
+                  <form
+                    onSubmit={emailForm.handleSubmit(onEmailSubmit)}
+                    className="space-y-6"
+                  >
+                    <FormField
+                      control={emailForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter your email"
+                              className=" w-[350px]"
+                              type="email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      className=" w-[350px] "
+                      size="lg"
+                      disabled={emailStatus === "sending"}
                     >
-                      <FormField
-                        control={emailForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter your email"
-                                className=" w-[350px]"
-                                type="email"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription />
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button
-                        className=" w-[350px] "
-                        size="lg"
-                        disabled={emailStatus === "sending"}
-                      >
-                        {emailStatus === "sending"
-                          ? "Sending..."
-                          : "Continue with email"}
-                      </Button>
-                    </form>
-                  </Form>
-                </>
+                      {emailStatus === "sending"
+                        ? "Sending..."
+                        : "Continue with email"}
+                    </Button>
+                  </form>
+                </Form>
               )}
             </>
           )}
