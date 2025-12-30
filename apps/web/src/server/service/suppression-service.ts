@@ -144,7 +144,9 @@ export class SuppressionService {
 
         // Check for failures - deleteFromSesSuppressionList returns false on error
         const failures = results.filter(
-          (r) => r.status === "fulfilled" && r.value === false
+          (r) =>
+            r.status === "rejected" ||
+            (r.status === "fulfilled" && r.value === false)
         );
         if (failures.length > 0) {
           logger.warn(
