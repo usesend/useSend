@@ -1,7 +1,10 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { ContactBookSchema } from "~/lib/zod/contact-book-schema";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { createContactBook as createContactBookService } from "~/server/service/contact-book-service";
+import {
+	createContactBook as createContactBookService,
+	updateContactBook,
+} from "~/server/service/contact-book-service";
 
 const route = createRoute({
 	method: "post",
@@ -37,15 +40,10 @@ function createContactBook(app: PublicAPIApp) {
 		const team = c.var.team;
 		const body = c.req.valid("json");
 
-		console.log({ team });
-
 		const contactBook = await createContactBookService(team.id, body.name);
 
 		// Update emoji and properties if provided
 		if (body.emoji || body.properties) {
-			const { updateContactBook } = await import(
-				"~/server/service/contact-book-service"
-			);
 			const updated = await updateContactBook(contactBook.id, {
 				emoji: body.emoji,
 				properties: body.properties,

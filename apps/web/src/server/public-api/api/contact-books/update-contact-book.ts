@@ -1,9 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { ContactBookSchema } from "~/lib/zod/contact-book-schema";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { db } from "~/server/db";
-import { UnsendApiError } from "../../api-error";
 import { updateContactBook as updateContactBookService } from "~/server/service/contact-book-service";
+import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
 	method: "patch",
@@ -70,19 +69,7 @@ function updateContactBook(app: PublicAPIApp) {
 		const contactBookId = c.req.valid("param").id;
 		const body = c.req.valid("json");
 
-		const contactBook = await db.contactBook.findFirst({
-			where: {
-				id: contactBookId,
-				teamId: team.id,
-			},
-		});
-
-		if (!contactBook) {
-			throw new UnsendApiError({
-				code: "NOT_FOUND",
-				message: "Contact book not found",
-			});
-		}
+		await getContactBook(c, team.id);
 
 		const updated = await updateContactBookService(contactBookId, body);
 

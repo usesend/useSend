@@ -1,8 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "../../hono";
-import { db } from "~/server/db";
-import { UnsendApiError } from "../../api-error";
 import { deleteContactBook as deleteContactBookService } from "~/server/service/contact-book-service";
+import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
 	method: "delete",
@@ -59,19 +58,7 @@ function deleteContactBook(app: PublicAPIApp) {
 		const team = c.var.team;
 		const contactBookId = c.req.valid("param").id;
 
-		const contactBook = await db.contactBook.findFirst({
-			where: {
-				id: contactBookId,
-				teamId: team.id,
-			},
-		});
-
-		if (!contactBook) {
-			throw new UnsendApiError({
-				code: "NOT_FOUND",
-				message: "Contact book not found",
-			});
-		}
+		await getContactBook(c, team.id);
 
 		const deletedContactBook = await deleteContactBookService(contactBookId);
 
