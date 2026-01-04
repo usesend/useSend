@@ -67,11 +67,11 @@
 					{
 						"group": "Contact Books",
 						"pages": [
-							"api-reference/contact-books/list-contact-books",
-							"api-reference/contact-books/get-contact-book",
-							"api-reference/contact-books/create-contact-book",
-							"api-reference/contact-books/update-contact-book",
-							"api-reference/contact-books/delete-contact-book"
+							"api-reference/contacts/list-contacts",
+							"api-reference/contacts/get-contact-book",
+							"api-reference/contacts/create-contact-book",
+							"api-reference/contacts/update-contact-book",
+							"api-reference/contacts/delete-contact-book"
 						]
 					},
 					{

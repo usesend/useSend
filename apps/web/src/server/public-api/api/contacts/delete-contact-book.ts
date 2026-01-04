@@ -5,12 +5,12 @@ import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
 	method: "delete",
-	path: "/v1/contact-books/{id}",
+	path: "/v1/contactBooks/{contactBookId}",
 	request: {
 		params: z.object({
-			id: z.string().openapi({
+			contactBookId: z.string().openapi({
 				param: {
-					name: "id",
+					name: "contactBookId",
 					in: "path",
 				},
 				example: "clx1234567890",
@@ -56,7 +56,7 @@ const route = createRoute({
 function deleteContactBook(app: PublicAPIApp) {
 	app.openapi(route, async (c) => {
 		const team = c.var.team;
-		const contactBookId = c.req.valid("param").id;
+		const contactBookId = c.req.valid("param").contactBookId;
 
 		await getContactBook(c, team.id);
 

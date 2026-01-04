@@ -5,7 +5,7 @@ import { getContactBooks as getContactBooksService } from "~/server/service/cont
 
 const route = createRoute({
 	method: "get",
-	path: "/v1/contact-books",
+	path: "/v1/contactBooks",
 	responses: {
 		200: {
 			content: {

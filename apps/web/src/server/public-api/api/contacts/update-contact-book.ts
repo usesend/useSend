@@ -6,12 +6,12 @@ import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
 	method: "patch",
-	path: "/v1/contact-books/{id}",
+	path: "/v1/contactBooks/{contactBookId}",
 	request: {
 		params: z.object({
-			id: z.string().openapi({
+			contactBookId: z.string().openapi({
 				param: {
-					name: "id",
+					name: "contactBookId",
 					in: "path",
 				},
 				example: "clx1234567890",
@@ -66,10 +66,12 @@ const route = createRoute({
 function updateContactBook(app: PublicAPIApp) {
 	app.openapi(route, async (c) => {
 		const team = c.var.team;
-		const contactBookId = c.req.valid("param").id;
+		const contactBookId = c.req.valid("param").contactBookId;
 		const body = c.req.valid("json");
 
 		await getContactBook(c, team.id);
+
+		console.log({ contactBookId });
 
 		const updated = await updateContactBookService(contactBookId, body);
 

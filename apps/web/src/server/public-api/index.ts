@@ -21,11 +21,11 @@ import getCampaign from "./api/campaigns/get-campaign";
 import scheduleCampaign from "./api/campaigns/schedule-campaign";
 import pauseCampaign from "./api/campaigns/pause-campaign";
 import resumeCampaign from "./api/campaigns/resume-campaign";
-import getContactBooks from "./api/contact-books/get-contact-books";
-import createContactBook from "./api/contact-books/create-contact-book";
-import getContactBook from "./api/contact-books/get-contact-book";
-import updateContactBook from "./api/contact-books/update-contact-book";
-import deleteContactBook from "./api/contact-books/delete-contact-book";
+import getContactBooks from "./api/contacts/get-contact-books";
+import createContactBook from "./api/contacts/create-contact-book";
+import getContactBook from "./api/contacts/get-contact-book";
+import updateContactBook from "./api/contacts/update-contact-book";
+import deleteContactBook from "./api/contacts/delete-contact-book";
 
 export const app = getApp();
 

@@ -8,7 +8,7 @@ import {
 
 const route = createRoute({
 	method: "post",
-	path: "/v1/contact-books",
+	path: "/v1/contactBooks",
 	request: {
 		body: {
 			required: true,
