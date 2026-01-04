@@ -1,162 +1,163 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "theme": "maple",
-  "name": "useSend",
-  "colors": {
-    "primary": "#21453D",
-    "light": "#E6FAF5",
-    "dark": "#21453D"
-  },
-  "background": {
-    "color": {
-      "light": "#F5F5F5",
-      "dark": "#181825"
-    }
-  },
-  "fonts": {
-    "family": "IBM Plex Mono"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Documentation",
-        "groups": [
-          {
-            "group": "Getting Started",
-            "pages": [
-              "introduction",
-              "get-started/nodejs",
-              "get-started/python",
-              "get-started/local",
-              "get-started/smtp"
-            ]
-          },
-          {
-            "group": "Self Hosting",
-            "pages": ["self-hosting/overview", "self-hosting/railway"]
-          },
-          {
-            "group": "Guides",
-            "pages": ["guides/use-with-react-email"]
-          },
-          {
-            "group": "Community SDKs",
-            "pages": ["community-sdk/python", "community-sdk/go"]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "API Reference",
-            "pages": ["api-reference/introduction"]
-          },
-          {
-            "group": "Emails",
-            "pages": [
-              "api-reference/emails/get-email",
-              "api-reference/emails/list-emails",
-              "api-reference/emails/send-email",
-              "api-reference/emails/batch-email",
-              "api-reference/emails/update-schedule",
-              "api-reference/emails/cancel-schedule"
-            ]
-          },
-          {
-            "group": "Contacts",
-            "pages": [
-              "api-reference/contacts/get-contact",
-              "api-reference/contacts/get-contacts",
-              "api-reference/contacts/create-contact",
-              "api-reference/contacts/update-contact",
-              "api-reference/contacts/upsert-contact",
-              "api-reference/contacts/delete-contact"
-            ]
-          },
-          {
-            "group": "Domains",
-            "pages": [
-              "api-reference/domains/get-domain",
-              "api-reference/domains/list-domains",
-              "api-reference/domains/create-domain",
-              "api-reference/domains/verify-domain",
-              "api-reference/domains/delete-domain"
-            ]
-          },
-          {
-            "group": "Campaigns",
-            "pages": [
-              "api-reference/campaigns/create-campaign",
-              "api-reference/campaigns/get-campaign",
-              "api-reference/campaigns/schedule-campaign",
-              "api-reference/campaigns/pause-campaign",
-              "api-reference/campaigns/resume-campaign"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Changelog",
-        "groups": [
-          {
-            "group": "Updates",
-            "pages": ["changelog"]
-          }
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/usesend/usesend",
-          "icon": "github"
-        },
-        {
-          "anchor": "Community",
-          "href": "https://discord.gg/BU8n8pJv8S",
-          "icon": "discord"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/logo-wordmark.svg",
-    "dark": "/logo/logo-wordmark-dark.svg"
-  },
-  "api": {
-    "playground": {
-      "display": "interactive"
-    },
-    "mdx": {
-      "server": "https://mintlify.com/api",
-      "auth": {
-        "method": "bearer"
-      }
-    }
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hey@usesend.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.usesend.com"
-    }
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/useSend_com",
-      "github": "https://github.com/usesend"
-    }
-  },
-  "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "perplexity"]
-  }
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "maple",
+	"name": "useSend",
+	"colors": {
+		"primary": "#21453D",
+		"light": "#E6FAF5",
+		"dark": "#21453D"
+	},
+	"background": {
+		"color": {
+			"light": "#F5F5F5",
+			"dark": "#181825"
+		}
+	},
+	"fonts": {
+		"family": "IBM Plex Mono"
+	},
+	"favicon": "/favicon.svg",
+	"navigation": {
+		"tabs": [
+			{
+				"tab": "Documentation",
+				"groups": [
+					{
+						"group": "Getting Started",
+						"pages": [
+							"introduction",
+							"get-started/nodejs",
+							"get-started/python",
+							"get-started/local",
+							"get-started/smtp"
+						]
+					},
+					{
+						"group": "Self Hosting",
+						"pages": ["self-hosting/overview", "self-hosting/railway"]
+					},
+					{
+						"group": "Guides",
+						"pages": ["guides/use-with-react-email"]
+					},
+					{
+						"group": "Community SDKs",
+						"pages": ["community-sdk/python", "community-sdk/go"]
+					}
+				]
+			},
+			{
+				"tab": "API Reference",
+				"groups": [
+					{
+						"group": "API Reference",
+						"pages": ["api-reference/introduction"]
+					},
+					{
+						"group": "Emails",
+						"pages": [
+							"api-reference/emails/get-email",
+							"api-reference/emails/list-emails",
+							"api-reference/emails/send-email",
+							"api-reference/emails/batch-email",
+							"api-reference/emails/update-schedule",
+							"api-reference/emails/cancel-schedule"
+						]
+					},
+					{
+						"group": "Contacts",
+						"pages": [
+							"api-reference/contacts/get-contact",
+							"api-reference/contacts/get-contacts",
+							"api-reference/contacts/create-contact",
+							"api-reference/contacts/update-contact",
+							"api-reference/contacts/upsert-contact",
+							"api-reference/contacts/delete-contact"
+						]
+					},
+					{
+						"group": "Domains",
+						"pages": [
+							"api-reference/domains/get-domain",
+							"api-reference/domains/list-domains",
+							"api-reference/domains/create-domain",
+							"api-reference/domains/verify-domain",
+							"api-reference/domains/delete-domain"
+						]
+					},
+					{
+						"group": "Campaigns",
+						"pages": [
+							"api-reference/campaigns/create-campaign",
+							"api-reference/campaigns/get-campaigns",
+							"api-reference/campaigns/get-campaign",
+							"api-reference/campaigns/schedule-campaign",
+							"api-reference/campaigns/pause-campaign",
+							"api-reference/campaigns/resume-campaign"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Changelog",
+				"groups": [
+					{
+						"group": "Updates",
+						"pages": ["changelog"]
+					}
+				]
+			}
+		],
+		"global": {
+			"anchors": [
+				{
+					"anchor": "GitHub",
+					"href": "https://github.com/usesend/usesend",
+					"icon": "github"
+				},
+				{
+					"anchor": "Community",
+					"href": "https://discord.gg/BU8n8pJv8S",
+					"icon": "discord"
+				}
+			]
+		}
+	},
+	"logo": {
+		"light": "/logo/logo-wordmark.svg",
+		"dark": "/logo/logo-wordmark-dark.svg"
+	},
+	"api": {
+		"playground": {
+			"display": "interactive"
+		},
+		"mdx": {
+			"server": "https://mintlify.com/api",
+			"auth": {
+				"method": "bearer"
+			}
+		}
+	},
+	"navbar": {
+		"links": [
+			{
+				"label": "Support",
+				"href": "mailto:hey@usesend.com"
+			}
+		],
+		"primary": {
+			"type": "button",
+			"label": "Dashboard",
+			"href": "https://app.usesend.com"
+		}
+	},
+	"footer": {
+		"socials": {
+			"x": "https://x.com/useSend_com",
+			"github": "https://github.com/usesend"
+		}
+	},
+	"contextual": {
+		"options": ["copy", "view", "chatgpt", "claude", "perplexity"]
+	}
 }
