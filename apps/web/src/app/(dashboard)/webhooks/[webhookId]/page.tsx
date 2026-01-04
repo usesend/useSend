@@ -226,7 +226,7 @@ export default function WebhookDetailPage({
   }
 
   return (
-    <div className="container mx-auto flex flex-col gap-6 pb-10">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <Breadcrumb>
           <BreadcrumbList>
@@ -260,7 +260,7 @@ export default function WebhookDetailPage({
 
       <WebhookInfo webhook={webhook} />
 
-      <div className="h-[calc(100vh-350px)] min-h-[600px] flex gap-6">
+      <div className="h-[calc(100vh-280px)] min-h-[600px] flex gap-6">
         <div className="w-1/2 flex flex-col">
           <WebhookCallsTable
             webhookId={webhookId}

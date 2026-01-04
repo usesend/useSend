@@ -7,7 +7,7 @@ import { Separator } from "@usesend/ui/src/separator";
 import { api } from "~/trpc/react";
 import { toast } from "@usesend/ui/src/toaster";
 import { WebhookCallStatusBadge } from "../webhook-call-status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
+
 import { CodeDisplay } from "~/components/code-display";
 
 export function WebhookCallDetails({ callId }: { callId: string }) {
@@ -19,13 +19,16 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
 
   if (!call) {
     return (
-      <Card className="h-full">
-        <CardContent className="p-6 flex items-center justify-center h-full">
+      <div className="h-full flex flex-col">
+        <div className="flex flex-row items-center justify-between mb-4">
+          <h2 className="text-base font-medium">Call Details</h2>
+        </div>
+        <div className="flex-1 rounded-xl border shadow p-6 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">
             Loading call details...
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -53,9 +56,9 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
   }
 
   return (
-    <Card className="h-full flex flex-col overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 py-4 border-b bg-muted/20">
-        <CardTitle className="text-base font-medium">Call Details</CardTitle>
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex flex-row items-center justify-between mb-4">
+        <h2 className="text-base font-medium">Call Details</h2>
         {call.status === "FAILED" && (
           <Button
             size="sm"
@@ -68,8 +71,8 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
             Retry
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto p-6 space-y-6">
+      </div>
+      <div className="flex-1 overflow-auto rounded-xl border shadow p-6 space-y-8 no-scrollbar">
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -91,7 +94,7 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
               Timestamp
             </span>
-            <span className="text-sm">
+            <span className="text-sm font-mono">
               {formatDate(call.createdAt, "MMM dd, yyyy HH:mm:ss")}
             </span>
           </div>
@@ -100,7 +103,7 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
               Attempt
             </span>
-            <span className="text-sm">{call.attempt}</span>
+            <span className="text-sm font-mono">{call.attempt}</span>
           </div>
 
           {call.responseStatus && (
@@ -117,7 +120,7 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
               <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                 Duration
               </span>
-              <span className="text-sm">{call.responseTimeMs}ms</span>
+              <span className="text-sm font-mono">{call.responseTimeMs}ms</span>
             </div>
           )}
         </div>
@@ -133,8 +136,6 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
           </div>
         )}
 
-        <Separator />
-
         <div className="flex flex-col gap-3">
           <h4 className="font-medium text-sm">Request Payload</h4>
           <CodeDisplay
@@ -145,14 +146,13 @@ export function WebhookCallDetails({ callId }: { callId: string }) {
 
         {call.responseText && (
           <>
-            <Separator />
             <div className="flex flex-col gap-3">
               <h4 className="font-medium text-sm">Response Body</h4>
               <CodeDisplay code={call.responseText} />
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
