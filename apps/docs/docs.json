@@ -67,7 +67,7 @@
 					{
 						"group": "Contact Books",
 						"pages": [
-							"api-reference/contacts/list-contacts",
+							"api-reference/contacts/list-contact-books",
 							"api-reference/contacts/get-contact-book",
 							"api-reference/contacts/create-contact-book",
 							"api-reference/contacts/update-contact-book",

@@ -1288,6 +1288,16 @@
 						"required": true,
 						"name": "contactBookId",
 						"in": "path"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactId",
+						"in": "path"
 					}
 				],
 				"requestBody": {
@@ -1822,13 +1832,13 @@
 				}
 			}
 		},
-		"/v1/contactBooks/{id}": {
+		"/v1/contactBooks/{contactBookId}": {
 			"get": {
 				"parameters": [
 					{
 						"schema": { "type": "string", "example": "clx1234567890" },
 						"required": true,
-						"name": "id",
+						"name": "contactBookId",
 						"in": "path"
 					}
 				],
@@ -1901,7 +1911,7 @@
 					{
 						"schema": { "type": "string", "example": "clx1234567890" },
 						"required": true,
-						"name": "id",
+						"name": "contactBookId",
 						"in": "path"
 					}
 				],
@@ -1986,7 +1996,7 @@
 					{
 						"schema": { "type": "string", "example": "clx1234567890" },
 						"required": true,
-						"name": "id",
+						"name": "contactBookId",
 						"in": "path"
 					}
 				],
