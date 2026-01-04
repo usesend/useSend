@@ -71,7 +71,7 @@ function updateContactBook(app: PublicAPIApp) {
 
 		await getContactBook(c, team.id);
 
-		console.log({ contactBookId });
+		const updated = await updateContactBookService(contactBookId, body);
 
 		const updated = await updateContactBookService(contactBookId, body);
 
