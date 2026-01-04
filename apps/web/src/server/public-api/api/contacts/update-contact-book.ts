@@ -73,7 +73,7 @@ function updateContactBook(app: PublicAPIApp) {
 
 		const updated = await updateContactBookService(contactBookId, body);
 
-		const updated = await updateContactBookService(contactBookId, body);
+		return c.json({
 
 		return c.json({
 			...updated,
