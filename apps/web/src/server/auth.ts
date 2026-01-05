@@ -60,6 +60,14 @@ function getProviders() {
             scope: "read:user user:email",
           },
         },
+        profile(profile) {
+          return {
+            id: profile.id.toString(),
+            name: profile.name ?? profile.login,
+            email: profile.email?.toLowerCase(),
+            image: profile.avatar_url,
+          };
+        },
       })
     );
   }
@@ -70,6 +78,14 @@ function getProviders() {
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         allowDangerousEmailAccountLinking: true,
+        profile(profile) {
+          return {
+            id: profile.sub,
+            name: profile.name,
+            email: profile.email?.toLowerCase(),
+            image: profile.picture,
+          };
+        },
       })
     );
   }
