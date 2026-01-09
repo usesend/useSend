@@ -21,11 +21,18 @@ import {
   DELIVERY_DELAY_ERRORS,
 } from "~/lib/constants/ses-errors";
 import CancelEmail from "./cancel-email";
+import ResendEmail from "./resend-email";
 import { useEffect } from "react";
 import { useState } from "react";
 
+const RESENDABLE_STATUSES = ["FAILED", "BOUNCED", "REJECTED", "COMPLAINED"];
+
 export default function EmailDetails({ emailId }: { emailId: string }) {
   const emailQuery = api.email.getEmail.useQuery({ id: emailId });
+
+  const canResend = emailQuery.data?.latestStatus
+    ? RESENDABLE_STATUSES.includes(emailQuery.data.latestStatus)
+    : false;
 
   return (
     <div className="h-full overflow-auto px-4 no-scrollbar">
@@ -34,6 +41,9 @@ export default function EmailDetails({ emailId }: { emailId: string }) {
           <h1 className="font-bold">{emailQuery.data?.to}</h1>
           <EmailStatusBadge status={emailQuery.data?.latestStatus ?? "SENT"} />
         </div>
+        {canResend && (
+          <ResendEmail emailId={emailId} />
+        )}
       </div>
       <div className="flex flex-col mt-8 items-start gap-8">
         <div className="p-2 rounded-lg border  flex flex-col gap-2 w-full shadow">

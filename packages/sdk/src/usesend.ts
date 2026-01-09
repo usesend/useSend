@@ -130,7 +130,7 @@ export class UseSend {
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async put<T>(path: string, body: any, options?: RequestOptions) {
+  async put<T>(path: string, body: unknown, options?: RequestOptions) {
     const requestOptions: RequestInit = {
       method: "PUT",
       body: JSON.stringify(body),
@@ -143,7 +143,7 @@ export class UseSend {
     return this.fetchRequest<T>(path, requestOptions);
   }
 
-  async patch<T>(path: string, body: any, options?: RequestOptions) {
+  async patch<T>(path: string, body: unknown, options?: RequestOptions) {
     const requestOptions: RequestInit = {
       method: "PATCH",
       body: JSON.stringify(body),

@@ -1,7 +1,7 @@
 import { Email, EmailStatus, Prisma } from "@prisma/client";
 import { format, subDays } from "date-fns";
 import { z } from "zod";
-import { DEFAULT_QUERY_LIMIT } from "~/lib/constants";
+import { DEFAULT_QUERY_LIMIT, DEFAULT_EXPORT_LIMIT } from "~/lib/constants";
 import { BOUNCE_ERROR_MESSAGES } from "~/lib/constants/ses-errors";
 import type { SesBounce } from "~/types/aws-types";
 
@@ -11,7 +11,7 @@ import {
   teamProcedure,
 } from "~/server/api/trpc";
 import { db } from "~/server/db";
-import { cancelEmail, updateEmail } from "~/server/service/email-service";
+import { cancelEmail, updateEmail, resendEmail } from "~/server/service/email-service";
 
 const statuses = Object.values(EmailStatus) as [EmailStatus];
 
@@ -87,6 +87,8 @@ export const emailRouter = createTRPCRouter({
         domain: z.number().optional(),
         search: z.string().optional().nullable(),
         apiId: z.number().optional(),
+        dateFrom: z.string().optional().nullable(),
+        dateTo: z.string().optional().nullable(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -95,24 +97,28 @@ export const emailRouter = createTRPCRouter({
       const offset = (page - 1) * limit;
 
       const emails = await db.$queryRaw<Array<Email>>`
-        SELECT 
-          id, 
-          "createdAt", 
-          "latestStatus", 
-          subject, 
-          "to", 
+        SELECT
+          id,
+          "createdAt",
+          "latestStatus",
+          subject,
+          "to",
+          "from",
           "scheduledAt"
         FROM "Email"
         WHERE "teamId" = ${ctx.team.id}
         ${input.status ? Prisma.sql`AND "latestStatus"::text = ${input.status}` : Prisma.sql``}
         ${input.domain ? Prisma.sql`AND "domainId" = ${input.domain}` : Prisma.sql``}
         ${input.apiId ? Prisma.sql`AND "apiId" = ${input.apiId}` : Prisma.sql``}
+        ${input.dateFrom ? Prisma.sql`AND "createdAt" >= ${new Date(input.dateFrom)}` : Prisma.sql``}
+        ${input.dateTo ? Prisma.sql`AND "createdAt" <= ${new Date(input.dateTo + "T23:59:59.999Z")}` : Prisma.sql``}
         ${
           input.search
             ? Prisma.sql`AND (
-          "subject" ILIKE ${`%${input.search}%`} 
+          "subject" ILIKE ${`%${input.search}%`}
+          OR "from" ILIKE ${`%${input.search}%`}
           OR EXISTS (
-            SELECT 1 FROM unnest("to") AS email 
+            SELECT 1 FROM unnest("to") AS email
             WHERE email ILIKE ${`%${input.search}%`}
           )
         )`
@@ -133,6 +139,8 @@ export const emailRouter = createTRPCRouter({
         domain: z.number().optional(),
         search: z.string().optional().nullable(),
         apiId: z.number().optional(),
+        dateFrom: z.string().optional().nullable(),
+        dateTo: z.string().optional().nullable(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -177,10 +185,13 @@ export const emailRouter = createTRPCRouter({
             ? Prisma.sql`AND e."apiId" = ${input.apiId}`
             : Prisma.sql``
         }
+        ${input.dateFrom ? Prisma.sql`AND e."createdAt" >= ${new Date(input.dateFrom)}` : Prisma.sql``}
+        ${input.dateTo ? Prisma.sql`AND e."createdAt" <= ${new Date(input.dateTo + "T23:59:59.999Z")}` : Prisma.sql``}
         ${
           input.search
             ? Prisma.sql`AND (
           e."subject" ILIKE ${`%${input.search}%`}
+          OR e."from" ILIKE ${`%${input.search}%`}
           OR EXISTS (
             SELECT 1 FROM unnest(e."to") AS email
             WHERE email ILIKE ${`%${input.search}%`}
@@ -189,7 +200,7 @@ export const emailRouter = createTRPCRouter({
             : Prisma.sql``
         }
         ORDER BY e."createdAt" DESC
-        LIMIT 10000
+        LIMIT ${DEFAULT_EXPORT_LIMIT}
       `;
 
       return emails.map((email) => {
@@ -251,4 +262,9 @@ export const emailRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await updateEmail(input.id, { scheduledAt: input.scheduledAt });
     }),
+
+  resendEmail: emailProcedure.mutation(async ({ input, ctx }) => {
+    const newEmail = await resendEmail(input.id, ctx.team.id);
+    return { newEmailId: newEmail.id };
+  }),
 });

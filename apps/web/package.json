@@ -43,6 +43,7 @@
     "bullmq": "^5.51.1",
     "chrono-node": "^2.8.0",
     "date-fns": "^4.1.0",
+    "dompurify": "^3.2.4",
     "emoji-picker-react": "^4.12.2",
     "framer-motion": "^12.9.2",
     "hono": "^4.7.7",
@@ -77,6 +78,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.3.1",
+    "@types/dompurify": "^3.2.0",
     "@types/eslint": "^9.6.1",
     "@types/html-to-text": "^9.0.4",
     "@types/mime-types": "^2.1.4",

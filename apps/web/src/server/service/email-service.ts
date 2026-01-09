@@ -280,13 +280,14 @@ export async function sendEmail(
       undefined,
       delay
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await db.emailEvent.create({
       data: {
         emailId: email.id,
         status: "FAILED",
         data: {
-          error: error.toString(),
+          error: errorMessage,
         },
         teamId,
       },
@@ -343,7 +344,7 @@ export async function cancelEmail(emailId: string) {
     });
   }
 
-  await EmailQueueService.chancelEmail(emailId, domain.region, true);
+  await EmailQueueService.cancelEmail(emailId, domain.region, true);
 
   await db.email.update({
     where: { id: emailId },
@@ -359,6 +360,104 @@ export async function cancelEmail(emailId: string) {
       teamId: email.teamId,
     },
   });
+}
+
+/**
+ * Resend a failed or bounced email
+ * Creates a new email with the same content and queues it for sending
+ */
+export async function resendEmail(emailId: string, teamId: number) {
+  const originalEmail = await db.email.findUnique({
+    where: { id: emailId, teamId },
+  });
+
+  if (!originalEmail) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Email not found",
+    });
+  }
+
+  // Only allow resending failed or bounced emails
+  const allowedStatuses = ["FAILED", "BOUNCED", "REJECTED", "COMPLAINED"];
+  if (!allowedStatuses.includes(originalEmail.latestStatus)) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: `Cannot resend email with status ${originalEmail.latestStatus}. Only failed, bounced, rejected, or complained emails can be resent.`,
+    });
+  }
+
+  if (!originalEmail.domainId) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Email has no associated domain",
+    });
+  }
+
+  const domain = await db.domain.findUnique({
+    where: { id: originalEmail.domainId },
+  });
+
+  if (!domain) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Domain not found",
+    });
+  }
+
+  if (domain.status !== "SUCCESS") {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Domain is not verified",
+    });
+  }
+
+  // Create a new email with the same content
+  const newEmail = await db.email.create({
+    data: {
+      to: originalEmail.to,
+      from: originalEmail.from,
+      subject: originalEmail.subject,
+      replyTo: originalEmail.replyTo,
+      cc: originalEmail.cc,
+      bcc: originalEmail.bcc,
+      text: originalEmail.text,
+      html: originalEmail.html,
+      teamId: originalEmail.teamId,
+      domainId: originalEmail.domainId,
+      latestStatus: "QUEUED",
+      apiId: originalEmail.apiId,
+      inReplyToId: originalEmail.inReplyToId,
+    },
+  });
+
+  try {
+    await EmailQueueService.queueEmail(
+      newEmail.id,
+      teamId,
+      domain.region,
+      true
+    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await db.emailEvent.create({
+      data: {
+        emailId: newEmail.id,
+        status: "FAILED",
+        data: {
+          error: errorMessage,
+        },
+        teamId,
+      },
+    });
+    await db.email.update({
+      where: { id: newEmail.id },
+      data: { latestStatus: "FAILED" },
+    });
+    throw error;
+  }
+
+  return newEmail;
 }
 
 /**
@@ -737,7 +836,7 @@ export async function sendBulkEmails(
           delay,
           timestamp: Date.now(),
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(
           { err: error, to },
           `Failed to create email record for recipient`
@@ -757,7 +856,8 @@ export async function sendBulkEmails(
   // Bulk queue all jobs
   try {
     await EmailQueueService.queueBulk(queueJobs);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     // Mark all created emails as failed
     await Promise.all(
       createdEmails.map(async (email) => {
@@ -766,7 +866,7 @@ export async function sendBulkEmails(
             emailId: email.email.id,
             status: "FAILED",
             data: {
-              error: error.toString(),
+              error: errorMessage,
             },
             teamId: email.email.teamId,
           },

@@ -27,7 +27,6 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queue = new Queue(queueName, { connection });
 
-  // TODO: Add team context to job data when queueing
   const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
     concurrency: quota,
     connection,
@@ -274,7 +273,7 @@ export class EmailQueueService {
     await job.changeDelay(delay);
   }
 
-  public static async chancelEmail(
+  public static async cancelEmail(
     emailId: string,
     region: string,
     transactional: boolean
@@ -429,13 +428,14 @@ async function executeEmail(job: QueueEmailJob) {
       where: { id: email.id },
       data: { sesEmailId: messageId, text, attachments: null, headers: null },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await db.emailEvent.create({
       data: {
         emailId: email.id,
         status: "FAILED",
         data: {
-          error: error.toString(),
+          error: errorMessage,
         },
         teamId: email.teamId,
       },

@@ -92,21 +92,52 @@ export async function sendMail(
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
-    /* 
-      Self hosted so checking if we can send using one of the available domain
-      Assuming self hosted will have only one team
-      TODO: fix this
-     */
-    const team = await db.team.findFirst({});
+
+    // Extract domain from fromOverride or FROM_EMAIL to find the right team
+    const preferredFrom = fromOverride ?? env.FROM_EMAIL;
+    const preferredDomainPart = preferredFrom?.split("@")[1];
+
+    // Try to find a team with a matching domain first
+    let team = preferredDomainPart
+      ? await db.team.findFirst({
+          where: {
+            domains: {
+              some: {
+                name: preferredDomainPart,
+                status: "SUCCESS",
+              },
+            },
+          },
+        })
+      : null;
+
+    // Fall back to the first team with any verified domain
     if (!team) {
-      logger.error("No team found");
+      team = await db.team.findFirst({
+        where: {
+          domains: {
+            some: {
+              status: "SUCCESS",
+            },
+          },
+        },
+      });
+    }
+
+    // Last resort: any team
+    if (!team) {
+      team = await db.team.findFirst({});
+    }
+
+    if (!team) {
+      logger.error("No team found for self-hosted email sending");
       return;
     }
 
     const domains = await getDomains(team.id);
 
     if (domains.length === 0 || !domains[0]) {
-      logger.error("No domains found");
+      logger.error("No domains found for team", { teamId: team.id });
       return;
     }
 

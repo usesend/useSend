@@ -26,6 +26,9 @@ export default function ApiKeysPage({
           </SettingsNavButton>
         ) : null}
         <SettingsNavButton href="/settings/team">Team</SettingsNavButton>
+        {currentIsAdmin ? (
+          <SettingsNavButton href="/settings/reports">Reports</SettingsNavButton>
+        ) : null}
       </div>
       <div className="mt-8">{children}</div>
     </div>

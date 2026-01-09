@@ -554,9 +554,11 @@ export class EmailRenderer {
       borderRadius,
       borderColor,
       borderWidth,
-      // @TODO: Update the attribute to `textAlign`
-      alignment = "left",
+      textAlign,
+      alignment,
     } = attrs || {};
+    // Support both textAlign (preferred) and alignment (legacy) attributes
+    const buttonAlignment = textAlign ?? alignment ?? "left";
 
     const { next } = options || {};
     const isNextSpacer = next?.type === "spacer";
@@ -566,7 +568,7 @@ export class EmailRenderer {
     return (
       <Container
         style={{
-          textAlign: alignment,
+          textAlign: buttonAlignment,
           maxWidth: "100%",
           marginBottom: isNextSpacer ? "0px" : "20px",
         }}
@@ -616,9 +618,11 @@ export class EmailRenderer {
       alt,
       title,
       size,
-      // @TODO: Update the attribute to `textAlign`
-      alignment = "left",
+      textAlign,
+      alignment,
     } = attrs || {};
+    // Support both textAlign (preferred) and alignment (legacy) attributes
+    const logoAlignment = textAlign ?? alignment ?? "left";
 
     const { next } = options || {};
     const isNextSpacer = next?.type === "spacer";
@@ -630,7 +634,7 @@ export class EmailRenderer {
           marginBottom: isNextSpacer ? "0px" : "32px",
         }}
       >
-        <Column align={alignment}>
+        <Column align={logoAlignment}>
           <Img
             alt={alt || title || "Logo"}
             src={src}

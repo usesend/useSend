@@ -17,6 +17,8 @@ import {
   MailWarning,
   MailX,
   Download,
+  Calendar,
+  X,
 } from "lucide-react";
 import { formatDate, formatDistanceToNow } from "date-fns";
 import { EmailStatus } from "@prisma/client";
@@ -62,6 +64,8 @@ export default function EmailsList() {
   const [search, setSearch] = useUrlState("search");
   const [domain, setDomain] = useUrlState("domain");
   const [apiKey, setApiKey] = useUrlState("apikey");
+  const [dateFrom, setDateFrom] = useUrlState("from");
+  const [dateTo, setDateTo] = useUrlState("to");
 
   const pageNumber = Number(page);
   const domainId = domain ? Number(domain) : undefined;
@@ -73,6 +77,8 @@ export default function EmailsList() {
     domain: domainId,
     search,
     apiId: apiId,
+    dateFrom,
+    dateTo,
   });
 
   const exportQuery = api.email.exportEmails.useQuery(
@@ -81,6 +87,8 @@ export default function EmailsList() {
       domain: domainId,
       search,
       apiId: apiId,
+      dateFrom,
+      dateTo,
     },
     { enabled: false },
   );
@@ -162,16 +170,24 @@ export default function EmailsList() {
     }
   };
 
+  const clearDateFilter = () => {
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  const hasDateFilter = dateFrom || dateTo;
+
   return (
     <div className="mt-10 flex flex-col gap-4">
-      <div className="flex flex-col  sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0">
-        <Input
-          placeholder="Search by subject or email"
-          className="w-full sm:w-[350px] sm:mr-4"
-          defaultValue={search ?? ""}
-          onChange={(e) => debouncedSearch(e.target.value)}
-        />
-        <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0">
+          <Input
+            placeholder="Search by subject, from, or to email"
+            className="w-full sm:w-[350px] sm:mr-4"
+            defaultValue={search ?? ""}
+            onChange={(e) => debouncedSearch(e.target.value)}
+          />
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
           <Select
             value={apiKey ?? "All API Keys"}
             onValueChange={(val) => handleApiKey(val)}
@@ -253,6 +269,39 @@ export default function EmailsList() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">From:</span>
+            <Input
+              type="date"
+              value={dateFrom ?? ""}
+              onChange={(e) => setDateFrom(e.target.value || null)}
+              className="w-[150px] h-8"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">To:</span>
+            <Input
+              type="date"
+              value={dateTo ?? ""}
+              onChange={(e) => setDateTo(e.target.value || null)}
+              className="w-[150px] h-8"
+            />
+          </div>
+          {hasDateFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearDateFilter}
+              className="h-8 px-2"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear dates
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex flex-col rounded-xl border shadow">

@@ -1,0 +1,81 @@
+import DOMPurify from "dompurify";
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks.
+ * Uses DOMPurify to remove potentially dangerous elements and attributes.
+ */
+export function sanitizeHtml(html: string | null | undefined): string {
+  if (!html) return "";
+
+  // Configure DOMPurify to allow safe email HTML elements
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "a",
+      "abbr",
+      "address",
+      "b",
+      "blockquote",
+      "br",
+      "caption",
+      "code",
+      "col",
+      "colgroup",
+      "dd",
+      "div",
+      "dl",
+      "dt",
+      "em",
+      "figcaption",
+      "figure",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "hr",
+      "i",
+      "img",
+      "li",
+      "ol",
+      "p",
+      "pre",
+      "q",
+      "s",
+      "small",
+      "span",
+      "strong",
+      "sub",
+      "sup",
+      "table",
+      "tbody",
+      "td",
+      "tfoot",
+      "th",
+      "thead",
+      "tr",
+      "u",
+      "ul",
+    ],
+    ALLOWED_ATTR: [
+      "href",
+      "src",
+      "alt",
+      "title",
+      "width",
+      "height",
+      "style",
+      "class",
+      "target",
+      "rel",
+      "align",
+      "valign",
+      "bgcolor",
+      "border",
+      "cellpadding",
+      "cellspacing",
+    ],
+    ALLOW_DATA_ATTR: false,
+    ADD_ATTR: ["target"],
+  });
+}

@@ -1,4 +1,5 @@
 export const DEFAULT_QUERY_LIMIT = 50;
+export const DEFAULT_EXPORT_LIMIT = 10000;
 
 /* Reputation constants */
 export const HARD_BOUNCE_WARNING_RATE = 5;

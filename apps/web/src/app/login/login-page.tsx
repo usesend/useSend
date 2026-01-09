@@ -92,7 +92,6 @@ export default function LoginPage({
   async function onOTPSubmit(values: z.infer<typeof otpSchema>) {
     const { origin: callbackUrl } = window.location;
     const email = emailForm.getValues().email;
-    console.log("email", email);
 
     const finalCallbackUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`

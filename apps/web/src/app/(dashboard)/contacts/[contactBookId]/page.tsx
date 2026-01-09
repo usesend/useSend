@@ -24,6 +24,7 @@ import {
 import { Button } from "@usesend/ui/src/button";
 import { useTheme } from "@usesend/ui";
 import { use } from "react";
+import { Filter } from "lucide-react";
 
 export default function ContactsPage({
   params,
@@ -121,6 +122,12 @@ export default function ContactsPage({
           </Breadcrumb>
         </div>
         <div className="flex gap-4">
+          <Link href={`/contacts/${contactBookId}/segments`}>
+            <Button variant="outline">
+              <Filter className="h-4 w-4 mr-2" />
+              Segments
+            </Button>
+          </Link>
           <BulkUploadContacts contactBookId={contactBookId} />
           <AddContact contactBookId={contactBookId} />
         </div>

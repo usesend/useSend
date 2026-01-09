@@ -14,11 +14,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const data = await req.json();
 
-  console.log(data, data.Message);
-
   const isEventValid = await checkEventValidity(data);
-
-  console.log("Is event valid: ", isEventValid);
 
   if (!isEventValid) {
     return Response.json({ data: "Event is not valid" });

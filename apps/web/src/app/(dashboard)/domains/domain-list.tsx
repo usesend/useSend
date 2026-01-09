@@ -8,6 +8,7 @@ import { api } from "~/trpc/react";
 import React from "react";
 import { StatusIndicator } from "./status-indicator";
 import { DomainStatusBadge } from "./domain-badge";
+import { DomainReputationBadge } from "./domain-reputation-badge";
 import Spinner from "@usesend/ui/src/spinner";
 
 export default function DomainsList() {
@@ -80,7 +81,10 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
             >
               {domain.name}
             </Link>
-            <DomainStatusBadge status={domain.status} />
+            <div className="flex gap-2 items-center flex-wrap">
+              <DomainStatusBadge status={domain.status} />
+              <DomainReputationBadge domainId={domain.id} />
+            </div>
           </div>
 
           <div className="flex flex-col gap-4">

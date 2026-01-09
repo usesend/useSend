@@ -12,6 +12,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
+import { TemplatePreview } from "./template-preview";
+
 const IMAGE_SIZE_LIMIT = 10 * 1024 * 1024;
 
 export default function EditTemplatePage({
@@ -96,8 +98,6 @@ function TemplateEditor({
       );
     }
 
-    console.log("file type: ", file.type);
-
     const { uploadUrl, imageUrl } = await getUploadUrl.mutateAsync({
       name: file.name,
       type: file.type,
@@ -150,6 +150,7 @@ function TemplateEditor({
           </div>
 
           <div className="flex items-center gap-4 whitespace-nowrap">
+            <TemplatePreview json={json} subject={subject} />
             <div className="flex items-center gap-2 text-sm text-gray-500">
               {isSaving ? (
                 <div className="h-2 w-2 bg-yellow rounded-full" />

@@ -25,6 +25,7 @@ import {
 import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
+import { WebhookService } from "./webhook-service";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -269,6 +270,19 @@ export async function parseSesHook(data: SesEvent) {
   });
 
   logger.info("Email event created");
+
+  // Dispatch webhooks for this event
+  try {
+    await WebhookService.dispatchForEmailEvent(
+      email.teamId,
+      email.id,
+      mailStatus,
+      mailData as Record<string, unknown> | undefined
+    );
+  } catch (error) {
+    logger.error({ error }, "Failed to dispatch webhooks");
+    // Don't fail the main flow if webhook dispatch fails
+  }
 
   return true;
 }

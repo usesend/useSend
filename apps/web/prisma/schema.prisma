@@ -122,6 +122,8 @@ model Team {
   subscription     Subscription[]
   invites          TeamInvite[]
   suppressionList  SuppressionList[]
+  webhooks         Webhook[]
+  scheduledReports ScheduledReport[]
 }
 
 model TeamInvite {
@@ -299,6 +301,7 @@ model ContactBook {
   emoji      String    @default("📙")
   team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   contacts   Contact[]
+  segments   Segment[]
 
   @@index([teamId])
 }
@@ -331,6 +334,48 @@ model Contact {
 
   @@unique([contactBookId, email])
   @@index([contactBookId, id])
+}
+
+model Segment {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  contactBookId String
+  filters       Json     // Array of filter conditions
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contactBook ContactBook @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
+
+  @@index([contactBookId])
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model ScheduledReport {
+  id          String          @id @default(cuid())
+  name        String
+  teamId      Int
+  recipients  String[]        // Email addresses to send report to
+  frequency   ReportFrequency
+  dayOfWeek   Int?            // 0-6 for weekly reports (0 = Sunday)
+  dayOfMonth  Int?            // 1-31 for monthly reports
+  hour        Int             @default(9) // Hour to send (0-23)
+  timezone    String          @default("UTC")
+  enabled     Boolean         @default(true)
+  lastSentAt  DateTime?
+  nextSendAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([nextSendAt])
 }
 
 enum CampaignStatus {
@@ -442,4 +487,57 @@ model SuppressionList {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, email])
+}
+
+// Webhook event types that can trigger notifications
+enum WebhookEventType {
+  SENT
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  OPENED
+  CLICKED
+  FAILED
+}
+
+model Webhook {
+  id          String             @id @default(cuid())
+  name        String
+  url         String
+  secret      String // Used to sign webhook payloads
+  events      WebhookEventType[] // Events to subscribe to
+  enabled     Boolean            @default(true)
+  teamId      Int
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  team       Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([teamId])
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model WebhookDelivery {
+  id           String                @id @default(cuid())
+  webhookId    String
+  emailId      String?
+  eventType    WebhookEventType
+  payload      Json
+  status       WebhookDeliveryStatus @default(PENDING)
+  statusCode   Int?
+  response     String?
+  attempts     Int                   @default(0)
+  lastAttempt  DateTime?
+  createdAt    DateTime              @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt(sort: Desc)])
 }

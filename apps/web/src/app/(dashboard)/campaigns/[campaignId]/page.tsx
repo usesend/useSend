@@ -22,6 +22,7 @@ import { Button } from "@usesend/ui/src/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
 import { EmailStatusBadge } from "../../emails/email-status-badge";
 import { AnimatePresence, motion } from "framer-motion";
+import { sanitizeHtml } from "~/utils/sanitize-html";
 
 export default function CampaignDetailsPage({
   params,
@@ -274,7 +275,7 @@ export default function CampaignDetailsPage({
               </div>
             </div>
             <div className=" dark:bg-slate-50 overflow-auto text-black rounded py-8 border-t">
-              <div dangerouslySetInnerHTML={{ __html: campaign.html ?? "" }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(campaign.html) }} />
             </div>
           </div>
         </div>

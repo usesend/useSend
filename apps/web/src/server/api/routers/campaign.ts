@@ -310,4 +310,88 @@ export const campaignRouter = createTRPCRouter({
 
       return { uploadUrl: url, imageUrl };
     }),
+
+  // Get campaigns for comparison (completed or running campaigns with stats)
+  getComparisonCampaigns: teamProcedure.query(async ({ ctx: { db, team } }) => {
+    const campaigns = await db.campaign.findMany({
+      where: {
+        teamId: team.id,
+        status: {
+          in: [CampaignStatus.COMPLETED, CampaignStatus.RUNNING],
+        },
+        sent: { gt: 0 },
+      },
+      select: {
+        id: true,
+        name: true,
+        subject: true,
+        createdAt: true,
+        status: true,
+        total: true,
+        sent: true,
+        delivered: true,
+        opened: true,
+        clicked: true,
+        unsubscribed: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    return campaigns;
+  }),
+
+  // Get detailed stats for selected campaigns
+  compareCampaigns: teamProcedure
+    .input(
+      z.object({
+        campaignIds: z.array(z.string()).min(2).max(5),
+      }),
+    )
+    .query(async ({ ctx: { db, team }, input }) => {
+      const campaigns = await db.campaign.findMany({
+        where: {
+          id: { in: input.campaignIds },
+          teamId: team.id,
+        },
+        select: {
+          id: true,
+          name: true,
+          subject: true,
+          from: true,
+          createdAt: true,
+          status: true,
+          total: true,
+          sent: true,
+          delivered: true,
+          opened: true,
+          clicked: true,
+          unsubscribed: true,
+          contactBook: {
+            select: {
+              name: true,
+              emoji: true,
+            },
+          },
+        },
+      });
+
+      return campaigns.map((campaign) => {
+        const delivered = campaign.delivered ?? 0;
+        const opened = campaign.opened ?? 0;
+        const clicked = campaign.clicked ?? 0;
+        const unsubscribed = campaign.unsubscribed ?? 0;
+
+        return {
+          ...campaign,
+          openRate: delivered > 0 ? (opened / delivered) * 100 : 0,
+          clickRate: delivered > 0 ? (clicked / delivered) * 100 : 0,
+          unsubscribeRate: delivered > 0 ? (unsubscribed / delivered) * 100 : 0,
+          deliveryRate:
+            (campaign.sent ?? 0) > 0
+              ? (delivered / (campaign.sent ?? 1)) * 100
+              : 0,
+        };
+      });
+    }),
 });
