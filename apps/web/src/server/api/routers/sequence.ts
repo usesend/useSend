@@ -447,8 +447,9 @@ export const sequenceRouter = createTRPCRouter({
       await Promise.all(
         remainingSteps.map((s, idx) =>
           db.sequenceStep.update({
-            where: { id: s.id },
+            where: { id: stepId, sequenceId: input.sequenceId },
             data: { order: idx },
+          })
           })
         )
       );
