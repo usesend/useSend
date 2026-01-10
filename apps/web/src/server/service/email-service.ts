@@ -428,7 +428,10 @@ export async function resendEmail(emailId: string, teamId: number) {
       latestStatus: "QUEUED",
       apiId: originalEmail.apiId,
       inReplyToId: originalEmail.inReplyToId,
+      attachments: originalEmail.attachments,
+      headers: originalEmail.headers,
     },
+  });
   });
 
   try {
