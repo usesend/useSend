@@ -90,6 +90,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   teamUsers     TeamUser[]
+  auditLogs     AuditLog[]
 }
 
 enum Plan {
@@ -124,6 +125,12 @@ model Team {
   suppressionList  SuppressionList[]
   webhooks         Webhook[]
   scheduledReports ScheduledReport[]
+  abTests          ABTest[]
+  auditLogs        AuditLog[]
+  sequences        AutomationSequence[]
+  engagementPatterns ContactEngagementPattern[]
+  sendTimeSettings   TeamSendTimeSettings?
+  engagementEvents   EmailEngagementEvent[]
 }
 
 model TeamInvite {
@@ -262,8 +269,9 @@ model Email {
   contactId    String?
   inReplyToId  String?
   headers      String?
-  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  emailEvents  EmailEvent[]
+  team             Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  emailEvents      EmailEvent[]
+  engagementEvents EmailEngagementEvent[]
 
   @@index([campaignId, contactId])
   @@index([createdAt(sort: Desc)])
@@ -302,6 +310,7 @@ model ContactBook {
   team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   contacts   Contact[]
   segments   Segment[]
+  sequences  AutomationSequence[]
 
   @@index([teamId])
 }
@@ -330,7 +339,10 @@ model Contact {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  contactBook ContactBook @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
+  contactBook         ContactBook          @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
+  sequenceEnrollments SequenceEnrollment[]
+  engagementPattern   ContactEngagementPattern?
+  engagementEvents    EmailEngagementEvent[]
 
   @@unique([contactBookId, email])
   @@index([contactBookId, id])
@@ -386,6 +398,64 @@ enum CampaignStatus {
   SENT
 }
 
+// A/B Testing
+enum ABTestStatus {
+  DRAFT
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+enum ABTestWinnerCriteria {
+  OPEN_RATE
+  CLICK_RATE
+  MANUAL
+}
+
+model ABTest {
+  id              String              @id @default(cuid())
+  name            String
+  teamId          Int
+  campaignId      String              @unique
+  status          ABTestStatus        @default(DRAFT)
+  winnerCriteria  ABTestWinnerCriteria @default(OPEN_RATE)
+  testPercentage  Int                 @default(20) // % of contacts for testing
+  testDurationHours Int               @default(4)  // Hours before selecting winner
+  winnerVariantId String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  team     Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  campaign Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  variants ABTestVariant[]
+
+  @@index([teamId])
+  @@index([status])
+}
+
+model ABTestVariant {
+  id          String   @id @default(cuid())
+  abTestId    String
+  name        String   // "A", "B", "C", etc.
+  subject     String
+  previewText String?
+  content     String?  // Email editor JSON content
+  html        String?
+  sent        Int      @default(0)
+  delivered   Int      @default(0)
+  opened      Int      @default(0)
+  clicked     Int      @default(0)
+  isWinner    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  abTest ABTest @relation(fields: [abTestId], references: [id], onDelete: Cascade)
+
+  @@index([abTestId])
+}
+
 model Campaign {
   id                 String         @id @default(cuid())
   name               String
@@ -419,7 +489,8 @@ model Campaign {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  abTest ABTest?
 
   @@index([createdAt(sort: Desc)])
   @@index([status, scheduledAt])
@@ -435,7 +506,8 @@ model Template {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sequenceSteps SequenceStep[]
 
   @@index([createdAt(sort: Desc)])
 }
@@ -540,4 +612,275 @@ model WebhookDelivery {
 
   @@index([webhookId])
   @@index([createdAt(sort: Desc)])
+}
+
+// Audit Logging
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SEND
+  PAUSE
+  RESUME
+  SCHEDULE
+  LOGIN
+  INVITE
+  EXPORT
+}
+
+enum AuditResourceType {
+  CAMPAIGN
+  CONTACT
+  CONTACT_BOOK
+  DOMAIN
+  API_KEY
+  TEMPLATE
+  WEBHOOK
+  TEAM_MEMBER
+  SCHEDULED_REPORT
+  SEGMENT
+  EMAIL
+  SUPPRESSION
+}
+
+model AuditLog {
+  id           String            @id @default(cuid())
+  teamId       Int
+  userId       Int?
+  action       AuditAction
+  resourceType AuditResourceType
+  resourceId   String?
+  resourceName String?
+  details      Json?             // Additional context (before/after values, etc.)
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime          @default(now())
+
+  team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// Email Automation Sequences
+enum SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum SequenceStepType {
+  EMAIL           // Send an email
+  DELAY           // Wait for a specified duration
+  CONDITION       // Branch based on conditions (opened, clicked, etc.)
+  GOAL            // End sequence when goal is reached
+}
+
+enum SequenceTriggerType {
+  CONTACT_CREATED       // When a contact is added to a contact book
+  TAG_ADDED             // When a tag is added to a contact
+  FORM_SUBMITTED        // When a form is submitted
+  CAMPAIGN_CLICKED      // When a campaign link is clicked
+  CAMPAIGN_OPENED       // When a campaign is opened
+  MANUAL                // Manually enrolled
+}
+
+enum EnrollmentStatus {
+  ACTIVE       // Currently progressing through sequence
+  COMPLETED    // Finished all steps
+  PAUSED       // Temporarily paused
+  EXITED       // Left sequence early (unsubscribed, goal reached, etc.)
+}
+
+model AutomationSequence {
+  id                String                @id @default(cuid())
+  name              String
+  description       String?
+  teamId            Int
+  contactBookId     String?               // Target contact book
+  status            SequenceStatus        @default(DRAFT)
+  triggerType       SequenceTriggerType   @default(MANUAL)
+  triggerConfig     Json?                 // Configuration for the trigger (e.g., which tag, which form)
+  fromEmail         String?               // Sender email for sequence emails
+  fromName          String?               // Sender name
+  replyTo           String?
+  exitOnUnsubscribe Boolean               @default(true)
+  exitOnGoal        Boolean               @default(true)
+  allowReentry      Boolean               @default(false)
+  totalEnrolled     Int                   @default(0)
+  totalCompleted    Int                   @default(0)
+  totalExited       Int                   @default(0)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contactBook ContactBook?          @relation(fields: [contactBookId], references: [id], onDelete: SetNull)
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([teamId])
+  @@index([status])
+  @@index([contactBookId])
+}
+
+model SequenceStep {
+  id              String           @id @default(cuid())
+  sequenceId      String
+  order           Int              // Position in the sequence
+  type            SequenceStepType
+  name            String?          // Optional step name for display
+
+  // For EMAIL type
+  subject         String?
+  previewText     String?
+  html            String?          @db.Text
+  templateId      String?          // Can use an existing template
+
+  // For DELAY type
+  delayDuration   Int?             // Duration in minutes
+  delayUnit       String?          // "minutes", "hours", "days"
+
+  // For CONDITION type
+  conditionType   String?          // "opened", "clicked", "not_opened", "not_clicked"
+  conditionValue  String?          // e.g., specific link URL for click condition
+  yesStepId       String?          // Step to go to if condition is true
+  noStepId        String?          // Step to go to if condition is false
+
+  // For GOAL type
+  goalType        String?          // "clicked", "replied", "purchased"
+  goalValue       String?
+
+  // Metrics
+  sent            Int              @default(0)
+  delivered       Int              @default(0)
+  opened          Int              @default(0)
+  clicked         Int              @default(0)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  sequence   AutomationSequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template   Template?              @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  enrollments SequenceEnrollment[]  @relation("CurrentStep")
+
+  @@index([sequenceId])
+  @@index([order])
+}
+
+model SequenceEnrollment {
+  id              String           @id @default(cuid())
+  sequenceId      String
+  contactId       String
+  currentStepId   String?          // Current step in the sequence
+  status          EnrollmentStatus @default(ACTIVE)
+  currentStepOrder Int             @default(0)
+
+  // Timing
+  enrolledAt      DateTime         @default(now())
+  nextStepAt      DateTime?        // When the next step should execute
+  completedAt     DateTime?
+  exitedAt        DateTime?
+  exitReason      String?          // Why they exited (unsubscribed, goal_reached, manual, etc.)
+
+  // Metrics for this contact's journey
+  emailsSent      Int              @default(0)
+  emailsOpened    Int              @default(0)
+  emailsClicked   Int              @default(0)
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  sequence    AutomationSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contact     Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  currentStep SequenceStep?      @relation("CurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
+
+  @@unique([sequenceId, contactId])
+  @@index([sequenceId])
+  @@index([contactId])
+  @@index([status])
+  @@index([nextStepAt])
+}
+
+// Send-Time Optimization
+model ContactEngagementPattern {
+  id            String   @id @default(cuid())
+  contactId     String   @unique
+  teamId        Int
+
+  // Hourly engagement scores (0-23 hours in UTC)
+  // Each value is a score 0-100 representing engagement likelihood
+  hourlyScores  Json     // { "0": 10, "1": 5, ..., "23": 30 }
+
+  // Day of week scores (0=Sunday, 6=Saturday)
+  dayOfWeekScores Json   // { "0": 20, "1": 80, ..., "6": 15 }
+
+  // Best time windows
+  bestHourUtc   Int?     // Best hour to send (0-23)
+  bestDayOfWeek Int?     // Best day to send (0-6)
+
+  // Engagement history stats
+  totalOpens    Int      @default(0)
+  totalClicks   Int      @default(0)
+  totalEmails   Int      @default(0)
+
+  // Timezone inference
+  inferredTimezone String?
+
+  lastCalculatedAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([bestHourUtc])
+}
+
+model TeamSendTimeSettings {
+  id              String   @id @default(cuid())
+  teamId          Int      @unique
+
+  // Global send time optimization settings
+  enableOptimization Boolean @default(false)
+
+  // Default send window (if no contact data available)
+  defaultHourStart Int     @default(9)  // 9 AM
+  defaultHourEnd   Int     @default(17) // 5 PM
+
+  // Days to exclude from sending
+  excludeDays     Json     @default("[]") // e.g., [0, 6] for weekends
+
+  // Timezone for defaults
+  defaultTimezone String   @default("UTC")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+// Track individual email engagement events for learning
+model EmailEngagementEvent {
+  id        String   @id @default(cuid())
+  emailId   String
+  contactId String
+  teamId    Int
+  eventType String   // "open", "click"
+  eventHour Int      // Hour when event occurred (0-23)
+  eventDay  Int      // Day of week (0-6)
+  eventAt   DateTime
+  createdAt DateTime @default(now())
+
+  email   Email   @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([teamId])
+  @@index([eventAt])
 }

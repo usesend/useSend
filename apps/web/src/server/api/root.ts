@@ -18,6 +18,10 @@ import { settingsRouter } from "./routers/settings";
 import { webhookRouter } from "./routers/webhook";
 import { segmentRouter } from "./routers/segment";
 import { scheduledReportRouter } from "./routers/scheduled-report";
+import { abTestRouter } from "./routers/ab-test";
+import { auditLogRouter } from "./routers/audit-log";
+import { sequenceRouter } from "./routers/sequence";
+import { sendTimeRouter } from "./routers/send-time";
 
 /**
  * This is the primary router for your server.
@@ -44,6 +48,10 @@ export const appRouter = createTRPCRouter({
   webhook: webhookRouter,
   segment: segmentRouter,
   scheduledReport: scheduledReportRouter,
+  abTest: abTestRouter,
+  auditLog: auditLogRouter,
+  sequence: sequenceRouter,
+  sendTime: sendTimeRouter,
 });
 
 // export type definition of API

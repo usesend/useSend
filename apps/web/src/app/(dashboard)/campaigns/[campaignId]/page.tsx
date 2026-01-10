@@ -126,13 +126,18 @@ export default function CampaignDetailsPage({
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {campaign.status === "SCHEDULED" ? (
-          <Link href={`/campaigns/${campaign.id}/edit`}>
-            <Button>Edit</Button>
+        <div className="flex gap-2">
+          <Link href={`/campaigns/${campaign.id}/ab-test`}>
+            <Button variant="outline">A/B Test</Button>
           </Link>
-        ) : (
-          <TogglePauseCampaign campaign={campaign} mode="full" />
-        )}
+          {campaign.status === "SCHEDULED" ? (
+            <Link href={`/campaigns/${campaign.id}/edit`}>
+              <Button>Edit</Button>
+            </Link>
+          ) : (
+            <TogglePauseCampaign campaign={campaign} mode="full" />
+          )}
+        </div>
       </div>
 
       <div className="mt-10">
