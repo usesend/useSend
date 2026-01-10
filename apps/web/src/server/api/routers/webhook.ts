@@ -103,7 +103,7 @@ export const webhookRouter = createTRPCRouter({
   get: teamProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const webhook = await db.webhook.findUnique({
+      const webhook = await db.webhook.findFirst({
         where: { id: input.id, teamId: ctx.team.id },
         include: {
           deliveries: {
