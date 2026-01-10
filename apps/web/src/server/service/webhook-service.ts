@@ -28,8 +28,6 @@ interface WebhookPayload {
 interface WebhookDeliveryJob {
   webhookId: string;
   deliveryId: string;
-  url: string;
-  secret: string;
   payload: WebhookPayload;
 }
 
@@ -150,8 +148,6 @@ export class WebhookService {
           {
             webhookId: webhook.id,
             deliveryId: delivery.id,
-            url: webhook.url,
-            secret: webhook.secret,
             payload,
           },
           {
@@ -171,8 +167,41 @@ export class WebhookService {
    * Deliver a webhook
    */
   private static async deliverWebhook(job: WebhookDeliveryJob) {
-    const { deliveryId, url, secret, payload } = job;
+    const { webhookId, deliveryId, payload } = job;
 
+    // Fetch webhook from database to get URL and secret (not stored in job data for security)
+    const webhook = await db.webhook.findUnique({
+      where: { id: webhookId },
+      select: { url: true, secret: true, enabled: true },
+    });
+
+    if (!webhook) {
+      logger.error({ webhookId, deliveryId }, "Webhook not found for delivery");
+      await db.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: WebhookDeliveryStatus.FAILED,
+          response: "Webhook not found",
+          lastAttempt: new Date(),
+        },
+      });
+      return;
+    }
+
+    if (!webhook.enabled) {
+      logger.info({ webhookId, deliveryId }, "Webhook is disabled, skipping delivery");
+      await db.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: WebhookDeliveryStatus.FAILED,
+          response: "Webhook is disabled",
+          lastAttempt: new Date(),
+        },
+      });
+      return;
+    }
+
+    const { url, secret } = webhook;
     const payloadString = JSON.stringify(payload);
     const signature = signWebhookPayload(payloadString, secret);
 

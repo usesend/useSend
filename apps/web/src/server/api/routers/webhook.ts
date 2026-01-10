@@ -5,6 +5,67 @@ import { generateWebhookSecret, WebhookService } from "~/server/service/webhook-
 import { db } from "~/server/db";
 import { TRPCError } from "@trpc/server";
 
+/**
+ * Validates a webhook URL to prevent SSRF attacks.
+ * Blocks internal IPs, localhost, and cloud metadata endpoints.
+ */
+function validateWebhookUrl(url: string): { valid: boolean; reason?: string } {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Block localhost and loopback
+    const blockedHostnames = [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      "::1",
+      "[::1]",
+    ];
+    if (blockedHostnames.includes(hostname)) {
+      return { valid: false, reason: "Localhost URLs are not allowed" };
+    }
+
+    // Block cloud metadata endpoints
+    const metadataEndpoints = [
+      "169.254.169.254", // AWS/GCP/Azure metadata
+      "metadata.google.internal",
+      "metadata.goog",
+      "169.254.170.2", // AWS ECS task metadata
+    ];
+    if (metadataEndpoints.includes(hostname)) {
+      return { valid: false, reason: "Cloud metadata endpoints are not allowed" };
+    }
+
+    // Block internal IP ranges
+    const ipParts = hostname.split(".");
+    if (ipParts.length === 4) {
+      const [a, b] = ipParts.map(Number);
+      // 10.x.x.x
+      if (a === 10) {
+        return { valid: false, reason: "Internal IP addresses are not allowed" };
+      }
+      // 172.16.x.x - 172.31.x.x
+      if (a === 172 && b !== undefined && b >= 16 && b <= 31) {
+        return { valid: false, reason: "Internal IP addresses are not allowed" };
+      }
+      // 192.168.x.x
+      if (a === 192 && b === 168) {
+        return { valid: false, reason: "Internal IP addresses are not allowed" };
+      }
+    }
+
+    // Must use HTTPS in production
+    if (parsed.protocol !== "https:" && process.env.NODE_ENV === "production") {
+      return { valid: false, reason: "HTTPS is required for webhook URLs" };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, reason: "Invalid URL format" };
+  }
+}
+
 const webhookEventTypes = z.array(
   z.enum([
     "SENT",
@@ -73,6 +134,15 @@ export const webhookRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate URL to prevent SSRF
+      const urlValidation = validateWebhookUrl(input.url);
+      if (!urlValidation.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: urlValidation.reason || "Invalid webhook URL",
+        });
+      }
+
       const secret = generateWebhookSecret();
 
       const webhook = await db.webhook.create({
@@ -104,6 +174,17 @@ export const webhookRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate URL if being updated
+      if (input.url) {
+        const urlValidation = validateWebhookUrl(input.url);
+        if (!urlValidation.valid) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: urlValidation.reason || "Invalid webhook URL",
+          });
+        }
+      }
+
       const webhook = await db.webhook.findUnique({
         where: { id: input.id, teamId: ctx.team.id },
       });
