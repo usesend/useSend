@@ -1358,6 +1358,112 @@
       }
     },
     "/v1/campaigns": {
+      "get": {
+        "parameters": [
+          {
+            "schema": { "type": "string", "example": "1" },
+            "required": false,
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (default: 1)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "SCHEDULED",
+                "SENDING",
+                "PAUSED",
+                "SENT",
+                "CANCELLED"
+              ],
+              "example": "DRAFT"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query",
+            "description": "Filter campaigns by status"
+          },
+          {
+            "schema": { "type": "string", "example": "newsletter" },
+            "required": false,
+            "name": "search",
+            "in": "query",
+            "description": "Search campaigns by name or subject"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get list of campaigns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "campaigns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "from": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "DRAFT",
+                              "SCHEDULED",
+                              "SENDING",
+                              "PAUSED",
+                              "SENT",
+                              "CANCELLED"
+                            ]
+                          },
+                          "scheduledAt": {
+                            "type": "string",
+                            "nullable": true,
+                            "format": "date-time"
+                          },
+                          "total": { "type": "integer" },
+                          "sent": { "type": "integer" },
+                          "delivered": { "type": "integer" },
+                          "unsubscribed": { "type": "integer" }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "from",
+                          "subject",
+                          "createdAt",
+                          "updatedAt",
+                          "status",
+                          "scheduledAt",
+                          "total",
+                          "sent",
+                          "delivered",
+                          "unsubscribed"
+                        ]
+                      }
+                    },
+                    "totalPage": { "type": "integer" }
+                  },
+                  "required": ["campaigns", "totalPage"]
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "requestBody": {
           "required": true,

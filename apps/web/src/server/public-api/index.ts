@@ -18,6 +18,7 @@ import deleteDomain from "./api/domains/delete-domain";
 import sendBatch from "./api/emails/batch-email";
 import createCampaign from "./api/campaigns/create-campaign";
 import getCampaign from "./api/campaigns/get-campaign";
+import getCampaigns from "./api/campaigns/get-campaigns";
 import scheduleCampaign from "./api/campaigns/schedule-campaign";
 import pauseCampaign from "./api/campaigns/pause-campaign";
 import resumeCampaign from "./api/campaigns/resume-campaign";
@@ -50,6 +51,7 @@ deleteContact(app);
 /**Campaign related APIs */
 createCampaign(app);
 getCampaign(app);
+getCampaigns(app);
 scheduleCampaign(app);
 pauseCampaign(app);
 resumeCampaign(app);
