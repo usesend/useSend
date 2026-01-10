@@ -379,7 +379,7 @@ export async function resendEmail(emailId: string, teamId: number) {
   }
 
   // Only allow resending failed or bounced emails
-  const allowedStatuses = ["FAILED", "BOUNCED", "REJECTED", "COMPLAINED"];
+  const allowedStatuses = ["FAILED", "BOUNCED", "REJECTED"];
   if (!allowedStatuses.includes(originalEmail.latestStatus)) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
