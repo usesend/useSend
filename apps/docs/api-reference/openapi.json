@@ -1057,6 +1057,345 @@
 				}
 			}
 		},
+		"/v1/contactBooks": {
+			"get": {
+				"responses": {
+					"200": {
+						"description": "Retrieve contact books accessible by the API key",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string",
+												"description": "The ID of the contact book",
+												"example": "clx1234567890"
+											},
+											"name": {
+												"type": "string",
+												"description": "The name of the contact book",
+												"example": "Newsletter Subscribers"
+											},
+											"teamId": {
+												"type": "number",
+												"description": "The ID of the team",
+												"example": 1
+											},
+											"properties": {
+												"type": "object",
+												"additionalProperties": { "type": "string" },
+												"description": "Custom properties for the contact book",
+												"example": { "customField1": "value1" }
+											},
+											"emoji": {
+												"type": "string",
+												"description": "The emoji associated with the contact book",
+												"example": "📙"
+											},
+											"createdAt": {
+												"type": "string",
+												"description": "The creation timestamp"
+											},
+											"updatedAt": {
+												"type": "string",
+												"description": "The last update timestamp"
+											},
+											"_count": {
+												"type": "object",
+												"properties": {
+													"contacts": {
+														"type": "number",
+														"description": "The number of contacts in the contact book"
+													}
+												}
+											}
+										},
+										"required": [
+											"id",
+											"name",
+											"teamId",
+											"properties",
+											"emoji",
+											"createdAt",
+											"updatedAt"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string", "minLength": 1 },
+									"emoji": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									}
+								},
+								"required": ["name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Create a new contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" }
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/contactBooks/{contactBookId}": {
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" },
+										"_count": {
+											"type": "object",
+											"properties": {
+												"contacts": { "type": "number" }
+											}
+										}
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string", "minLength": 1 },
+									"emoji": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Update the contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" }
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Contact book deleted successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"success": { "type": "boolean" },
+										"message": { "type": "string" }
+									},
+									"required": ["id", "success", "message"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/contactBooks/{contactBookId}/contacts": {
 			"post": {
 				"parameters": [
@@ -1698,345 +2037,6 @@
 									"type": "object",
 									"properties": { "success": { "type": "boolean" } },
 									"required": ["success"]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		"/v1/contactBooks": {
-			"get": {
-				"responses": {
-					"200": {
-						"description": "Retrieve contact books accessible by the API key",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "array",
-									"items": {
-										"type": "object",
-										"properties": {
-											"id": {
-												"type": "string",
-												"description": "The ID of the contact book",
-												"example": "clx1234567890"
-											},
-											"name": {
-												"type": "string",
-												"description": "The name of the contact book",
-												"example": "Newsletter Subscribers"
-											},
-											"teamId": {
-												"type": "number",
-												"description": "The ID of the team",
-												"example": 1
-											},
-											"properties": {
-												"type": "object",
-												"additionalProperties": { "type": "string" },
-												"description": "Custom properties for the contact book",
-												"example": { "customField1": "value1" }
-											},
-											"emoji": {
-												"type": "string",
-												"description": "The emoji associated with the contact book",
-												"example": "📙"
-											},
-											"createdAt": {
-												"type": "string",
-												"description": "The creation timestamp"
-											},
-											"updatedAt": {
-												"type": "string",
-												"description": "The last update timestamp"
-											},
-											"_count": {
-												"type": "object",
-												"properties": {
-													"contacts": {
-														"type": "number",
-														"description": "The number of contacts in the contact book"
-													}
-												}
-											}
-										},
-										"required": [
-											"id",
-											"name",
-											"teamId",
-											"properties",
-											"emoji",
-											"createdAt",
-											"updatedAt"
-										]
-									}
-								}
-							}
-						}
-					}
-				}
-			},
-			"post": {
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"type": "object",
-								"properties": {
-									"name": { "type": "string", "minLength": 1 },
-									"emoji": { "type": "string" },
-									"properties": {
-										"type": "object",
-										"additionalProperties": { "type": "string" }
-									}
-								},
-								"required": ["name"]
-							}
-						}
-					}
-				},
-				"responses": {
-					"200": {
-						"description": "Create a new contact book",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"id": { "type": "string" },
-										"name": { "type": "string" },
-										"teamId": { "type": "number" },
-										"properties": {
-											"type": "object",
-											"additionalProperties": { "type": "string" }
-										},
-										"emoji": { "type": "string" },
-										"createdAt": { "type": "string" },
-										"updatedAt": { "type": "string" }
-									},
-									"required": [
-										"id",
-										"name",
-										"teamId",
-										"properties",
-										"emoji",
-										"createdAt",
-										"updatedAt"
-									]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		"/v1/contactBooks/{contactBookId}": {
-			"get": {
-				"parameters": [
-					{
-						"schema": { "type": "string", "example": "clx1234567890" },
-						"required": true,
-						"name": "contactBookId",
-						"in": "path"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "Retrieve the contact book",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"id": { "type": "string" },
-										"name": { "type": "string" },
-										"teamId": { "type": "number" },
-										"properties": {
-											"type": "object",
-											"additionalProperties": { "type": "string" }
-										},
-										"emoji": { "type": "string" },
-										"createdAt": { "type": "string" },
-										"updatedAt": { "type": "string" },
-										"_count": {
-											"type": "object",
-											"properties": {
-												"contacts": { "type": "number" }
-											}
-										}
-									},
-									"required": [
-										"id",
-										"name",
-										"teamId",
-										"properties",
-										"emoji",
-										"createdAt",
-										"updatedAt"
-									]
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Forbidden - API key doesn't have access",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Contact book not found",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
-								}
-							}
-						}
-					}
-				}
-			},
-			"patch": {
-				"parameters": [
-					{
-						"schema": { "type": "string", "example": "clx1234567890" },
-						"required": true,
-						"name": "contactBookId",
-						"in": "path"
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"type": "object",
-								"properties": {
-									"name": { "type": "string", "minLength": 1 },
-									"emoji": { "type": "string" },
-									"properties": {
-										"type": "object",
-										"additionalProperties": { "type": "string" }
-									}
-								}
-							}
-						}
-					}
-				},
-				"responses": {
-					"200": {
-						"description": "Update the contact book",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"id": { "type": "string" },
-										"name": { "type": "string" },
-										"teamId": { "type": "number" },
-										"properties": {
-											"type": "object",
-											"additionalProperties": { "type": "string" }
-										},
-										"emoji": { "type": "string" },
-										"createdAt": { "type": "string" },
-										"updatedAt": { "type": "string" }
-									},
-									"required": [
-										"id",
-										"name",
-										"teamId",
-										"properties",
-										"emoji",
-										"createdAt",
-										"updatedAt"
-									]
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Forbidden - API key doesn't have access",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Contact book not found",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
-								}
-							}
-						}
-					}
-				}
-			},
-			"delete": {
-				"parameters": [
-					{
-						"schema": { "type": "string", "example": "clx1234567890" },
-						"required": true,
-						"name": "contactBookId",
-						"in": "path"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "Contact book deleted successfully",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"id": { "type": "string" },
-										"success": { "type": "boolean" },
-										"message": { "type": "string" }
-									},
-									"required": ["id", "success", "message"]
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Forbidden - API key doesn't have access",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Contact book not found",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": { "error": { "type": "string" } },
-									"required": ["error"]
 								}
 							}
 						}

@@ -99,6 +99,7 @@
 						"group": "Campaigns",
 						"pages": [
 							"api-reference/campaigns/create-campaign",
+							"api-reference/campaigns/get-campaigns",
 							"api-reference/campaigns/get-campaign",
 							"api-reference/campaigns/schedule-campaign",
 							"api-reference/campaigns/pause-campaign",
