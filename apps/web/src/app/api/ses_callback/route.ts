@@ -16,16 +16,22 @@ export async function POST(req: Request) {
 
   console.log(data, data.Message);
 
+  // Handle SubscriptionConfirmation separately with direct DB lookup
+  // to avoid cache race conditions in multi-worker environments
+  if (data.Type === "SubscriptionConfirmation") {
+    const isValidSubscription = await checkSubscriptionValidity(data);
+    if (!isValidSubscription) {
+      return Response.json({ data: "Subscription confirmation not valid" });
+    }
+    return handleSubscription(data);
+  }
+
   const isEventValid = await checkEventValidity(data);
 
   console.log("Is event valid: ", isEventValid);
 
   if (!isEventValid) {
     return Response.json({ data: "Event is not valid" });
-  }
-
-  if (data.Type === "SubscriptionConfirmation") {
-    return handleSubscription(data);
   }
 
   let message = null;
@@ -78,6 +84,26 @@ async function handleSubscription(message: any) {
   SesSettingsService.invalidateCache();
 
   return Response.json({ data: "Success" });
+}
+
+/**
+ * Validates SubscriptionConfirmation by querying the database directly.
+ * This bypasses the in-memory cache to avoid race conditions in multi-worker
+ * environments where the cache may not have been updated yet.
+ */
+async function checkSubscriptionValidity(message: SnsNotificationMessage) {
+  if (env.NODE_ENV === "development") {
+    return true;
+  }
+
+  const { TopicArn } = message;
+
+  // Query database directly to avoid cache staleness issues
+  const setting = await db.sesSetting.findFirst({
+    where: { topicArn: TopicArn },
+  });
+
+  return setting !== null;
 }
 
 /**
