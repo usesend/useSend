@@ -446,8 +446,6 @@ async function processWebhookCall(job: WebhookCallJob) {
     },
   });
 
-  // TODO: perform signed HTTP POST with backoff tracking and update status/metrics.
-  // This stub ensures call rows and queue wiring exist before adding delivery logic.
   const lockKey = `webhook:lock:${call.webhookId}`;
   const redis = getRedis();
   const lockValue = randomUUID();
