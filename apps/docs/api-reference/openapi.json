@@ -1,1805 +1,2048 @@
 {
-  "openapi": "3.0.0",
-  "info": { "version": "1.0.0", "title": "useSend API" },
-  "servers": [{ "url": "https://app.usesend.com/api" }],
-  "components": {
-    "securitySchemes": { "Bearer": { "type": "http", "scheme": "bearer" } },
-    "schemas": {},
-    "parameters": {}
-  },
-  "paths": {
-    "/v1/domains": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Retrieve domains accessible by the API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "number",
-                        "description": "The ID of the domain",
-                        "example": 1
-                      },
-                      "name": {
-                        "type": "string",
-                        "description": "The name of the domain",
-                        "example": "example.com"
-                      },
-                      "teamId": {
-                        "type": "number",
-                        "description": "The ID of the team",
-                        "example": 1
-                      },
-                      "status": {
-                        "type": "string",
-                        "enum": [
-                          "NOT_STARTED",
-                          "PENDING",
-                          "SUCCESS",
-                          "FAILED",
-                          "TEMPORARY_FAILURE"
-                        ]
-                      },
-                      "region": { "type": "string", "default": "us-east-1" },
-                      "clickTracking": { "type": "boolean", "default": false },
-                      "openTracking": { "type": "boolean", "default": false },
-                      "publicKey": { "type": "string" },
-                      "dkimStatus": { "type": "string", "nullable": true },
-                      "spfDetails": { "type": "string", "nullable": true },
-                      "createdAt": { "type": "string" },
-                      "updatedAt": { "type": "string" },
-                      "dmarcAdded": { "type": "boolean", "default": false },
-                      "isVerifying": { "type": "boolean", "default": false },
-                      "errorMessage": { "type": "string", "nullable": true },
-                      "subdomain": { "type": "string", "nullable": true },
-                      "verificationError": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "lastCheckedTime": { "type": "string", "nullable": true },
-                      "dnsRecords": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": ["MX", "TXT"],
-                              "description": "DNS record type",
-                              "example": "TXT"
-                            },
-                            "name": {
-                              "type": "string",
-                              "description": "DNS record name",
-                              "example": "mail"
-                            },
-                            "value": {
-                              "type": "string",
-                              "description": "DNS record value",
-                              "example": "v=spf1 include:amazonses.com ~all"
-                            },
-                            "ttl": {
-                              "type": "string",
-                              "description": "DNS record TTL",
-                              "example": "Auto"
-                            },
-                            "priority": {
-                              "type": "string",
-                              "nullable": true,
-                              "description": "DNS record priority",
-                              "example": "10"
-                            },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "NOT_STARTED",
-                                "PENDING",
-                                "SUCCESS",
-                                "FAILED",
-                                "TEMPORARY_FAILURE"
-                              ]
-                            },
-                            "recommended": {
-                              "type": "boolean",
-                              "description": "Whether the record is recommended"
-                            }
-                          },
-                          "required": ["type", "name", "value", "ttl", "status"]
-                        }
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "name",
-                      "teamId",
-                      "status",
-                      "publicKey",
-                      "createdAt",
-                      "updatedAt",
-                      "dnsRecords"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": { "type": "string" },
-                  "region": { "type": "string" }
-                },
-                "required": ["name", "region"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Create a new domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "number",
-                      "description": "The ID of the domain",
-                      "example": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "description": "The name of the domain",
-                      "example": "example.com"
-                    },
-                    "teamId": {
-                      "type": "number",
-                      "description": "The ID of the team",
-                      "example": 1
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "NOT_STARTED",
-                        "PENDING",
-                        "SUCCESS",
-                        "FAILED",
-                        "TEMPORARY_FAILURE"
-                      ]
-                    },
-                    "region": { "type": "string", "default": "us-east-1" },
-                    "clickTracking": { "type": "boolean", "default": false },
-                    "openTracking": { "type": "boolean", "default": false },
-                    "publicKey": { "type": "string" },
-                    "dkimStatus": { "type": "string", "nullable": true },
-                    "spfDetails": { "type": "string", "nullable": true },
-                    "createdAt": { "type": "string" },
-                    "updatedAt": { "type": "string" },
-                    "dmarcAdded": { "type": "boolean", "default": false },
-                    "isVerifying": { "type": "boolean", "default": false },
-                    "errorMessage": { "type": "string", "nullable": true },
-                    "subdomain": { "type": "string", "nullable": true },
-                    "verificationError": { "type": "string", "nullable": true },
-                    "lastCheckedTime": { "type": "string", "nullable": true },
-                    "dnsRecords": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": ["MX", "TXT"],
-                            "description": "DNS record type",
-                            "example": "TXT"
-                          },
-                          "name": {
-                            "type": "string",
-                            "description": "DNS record name",
-                            "example": "mail"
-                          },
-                          "value": {
-                            "type": "string",
-                            "description": "DNS record value",
-                            "example": "v=spf1 include:amazonses.com ~all"
-                          },
-                          "ttl": {
-                            "type": "string",
-                            "description": "DNS record TTL",
-                            "example": "Auto"
-                          },
-                          "priority": {
-                            "type": "string",
-                            "nullable": true,
-                            "description": "DNS record priority",
-                            "example": "10"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "NOT_STARTED",
-                              "PENDING",
-                              "SUCCESS",
-                              "FAILED",
-                              "TEMPORARY_FAILURE"
-                            ]
-                          },
-                          "recommended": {
-                            "type": "boolean",
-                            "description": "Whether the record is recommended"
-                          }
-                        },
-                        "required": ["type", "name", "value", "ttl", "status"]
-                      }
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "teamId",
-                    "status",
-                    "publicKey",
-                    "createdAt",
-                    "updatedAt",
-                    "dnsRecords"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/domains/{id}/verify": {
-      "put": {
-        "parameters": [
-          {
-            "schema": { "type": "number", "nullable": true, "example": 1 },
-            "required": false,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Verify domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "message": { "type": "string" } },
-                  "required": ["message"]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - API key doesn't have access to this domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "error": { "type": "string" } },
-                  "required": ["error"]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Domain not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "error": { "type": "string" } },
-                  "required": ["error"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/domains/{id}": {
-      "get": {
-        "parameters": [
-          {
-            "schema": { "type": "number", "nullable": true, "example": 1 },
-            "required": false,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve the domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "number",
-                      "description": "The ID of the domain",
-                      "example": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "description": "The name of the domain",
-                      "example": "example.com"
-                    },
-                    "teamId": {
-                      "type": "number",
-                      "description": "The ID of the team",
-                      "example": 1
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "NOT_STARTED",
-                        "PENDING",
-                        "SUCCESS",
-                        "FAILED",
-                        "TEMPORARY_FAILURE"
-                      ]
-                    },
-                    "region": { "type": "string", "default": "us-east-1" },
-                    "clickTracking": { "type": "boolean", "default": false },
-                    "openTracking": { "type": "boolean", "default": false },
-                    "publicKey": { "type": "string" },
-                    "dkimStatus": { "type": "string", "nullable": true },
-                    "spfDetails": { "type": "string", "nullable": true },
-                    "createdAt": { "type": "string" },
-                    "updatedAt": { "type": "string" },
-                    "dmarcAdded": { "type": "boolean", "default": false },
-                    "isVerifying": { "type": "boolean", "default": false },
-                    "errorMessage": { "type": "string", "nullable": true },
-                    "subdomain": { "type": "string", "nullable": true },
-                    "verificationError": { "type": "string", "nullable": true },
-                    "lastCheckedTime": { "type": "string", "nullable": true },
-                    "dnsRecords": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": ["MX", "TXT"],
-                            "description": "DNS record type",
-                            "example": "TXT"
-                          },
-                          "name": {
-                            "type": "string",
-                            "description": "DNS record name",
-                            "example": "mail"
-                          },
-                          "value": {
-                            "type": "string",
-                            "description": "DNS record value",
-                            "example": "v=spf1 include:amazonses.com ~all"
-                          },
-                          "ttl": {
-                            "type": "string",
-                            "description": "DNS record TTL",
-                            "example": "Auto"
-                          },
-                          "priority": {
-                            "type": "string",
-                            "nullable": true,
-                            "description": "DNS record priority",
-                            "example": "10"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "NOT_STARTED",
-                              "PENDING",
-                              "SUCCESS",
-                              "FAILED",
-                              "TEMPORARY_FAILURE"
-                            ]
-                          },
-                          "recommended": {
-                            "type": "boolean",
-                            "description": "Whether the record is recommended"
-                          }
-                        },
-                        "required": ["type", "name", "value", "ttl", "status"]
-                      }
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "teamId",
-                    "status",
-                    "publicKey",
-                    "createdAt",
-                    "updatedAt",
-                    "dnsRecords"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "parameters": [
-          {
-            "schema": { "type": "number", "nullable": true, "example": 1 },
-            "required": false,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Domain deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "number" },
-                    "success": { "type": "boolean" },
-                    "message": { "type": "string" }
-                  },
-                  "required": ["id", "success", "message"]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - API key doesn't have access",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "error": { "type": "string" } },
-                  "required": ["error"]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Domain not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "error": { "type": "string" } },
-                  "required": ["error"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/emails/{emailId}": {
-      "get": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "example": "cuiwqdj74rygf74"
-            },
-            "required": true,
-            "name": "emailId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve the email",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "teamId": { "type": "number" },
-                    "to": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "replyTo": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "cc": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "bcc": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "from": { "type": "string" },
-                    "subject": { "type": "string" },
-                    "html": { "type": "string", "nullable": true },
-                    "text": { "type": "string", "nullable": true },
-                    "createdAt": { "type": "string" },
-                    "updatedAt": { "type": "string" },
-                    "emailEvents": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "emailId": { "type": "string" },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "SCHEDULED",
-                              "QUEUED",
-                              "SENT",
-                              "DELIVERY_DELAYED",
-                              "BOUNCED",
-                              "REJECTED",
-                              "RENDERING_FAILURE",
-                              "DELIVERED",
-                              "OPENED",
-                              "CLICKED",
-                              "COMPLAINED",
-                              "FAILED",
-                              "CANCELLED",
-                              "SUPPRESSED"
-                            ]
-                          },
-                          "createdAt": { "type": "string" },
-                          "data": { "nullable": true }
-                        },
-                        "required": ["emailId", "status", "createdAt"]
-                      }
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "teamId",
-                    "to",
-                    "from",
-                    "subject",
-                    "html",
-                    "text",
-                    "createdAt",
-                    "updatedAt",
-                    "emailEvents"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "example": "cuiwqdj74rygf74"
-            },
-            "required": true,
-            "name": "emailId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "scheduledAt": { "type": "string", "format": "date-time" }
-                },
-                "required": ["scheduledAt"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Retrieve the user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "emailId": { "type": "string" } }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/emails": {
-      "get": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "default": "1", "example": "1" },
-            "required": false,
-            "name": "page",
-            "in": "query"
-          },
-          {
-            "schema": { "type": "string", "default": "50", "example": "50" },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "example": "2024-01-01T00:00:00Z"
-            },
-            "required": false,
-            "name": "startDate",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "example": "2024-01-31T23:59:59Z"
-            },
-            "required": false,
-            "name": "endDate",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "array", "items": { "type": "string" } }
-              ],
-              "example": "123"
-            },
-            "required": false,
-            "name": "domainId",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve a list of emails",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": { "type": "string" },
-                          "to": {
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "array", "items": { "type": "string" } }
-                            ]
-                          },
-                          "replyTo": {
-                            "anyOf": [
-                              { "type": "string" },
-                              {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              { "nullable": true }
-                            ]
-                          },
-                          "cc": {
-                            "anyOf": [
-                              { "type": "string" },
-                              {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              { "nullable": true }
-                            ]
-                          },
-                          "bcc": {
-                            "anyOf": [
-                              { "type": "string" },
-                              {
-                                "type": "array",
-                                "items": { "type": "string" }
-                              },
-                              { "nullable": true }
-                            ]
-                          },
-                          "from": { "type": "string" },
-                          "subject": { "type": "string" },
-                          "html": { "type": "string", "nullable": true },
-                          "text": { "type": "string", "nullable": true },
-                          "createdAt": { "type": "string" },
-                          "updatedAt": { "type": "string" },
-                          "latestStatus": {
-                            "type": "string",
-                            "nullable": true,
-                            "enum": [
-                              "SCHEDULED",
-                              "QUEUED",
-                              "SENT",
-                              "DELIVERY_DELAYED",
-                              "BOUNCED",
-                              "REJECTED",
-                              "RENDERING_FAILURE",
-                              "DELIVERED",
-                              "OPENED",
-                              "CLICKED",
-                              "COMPLAINED",
-                              "FAILED",
-                              "CANCELLED",
-                              "SUPPRESSED"
-                            ]
-                          },
-                          "scheduledAt": {
-                            "type": "string",
-                            "nullable": true,
-                            "format": "date-time"
-                          },
-                          "domainId": { "type": "number", "nullable": true }
-                        },
-                        "required": [
-                          "id",
-                          "to",
-                          "from",
-                          "subject",
-                          "html",
-                          "text",
-                          "createdAt",
-                          "updatedAt",
-                          "latestStatus",
-                          "scheduledAt",
-                          "domainId"
-                        ]
-                      }
-                    },
-                    "count": { "type": "number" }
-                  },
-                  "required": ["data", "count"]
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256,
-              "description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
-            },
-            "required": false,
-            "name": "Idempotency-Key",
-            "in": "header"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "to": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "array", "items": { "type": "string" } }
-                    ]
-                  },
-                  "from": { "type": "string" },
-                  "subject": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Optional when templateId is provided"
-                  },
-                  "templateId": {
-                    "type": "string",
-                    "description": "ID of a template from the dashboard"
-                  },
-                  "variables": {
-                    "type": "object",
-                    "additionalProperties": { "type": "string" }
-                  },
-                  "replyTo": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "array", "items": { "type": "string" } }
-                    ]
-                  },
-                  "cc": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "array", "items": { "type": "string" } }
-                    ]
-                  },
-                  "bcc": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "array", "items": { "type": "string" } }
-                    ]
-                  },
-                  "text": {
-                    "type": "string",
-                    "nullable": true,
-                    "minLength": 1
-                  },
-                  "html": {
-                    "type": "string",
-                    "nullable": true,
-                    "minLength": 1
-                  },
-                  "headers": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "description": "Custom headers to included with the emails"
-                  },
-                  "attachments": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "filename": { "type": "string", "minLength": 1 },
-                        "content": { "type": "string", "minLength": 1 }
-                      },
-                      "required": ["filename", "content"]
-                    },
-                    "maxItems": 10
-                  },
-                  "scheduledAt": { "type": "string", "format": "date-time" },
-                  "inReplyToId": { "type": "string", "nullable": true }
-                },
-                "required": ["to", "from"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Retrieve the user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "emailId": { "type": "string" } }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/emails/batch": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256,
-              "description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
-            },
-            "required": false,
-            "name": "Idempotency-Key",
-            "in": "header"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "to": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "from": { "type": "string" },
-                    "subject": {
-                      "type": "string",
-                      "minLength": 1,
-                      "description": "Optional when templateId is provided"
-                    },
-                    "templateId": {
-                      "type": "string",
-                      "description": "ID of a template from the dashboard"
-                    },
-                    "variables": {
-                      "type": "object",
-                      "additionalProperties": { "type": "string" }
-                    },
-                    "replyTo": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "cc": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "bcc": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "array", "items": { "type": "string" } }
-                      ]
-                    },
-                    "text": {
-                      "type": "string",
-                      "nullable": true,
-                      "minLength": 1
-                    },
-                    "html": {
-                      "type": "string",
-                      "nullable": true,
-                      "minLength": 1
-                    },
-                    "headers": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "description": "Custom headers to included with the emails"
-                    },
-                    "attachments": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "filename": { "type": "string", "minLength": 1 },
-                          "content": { "type": "string", "minLength": 1 }
-                        },
-                        "required": ["filename", "content"]
-                      },
-                      "maxItems": 10
-                    },
-                    "scheduledAt": { "type": "string", "format": "date-time" },
-                    "inReplyToId": { "type": "string", "nullable": true }
-                  },
-                  "required": ["to", "from"]
-                },
-                "maxItems": 100
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "List of successfully created email IDs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": { "emailId": { "type": "string" } },
-                        "required": ["emailId"]
-                      }
-                    }
-                  },
-                  "required": ["data"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/emails/{emailId}/cancel": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "example": "cuiwqdj74rygf74"
-            },
-            "required": true,
-            "name": "emailId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve the user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "emailId": { "type": "string" } }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/contactBooks/{contactBookId}/contacts": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "example": "cuiwqdj74rygf74"
-            },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": { "type": "string" },
-                  "firstName": { "type": "string" },
-                  "lastName": { "type": "string" },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": { "type": "string" }
-                  },
-                  "subscribed": { "type": "boolean" }
-                },
-                "required": ["email"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Retrieve the user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "contactId": { "type": "string" } }
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          },
-          {
-            "schema": { "type": "string" },
-            "required": false,
-            "name": "emails",
-            "in": "query"
-          },
-          {
-            "schema": { "type": "number" },
-            "required": false,
-            "name": "page",
-            "in": "query"
-          },
-          {
-            "schema": { "type": "number" },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": { "type": "string" },
-            "required": false,
-            "name": "ids",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve multiple contacts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "firstName": { "type": "string", "nullable": true },
-                      "lastName": { "type": "string", "nullable": true },
-                      "email": { "type": "string" },
-                      "subscribed": { "type": "boolean", "default": true },
-                      "properties": {
-                        "type": "object",
-                        "additionalProperties": { "type": "string" }
-                      },
-                      "contactBookId": { "type": "string" },
-                      "createdAt": { "type": "string" },
-                      "updatedAt": { "type": "string" }
-                    },
-                    "required": [
-                      "id",
-                      "email",
-                      "properties",
-                      "contactBookId",
-                      "createdAt",
-                      "updatedAt"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
-      "patch": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          },
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "firstName": { "type": "string" },
-                  "lastName": { "type": "string" },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": { "type": "string" }
-                  },
-                  "subscribed": { "type": "boolean" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Retrieve the user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "contactId": { "type": "string" } }
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          },
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Retrieve the contact",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "firstName": { "type": "string", "nullable": true },
-                    "lastName": { "type": "string", "nullable": true },
-                    "email": { "type": "string" },
-                    "subscribed": { "type": "boolean", "default": true },
-                    "properties": {
-                      "type": "object",
-                      "additionalProperties": { "type": "string" }
-                    },
-                    "contactBookId": { "type": "string" },
-                    "createdAt": { "type": "string" },
-                    "updatedAt": { "type": "string" }
-                  },
-                  "required": [
-                    "id",
-                    "email",
-                    "properties",
-                    "contactBookId",
-                    "createdAt",
-                    "updatedAt"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "example": "cuiwqdj74rygf74"
-            },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": { "type": "string" },
-                  "firstName": { "type": "string" },
-                  "lastName": { "type": "string" },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": { "type": "string" }
-                  },
-                  "subscribed": { "type": "boolean" }
-                },
-                "required": ["email"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Contact upserted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "contactId": { "type": "string" } },
-                  "required": ["contactId"]
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactBookId",
-            "in": "path"
-          },
-          {
-            "schema": { "type": "string", "example": "cuiwqdj74rygf74" },
-            "required": true,
-            "name": "contactId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Contact deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "success": { "type": "boolean" } },
-                  "required": ["success"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/campaigns": {
-      "get": {
-        "parameters": [
-          {
-            "schema": { "type": "string", "example": "1" },
-            "required": false,
-            "name": "page",
-            "in": "query",
-            "description": "Page number for pagination (default: 1)"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "DRAFT",
-                "SCHEDULED",
-                "SENDING",
-                "PAUSED",
-                "SENT",
-                "CANCELLED"
-              ],
-              "example": "DRAFT"
-            },
-            "required": false,
-            "name": "status",
-            "in": "query",
-            "description": "Filter campaigns by status"
-          },
-          {
-            "schema": { "type": "string", "example": "newsletter" },
-            "required": false,
-            "name": "search",
-            "in": "query",
-            "description": "Search campaigns by name or subject"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Get list of campaigns",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "campaigns": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": { "type": "string" },
-                          "name": { "type": "string" },
-                          "from": { "type": "string" },
-                          "subject": { "type": "string" },
-                          "createdAt": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "updatedAt": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "DRAFT",
-                              "SCHEDULED",
-                              "SENDING",
-                              "PAUSED",
-                              "SENT",
-                              "CANCELLED"
-                            ]
-                          },
-                          "scheduledAt": {
-                            "type": "string",
-                            "nullable": true,
-                            "format": "date-time"
-                          },
-                          "total": { "type": "integer" },
-                          "sent": { "type": "integer" },
-                          "delivered": { "type": "integer" },
-                          "unsubscribed": { "type": "integer" }
-                        },
-                        "required": [
-                          "id",
-                          "name",
-                          "from",
-                          "subject",
-                          "createdAt",
-                          "updatedAt",
-                          "status",
-                          "scheduledAt",
-                          "total",
-                          "sent",
-                          "delivered",
-                          "unsubscribed"
-                        ]
-                      }
-                    },
-                    "totalPage": { "type": "integer" }
-                  },
-                  "required": ["campaigns", "totalPage"]
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": { "type": "string", "minLength": 1 },
-                  "from": { "type": "string", "minLength": 1 },
-                  "subject": { "type": "string", "minLength": 1 },
-                  "previewText": { "type": "string" },
-                  "contactBookId": { "type": "string", "minLength": 1 },
-                  "content": { "type": "string", "minLength": 1 },
-                  "html": { "type": "string", "minLength": 1 },
-                  "replyTo": {
-                    "anyOf": [
-                      { "type": "string", "minLength": 1 },
-                      {
-                        "type": "array",
-                        "items": { "type": "string", "minLength": 1 }
-                      }
-                    ]
-                  },
-                  "cc": {
-                    "anyOf": [
-                      { "type": "string", "minLength": 1 },
-                      {
-                        "type": "array",
-                        "items": { "type": "string", "minLength": 1 }
-                      }
-                    ]
-                  },
-                  "bcc": {
-                    "anyOf": [
-                      { "type": "string", "minLength": 1 },
-                      {
-                        "type": "array",
-                        "items": { "type": "string", "minLength": 1 }
-                      }
-                    ]
-                  },
-                  "sendNow": { "type": "boolean" },
-                  "scheduledAt": {
-                    "type": "string",
-                    "description": "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
-                  },
-                  "batchSize": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100000
-                  }
-                },
-                "required": ["name", "from", "subject", "contactBookId"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Create a campaign",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "name": { "type": "string" },
-                    "from": { "type": "string" },
-                    "subject": { "type": "string" },
-                    "previewText": { "type": "string", "nullable": true },
-                    "contactBookId": { "type": "string", "nullable": true },
-                    "html": { "type": "string", "nullable": true },
-                    "content": { "type": "string", "nullable": true },
-                    "status": { "type": "string" },
-                    "scheduledAt": {
-                      "type": "string",
-                      "nullable": true,
-                      "format": "date-time"
-                    },
-                    "batchSize": { "type": "integer" },
-                    "batchWindowMinutes": { "type": "integer" },
-                    "total": { "type": "integer" },
-                    "sent": { "type": "integer" },
-                    "delivered": { "type": "integer" },
-                    "opened": { "type": "integer" },
-                    "clicked": { "type": "integer" },
-                    "unsubscribed": { "type": "integer" },
-                    "bounced": { "type": "integer" },
-                    "hardBounced": { "type": "integer" },
-                    "complained": { "type": "integer" },
-                    "replyTo": {
-                      "type": "array",
-                      "items": { "type": "string" }
-                    },
-                    "cc": { "type": "array", "items": { "type": "string" } },
-                    "bcc": { "type": "array", "items": { "type": "string" } },
-                    "createdAt": { "type": "string", "format": "date-time" },
-                    "updatedAt": { "type": "string", "format": "date-time" }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "from",
-                    "subject",
-                    "previewText",
-                    "contactBookId",
-                    "html",
-                    "content",
-                    "status",
-                    "scheduledAt",
-                    "batchSize",
-                    "batchWindowMinutes",
-                    "total",
-                    "sent",
-                    "delivered",
-                    "opened",
-                    "clicked",
-                    "unsubscribed",
-                    "bounced",
-                    "hardBounced",
-                    "complained",
-                    "replyTo",
-                    "cc",
-                    "bcc",
-                    "createdAt",
-                    "updatedAt"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/campaigns/{campaignId}": {
-      "get": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "example": "cmp_123"
-            },
-            "required": true,
-            "name": "campaignId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Get campaign details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "name": { "type": "string" },
-                    "from": { "type": "string" },
-                    "subject": { "type": "string" },
-                    "previewText": { "type": "string", "nullable": true },
-                    "contactBookId": { "type": "string", "nullable": true },
-                    "html": { "type": "string", "nullable": true },
-                    "content": { "type": "string", "nullable": true },
-                    "status": { "type": "string" },
-                    "scheduledAt": {
-                      "type": "string",
-                      "nullable": true,
-                      "format": "date-time"
-                    },
-                    "batchSize": { "type": "integer" },
-                    "batchWindowMinutes": { "type": "integer" },
-                    "total": { "type": "integer" },
-                    "sent": { "type": "integer" },
-                    "delivered": { "type": "integer" },
-                    "opened": { "type": "integer" },
-                    "clicked": { "type": "integer" },
-                    "unsubscribed": { "type": "integer" },
-                    "bounced": { "type": "integer" },
-                    "hardBounced": { "type": "integer" },
-                    "complained": { "type": "integer" },
-                    "replyTo": {
-                      "type": "array",
-                      "items": { "type": "string" }
-                    },
-                    "cc": { "type": "array", "items": { "type": "string" } },
-                    "bcc": { "type": "array", "items": { "type": "string" } },
-                    "createdAt": { "type": "string", "format": "date-time" },
-                    "updatedAt": { "type": "string", "format": "date-time" }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "from",
-                    "subject",
-                    "previewText",
-                    "contactBookId",
-                    "html",
-                    "content",
-                    "status",
-                    "scheduledAt",
-                    "batchSize",
-                    "batchWindowMinutes",
-                    "total",
-                    "sent",
-                    "delivered",
-                    "opened",
-                    "clicked",
-                    "unsubscribed",
-                    "bounced",
-                    "hardBounced",
-                    "complained",
-                    "replyTo",
-                    "cc",
-                    "bcc",
-                    "createdAt",
-                    "updatedAt"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/campaigns/{campaignId}/schedule": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "example": "cmp_123"
-            },
-            "required": true,
-            "name": "campaignId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "scheduledAt": {
-                    "type": "string",
-                    "description": "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
-                  },
-                  "batchSize": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100000
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Schedule a campaign",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "success": { "type": "boolean" } },
-                  "required": ["success"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/campaigns/{campaignId}/pause": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "example": "cmp_123"
-            },
-            "required": true,
-            "name": "campaignId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Pause a campaign",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "success": { "type": "boolean" } },
-                  "required": ["success"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/campaigns/{campaignId}/resume": {
-      "post": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "example": "cmp_123"
-            },
-            "required": true,
-            "name": "campaignId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Resume a campaign",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "success": { "type": "boolean" } },
-                  "required": ["success"]
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+	"openapi": "3.0.0",
+	"info": { "version": "1.0.0", "title": "useSend API" },
+	"servers": [{ "url": "https://app.usesend.com/api" }],
+	"components": {
+		"securitySchemes": { "Bearer": { "type": "http", "scheme": "bearer" } },
+		"schemas": {},
+		"parameters": {}
+	},
+	"paths": {
+		"/v1/domains": {
+			"get": {
+				"responses": {
+					"200": {
+						"description": "Retrieve domains accessible by the API key",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "number",
+												"description": "The ID of the domain",
+												"example": 1
+											},
+											"name": {
+												"type": "string",
+												"description": "The name of the domain",
+												"example": "example.com"
+											},
+											"teamId": {
+												"type": "number",
+												"description": "The ID of the team",
+												"example": 1
+											},
+											"status": {
+												"type": "string",
+												"enum": [
+													"NOT_STARTED",
+													"PENDING",
+													"SUCCESS",
+													"FAILED",
+													"TEMPORARY_FAILURE"
+												]
+											},
+											"region": { "type": "string", "default": "us-east-1" },
+											"clickTracking": { "type": "boolean", "default": false },
+											"openTracking": { "type": "boolean", "default": false },
+											"publicKey": { "type": "string" },
+											"dkimStatus": { "type": "string", "nullable": true },
+											"spfDetails": { "type": "string", "nullable": true },
+											"createdAt": { "type": "string" },
+											"updatedAt": { "type": "string" },
+											"dmarcAdded": { "type": "boolean", "default": false },
+											"isVerifying": { "type": "boolean", "default": false },
+											"errorMessage": { "type": "string", "nullable": true },
+											"subdomain": { "type": "string", "nullable": true },
+											"verificationError": {
+												"type": "string",
+												"nullable": true
+											},
+											"lastCheckedTime": { "type": "string", "nullable": true },
+											"dnsRecords": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"type": {
+															"type": "string",
+															"enum": ["MX", "TXT"],
+															"description": "DNS record type",
+															"example": "TXT"
+														},
+														"name": {
+															"type": "string",
+															"description": "DNS record name",
+															"example": "mail"
+														},
+														"value": {
+															"type": "string",
+															"description": "DNS record value",
+															"example": "v=spf1 include:amazonses.com ~all"
+														},
+														"ttl": {
+															"type": "string",
+															"description": "DNS record TTL",
+															"example": "Auto"
+														},
+														"priority": {
+															"type": "string",
+															"nullable": true,
+															"description": "DNS record priority",
+															"example": "10"
+														},
+														"status": {
+															"type": "string",
+															"enum": [
+																"NOT_STARTED",
+																"PENDING",
+																"SUCCESS",
+																"FAILED",
+																"TEMPORARY_FAILURE"
+															]
+														},
+														"recommended": {
+															"type": "boolean",
+															"description": "Whether the record is recommended"
+														}
+													},
+													"required": ["type", "name", "value", "ttl", "status"]
+												}
+											}
+										},
+										"required": [
+											"id",
+											"name",
+											"teamId",
+											"status",
+											"publicKey",
+											"createdAt",
+											"updatedAt",
+											"dnsRecords"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string" },
+									"region": { "type": "string" }
+								},
+								"required": ["name", "region"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Create a new domain",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": {
+											"type": "number",
+											"description": "The ID of the domain",
+											"example": 1
+										},
+										"name": {
+											"type": "string",
+											"description": "The name of the domain",
+											"example": "example.com"
+										},
+										"teamId": {
+											"type": "number",
+											"description": "The ID of the team",
+											"example": 1
+										},
+										"status": {
+											"type": "string",
+											"enum": [
+												"NOT_STARTED",
+												"PENDING",
+												"SUCCESS",
+												"FAILED",
+												"TEMPORARY_FAILURE"
+											]
+										},
+										"region": { "type": "string", "default": "us-east-1" },
+										"clickTracking": { "type": "boolean", "default": false },
+										"openTracking": { "type": "boolean", "default": false },
+										"publicKey": { "type": "string" },
+										"dkimStatus": { "type": "string", "nullable": true },
+										"spfDetails": { "type": "string", "nullable": true },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" },
+										"dmarcAdded": { "type": "boolean", "default": false },
+										"isVerifying": { "type": "boolean", "default": false },
+										"errorMessage": { "type": "string", "nullable": true },
+										"subdomain": { "type": "string", "nullable": true },
+										"verificationError": { "type": "string", "nullable": true },
+										"lastCheckedTime": { "type": "string", "nullable": true },
+										"dnsRecords": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"type": {
+														"type": "string",
+														"enum": ["MX", "TXT"],
+														"description": "DNS record type",
+														"example": "TXT"
+													},
+													"name": {
+														"type": "string",
+														"description": "DNS record name",
+														"example": "mail"
+													},
+													"value": {
+														"type": "string",
+														"description": "DNS record value",
+														"example": "v=spf1 include:amazonses.com ~all"
+													},
+													"ttl": {
+														"type": "string",
+														"description": "DNS record TTL",
+														"example": "Auto"
+													},
+													"priority": {
+														"type": "string",
+														"nullable": true,
+														"description": "DNS record priority",
+														"example": "10"
+													},
+													"status": {
+														"type": "string",
+														"enum": [
+															"NOT_STARTED",
+															"PENDING",
+															"SUCCESS",
+															"FAILED",
+															"TEMPORARY_FAILURE"
+														]
+													},
+													"recommended": {
+														"type": "boolean",
+														"description": "Whether the record is recommended"
+													}
+												},
+												"required": ["type", "name", "value", "ttl", "status"]
+											}
+										}
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"status",
+										"publicKey",
+										"createdAt",
+										"updatedAt",
+										"dnsRecords"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/domains/{id}/verify": {
+			"put": {
+				"parameters": [
+					{
+						"schema": { "type": "number", "nullable": true, "example": 1 },
+						"required": false,
+						"name": "id",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Verify domain",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "message": { "type": "string" } },
+									"required": ["message"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access to this domain",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Domain not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/domains/{id}": {
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "number", "nullable": true, "example": 1 },
+						"required": false,
+						"name": "id",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the domain",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": {
+											"type": "number",
+											"description": "The ID of the domain",
+											"example": 1
+										},
+										"name": {
+											"type": "string",
+											"description": "The name of the domain",
+											"example": "example.com"
+										},
+										"teamId": {
+											"type": "number",
+											"description": "The ID of the team",
+											"example": 1
+										},
+										"status": {
+											"type": "string",
+											"enum": [
+												"NOT_STARTED",
+												"PENDING",
+												"SUCCESS",
+												"FAILED",
+												"TEMPORARY_FAILURE"
+											]
+										},
+										"region": { "type": "string", "default": "us-east-1" },
+										"clickTracking": { "type": "boolean", "default": false },
+										"openTracking": { "type": "boolean", "default": false },
+										"publicKey": { "type": "string" },
+										"dkimStatus": { "type": "string", "nullable": true },
+										"spfDetails": { "type": "string", "nullable": true },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" },
+										"dmarcAdded": { "type": "boolean", "default": false },
+										"isVerifying": { "type": "boolean", "default": false },
+										"errorMessage": { "type": "string", "nullable": true },
+										"subdomain": { "type": "string", "nullable": true },
+										"verificationError": { "type": "string", "nullable": true },
+										"lastCheckedTime": { "type": "string", "nullable": true },
+										"dnsRecords": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"type": {
+														"type": "string",
+														"enum": ["MX", "TXT"],
+														"description": "DNS record type",
+														"example": "TXT"
+													},
+													"name": {
+														"type": "string",
+														"description": "DNS record name",
+														"example": "mail"
+													},
+													"value": {
+														"type": "string",
+														"description": "DNS record value",
+														"example": "v=spf1 include:amazonses.com ~all"
+													},
+													"ttl": {
+														"type": "string",
+														"description": "DNS record TTL",
+														"example": "Auto"
+													},
+													"priority": {
+														"type": "string",
+														"nullable": true,
+														"description": "DNS record priority",
+														"example": "10"
+													},
+													"status": {
+														"type": "string",
+														"enum": [
+															"NOT_STARTED",
+															"PENDING",
+															"SUCCESS",
+															"FAILED",
+															"TEMPORARY_FAILURE"
+														]
+													},
+													"recommended": {
+														"type": "boolean",
+														"description": "Whether the record is recommended"
+													}
+												},
+												"required": ["type", "name", "value", "ttl", "status"]
+											}
+										}
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"status",
+										"publicKey",
+										"createdAt",
+										"updatedAt",
+										"dnsRecords"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"parameters": [
+					{
+						"schema": { "type": "number", "nullable": true, "example": 1 },
+						"required": false,
+						"name": "id",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Domain deleted successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "number" },
+										"success": { "type": "boolean" },
+										"message": { "type": "string" }
+									},
+									"required": ["id", "success", "message"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Domain not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/emails/{emailId}": {
+			"get": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "emailId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the email",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"teamId": { "type": "number" },
+										"to": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"replyTo": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"cc": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"bcc": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"from": { "type": "string" },
+										"subject": { "type": "string" },
+										"html": { "type": "string", "nullable": true },
+										"text": { "type": "string", "nullable": true },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" },
+										"emailEvents": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"emailId": { "type": "string" },
+													"status": {
+														"type": "string",
+														"enum": [
+															"SCHEDULED",
+															"QUEUED",
+															"SENT",
+															"DELIVERY_DELAYED",
+															"BOUNCED",
+															"REJECTED",
+															"RENDERING_FAILURE",
+															"DELIVERED",
+															"OPENED",
+															"CLICKED",
+															"COMPLAINED",
+															"FAILED",
+															"CANCELLED",
+															"SUPPRESSED"
+														]
+													},
+													"createdAt": { "type": "string" },
+													"data": { "nullable": true }
+												},
+												"required": ["emailId", "status", "createdAt"]
+											}
+										}
+									},
+									"required": [
+										"id",
+										"teamId",
+										"to",
+										"from",
+										"subject",
+										"html",
+										"text",
+										"createdAt",
+										"updatedAt",
+										"emailEvents"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "emailId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"scheduledAt": { "type": "string", "format": "date-time" }
+								},
+								"required": ["scheduledAt"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Retrieve the user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "emailId": { "type": "string" } }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/emails": {
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "default": "1", "example": "1" },
+						"required": false,
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"schema": { "type": "string", "default": "50", "example": "50" },
+						"required": false,
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"format": "date-time",
+							"example": "2024-01-01T00:00:00Z"
+						},
+						"required": false,
+						"name": "startDate",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"format": "date-time",
+							"example": "2024-01-31T23:59:59Z"
+						},
+						"required": false,
+						"name": "endDate",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"anyOf": [
+								{ "type": "string" },
+								{ "type": "array", "items": { "type": "string" } }
+							],
+							"example": "123"
+						},
+						"required": false,
+						"name": "domainId",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve a list of emails",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": { "type": "string" },
+													"to": {
+														"anyOf": [
+															{ "type": "string" },
+															{ "type": "array", "items": { "type": "string" } }
+														]
+													},
+													"replyTo": {
+														"anyOf": [
+															{ "type": "string" },
+															{
+																"type": "array",
+																"items": { "type": "string" }
+															},
+															{ "nullable": true }
+														]
+													},
+													"cc": {
+														"anyOf": [
+															{ "type": "string" },
+															{
+																"type": "array",
+																"items": { "type": "string" }
+															},
+															{ "nullable": true }
+														]
+													},
+													"bcc": {
+														"anyOf": [
+															{ "type": "string" },
+															{
+																"type": "array",
+																"items": { "type": "string" }
+															},
+															{ "nullable": true }
+														]
+													},
+													"from": { "type": "string" },
+													"subject": { "type": "string" },
+													"html": { "type": "string", "nullable": true },
+													"text": { "type": "string", "nullable": true },
+													"createdAt": { "type": "string" },
+													"updatedAt": { "type": "string" },
+													"latestStatus": {
+														"type": "string",
+														"nullable": true,
+														"enum": [
+															"SCHEDULED",
+															"QUEUED",
+															"SENT",
+															"DELIVERY_DELAYED",
+															"BOUNCED",
+															"REJECTED",
+															"RENDERING_FAILURE",
+															"DELIVERED",
+															"OPENED",
+															"CLICKED",
+															"COMPLAINED",
+															"FAILED",
+															"CANCELLED",
+															"SUPPRESSED"
+														]
+													},
+													"scheduledAt": {
+														"type": "string",
+														"nullable": true,
+														"format": "date-time"
+													},
+													"domainId": { "type": "number", "nullable": true }
+												},
+												"required": [
+													"id",
+													"to",
+													"from",
+													"subject",
+													"html",
+													"text",
+													"createdAt",
+													"updatedAt",
+													"latestStatus",
+													"scheduledAt",
+													"domainId"
+												]
+											}
+										},
+										"count": { "type": "number" }
+									},
+									"required": ["data", "count"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256,
+							"description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
+						},
+						"required": false,
+						"name": "Idempotency-Key",
+						"in": "header"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"to": {
+										"anyOf": [
+											{ "type": "string" },
+											{ "type": "array", "items": { "type": "string" } }
+										]
+									},
+									"from": { "type": "string" },
+									"subject": {
+										"type": "string",
+										"minLength": 1,
+										"description": "Optional when templateId is provided"
+									},
+									"templateId": {
+										"type": "string",
+										"description": "ID of a template from the dashboard"
+									},
+									"variables": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									},
+									"replyTo": {
+										"anyOf": [
+											{ "type": "string" },
+											{ "type": "array", "items": { "type": "string" } }
+										]
+									},
+									"cc": {
+										"anyOf": [
+											{ "type": "string" },
+											{ "type": "array", "items": { "type": "string" } }
+										]
+									},
+									"bcc": {
+										"anyOf": [
+											{ "type": "string" },
+											{ "type": "array", "items": { "type": "string" } }
+										]
+									},
+									"text": {
+										"type": "string",
+										"nullable": true,
+										"minLength": 1
+									},
+									"html": {
+										"type": "string",
+										"nullable": true,
+										"minLength": 1
+									},
+									"headers": {
+										"type": "object",
+										"additionalProperties": {
+											"type": "string",
+											"minLength": 1
+										},
+										"description": "Custom headers to included with the emails"
+									},
+									"attachments": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"properties": {
+												"filename": { "type": "string", "minLength": 1 },
+												"content": { "type": "string", "minLength": 1 }
+											},
+											"required": ["filename", "content"]
+										},
+										"maxItems": 10
+									},
+									"scheduledAt": { "type": "string", "format": "date-time" },
+									"inReplyToId": { "type": "string", "nullable": true }
+								},
+								"required": ["to", "from"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Retrieve the user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "emailId": { "type": "string" } }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/emails/batch": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256,
+							"description": "Pass the optional Idempotency-Key header to make the request safe to retry. The key can be up to 256 characters. The server stores the canonical request body and behaves as follows:\n\n- Same key + same request body → returns the original emailId with 200 OK without re-sending.\n- Same key + different request body → returns 409 Conflict with code: NOT_UNIQUE so you can detect the mismatch.\n- Same key while another request is still being processed → returns 409 Conflict; retry after a short delay or once the first request completes.\n\nEntries expire after 24 hours. Use a unique key per logical send (for example, an order or signup ID)."
+						},
+						"required": false,
+						"name": "Idempotency-Key",
+						"in": "header"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"to": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"from": { "type": "string" },
+										"subject": {
+											"type": "string",
+											"minLength": 1,
+											"description": "Optional when templateId is provided"
+										},
+										"templateId": {
+											"type": "string",
+											"description": "ID of a template from the dashboard"
+										},
+										"variables": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"replyTo": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"cc": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"bcc": {
+											"anyOf": [
+												{ "type": "string" },
+												{ "type": "array", "items": { "type": "string" } }
+											]
+										},
+										"text": {
+											"type": "string",
+											"nullable": true,
+											"minLength": 1
+										},
+										"html": {
+											"type": "string",
+											"nullable": true,
+											"minLength": 1
+										},
+										"headers": {
+											"type": "object",
+											"additionalProperties": {
+												"type": "string",
+												"minLength": 1
+											},
+											"description": "Custom headers to included with the emails"
+										},
+										"attachments": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"filename": { "type": "string", "minLength": 1 },
+													"content": { "type": "string", "minLength": 1 }
+												},
+												"required": ["filename", "content"]
+											},
+											"maxItems": 10
+										},
+										"scheduledAt": { "type": "string", "format": "date-time" },
+										"inReplyToId": { "type": "string", "nullable": true }
+									},
+									"required": ["to", "from"]
+								},
+								"maxItems": 100
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "List of successfully created email IDs",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": { "emailId": { "type": "string" } },
+												"required": ["emailId"]
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/emails/{emailId}/cancel": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "emailId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "emailId": { "type": "string" } }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/contactBooks": {
+			"get": {
+				"responses": {
+					"200": {
+						"description": "Retrieve contact books accessible by the API key",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string",
+												"description": "The ID of the contact book",
+												"example": "clx1234567890"
+											},
+											"name": {
+												"type": "string",
+												"description": "The name of the contact book",
+												"example": "Newsletter Subscribers"
+											},
+											"teamId": {
+												"type": "number",
+												"description": "The ID of the team",
+												"example": 1
+											},
+											"properties": {
+												"type": "object",
+												"additionalProperties": { "type": "string" },
+												"description": "Custom properties for the contact book",
+												"example": { "customField1": "value1" }
+											},
+											"emoji": {
+												"type": "string",
+												"description": "The emoji associated with the contact book",
+												"example": "📙"
+											},
+											"createdAt": {
+												"type": "string",
+												"description": "The creation timestamp"
+											},
+											"updatedAt": {
+												"type": "string",
+												"description": "The last update timestamp"
+											},
+											"_count": {
+												"type": "object",
+												"properties": {
+													"contacts": {
+														"type": "number",
+														"description": "The number of contacts in the contact book"
+													}
+												}
+											}
+										},
+										"required": [
+											"id",
+											"name",
+											"teamId",
+											"properties",
+											"emoji",
+											"createdAt",
+											"updatedAt"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string", "minLength": 1 },
+									"emoji": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									}
+								},
+								"required": ["name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Create a new contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" }
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/contactBooks/{contactBookId}": {
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" },
+										"_count": {
+											"type": "object",
+											"properties": {
+												"contacts": { "type": "number" }
+											}
+										}
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string", "minLength": 1 },
+									"emoji": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Update the contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"teamId": { "type": "number" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"emoji": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" }
+									},
+									"required": [
+										"id",
+										"name",
+										"teamId",
+										"properties",
+										"emoji",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "clx1234567890" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Contact book deleted successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"success": { "type": "boolean" },
+										"message": { "type": "string" }
+									},
+									"required": ["id", "success", "message"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/contactBooks/{contactBookId}/contacts": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"email": { "type": "string" },
+									"firstName": { "type": "string" },
+									"lastName": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									},
+									"subscribed": { "type": "boolean" }
+								},
+								"required": ["email"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Retrieve the user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "contactId": { "type": "string" } }
+								}
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					},
+					{
+						"schema": { "type": "string" },
+						"required": false,
+						"name": "emails",
+						"in": "query"
+					},
+					{
+						"schema": { "type": "number" },
+						"required": false,
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"schema": { "type": "number" },
+						"required": false,
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"schema": { "type": "string" },
+						"required": false,
+						"name": "ids",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve multiple contacts",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": { "type": "string" },
+											"firstName": { "type": "string", "nullable": true },
+											"lastName": { "type": "string", "nullable": true },
+											"email": { "type": "string" },
+											"subscribed": { "type": "boolean", "default": true },
+											"properties": {
+												"type": "object",
+												"additionalProperties": { "type": "string" }
+											},
+											"contactBookId": { "type": "string" },
+											"createdAt": { "type": "string" },
+											"updatedAt": { "type": "string" }
+										},
+										"required": [
+											"id",
+											"email",
+											"properties",
+											"contactBookId",
+											"createdAt",
+											"updatedAt"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
+			"patch": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					},
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"firstName": { "type": "string" },
+									"lastName": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									},
+									"subscribed": { "type": "boolean" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Retrieve the user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "contactId": { "type": "string" } }
+								}
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					},
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve the contact",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"firstName": { "type": "string", "nullable": true },
+										"lastName": { "type": "string", "nullable": true },
+										"email": { "type": "string" },
+										"subscribed": { "type": "boolean", "default": true },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"contactBookId": { "type": "string" },
+										"createdAt": { "type": "string" },
+										"updatedAt": { "type": "string" }
+									},
+									"required": [
+										"id",
+										"email",
+										"properties",
+										"contactBookId",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"email": { "type": "string" },
+									"firstName": { "type": "string" },
+									"lastName": { "type": "string" },
+									"properties": {
+										"type": "object",
+										"additionalProperties": { "type": "string" }
+									},
+									"subscribed": { "type": "boolean" }
+								},
+								"required": ["email"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Contact upserted successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "contactId": { "type": "string" } },
+									"required": ["contactId"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"parameters": [
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					},
+					{
+						"schema": { "type": "string", "example": "cuiwqdj74rygf74" },
+						"required": true,
+						"name": "contactId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Contact deleted successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "success": { "type": "boolean" } },
+									"required": ["success"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/campaigns": {
+			"post": {
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string", "minLength": 1 },
+									"from": { "type": "string", "minLength": 1 },
+									"subject": { "type": "string", "minLength": 1 },
+									"previewText": { "type": "string" },
+									"contactBookId": { "type": "string", "minLength": 1 },
+									"content": { "type": "string", "minLength": 1 },
+									"html": { "type": "string", "minLength": 1 },
+									"replyTo": {
+										"anyOf": [
+											{ "type": "string", "minLength": 1 },
+											{
+												"type": "array",
+												"items": { "type": "string", "minLength": 1 }
+											}
+										]
+									},
+									"cc": {
+										"anyOf": [
+											{ "type": "string", "minLength": 1 },
+											{
+												"type": "array",
+												"items": { "type": "string", "minLength": 1 }
+											}
+										]
+									},
+									"bcc": {
+										"anyOf": [
+											{ "type": "string", "minLength": 1 },
+											{
+												"type": "array",
+												"items": { "type": "string", "minLength": 1 }
+											}
+										]
+									},
+									"sendNow": { "type": "boolean" },
+									"scheduledAt": {
+										"type": "string",
+										"description": "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+									},
+									"batchSize": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 100000
+									}
+								},
+								"required": ["name", "from", "subject", "contactBookId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Create a campaign",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"from": { "type": "string" },
+										"subject": { "type": "string" },
+										"previewText": { "type": "string", "nullable": true },
+										"contactBookId": { "type": "string", "nullable": true },
+										"html": { "type": "string", "nullable": true },
+										"content": { "type": "string", "nullable": true },
+										"status": { "type": "string" },
+										"scheduledAt": {
+											"type": "string",
+											"nullable": true,
+											"format": "date-time"
+										},
+										"batchSize": { "type": "integer" },
+										"batchWindowMinutes": { "type": "integer" },
+										"total": { "type": "integer" },
+										"sent": { "type": "integer" },
+										"delivered": { "type": "integer" },
+										"opened": { "type": "integer" },
+										"clicked": { "type": "integer" },
+										"unsubscribed": { "type": "integer" },
+										"bounced": { "type": "integer" },
+										"hardBounced": { "type": "integer" },
+										"complained": { "type": "integer" },
+										"replyTo": {
+											"type": "array",
+											"items": { "type": "string" }
+										},
+										"cc": { "type": "array", "items": { "type": "string" } },
+										"bcc": { "type": "array", "items": { "type": "string" } },
+										"createdAt": { "type": "string", "format": "date-time" },
+										"updatedAt": { "type": "string", "format": "date-time" }
+									},
+									"required": [
+										"id",
+										"name",
+										"from",
+										"subject",
+										"previewText",
+										"contactBookId",
+										"html",
+										"content",
+										"status",
+										"scheduledAt",
+										"batchSize",
+										"batchWindowMinutes",
+										"total",
+										"sent",
+										"delivered",
+										"opened",
+										"clicked",
+										"unsubscribed",
+										"bounced",
+										"hardBounced",
+										"complained",
+										"replyTo",
+										"cc",
+										"bcc",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/campaigns/{campaignId}": {
+			"get": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"example": "cmp_123"
+						},
+						"required": true,
+						"name": "campaignId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Get campaign details",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"from": { "type": "string" },
+										"subject": { "type": "string" },
+										"previewText": { "type": "string", "nullable": true },
+										"contactBookId": { "type": "string", "nullable": true },
+										"html": { "type": "string", "nullable": true },
+										"content": { "type": "string", "nullable": true },
+										"status": { "type": "string" },
+										"scheduledAt": {
+											"type": "string",
+											"nullable": true,
+											"format": "date-time"
+										},
+										"batchSize": { "type": "integer" },
+										"batchWindowMinutes": { "type": "integer" },
+										"total": { "type": "integer" },
+										"sent": { "type": "integer" },
+										"delivered": { "type": "integer" },
+										"opened": { "type": "integer" },
+										"clicked": { "type": "integer" },
+										"unsubscribed": { "type": "integer" },
+										"bounced": { "type": "integer" },
+										"hardBounced": { "type": "integer" },
+										"complained": { "type": "integer" },
+										"replyTo": {
+											"type": "array",
+											"items": { "type": "string" }
+										},
+										"cc": { "type": "array", "items": { "type": "string" } },
+										"bcc": { "type": "array", "items": { "type": "string" } },
+										"createdAt": { "type": "string", "format": "date-time" },
+										"updatedAt": { "type": "string", "format": "date-time" }
+									},
+									"required": [
+										"id",
+										"name",
+										"from",
+										"subject",
+										"previewText",
+										"contactBookId",
+										"html",
+										"content",
+										"status",
+										"scheduledAt",
+										"batchSize",
+										"batchWindowMinutes",
+										"total",
+										"sent",
+										"delivered",
+										"opened",
+										"clicked",
+										"unsubscribed",
+										"bounced",
+										"hardBounced",
+										"complained",
+										"replyTo",
+										"cc",
+										"bcc",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/campaigns/{campaignId}/schedule": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"example": "cmp_123"
+						},
+						"required": true,
+						"name": "campaignId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"scheduledAt": {
+										"type": "string",
+										"description": "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+									},
+									"batchSize": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 100000
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Schedule a campaign",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "success": { "type": "boolean" } },
+									"required": ["success"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/campaigns/{campaignId}/pause": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"example": "cmp_123"
+						},
+						"required": true,
+						"name": "campaignId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Pause a campaign",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "success": { "type": "boolean" } },
+									"required": ["success"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/campaigns/{campaignId}/resume": {
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1,
+							"example": "cmp_123"
+						},
+						"required": true,
+						"name": "campaignId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Resume a campaign",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "success": { "type": "boolean" } },
+									"required": ["success"]
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }

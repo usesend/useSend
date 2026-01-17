@@ -65,6 +65,16 @@
 						]
 					},
 					{
+						"group": "Contact Books",
+						"pages": [
+							"api-reference/contacts/list-contact-books",
+							"api-reference/contacts/get-contact-book",
+							"api-reference/contacts/create-contact-book",
+							"api-reference/contacts/update-contact-book",
+							"api-reference/contacts/delete-contact-book"
+						]
+					},
+					{
 						"group": "Contacts",
 						"pages": [
 							"api-reference/contacts/get-contact",

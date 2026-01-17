@@ -22,6 +22,11 @@ import getCampaigns from "./api/campaigns/get-campaigns";
 import scheduleCampaign from "./api/campaigns/schedule-campaign";
 import pauseCampaign from "./api/campaigns/pause-campaign";
 import resumeCampaign from "./api/campaigns/resume-campaign";
+import getContactBooks from "./api/contacts/get-contact-books";
+import createContactBook from "./api/contacts/create-contact-book";
+import getContactBook from "./api/contacts/get-contact-book";
+import updateContactBook from "./api/contacts/update-contact-book";
+import deleteContactBook from "./api/contacts/delete-contact-book";
 
 export const app = getApp();
 
@@ -47,6 +52,13 @@ getContact(app);
 getContacts(app);
 upsertContact(app);
 deleteContact(app);
+
+/**Contact Book related APIs */
+getContactBooks(app);
+createContactBook(app);
+getContactBook(app);
+updateContactBook(app);
+deleteContactBook(app);
 
 /**Campaign related APIs */
 createCampaign(app);
