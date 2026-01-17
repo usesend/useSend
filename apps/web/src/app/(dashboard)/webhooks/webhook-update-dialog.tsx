@@ -34,8 +34,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@usesend/ui/src/dropdown-menu";
 import { toast } from "@usesend/ui/src/toaster";
@@ -58,9 +56,9 @@ const eventGroups: {
   label: string;
   events: readonly WebhookEventType[];
 }[] = [
-  { label: "Email events", events: EmailEvents },
-  { label: "Domain events", events: DomainEvents },
   { label: "Contact events", events: ContactEvents },
+  { label: "Domain events", events: DomainEvents },
+  { label: "Email events", events: EmailEvents },
 ];
 
 export function EditWebhookDialog({
@@ -256,47 +254,51 @@ export function EditWebhookDialog({
                               <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent className="w-80">
-                            <DropdownMenuLabel>
-                              Webhook events
-                            </DropdownMenuLabel>
-                            <DropdownMenuCheckboxItem
-                              checked={allEventsSelected}
-                              onCheckedChange={(checked) =>
-                                handleToggleAll(Boolean(checked))
-                              }
-                            >
-                              Select all events
-                            </DropdownMenuCheckboxItem>
-                            <DropdownMenuSeparator />
-                            {eventGroups.map((group) => (
-                              <div key={group.label}>
-                                <DropdownMenuCheckboxItem
-                                  checked={isGroupFullySelected(group.events)}
-                                  onCheckedChange={() =>
-                                    handleToggleGroup(group.events)
-                                  }
-                                >
-                                  {group.label}
-                                </DropdownMenuCheckboxItem>
-                                <DropdownMenuSeparator />
-                                {group.events.map((event) => (
+                          <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] h-[30vh]">
+                            <div className="space-y-3">
+                              <DropdownMenuCheckboxItem
+                                checked={allEventsSelected}
+                                onCheckedChange={(checked) =>
+                                  handleToggleAll(Boolean(checked))
+                                }
+                                onSelect={(event) => event.preventDefault()}
+                                className="font-medium mb-2 px-2"
+                              >
+                                All events
+                              </DropdownMenuCheckboxItem>
+                              {eventGroups.map((group) => (
+                                <div key={group.label} className="">
                                   <DropdownMenuCheckboxItem
-                                    key={event}
-                                    checked={
-                                      allEventsSelected ||
-                                      selectedEvents.includes(event)
-                                    }
+                                    checked={isGroupFullySelected(group.events)}
                                     onCheckedChange={() =>
-                                      handleToggleEvent(event)
+                                      handleToggleGroup(group.events)
                                     }
+                                    onSelect={(event) => event.preventDefault()}
+                                    className="px-2 text-xs font-semibold text-muted-foreground"
                                   >
-                                    {event}
+                                    {group.label}
                                   </DropdownMenuCheckboxItem>
-                                ))}
-                                <DropdownMenuSeparator />
-                              </div>
-                            ))}
+                                  {group.events.map((event) => (
+                                    <DropdownMenuCheckboxItem
+                                      key={event}
+                                      checked={
+                                        allEventsSelected ||
+                                        selectedEvents.includes(event)
+                                      }
+                                      onCheckedChange={() =>
+                                        handleToggleEvent(event)
+                                      }
+                                      onSelect={(event) =>
+                                        event.preventDefault()
+                                      }
+                                      className="pl-3 pr-2 font-mono"
+                                    >
+                                      {event}
+                                    </DropdownMenuCheckboxItem>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </FormControl>
