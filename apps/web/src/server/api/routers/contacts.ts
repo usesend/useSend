@@ -1,4 +1,5 @@
 import { CampaignStatus, Prisma } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import {
@@ -151,15 +152,40 @@ export const contactsRouter = createTRPCRouter({
         subscribed: z.boolean().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx: { contactBook }, input }) => {
       const { contactId, ...contact } = input;
-      return contactService.updateContact(contactId, contact);
+      const updatedContact = await contactService.updateContactInContactBook(
+        contactId,
+        contactBook.id,
+        contact,
+      );
+
+      if (!updatedContact) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Contact not found",
+        });
+      }
+
+      return updatedContact;
     }),
 
   deleteContact: contactBookProcedure
     .input(z.object({ contactId: z.string() }))
-    .mutation(async ({ input }) => {
-      return contactService.deleteContact(input.contactId);
+    .mutation(async ({ ctx: { contactBook }, input }) => {
+      const deletedContact = await contactService.deleteContactInContactBook(
+        input.contactId,
+        contactBook.id,
+      );
+
+      if (!deletedContact) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Contact not found",
+        });
+      }
+
+      return deletedContact;
     }),
 
   exportContacts: contactBookProcedure
