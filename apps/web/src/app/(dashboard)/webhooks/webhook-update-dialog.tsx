@@ -118,6 +118,7 @@ export function EditWebhookDialog({
       {
         onSuccess: async () => {
           await utils.webhook.list.invalidate();
+          await utils.webhook.getById.invalidate({ id: webhook.id });
           toast.success("Webhook updated");
           onOpenChange(false);
         },
