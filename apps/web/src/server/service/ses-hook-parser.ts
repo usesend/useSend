@@ -115,44 +115,69 @@ export async function parseSesHook(data: SesEvent) {
     mailStatus === EmailStatus.BOUNCED &&
     (mailData as SesBounce).bounceType === "Permanent";
 
+  // Fix: Only add the actual bounced/complained recipients to suppression list
   // Add emails to suppression list for hard bounces and complaints
   if (isHardBounced || mailStatus === EmailStatus.COMPLAINED) {
     logger.info("Adding emails to suppression list");
 
-    const recipientEmails = Array.isArray(email.to) ? email.to : [email.to];
-
-    try {
-      await Promise.all(
-        recipientEmails.map((recipientEmail) =>
-          SuppressionService.addSuppression({
-            email: recipientEmail,
-            teamId: email.teamId,
-            reason: isHardBounced
-              ? SuppressionReason.HARD_BOUNCE
-              : SuppressionReason.COMPLAINT,
-            source: email.id,
-          }),
-        ),
+    // Get the actual affected recipients from the event data
+    let recipientEmails: string[] = [];
+    
+    if (isHardBounced && data.bounce?.bouncedRecipients) {
+      // For bounces, only add the recipients that actually bounced
+      recipientEmails = data.bounce.bouncedRecipients.map(
+        (recipient) => recipient.emailAddress
       );
+    } else if (mailStatus === EmailStatus.COMPLAINED && data.complaint?.complainedRecipients) {
+      // For complaints, only add the recipients that actually complained
+      recipientEmails = data.complaint.complainedRecipients.map(
+        (recipient) => recipient.emailAddress
+      );
+    }
 
-      logger.info(
+    // Only proceed if we have affected recipients
+    if (recipientEmails.length > 0) {
+      try {
+        await Promise.all(
+          recipientEmails.map((recipientEmail) =>
+            SuppressionService.addSuppression({
+              email: recipientEmail,
+              teamId: email.teamId,
+              reason: isHardBounced
+                ? SuppressionReason.HARD_BOUNCE
+                : SuppressionReason.COMPLAINT,
+              source: email.id,
+            }),
+          ),
+        );
+
+        logger.info(
+          {
+            emailId: email.id,
+            recipients: recipientEmails,
+            reason: isHardBounced ? "HARD_BOUNCE" : "COMPLAINT",
+          },
+          "Added emails to suppression list due to bounce/complaint",
+        );
+      } catch (error) {
+        logger.error(
+          {
+            emailId: email.id,
+            recipients: recipientEmails,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+          "Failed to add emails to suppression list",
+        );
+        // Don't throw error - continue processing the webhook
+      }
+    } else {
+      logger.warn(
         {
           emailId: email.id,
-          recipients: recipientEmails,
-          reason: isHardBounced ? "HARD_BOUNCE" : "COMPLAINT",
+          eventType: data.eventType,
         },
-        "Added emails to suppression list due to bounce/complaint",
+        "No affected recipients found in bounce/complaint event data",
       );
-    } catch (error) {
-      logger.error(
-        {
-          emailId: email.id,
-          recipients: recipientEmails,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
-        "Failed to add emails to suppression list",
-      );
-      // Don't throw error - continue processing the webhook
     }
   }
 
