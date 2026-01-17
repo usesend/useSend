@@ -4,6 +4,7 @@ import { createHmac, randomUUID, randomBytes } from "crypto";
 import {
   WebhookEventData,
   WebhookPayloadData,
+  WEBHOOK_EVENT_VERSION,
   type WebhookEvent,
   type WebhookEventPayloadMap,
   type WebhookEventType,
@@ -27,7 +28,6 @@ const WEBHOOK_LOCK_RETRY_DELAY_MS = 2_000;
 const WEBHOOK_AUTO_DISABLE_THRESHOLD = 30;
 const WEBHOOK_REQUEST_TIMEOUT_MS = 10_000;
 const WEBHOOK_RESPONSE_TEXT_LIMIT = 4_096;
-const WEBHOOK_EVENT_VERSION = "2024-11-01";
 
 type WebhookCallJobData = {
   callId: string;

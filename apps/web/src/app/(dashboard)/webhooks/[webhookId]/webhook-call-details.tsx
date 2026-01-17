@@ -6,10 +6,9 @@ import { Button } from "@usesend/ui/src/button";
 import { api } from "~/trpc/react";
 import { toast } from "@usesend/ui/src/toaster";
 import { WebhookCallStatusBadge } from "../webhook-call-status-badge";
+import { WEBHOOK_EVENT_VERSION } from "@usesend/lib/src/webhook/webhook-events";
 
 import { CodeDisplay } from "~/components/code-display";
-
-const WEBHOOK_EVENT_VERSION = "2024-11-01";
 
 export function WebhookCallDetails({ callId }: { callId: string }) {
   const callQuery = api.webhook.getCall.useQuery({ id: callId });

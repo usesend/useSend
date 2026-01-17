@@ -11,7 +11,7 @@ import {
 import Spinner from "@usesend/ui/src/spinner";
 import { api } from "~/trpc/react";
 import { formatDistanceToNow } from "date-fns";
-import { Edit3, MoreVertical, Pause, Play, Trash2 } from "lucide-react";
+import { Edit3, MoreVertical, Pause, Play } from "lucide-react";
 import { Button } from "@usesend/ui/src/button";
 import { toast } from "@usesend/ui/src/toaster";
 import { DeleteWebhook } from "./delete-webhook";

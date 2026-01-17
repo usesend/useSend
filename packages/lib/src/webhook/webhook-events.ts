@@ -33,10 +33,15 @@ export const EmailEvents = [
 
 export type EmailWebhookEventType = (typeof EmailEvents)[number];
 
+export const WebhookTestEvents = ["webhook.test"] as const;
+
+export type WebhookTestEventType = (typeof WebhookTestEvents)[number];
+
 export const WebhookEvents = [
   ...ContactEvents,
   ...DomainEvents,
   ...EmailEvents,
+  ...WebhookTestEvents,
 ] as const;
 
 export type WebhookEventType = (typeof WebhookEvents)[number];
@@ -148,6 +153,12 @@ export type EmailClickedPayload = EmailBasePayload & {
   };
 };
 
+export type WebhookTestPayload = {
+  test: boolean;
+  webhookId: string;
+  sentAt: string;
+};
+
 export type EmailEventPayloadMap = {
   "email.queued": EmailBasePayload;
   "email.sent": EmailBasePayload;
@@ -177,9 +188,14 @@ export type ContactEventPayloadMap = {
   "contact.deleted": ContactPayload;
 };
 
+export type WebhookTestEventPayloadMap = {
+  "webhook.test": WebhookTestPayload;
+};
+
 export type WebhookEventPayloadMap = EmailEventPayloadMap &
   DomainEventPayloadMap &
-  ContactEventPayloadMap;
+  ContactEventPayloadMap &
+  WebhookTestEventPayloadMap;
 
 export type WebhookPayloadData<TType extends WebhookEventType> =
   WebhookEventPayloadMap[TType];
@@ -194,3 +210,5 @@ export type WebhookEvent<TType extends WebhookEventType> = {
 export type WebhookEventData = {
   [T in WebhookEventType]: WebhookEvent<T>;
 }[WebhookEventType];
+
+export const WEBHOOK_EVENT_VERSION = "2026-01-18";
