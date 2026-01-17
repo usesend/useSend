@@ -63,10 +63,32 @@ export async function addOrUpdateContact(
   return createdContact;
 }
 
-export async function updateContact(
+export async function getContactInContactBook(
   contactId: string,
+  contactBookId: string,
+) {
+  return db.contact.findFirst({
+    where: {
+      id: contactId,
+      contactBookId,
+    },
+  });
+}
+
+export async function updateContactInContactBook(
+  contactId: string,
+  contactBookId: string,
   contact: Partial<ContactInput>,
 ) {
+  const existingContact = await getContactInContactBook(
+    contactId,
+    contactBookId,
+  );
+
+  if (!existingContact) {
+    return null;
+  }
+
   return db.contact.update({
     where: {
       id: contactId,
@@ -75,7 +97,19 @@ export async function updateContact(
   });
 }
 
-export async function deleteContact(contactId: string) {
+export async function deleteContactInContactBook(
+  contactId: string,
+  contactBookId: string,
+) {
+  const existingContact = await getContactInContactBook(
+    contactId,
+    contactBookId,
+  );
+
+  if (!existingContact) {
+    return null;
+  }
+
   return db.contact.delete({
     where: {
       id: contactId,

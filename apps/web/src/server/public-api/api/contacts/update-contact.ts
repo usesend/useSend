@@ -1,8 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { getTeamFromToken } from "~/server/public-api/auth";
-import { updateContact } from "~/server/service/contact-service";
+import { updateContactInContactBook } from "~/server/service/contact-service";
 import { getContactBook } from "../../api-utils";
+import { UnsendApiError } from "../../api-error";
 
 const route = createRoute({
   method: "patch",
@@ -54,10 +54,21 @@ function updateContactInfo(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
 
-    await getContactBook(c, team.id);
+    const contactBook = await getContactBook(c, team.id);
     const contactId = c.req.param("contactId");
 
-    const contact = await updateContact(contactId, c.req.valid("json"));
+    const contact = await updateContactInContactBook(
+      contactId,
+      contactBook.id,
+      c.req.valid("json"),
+    );
+
+    if (!contact) {
+      throw new UnsendApiError({
+        code: "NOT_FOUND",
+        message: "Contact not found",
+      });
+    }
 
     return c.json({ contactId: contact.id });
   });
