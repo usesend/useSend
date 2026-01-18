@@ -9,7 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint . --max-warnings 0",
     "build": "tsup",
-    "publish-sdk": "pnpm run build && pnpm publish --no-git-checks",
+    "publish-sdk": "pnpm run build && npm publish --no-git-checks",
     "openapi-typegen": "openapi-typescript ../../apps/docs/api-reference/openapi.json -o types/schema.d.ts"
   },
   "keywords": [],
