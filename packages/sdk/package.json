@@ -1,6 +1,6 @@
 {
   "name": "usesend-js",
-  "version": "1.5.7",
+  "version": "1.6.0",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -8,7 +8,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint . --max-warnings 0",
-    "build": "rm -rf dist && tsup index.ts --format esm,cjs --dts --noExternal @usesend/lib",
+    "build": "tsup",
     "publish-sdk": "pnpm run build && pnpm publish --no-git-checks",
     "openapi-typegen": "openapi-typescript ../../apps/docs/api-reference/openapi.json -o types/schema.d.ts"
   },
