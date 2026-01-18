@@ -121,16 +121,17 @@ await usesend.campaigns.resume(campaign.data.id);
 Verify webhook signatures and get typed events:
 
 ```ts
-import { constructEvent } from "usesend";
+import { UseSend } from "usesend";
+
+const usesend = new UseSend("us_12345");
+const webhooks = usesend.webhooks(process.env.USESEND_WEBHOOK_SECRET!);
 
 // In a Next.js App Route
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text(); // important: raw body, not parsed JSON
-    const event = constructEvent({
-      secret: process.env.USESEND_WEBHOOK_SECRET!,
+    const event = webhooks.constructEvent(rawBody, {
       headers: request.headers,
-      rawBody,
     });
 
     if (event.type === "email.delivered") {
@@ -144,32 +145,38 @@ export async function POST(request: Request) {
 }
 ```
 
-Need only signature verification? You can call it directly:
+You can also use the `Webhooks` class directly:
 
 ```ts
-import { verifyWebhookSignature } from "usesend";
+import { Webhooks } from "usesend";
 
-verifyWebhookSignature({
-  secret: process.env.USESEND_WEBHOOK_SECRET!,
-  rawBody,
-  signatureHeader: request.headers.get("X-UseSend-Signature"),
-  timestampHeader: request.headers.get("X-UseSend-Timestamp"),
-});
+const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+const event = webhooks.constructEvent(rawBody, { headers: request.headers });
+```
+
+Need only signature verification? Use the `verify` method:
+
+```ts
+const isValid = webhooks.verify(rawBody, { headers: request.headers });
+
+if (!isValid) {
+  return new Response("Invalid signature", { status: 401 });
+}
 ```
 
 Express example (ensure raw body is preserved):
 
 ```ts
 import express from "express";
-import { constructEvent } from "usesend";
+import { Webhooks } from "usesend";
+
+const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
 
 const app = express();
 app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
   try {
-    const event = constructEvent({
-      secret: process.env.USESEND_WEBHOOK_SECRET!,
+    const event = webhooks.constructEvent(req.body, {
       headers: req.headers,
-      rawBody: req.body,
     });
 
     if (event.type === "email.bounced") {

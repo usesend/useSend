@@ -90,7 +90,7 @@ This document explains the webhook system architecture, including how events are
 │  │  Body: {                                                                     │    │
 │  │    "id": "call_abc123",                                                      │    │
 │  │    "type": "email.delivered",                                                │    │
-│  │    "version": "2024-11-01",                                                  │    │
+│  │    "version": "2026-01-18",                                                │    │
 │  │    "createdAt": "...",                                                       │    │
 │  │    "teamId": 123,                                                            │    │
 │  │    "data": { ... event payload ... },                                        │    │
@@ -229,6 +229,9 @@ Defined in `packages/lib/src/webhook/webhook-events.ts`:
   "email.suppressed" |
   "email.opened" |
   "email.clicked";
+
+// Test events
+("webhook.test");
 ```
 
 ## Webhook Flow
@@ -299,7 +302,7 @@ The BullMQ worker (`processWebhookCall`) handles delivery:
 {
   "id": "call_abc123",           // WebhookCall ID
   "type": "email.delivered",     // Event type
-  "version": "2024-11-01",       // API version
+  "version": "2026-01-18",       // API version
   "createdAt": "2024-01-15T10:30:00Z",
   "teamId": 123,
   "data": {                      // Original event data nested here
@@ -373,7 +376,7 @@ PENDING → IN_PROGRESS → DELIVERED (success)
 Located in `packages/sdk/src/webhooks.ts`:
 
 ```typescript
-import { UseSend } from "@usesend/sdk";
+import { UseSend } from "usesend";
 
 const usesend = new UseSend("us_api_key");
 const webhooks = usesend.webhooks("whsec_your_secret");
@@ -417,7 +420,7 @@ const WEBHOOK_LOCK_RETRY_DELAY_MS = 2_000; // Lock retry delay
 const WEBHOOK_AUTO_DISABLE_THRESHOLD = 30; // Failures before disable
 const WEBHOOK_REQUEST_TIMEOUT_MS = 10_000; // HTTP timeout
 const WEBHOOK_RESPONSE_TEXT_LIMIT = 4_096; // Max response body stored
-const WEBHOOK_EVENT_VERSION = "2024-11-01"; // Default API version
+const WEBHOOK_EVENT_VERSION = "2026-01-18"; // Default API version
 ```
 
 ## Plan Limits

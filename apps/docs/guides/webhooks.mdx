@@ -1,0 +1,486 @@
+---
+title: Webhooks
+description: "Receive real-time notifications when events occur in your useSend account"
+---
+
+## Overview
+
+Webhooks allow you to receive HTTP POST requests to your server when events occur in useSend, such as when an email is delivered, bounced, or clicked. This enables you to build real-time integrations and automate workflows.
+
+## Setting up webhooks
+
+<Steps>
+  <Step title="Create a webhook endpoint">
+    Create an endpoint on your server that can receive POST requests. The endpoint must:
+
+    - Accept POST requests with JSON body
+    - Return a 2xx status code to acknowledge receipt
+    - Respond within 10 seconds
+
+  </Step>
+  <Step title="Add webhook in dashboard">
+    Go to [Webhooks](https://app.usesend.com/webhooks) in your useSend dashboard and create a new webhook:
+
+    - Enter your endpoint URL
+    - Select which events you want to receive
+    - Copy the signing secret for verification
+
+  </Step>
+  <Step title="Verify webhook signatures">
+    Always verify webhook signatures to ensure requests are from useSend. See the [Signature Verification](#signature-verification) section below.
+  </Step>
+</Steps>
+
+## Event types
+
+### Email events
+
+| Event                    | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `email.queued`           | Email has been queued for sending                    |
+| `email.sent`             | Email has been sent to the recipient's mail server   |
+| `email.delivered`        | Email was successfully delivered                     |
+| `email.delivery_delayed` | Email delivery is being retried                      |
+| `email.bounced`          | Email bounced (permanent or temporary)               |
+| `email.rejected`         | Email was rejected                                   |
+| `email.complained`       | Recipient marked email as spam                       |
+| `email.failed`           | Email failed to send                                 |
+| `email.cancelled`        | Scheduled email was cancelled                        |
+| `email.suppressed`       | Email was suppressed (recipient on suppression list) |
+| `email.opened`           | Recipient opened the email                           |
+| `email.clicked`          | Recipient clicked a link in the email                |
+
+### Contact events
+
+| Event             | Description             |
+| ----------------- | ----------------------- |
+| `contact.created` | New contact was created |
+| `contact.updated` | Contact was updated     |
+| `contact.deleted` | Contact was deleted     |
+
+### Domain events
+
+| Event             | Description                   |
+| ----------------- | ----------------------------- |
+| `domain.created`  | New domain was added          |
+| `domain.verified` | Domain verification completed |
+| `domain.updated`  | Domain settings were updated  |
+| `domain.deleted`  | Domain was deleted            |
+
+## Webhook payload
+
+Each webhook request includes a JSON payload with the following structure. See [Event data details](#event-data-details) for details on the `data` field for each event type.
+
+```json
+{
+  "id": "call_abc123",
+  "type": "email.delivered",
+  "version": "2026-01-18",
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "teamId": 123,
+  "data": {
+    "id": "email_123",
+    "status": "DELIVERED",
+    "from": "sender@example.com",
+    "to": ["recipient@example.com"],
+    "subject": "Welcome!",
+    "occurredAt": "2024-01-15T10:30:00Z"
+  },
+  "attempt": 1
+}
+```
+
+### Payload fields
+
+| Field       | Description                                |
+| ----------- | ------------------------------------------ |
+| `id`        | Unique identifier for this webhook call    |
+| `type`      | The event type (e.g., `email.delivered`)   |
+| `version`   | API version for the payload format         |
+| `createdAt` | When the event was created                 |
+| `teamId`    | Your team ID                               |
+| `data`      | Event-specific data (varies by event type) |
+| `attempt`   | Delivery attempt number (1-6)              |
+
+## Request headers
+
+Each webhook request includes the following headers:
+
+| Header                | Description                            |
+| --------------------- | -------------------------------------- |
+| `X-UseSend-Signature` | HMAC-SHA256 signature for verification |
+| `X-UseSend-Timestamp` | Unix timestamp in milliseconds         |
+| `X-UseSend-Event`     | Event type                             |
+| `X-UseSend-Call`      | Unique webhook call ID                 |
+| `X-UseSend-Retry`     | `true` if this is a retry attempt      |
+
+## Signature verification
+
+Always verify webhook signatures to ensure requests are authentic. The signature is computed as:
+
+```
+HMAC-SHA256(secret, "${timestamp}.${rawBody}")
+```
+
+### Using the SDK (Recommended)
+
+<CodeGroup>
+```bash npm
+npm install usesend
+```
+
+```bash yarn
+yarn add usesend
+```
+
+```bash pnpm
+pnpm add usesend
+```
+
+```bash bun
+bun add usesend
+```
+
+</CodeGroup>
+
+### Next.js App Router
+
+```typescript
+import { UseSend } from "usesend";
+
+const usesend = new UseSend("us_your_api_key");
+const webhooks = usesend.webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+
+export async function POST(request: Request) {
+  try {
+    const rawBody = await request.text();
+    const event = webhooks.constructEvent(rawBody, {
+      headers: request.headers,
+    });
+
+    switch (event.type) {
+      case "email.delivered":
+        console.log("Email delivered to:", event.data.to);
+        break;
+      case "email.bounced":
+        console.log("Email bounced:", event.data.id);
+        break;
+      case "email.opened":
+        console.log("Email opened:", event.data.id);
+        break;
+    }
+
+    return new Response("ok");
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return new Response((error as Error).message, { status: 400 });
+  }
+}
+```
+
+### Express
+
+```typescript
+import express from "express";
+import { Webhooks } from "usesend";
+
+const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+
+const app = express();
+
+// Important: Use raw body parser for webhook routes
+app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  try {
+    const event = webhooks.constructEvent(req.body, {
+      headers: req.headers,
+    });
+
+    switch (event.type) {
+      case "email.delivered":
+        console.log("Email delivered to:", event.data.to);
+        break;
+      case "email.bounced":
+        console.log("Email bounced:", event.data.id);
+        break;
+    }
+
+    res.status(200).send("ok");
+  } catch (error) {
+    console.error("Webhook error:", error);
+    res.status(400).send((error as Error).message);
+  }
+});
+
+app.listen(3000);
+```
+
+### Verification only
+
+If you only need to verify the signature without parsing:
+
+```typescript
+const isValid = webhooks.verify(rawBody, { headers: request.headers });
+
+if (!isValid) {
+  return new Response("Invalid signature", { status: 401 });
+}
+```
+
+### Manual verification
+
+If you prefer to verify manually without the SDK:
+
+```typescript
+import { createHmac, timingSafeEqual } from "crypto";
+
+function verifyWebhook(
+  secret: string,
+  rawBody: string,
+  signature: string,
+  timestamp: string,
+): boolean {
+  const expectedSignature = createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex");
+
+  const expected = Buffer.from(`v1=${expectedSignature}`, "utf8");
+  const received = Buffer.from(signature, "utf8");
+
+  if (expected.length !== received.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expected, received);
+}
+
+// Usage
+const signature = request.headers.get("X-UseSend-Signature");
+const timestamp = request.headers.get("X-UseSend-Timestamp");
+
+const isValid = verifyWebhook(secret, rawBody, signature, timestamp);
+```
+
+## Retry behavior
+
+If your endpoint doesn't return a 2xx response, useSend will retry delivery with exponential backoff:
+
+| Attempt | Delay       |
+| ------- | ----------- |
+| 1       | Immediate   |
+| 2       | ~5 seconds  |
+| 3       | ~10 seconds |
+| 4       | ~20 seconds |
+| 5       | ~40 seconds |
+| 6       | ~80 seconds |
+
+After 6 failed attempts, the webhook call is marked as failed.
+
+<Warning>
+  If your webhook endpoint fails 30 consecutive times across any calls, the
+  webhook will be automatically disabled to prevent continued failures. You can
+  re-enable it from the dashboard.
+</Warning>
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Respond quickly">
+    Return a 2xx response as soon as possible. Process webhook data
+    asynchronously if needed. Requests timeout after 10 seconds.
+  </Accordion>
+  <Accordion title="Handle duplicates">
+    Use the `id` field in the payload to deduplicate events. In rare cases, the
+    same event may be delivered more than once.
+  </Accordion>
+  <Accordion title="Verify signatures">
+    Always verify the `X-UseSend-Signature` header to ensure requests are from
+    useSend and haven't been tampered with.
+  </Accordion>
+  <Accordion title="Check timestamps">
+    The SDK rejects signatures older than 5 minutes by default. This prevents
+    replay attacks.
+  </Accordion>
+  <Accordion title="Use HTTPS">
+    Always use HTTPS endpoints in production to encrypt webhook data in transit.
+  </Accordion>
+</AccordionGroup>
+
+## Testing webhooks
+
+You can send a test webhook from the dashboard to verify your endpoint is working correctly:
+
+1. Go to [Webhooks](https://app.usesend.com/webhooks)
+2. Click on your webhook
+3. Click "Send Test" to send a test event
+
+The test event will have type `webhook.test` with the following payload:
+
+```json
+{
+  "test": true,
+  "webhookId": "wh_abc123",
+  "sentAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Webhook not receiving events">
+    - Verify your endpoint URL is correct and publicly accessible - Check that
+    your endpoint returns a 2xx status code - Ensure the webhook is set to
+    ACTIVE status in the dashboard - Check if the webhook was auto-disabled due
+    to consecutive failures
+  </Accordion>
+  <Accordion title="Signature verification failing">
+    - Use the raw request body, not parsed JSON - Ensure you're using the
+    correct webhook secret - Check that the timestamp hasn't expired (5 minute
+    window) - Verify you're computing the HMAC correctly: `HMAC-SHA256(secret,
+    "${timestamp}.${rawBody}")`
+  </Accordion>
+  <Accordion title="Webhook auto-disabled">
+    After 30 consecutive failures, webhooks are automatically disabled. Fix the
+    issue with your endpoint, then re-enable the webhook from the dashboard. The
+    failure counter resets on the next successful delivery.
+  </Accordion>
+</AccordionGroup>
+
+## Event data details
+
+This section documents the `data` field structure for each event type.
+
+### Email events
+
+Most email events share a common base structure:
+
+```typescript
+{
+  id: string;              // Email ID
+  status: string;          // Email status (e.g., "DELIVERED", "BOUNCED")
+  from: string;            // Sender email address
+  to: string[];            // Recipient email addresses
+  occurredAt: string;      // ISO 8601 timestamp
+  subject?: string;        // Email subject
+  campaignId?: string;     // Campaign ID (if from a campaign)
+  contactId?: string;      // Contact ID (if sent to a contact)
+  domainId?: number;       // Domain ID
+  templateId?: string;     // Template ID (if using a template)
+  metadata?: object;       // Custom metadata you attached to the email
+}
+```
+
+#### email.bounced
+
+Includes additional bounce details:
+
+```typescript
+{
+  // ... base email fields
+  bounce: {
+    type: "Transient" | "Permanent" | "Undetermined";
+    subType: "General" | "NoEmail" | "Suppressed" | "OnAccountSuppressionList"
+           | "MailboxFull" | "MessageTooLarge" | "ContentRejected" | "AttachmentRejected";
+    message?: string;      // Bounce message from the mail server
+  }
+}
+```
+
+#### email.failed
+
+Includes failure reason:
+
+```typescript
+{
+  // ... base email fields
+  failed: {
+    reason: string; // Failure reason
+  }
+}
+```
+
+#### email.suppressed
+
+Includes suppression details:
+
+```typescript
+{
+  // ... base email fields
+  suppression: {
+    type: "Bounce" | "Complaint" | "Manual";
+    reason: string;        // Why the email was suppressed
+    source?: string;       // Source of the suppression
+  }
+}
+```
+
+#### email.opened
+
+Includes open tracking details:
+
+```typescript
+{
+  // ... base email fields
+  open: {
+    timestamp: string;     // When the email was opened
+    userAgent?: string;    // Browser/client user agent
+    ip?: string;           // IP address
+    platform?: string;     // Detected platform
+  }
+}
+```
+
+#### email.clicked
+
+Includes click tracking details:
+
+```typescript
+{
+  // ... base email fields
+  click: {
+    timestamp: string;     // When the link was clicked
+    url: string;           // The clicked URL
+    userAgent?: string;    // Browser/client user agent
+    ip?: string;           // IP address
+    platform?: string;     // Detected platform
+  }
+}
+```
+
+### Contact events
+
+All contact events (`contact.created`, `contact.updated`, `contact.deleted`) include:
+
+```typescript
+{
+  id: string;              // Contact ID
+  email: string;           // Contact email address
+  contactBookId: string;   // Contact book ID
+  subscribed: boolean;     // Subscription status
+  properties: object;      // Custom properties
+  firstName?: string;      // First name
+  lastName?: string;       // Last name
+  createdAt: string;       // ISO 8601 timestamp
+  updatedAt: string;       // ISO 8601 timestamp
+}
+```
+
+### Domain events
+
+All domain events (`domain.created`, `domain.verified`, `domain.updated`, `domain.deleted`) include:
+
+```typescript
+{
+  id: number;              // Domain ID
+  name: string;            // Domain name (e.g., "example.com")
+  status: string;          // Domain status
+  region: string;          // AWS region
+  createdAt: string;       // ISO 8601 timestamp
+  updatedAt: string;       // ISO 8601 timestamp
+  clickTracking: boolean;  // Click tracking enabled
+  openTracking: boolean;   // Open tracking enabled
+  subdomain?: string;      // Subdomain for tracking
+  dkimStatus?: string;     // DKIM verification status
+  spfDetails?: string;     // SPF record details
+  dmarcAdded?: boolean;    // DMARC record added
+}
+```
