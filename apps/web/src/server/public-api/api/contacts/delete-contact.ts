@@ -47,6 +47,7 @@ function deleteContactHandler(app: PublicAPIApp) {
     const deletedContact = await deleteContactInContactBook(
       contactId,
       contactBook.id,
+      team.id,
     );
 
     if (!deletedContact) {

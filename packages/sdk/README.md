@@ -115,3 +115,86 @@ await usesend.campaigns.pause(campaign.data.id);
 // Resume a campaign
 await usesend.campaigns.resume(campaign.data.id);
 ```
+
+## Webhooks
+
+Verify webhook signatures and get typed events:
+
+```ts
+import { UseSend } from "usesend";
+
+const usesend = new UseSend("us_12345");
+const webhooks = usesend.webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+
+// In a Next.js App Route
+export async function POST(request: Request) {
+  try {
+    const rawBody = await request.text(); // important: raw body, not parsed JSON
+    const event = webhooks.constructEvent(rawBody, {
+      headers: request.headers,
+    });
+
+    if (event.type === "email.delivered") {
+      // event.data is strongly typed here
+    }
+
+    return new Response("ok");
+  } catch (error) {
+    return new Response((error as Error).message, { status: 400 });
+  }
+}
+```
+
+You can also use the `Webhooks` class directly:
+
+```ts
+import { Webhooks } from "usesend";
+
+const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+const event = webhooks.constructEvent(rawBody, { headers: request.headers });
+```
+
+Need only signature verification? Use the `verify` method:
+
+```ts
+const isValid = webhooks.verify(rawBody, { headers: request.headers });
+
+if (!isValid) {
+  return new Response("Invalid signature", { status: 401 });
+}
+```
+
+Express example (ensure raw body is preserved):
+
+```ts
+import express from "express";
+import { Webhooks } from "usesend";
+
+const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
+
+const app = express();
+app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  try {
+    const event = webhooks.constructEvent(req.body, {
+      headers: req.headers,
+    });
+
+    if (event.type === "email.bounced") {
+      // handle bounce
+    }
+
+    res.status(200).send("ok");
+  } catch (error) {
+    res.status(400).send((error as Error).message);
+  }
+});
+```
+
+Headers sent by UseSend:
+
+- `X-UseSend-Signature`: `v1=` + HMAC-SHA256 of `${timestamp}.${rawBody}`
+- `X-UseSend-Timestamp`: Unix epoch in milliseconds
+- `X-UseSend-Event`: webhook event type
+- `X-UseSend-Call`: unique webhook attempt id
+
+By default, signatures are only accepted within 5 minutes of the timestamp. Override with `toleranceMs` if needed.

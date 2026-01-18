@@ -8,7 +8,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint . --max-warnings 0",
-    "build": "rm -rf dist && tsup index.ts --format esm,cjs --dts",
+    "build": "rm -rf dist && tsup index.ts --format esm,cjs --dts --noExternal @usesend/lib",
     "publish-sdk": "pnpm run build && pnpm publish --no-git-checks",
     "openapi-typegen": "openapi-typescript ../../apps/docs/api-reference/openapi.json -o types/schema.d.ts"
   },
@@ -19,6 +19,7 @@
     "@types/node": "^22.15.2",
     "@types/react": "^19.1.2",
     "@usesend/eslint-config": "workspace:*",
+    "@usesend/lib": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
     "openapi-typescript": "^7.6.1",
     "tsup": "^8.4.0",

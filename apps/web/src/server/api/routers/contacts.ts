@@ -152,12 +152,13 @@ export const contactsRouter = createTRPCRouter({
         subscribed: z.boolean().optional(),
       }),
     )
-    .mutation(async ({ ctx: { contactBook }, input }) => {
+    .mutation(async ({ ctx: { contactBook, team }, input }) => {
       const { contactId, ...contact } = input;
       const updatedContact = await contactService.updateContactInContactBook(
         contactId,
         contactBook.id,
         contact,
+        team.id,
       );
 
       if (!updatedContact) {
@@ -172,10 +173,11 @@ export const contactsRouter = createTRPCRouter({
 
   deleteContact: contactBookProcedure
     .input(z.object({ contactId: z.string() }))
-    .mutation(async ({ ctx: { contactBook }, input }) => {
+    .mutation(async ({ ctx: { contactBook, team }, input }) => {
       const deletedContact = await contactService.deleteContactInContactBook(
         input.contactId,
         contactBook.id,
+        team.id,
       );
 
       if (!deletedContact) {
