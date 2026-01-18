@@ -75,6 +75,34 @@ class UseSend:
         self.campaigns = Campaigns(self)
 
     # ------------------------------------------------------------------
+    # Webhooks
+    # ------------------------------------------------------------------
+    def webhooks(self, secret: str) -> "Webhooks":
+        """Create a Webhooks instance for verifying webhook signatures.
+
+        Parameters
+        ----------
+        secret:
+            The webhook signing secret (starts with 'whsec_').
+
+        Returns
+        -------
+        Webhooks
+            A Webhooks instance for verifying signatures and constructing events.
+
+        Example
+        -------
+        ```python
+        usesend = UseSend("us_12345")
+        webhooks = usesend.webhooks("whsec_xxx")
+
+        # In your webhook handler
+        event = webhooks.construct_event(body, headers=request.headers)
+        ```
+        """
+        return Webhooks(secret)
+
+    # ------------------------------------------------------------------
     # Internal request helper
     # ------------------------------------------------------------------
     def _build_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -160,3 +188,4 @@ from .emails import Emails  # noqa: E402  pylint: disable=wrong-import-position
 from .contacts import Contacts  # noqa: E402  pylint: disable=wrong-import-position
 from .domains import Domains  # type: ignore  # noqa: E402
 from .campaigns import Campaigns  # type: ignore  # noqa: E402
+from .webhooks import Webhooks  # noqa: E402  pylint: disable=wrong-import-position
