@@ -6,7 +6,7 @@ import { cn } from "../lib/utils";
 
 interface Props {
   children: string;
-  lang: BundledLanguage;
+  lang: BundledLanguage | "text";
   className?: string;
 }
 

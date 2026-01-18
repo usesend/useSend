@@ -36,6 +36,8 @@ export const UpgradeModal = () => {
                   "You've reached the contact book limit for your current plan.",
                 [LimitReason.TEAM_MEMBER]:
                   "You've reached the team member limit for your current plan.",
+                [LimitReason.WEBHOOK]:
+                  "You've reached the webhook limit for your current plan.",
                 [LimitReason.EMAIL_BLOCKED]:
                   "You've reached the email sending limit for your current plan.",
                 [LimitReason.EMAIL_DAILY_LIMIT_REACHED]:
