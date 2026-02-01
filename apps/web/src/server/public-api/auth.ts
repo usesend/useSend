@@ -1,6 +1,6 @@
 import { Context } from "hono";
 import { db } from "../db";
-import { UnsendApiError } from "./api-error";
+import { UseSendApiError } from "./api-error";
 import { getTeamAndApiKey } from "../service/api-service";
 import { isSelfHosted } from "~/utils/common";
 import { logger } from "../logger/log";
@@ -12,7 +12,7 @@ export const getTeamFromToken = async (c: Context) => {
   const authHeader = c.req.header("Authorization");
 
   if (!authHeader) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "UNAUTHORIZED",
       message: "No Authorization header provided",
     });
@@ -21,7 +21,7 @@ export const getTeamFromToken = async (c: Context) => {
   const token = authHeader.split(" ")[1];
 
   if (!token) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "UNAUTHORIZED",
       message: "No Authorization header provided",
     });
@@ -30,7 +30,7 @@ export const getTeamFromToken = async (c: Context) => {
   const teamAndApiKey = await getTeamAndApiKey(token);
 
   if (!teamAndApiKey) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "FORBIDDEN",
       message: "Invalid API token",
     });
@@ -39,7 +39,7 @@ export const getTeamFromToken = async (c: Context) => {
   const { team, apiKey } = teamAndApiKey;
 
   if (!team) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "FORBIDDEN",
       message: "Invalid API token",
     });
