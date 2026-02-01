@@ -1,191 +1,429 @@
-# Custom Tracking Domain Implementation Plan
+# Custom Tracking Domain Implementation Plan (Option 2: Self-Hosted Tracking Proxy)
 
-## Overview
+## Why NOT Option 1 (SES `CustomRedirectDomain`)
 
-This document outlines the implementation plan for adding Custom Tracking Domain support to UseSend. This feature allows users to configure custom tracking domains (e.g., `track.example.com`) for click and open tracking instead of the default AWS SES tracking links (`r.{region}.awstrack.me`).
+The original plan proposed using `PutConfigurationSetTrackingOptionsCommand` to set per-domain custom redirect domains on SES Configuration Sets. **This doesn't work for cloud/multi-tenant** because:
 
-**Benefits:**
-- Improved email deliverability by avoiding shared tracking domains
-- Isolated sender reputation
-- Reduced spam filtering risk
-- Consistent branding in email links
-- Alignment with ESP best practices (SendGrid, Postmark, Mailgun)
+- UseSend creates **4 shared configuration sets per region** (general, click, open, full)
+- All domains in a region share these config sets
+- Setting `CustomRedirectDomain` on a config set affects **every email** sent through it
+- You'd need a separate config set per domain that wants custom tracking — AWS limits this to 10,000 config sets per account, and managing them becomes a nightmare
+
+## Solution: Self-Hosted Tracking Proxy
+
+Build our own click tracking and open tracking proxy. This is how SendGrid, Postmark, and Mailgun actually work. UseSend takes full control of:
+
+1. **Link rewriting** — replace links in outgoing HTML with tracked redirect URLs
+2. **Open pixel injection** — inject a 1x1 tracking pixel into outgoing HTML
+3. **Redirect/pixel endpoint** — serve redirects for clicks and transparent pixels for opens
+4. **Custom domain routing** — users point their tracking subdomain (CNAME) at UseSend's tracking endpoint
+
+**This completely decouples tracking from SES Configuration Sets.** SES just sends the email — all tracking intelligence lives in UseSend.
+
+---
+
+## Architecture Overview
+
+```
+OUTGOING EMAIL FLOW:
+┌──────────────────────────────────────────────────────────┐
+│  Email HTML                                              │
+│  <a href="https://example.com/pricing">Click</a>        │
+│                                                          │
+│  ──── Link Rewriter ────►                                │
+│                                                          │
+│  <a href="https://track.customer.com/t/c/abc123">Click</a>│
+│  <img src="https://track.customer.com/t/o/abc123" />     │
+│                                                          │
+│  ──── SES sends raw email (no SES click/open tracking) ──►│
+└──────────────────────────────────────────────────────────┘
+
+INCOMING CLICK/OPEN FLOW:
+┌──────────────────────────────────────────────────────────┐
+│  Recipient clicks: https://track.customer.com/t/c/abc123 │
+│                                                          │
+│  DNS: track.customer.com CNAME → track.usesend.com       │
+│                                                          │
+│  UseSend tracking endpoint:                              │
+│    1. Decode abc123 → emailId + original URL             │
+│    2. Record click event (EmailEvent + metrics)          │
+│    3. HTTP 302 redirect to original URL                  │
+│                                                          │
+│  Open pixel loaded: https://track.customer.com/t/o/abc123│
+│    1. Decode abc123 → emailId                            │
+│    2. Record open event                                  │
+│    3. Return 1x1 transparent GIF                         │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** When `clickTracking` or `openTracking` is enabled on a domain, we **stop using SES config sets with CLICK/OPEN events** and use only the `configGeneral` set. All tracking is handled by our proxy.
 
 ---
 
 ## Task 1: Database Schema Changes
 
-**File:** `/apps/web/prisma/schema.prisma`
+**File:** `apps/web/prisma/schema.prisma`
 
 ### 1.1 Add Tracking Domain Fields to Domain Model
-
-Add the following fields to the `Domain` model to store custom tracking domain configuration:
 
 ```prisma
 model Domain {
   // ... existing fields ...
 
-  // Custom tracking domain fields
-  trackingDomain         String?       // e.g., "track.example.com"
-  trackingDomainStatus   DomainStatus  @default(NOT_STARTED)
-  trackingDomainError    String?       // Error message if verification fails
-  trackingDomainVerifiedAt DateTime?   // When the tracking domain was verified
+  // Custom tracking domain (e.g., "track.example.com")
+  // If null, uses the app's default URL for tracking endpoints
+  trackingDomain           String?
+  trackingDomainStatus     DomainStatus  @default(NOT_STARTED)
+  trackingDomainError      String?
+  trackingDomainVerifiedAt DateTime?
 }
 ```
 
-### 1.2 Create Database Migration
+### 1.2 Add ClickedUrl Model for Link Tracking
 
-Run Prisma migration to apply schema changes:
+We need a table to map short tracking IDs to original URLs and associate them with emails:
+
+```prisma
+model TrackedLink {
+  id        String   @id @default(cuid())
+  emailId   String
+  url       String   // Original destination URL
+  position  Int      // Position of the link in the email (for deduplication)
+  createdAt DateTime @default(now())
+
+  @@index([emailId])
+}
+```
+
+**Why a separate table?** Each email can have many links, and we need to map tracking IDs back to specific original URLs. Encoding the URL directly into the tracking token would make URLs too long and leaky.
+
+### 1.3 Migration
 
 ```bash
-npx prisma migrate dev --name add_custom_tracking_domain
+npx prisma migrate dev --name add_tracking_proxy_support
 ```
-
-### 1.3 Update Prisma Client Types
-
-The migration will auto-generate updated TypeScript types.
 
 ---
 
-## Task 2: AWS SES Integration for Custom Tracking Domains
+## Task 2: Link Rewriting Service
 
-**Files to modify:**
-- `/apps/web/src/server/aws/ses.ts`
+**New File:** `apps/web/src/server/service/tracking-service.ts`
 
-### 2.1 Add AWS SDK Import for Tracking Options
+This is the core service that transforms outgoing email HTML.
 
-Add the required AWS SDK command imports:
+### 2.1 Link Rewriter
 
-```typescript
-import {
-  // ... existing imports ...
-  PutConfigurationSetTrackingOptionsCommand,
-  GetConfigurationSetCommand,
-} from "@aws-sdk/client-sesv2";
-```
-
-### 2.2 Create Function to Set Custom Tracking Domain
-
-Add a new function to configure custom redirect domain on a Configuration Set:
+When `clickTracking` is enabled on a domain, rewrite all `<a href="...">` links in the HTML body to point through the tracking proxy:
 
 ```typescript
 /**
- * Sets a custom tracking domain on all configuration sets for a region.
- * AWS SES will automatically provision an HTTPS certificate for the domain.
+ * Rewrites links in HTML email body for click tracking.
  *
- * @param trackingDomain - The custom tracking domain (e.g., "track.example.com")
- * @param region - AWS region
- * @param configSetNames - Array of configuration set names to update
+ * Before: <a href="https://example.com/pricing">
+ * After:  <a href="https://track.customer.com/t/c/{trackedLinkId}">
+ *
+ * Skips:
+ * - mailto: links
+ * - tel: links
+ * - Unsubscribe URLs (already tracked separately)
+ * - Anchor (#) links
  */
-export async function setCustomTrackingDomain(
-  trackingDomain: string,
-  region: string,
-  configSetNames: string[]
-): Promise<{ success: boolean; error?: string }> {
-  const sesClient = getSesClient(region);
-
-  for (const configSetName of configSetNames) {
-    const command = new PutConfigurationSetTrackingOptionsCommand({
-      ConfigurationSetName: configSetName,
-      CustomRedirectDomain: trackingDomain,
-    });
-
-    try {
-      await sesClient.send(command);
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to set tracking domain on ${configSetName}: ${error}`
-      };
-    }
-  }
-
-  return { success: true };
-}
+export async function rewriteLinksForTracking(
+  html: string,
+  emailId: string,
+  trackingBaseUrl: string, // e.g., "https://track.customer.com" or "https://app.usesend.com"
+): Promise<string>
 ```
 
-### 2.3 Create Function to Remove Custom Tracking Domain
+Implementation approach:
+- Use a simple regex or HTML parser to find `<a href="...">` tags
+- For each trackable link, create a `TrackedLink` record in the DB
+- Replace the href with `{trackingBaseUrl}/t/c/{trackedLink.id}`
+- Batch-insert TrackedLink records for performance
 
-Add function to revert to default SES tracking:
+### 2.2 Open Pixel Injector
+
+When `openTracking` is enabled, inject a tracking pixel before `</body>`:
 
 ```typescript
 /**
- * Removes custom tracking domain from configuration sets, reverting to default SES tracking.
+ * Injects a 1x1 transparent tracking pixel into HTML email body.
+ *
+ * Adds: <img src="https://track.customer.com/t/o/{emailId}" width="1" height="1"
+ *        style="display:none" alt="" />
  */
-export async function removeCustomTrackingDomain(
-  region: string,
-  configSetNames: string[]
-): Promise<{ success: boolean; error?: string }> {
-  const sesClient = getSesClient(region);
-
-  for (const configSetName of configSetNames) {
-    const command = new PutConfigurationSetTrackingOptionsCommand({
-      ConfigurationSetName: configSetName,
-      CustomRedirectDomain: "", // Empty string removes custom domain
-    });
-
-    try {
-      await sesClient.send(command);
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to remove tracking domain from ${configSetName}: ${error}`
-      };
-    }
-  }
-
-  return { success: true };
-}
+export function injectOpenTrackingPixel(
+  html: string,
+  emailId: string,
+  trackingBaseUrl: string,
+): string
 ```
 
-### 2.4 Create Function to Get Configuration Set Tracking Status
+### 2.3 Main Transform Function
 
-Add function to check current tracking domain configuration:
+Single entry point called during email sending:
 
 ```typescript
 /**
- * Gets the current tracking domain configuration for a configuration set.
+ * Applies all tracking transformations to email HTML.
+ * Called from the email queue worker before sending via SES.
+ *
+ * @param html - Raw email HTML
+ * @param emailId - Email record ID
+ * @param domain - Domain with tracking settings
+ * @returns Transformed HTML with tracking links/pixel
  */
-export async function getTrackingDomainConfig(
-  configSetName: string,
-  region: string
-): Promise<{ trackingDomain?: string; status?: string }> {
-  const sesClient = getSesClient(region);
-
-  const command = new GetConfigurationSetCommand({
-    ConfigurationSetName: configSetName,
-    ConfigurationSetAttributeNames: ["trackingOptions"],
-  });
-
-  const response = await sesClient.send(command);
-  return {
-    trackingDomain: response.TrackingOptions?.CustomRedirectDomain,
-  };
-}
+export async function applyTracking(
+  html: string,
+  emailId: string,
+  domain: Domain,
+): Promise<string>
 ```
+
+Logic:
+1. Determine `trackingBaseUrl`:
+   - If `domain.trackingDomain` is set and verified → `https://{domain.trackingDomain}`
+   - Else → `{NEXTAUTH_URL}` (the app's own URL as fallback)
+2. If `domain.clickTracking` → run `rewriteLinksForTracking()`
+3. If `domain.openTracking` → run `injectOpenTrackingPixel()`
+4. Return transformed HTML
 
 ---
 
-## Task 3: Domain Service Updates
+## Task 3: Tracking Proxy Endpoints
 
-**File:** `/apps/web/src/server/service/domain-service.ts`
+**New Files:**
+- `apps/web/src/app/t/c/[id]/route.ts` — Click redirect endpoint
+- `apps/web/src/app/t/o/[id]/route.ts` — Open pixel endpoint
 
-### 3.1 Add Tracking Domain DNS Record Helper
+### 3.1 Click Tracking Endpoint (`GET /t/c/{trackedLinkId}`)
 
-Extend `buildDnsRecords` function to include tracking domain CNAME:
+```typescript
+// apps/web/src/app/t/c/[id]/route.ts
+
+/**
+ * Click tracking redirect endpoint.
+ *
+ * Flow:
+ * 1. Look up TrackedLink by ID
+ * 2. Record click event (EmailEvent with status CLICKED)
+ * 3. Update email latestStatus
+ * 4. Update daily metrics
+ * 5. Emit webhook
+ * 6. HTTP 302 redirect to original URL
+ *
+ * Performance considerations:
+ * - DB lookup must be fast (TrackedLink.id is primary key)
+ * - Event recording should be async (queue in BullMQ) to not block redirect
+ * - Cache TrackedLink lookups in Redis for repeat clicks
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+): Promise<Response>
+```
+
+**Error handling:**
+- Unknown ID → redirect to a safe fallback page or return 404
+- DB errors → still try to redirect (don't break the user's experience)
+
+**Security:**
+- Rate limit per IP to prevent abuse
+- No open redirect — only redirect to URLs stored in TrackedLink table
+
+### 3.2 Open Tracking Endpoint (`GET /t/o/{emailId}`)
+
+```typescript
+// apps/web/src/app/t/o/[id]/route.ts
+
+/**
+ * Open tracking pixel endpoint.
+ *
+ * Flow:
+ * 1. Record open event (EmailEvent with status OPENED)
+ * 2. Update email latestStatus
+ * 3. Update daily metrics
+ * 4. Emit webhook
+ * 5. Return 1x1 transparent GIF with cache headers
+ *
+ * The emailId is used directly (no separate table needed).
+ * Multiple opens from same email are recorded as separate events.
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+): Promise<Response>
+```
+
+**Response:**
+- Content-Type: `image/gif`
+- Body: 1x1 transparent GIF (43 bytes)
+- Cache-Control: `no-store, no-cache` (to detect repeat opens)
+
+### 3.3 Event Recording (Shared Logic)
+
+Both endpoints need to record events. Factor this into a shared function:
+
+```typescript
+/**
+ * Records a tracking event from the proxy endpoint.
+ * Mirrors what ses-hook-parser does for SES-originated events,
+ * but triggered by our own proxy.
+ */
+async function recordTrackingEvent(params: {
+  emailId: string;
+  status: "OPENED" | "CLICKED";
+  ip?: string;
+  userAgent?: string;
+  url?: string; // For clicks
+}): Promise<void>
+```
+
+This should:
+1. Create an `EmailEvent` record
+2. Update `Email.latestStatus` (same logic as `ses-hook-parser.ts`)
+3. Update `DailyEmailUsage` metrics
+4. Update `Campaign` counters if applicable
+5. Emit webhook via `WebhookService`
+
+**Important:** Use the same BullMQ queue pattern as `ses-hook-parser.ts` so event recording doesn't block the HTTP response.
+
+---
+
+## Task 4: Modify Email Sending Pipeline
+
+**File:** `apps/web/src/server/service/email-queue-service.ts`
+
+### 4.1 Apply Tracking Before Sending
+
+In the email queue worker, apply tracking transformations to the HTML **before** passing it to `ses.sendRawEmail()`:
+
+```typescript
+// In the worker function, after fetching the email and domain:
+
+let html = email.html;
+
+if (html && domain) {
+  html = await applyTracking(html, email.id, domain);
+}
+
+// Then pass transformed html to sendRawEmail
+```
+
+### 4.2 Change Configuration Set Selection
+
+When using self-hosted tracking, we should **disable SES click/open tracking** and only use the `configGeneral` config set. SES tracking would conflict with our rewritten links.
+
+**File:** `apps/web/src/utils/ses-utils.ts`
+
+```typescript
+export async function getConfigurationSetName(
+  clickTracking: boolean,
+  openTracking: boolean,
+  region: string,
+  useSelfHostedTracking: boolean, // NEW PARAMETER
+) {
+  const setting = await SesSettingsService.getSetting(region);
+
+  if (!setting) {
+    throw new Error(`No SES setting found for region: ${region}`);
+  }
+
+  // When self-hosted tracking is active, always use general config
+  // (no SES click/open tracking — we handle it ourselves)
+  if (useSelfHostedTracking) {
+    return setting.configGeneral;
+  }
+
+  // Legacy behavior for self-hosted instances not using the proxy
+  if (clickTracking && openTracking) {
+    return setting.configFull;
+  }
+  if (clickTracking) {
+    return setting.configClick;
+  }
+  if (openTracking) {
+    return setting.configOpen;
+  }
+
+  return setting.configGeneral;
+}
+```
+
+**Decision:** Self-hosted tracking should be the default for cloud (`NEXT_PUBLIC_IS_CLOUD=true`). Self-hosted UseSend instances can choose either approach.
+
+---
+
+## Task 5: Custom Tracking Domain Setup (DNS + Verification)
+
+**File:** `apps/web/src/server/service/domain-service.ts`
+
+### 5.1 Set Tracking Domain
+
+```typescript
+/**
+ * Sets a custom tracking domain for a domain.
+ * The user must create a CNAME record pointing to the UseSend app.
+ *
+ * DNS setup required:
+ *   track.example.com CNAME → track.usesend.com (cloud)
+ *   track.example.com CNAME → your-usesend-instance.com (self-hosted)
+ */
+export async function setTrackingDomain(
+  domainId: number,
+  teamId: number,
+  trackingDomain: string,
+): Promise<{ dnsRecord: DomainDnsRecord }>
+```
+
+Validates:
+- Tracking domain is a subdomain of the sending domain
+- Domain belongs to the team
+- Domain is verified
+
+Returns the CNAME record the user must create.
+
+### 5.2 Verify Tracking Domain
+
+```typescript
+/**
+ * Verifies tracking domain CNAME is properly configured.
+ * Uses DNS lookup to confirm the CNAME points to the expected target.
+ */
+export async function verifyTrackingDomain(
+  domainId: number,
+  teamId: number,
+): Promise<{ success: boolean; error?: string }>
+```
+
+**CNAME targets:**
+- Cloud: `track.usesend.com` (or whatever the cloud tracking hostname is)
+- Self-hosted: Value of `NEXTAUTH_URL` hostname
+
+### 5.3 Remove Tracking Domain
+
+```typescript
+export async function removeTrackingDomain(
+  domainId: number,
+  teamId: number,
+): Promise<{ success: boolean }>
+```
+
+### 5.4 Update `buildDnsRecords` to Include Tracking CNAME
+
+When a tracking domain is configured, show the required CNAME in the DNS records table:
 
 ```typescript
 function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
   const records = [
-    // ... existing MX, TXT records ...
+    // ... existing MX, TXT, DMARC records ...
   ];
 
-  // Add tracking domain CNAME record if configured
   if (domain.trackingDomain) {
     records.push({
       type: "CNAME",
-      name: extractSubdomain(domain.trackingDomain), // e.g., "track" from "track.example.com"
-      value: `r.${domain.region}.awstrack.me`,
+      name: domain.trackingDomain,
+      value: getTrackingCnameTarget(), // "track.usesend.com" for cloud
       ttl: "Auto",
       status: domain.trackingDomainStatus,
     });
@@ -193,297 +431,53 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
 
   return records;
 }
-
-// Helper to extract subdomain from tracking domain
-function extractSubdomain(trackingDomain: string): string {
-  const parts = trackingDomain.split('.');
-  return parts[0] || trackingDomain;
-}
-```
-
-### 3.2 Create Tracking Domain Verification Function
-
-Add a new function to verify tracking domain CNAME:
-
-```typescript
-import dns from "dns";
-import util from "util";
-
-const dnsResolveCname = util.promisify(dns.resolveCname);
-
-/**
- * Verifies that the tracking domain CNAME is correctly configured.
- *
- * @param trackingDomain - The custom tracking domain to verify
- * @param region - AWS region for expected CNAME target
- * @returns Verification result with status
- */
-export async function verifyTrackingDomainCname(
-  trackingDomain: string,
-  region: string
-): Promise<{ verified: boolean; error?: string }> {
-  const expectedTarget = `r.${region}.awstrack.me`;
-
-  try {
-    const records = await dnsResolveCname(trackingDomain);
-
-    // Check if any CNAME record points to the expected target
-    const hasValidCname = records.some(
-      record => record.toLowerCase() === expectedTarget.toLowerCase()
-    );
-
-    if (hasValidCname) {
-      return { verified: true };
-    }
-
-    return {
-      verified: false,
-      error: `CNAME does not point to ${expectedTarget}. Found: ${records.join(", ")}`
-    };
-  } catch (error: any) {
-    if (error.code === "ENOTFOUND" || error.code === "ENODATA") {
-      return { verified: false, error: "CNAME record not found" };
-    }
-    return { verified: false, error: error.message };
-  }
-}
-```
-
-### 3.3 Add Set Tracking Domain Function
-
-Create the main function to set and verify a custom tracking domain:
-
-```typescript
-import * as ses from "~/server/aws/ses";
-import { SesSettingsService } from "./ses-settings-service";
-
-/**
- * Sets a custom tracking domain for a domain.
- * This involves:
- * 1. Validating the tracking domain format
- * 2. Verifying DNS CNAME configuration
- * 3. Configuring AWS SES with the custom redirect domain
- * 4. Updating the database
- */
-export async function setTrackingDomain(
-  domainId: number,
-  teamId: number,
-  trackingDomain: string
-): Promise<{ success: boolean; error?: string; dnsRecord?: DomainDnsRecord }> {
-  // Fetch the domain
-  const domain = await db.domain.findFirst({
-    where: { id: domainId, teamId },
-  });
-
-  if (!domain) {
-    throw new UnsendApiError({ code: "NOT_FOUND", message: "Domain not found" });
-  }
-
-  // Validate tracking domain belongs to or is subdomain of the sending domain
-  if (!isValidTrackingDomain(trackingDomain, domain.name)) {
-    throw new UnsendApiError({
-      code: "BAD_REQUEST",
-      message: "Tracking domain must be a subdomain of the sending domain",
-    });
-  }
-
-  // Get SES settings for the region
-  const sesSetting = await SesSettingsService.getSetting(domain.region);
-  if (!sesSetting) {
-    throw new UnsendApiError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "SES settings not found for region",
-    });
-  }
-
-  // Update domain with pending status
-  await db.domain.update({
-    where: { id: domainId },
-    data: {
-      trackingDomain,
-      trackingDomainStatus: "PENDING",
-      trackingDomainError: null,
-    },
-  });
-
-  // Return the required DNS record for the user to configure
-  const dnsRecord: DomainDnsRecord = {
-    type: "CNAME",
-    name: extractSubdomain(trackingDomain),
-    value: `r.${domain.region}.awstrack.me`,
-    ttl: "Auto",
-    status: "PENDING",
-  };
-
-  return { success: true, dnsRecord };
-}
-
-function isValidTrackingDomain(trackingDomain: string, sendingDomain: string): boolean {
-  // Tracking domain should end with the sending domain
-  // e.g., "track.example.com" is valid for "example.com"
-  return trackingDomain.endsWith(`.${sendingDomain}`) ||
-         trackingDomain === sendingDomain;
-}
-```
-
-### 3.4 Add Verify Tracking Domain Function
-
-Create function to verify and activate tracking domain:
-
-```typescript
-/**
- * Verifies the tracking domain CNAME and activates it on AWS SES.
- */
-export async function verifyAndActivateTrackingDomain(
-  domainId: number,
-  teamId: number
-): Promise<{ success: boolean; status: DomainStatus; error?: string }> {
-  const domain = await db.domain.findFirst({
-    where: { id: domainId, teamId },
-  });
-
-  if (!domain || !domain.trackingDomain) {
-    throw new UnsendApiError({
-      code: "NOT_FOUND",
-      message: "Domain or tracking domain not found",
-    });
-  }
-
-  // Verify DNS CNAME
-  const dnsResult = await verifyTrackingDomainCname(domain.trackingDomain, domain.region);
-
-  if (!dnsResult.verified) {
-    await db.domain.update({
-      where: { id: domainId },
-      data: {
-        trackingDomainStatus: "FAILED",
-        trackingDomainError: dnsResult.error,
-      },
-    });
-    return { success: false, status: "FAILED", error: dnsResult.error };
-  }
-
-  // Get all config set names for this region
-  const sesSetting = await SesSettingsService.getSetting(domain.region);
-  if (!sesSetting) {
-    throw new Error("SES settings not found");
-  }
-
-  const configSetNames = [
-    sesSetting.configClick,
-    sesSetting.configOpen,
-    sesSetting.configFull,
-  ].filter(Boolean) as string[];
-
-  // Configure AWS SES with custom tracking domain
-  const sesResult = await ses.setCustomTrackingDomain(
-    domain.trackingDomain,
-    domain.region,
-    configSetNames
-  );
-
-  if (!sesResult.success) {
-    await db.domain.update({
-      where: { id: domainId },
-      data: {
-        trackingDomainStatus: "FAILED",
-        trackingDomainError: sesResult.error,
-      },
-    });
-    return { success: false, status: "FAILED", error: sesResult.error };
-  }
-
-  // Update domain status
-  await db.domain.update({
-    where: { id: domainId },
-    data: {
-      trackingDomainStatus: "SUCCESS",
-      trackingDomainError: null,
-      trackingDomainVerifiedAt: new Date(),
-    },
-  });
-
-  await emitDomainEvent(domain, "domain.updated");
-
-  return { success: true, status: "SUCCESS" };
-}
-```
-
-### 3.5 Add Remove Tracking Domain Function
-
-```typescript
-/**
- * Removes custom tracking domain and reverts to default SES tracking.
- */
-export async function removeTrackingDomain(
-  domainId: number,
-  teamId: number
-): Promise<{ success: boolean; error?: string }> {
-  const domain = await db.domain.findFirst({
-    where: { id: domainId, teamId },
-  });
-
-  if (!domain) {
-    throw new UnsendApiError({ code: "NOT_FOUND", message: "Domain not found" });
-  }
-
-  // Get config set names
-  const sesSetting = await SesSettingsService.getSetting(domain.region);
-  if (!sesSetting) {
-    throw new Error("SES settings not found");
-  }
-
-  const configSetNames = [
-    sesSetting.configClick,
-    sesSetting.configOpen,
-    sesSetting.configFull,
-  ].filter(Boolean) as string[];
-
-  // Remove from AWS SES
-  const sesResult = await ses.removeCustomTrackingDomain(domain.region, configSetNames);
-
-  if (!sesResult.success) {
-    return { success: false, error: sesResult.error };
-  }
-
-  // Update database
-  await db.domain.update({
-    where: { id: domainId },
-    data: {
-      trackingDomain: null,
-      trackingDomainStatus: "NOT_STARTED",
-      trackingDomainError: null,
-      trackingDomainVerifiedAt: null,
-    },
-  });
-
-  await emitDomainEvent(domain, "domain.updated");
-
-  return { success: true };
-}
-```
-
-### 3.6 Update Domain Payload for Webhooks
-
-Update `buildDomainPayload` function to include tracking domain fields:
-
-```typescript
-function buildDomainPayload(domain: Domain): DomainPayload {
-  return {
-    // ... existing fields ...
-    trackingDomain: domain.trackingDomain,
-    trackingDomainStatus: domain.trackingDomainStatus,
-  };
-}
 ```
 
 ---
 
-## Task 4: Update Types and Schemas
+## Task 6: SSL/TLS for Custom Tracking Domains
 
-### 4.1 Update DomainDnsRecord Type
+Custom tracking domains need HTTPS (email clients won't load HTTP pixels, and browsers warn on HTTP redirects).
 
-**File:** `/apps/web/src/types/domain.ts`
+### 6.1 Cloud Deployment
+
+Use **CloudFront + ACM** (AWS Certificate Manager) or a reverse proxy like **Caddy** that auto-provisions Let's Encrypt certificates:
+
+**Option A: CloudFront (recommended for cloud)**
+- CloudFront distribution with wildcard or per-domain SSL
+- Origin: UseSend app server
+- Path pattern: `/t/*` → forward to tracking endpoint
+- Users CNAME their tracking domain to the CloudFront distribution
+
+**Option B: Caddy reverse proxy**
+- Caddy auto-provisions Let's Encrypt certs on demand
+- Add each verified tracking domain to Caddy's config
+- Caddy handles TLS termination, forwards to Next.js
+
+### 6.2 Self-Hosted Deployment
+
+- Users handle their own SSL (they already do for the main app)
+- Their tracking domain CNAME points to their own UseSend instance
+- Their existing reverse proxy (nginx/Caddy/Traefik) handles SSL
+
+### 6.3 New Environment Variable
+
+```
+TRACKING_DOMAIN_CNAME_TARGET=track.usesend.com  # What users point their CNAME at
+```
+
+Add to `env.js`:
+```typescript
+TRACKING_DOMAIN_CNAME_TARGET: z.string().optional(),
+```
+
+---
+
+## Task 7: Update Types and Schemas
+
+### 7.1 Update DomainDnsRecord Type
+
+**File:** `apps/web/src/types/domain.ts`
 
 ```typescript
 export type DomainDnsRecord = {
@@ -497,421 +491,95 @@ export type DomainDnsRecord = {
 };
 ```
 
-### 4.2 Update Domain Zod Schema
+### 7.2 Update Zod Schemas
 
-**File:** `/apps/web/src/lib/zod/domain-schema.ts`
+**File:** `apps/web/src/lib/zod/domain-schema.ts`
 
-```typescript
-export const DomainDnsRecordSchema = z.object({
-  type: z.enum(["MX", "TXT", "CNAME"]).openapi({  // Add CNAME
-    description: "DNS record type",
-    example: "TXT",
-  }),
-  // ... rest unchanged
-});
-
-export const DomainSchema = z.object({
-  // ... existing fields ...
-
-  // New tracking domain fields
-  trackingDomain: z.string().optional().nullish().openapi({
-    description: "Custom tracking domain for click/open tracking",
-    example: "track.example.com",
-  }),
-  trackingDomainStatus: DomainStatusSchema.optional().openapi({
-    description: "Verification status of the custom tracking domain",
-  }),
-  trackingDomainError: z.string().optional().nullish().openapi({
-    description: "Error message if tracking domain verification failed",
-  }),
-  trackingDomainVerifiedAt: z.string().optional().nullish().openapi({
-    description: "Timestamp when tracking domain was verified",
-  }),
-});
-```
+Add `trackingDomain`, `trackingDomainStatus`, `trackingDomainError`, `trackingDomainVerifiedAt` to the domain schema. Add `"CNAME"` to the DNS record type enum.
 
 ---
 
-## Task 5: tRPC API Endpoints
+## Task 8: API Endpoints
 
-**File:** `/apps/web/src/server/api/routers/domain.ts`
+### 8.1 tRPC Endpoints
 
-### 5.1 Add setTrackingDomain Endpoint
+**File:** `apps/web/src/server/api/routers/domain.ts`
 
-```typescript
-import {
-  setTrackingDomain,
-  verifyAndActivateTrackingDomain,
-  removeTrackingDomain,
-} from "~/server/service/domain-service";
+Add three new mutations:
 
-export const domainRouter = createTRPCRouter({
-  // ... existing endpoints ...
+| Endpoint | Input | Action |
+|----------|-------|--------|
+| `setTrackingDomain` | `{ id, trackingDomain }` | Save tracking domain, return DNS record |
+| `verifyTrackingDomain` | `{ id }` | Verify CNAME, update status |
+| `removeTrackingDomain` | `{ id }` | Remove tracking domain, reset status |
 
-  setTrackingDomain: domainProcedure
-    .input(z.object({
-      trackingDomain: z.string().min(1).regex(
-        /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/,
-        "Invalid domain format"
-      ),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      return setTrackingDomain(input.id, ctx.team.id, input.trackingDomain);
-    }),
+### 8.2 Public REST API Endpoints
 
-  verifyTrackingDomain: domainProcedure
-    .mutation(async ({ ctx, input }) => {
-      return verifyAndActivateTrackingDomain(input.id, ctx.team.id);
-    }),
+**New Files:**
+- `apps/web/src/server/public-api/api/domains/set-tracking-domain.ts`
+- `apps/web/src/server/public-api/api/domains/verify-tracking-domain.ts`
+- `apps/web/src/server/public-api/api/domains/delete-tracking-domain.ts`
 
-  removeTrackingDomain: domainProcedure
-    .mutation(async ({ ctx, input }) => {
-      return removeTrackingDomain(input.id, ctx.team.id);
-    }),
-});
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/domains/{id}/tracking-domain` | Set custom tracking domain |
+| `POST` | `/v1/domains/{id}/tracking-domain/verify` | Verify DNS |
+| `DELETE` | `/v1/domains/{id}/tracking-domain` | Remove tracking domain |
 
 ---
 
-## Task 6: Public REST API Endpoints
+## Task 9: Frontend UI Changes
 
-### 6.1 Create Set Tracking Domain Endpoint
+**File:** `apps/web/src/app/(dashboard)/domains/[domainId]/page.tsx`
 
-**File:** `/apps/web/src/server/public-api/api/domains/set-tracking-domain.ts`
+Add a "Custom Tracking Domain" section to the domain settings page:
 
-```typescript
-import { createRoute, z } from "@hono/zod-openapi";
-import { PublicAPIApp } from "~/server/public-api/hono";
-import { UnsendApiError } from "../../api-error";
-import { setTrackingDomain } from "~/server/service/domain-service";
+### States
 
-const route = createRoute({
-  method: "post",
-  path: "/v1/domains/{id}/tracking-domain",
-  request: {
-    params: z.object({
-      id: z.coerce.number().openapi({
-        param: { name: "id", in: "path" },
-        example: 1,
-      }),
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            trackingDomain: z.string().openapi({
-              description: "Custom tracking domain (e.g., track.example.com)",
-              example: "track.example.com",
-            }),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            success: z.boolean(),
-            dnsRecord: z.object({
-              type: z.literal("CNAME"),
-              name: z.string(),
-              value: z.string(),
-              ttl: z.string(),
-              status: z.string(),
-            }).optional(),
-          }),
-        },
-      },
-      description: "Tracking domain configured, DNS record returned",
-    },
-  },
-});
+1. **No tracking domain configured:**
+   - Input field with placeholder `track.{domain.name}`
+   - "Set Domain" button
 
-function setTrackingDomainEndpoint(app: PublicAPIApp) {
-  app.openapi(route, async (c) => {
-    const team = c.var.team;
-    const id = c.req.valid("param").id;
-    const { trackingDomain } = c.req.valid("json");
+2. **Tracking domain PENDING:**
+   - Show the required CNAME record in the DNS table
+   - "Verify DNS" button
+   - Status badge showing PENDING
 
-    // Enforce API key domain restriction
-    if (team.apiKey.domainId && team.apiKey.domainId !== id) {
-      throw new UnsendApiError({ code: "NOT_FOUND", message: "Domain not found" });
-    }
+3. **Tracking domain VERIFIED:**
+   - Show tracking domain with SUCCESS badge
+   - "Remove" button
 
-    const result = await setTrackingDomain(id, team.id, trackingDomain);
-    return c.json(result);
-  });
-}
+4. **Tracking domain FAILED:**
+   - Show error message
+   - "Retry Verification" button
+   - "Remove" button
 
-export default setTrackingDomainEndpoint;
-```
+### Description Text
 
-### 6.2 Create Verify Tracking Domain Endpoint
-
-**File:** `/apps/web/src/server/public-api/api/domains/verify-tracking-domain.ts`
-
-```typescript
-import { createRoute, z } from "@hono/zod-openapi";
-import { PublicAPIApp } from "~/server/public-api/hono";
-import { UnsendApiError } from "../../api-error";
-import { verifyAndActivateTrackingDomain } from "~/server/service/domain-service";
-
-const route = createRoute({
-  method: "post",
-  path: "/v1/domains/{id}/tracking-domain/verify",
-  request: {
-    params: z.object({
-      id: z.coerce.number().openapi({
-        param: { name: "id", in: "path" },
-        example: 1,
-      }),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            success: z.boolean(),
-            status: z.string(),
-            error: z.string().optional(),
-          }),
-        },
-      },
-      description: "Tracking domain verification result",
-    },
-  },
-});
-
-function verifyTrackingDomainEndpoint(app: PublicAPIApp) {
-  app.openapi(route, async (c) => {
-    const team = c.var.team;
-    const id = c.req.valid("param").id;
-
-    if (team.apiKey.domainId && team.apiKey.domainId !== id) {
-      throw new UnsendApiError({ code: "NOT_FOUND", message: "Domain not found" });
-    }
-
-    const result = await verifyAndActivateTrackingDomain(id, team.id);
-    return c.json(result);
-  });
-}
-
-export default verifyTrackingDomainEndpoint;
-```
-
-### 6.3 Create Delete Tracking Domain Endpoint
-
-**File:** `/apps/web/src/server/public-api/api/domains/delete-tracking-domain.ts`
-
-```typescript
-import { createRoute, z } from "@hono/zod-openapi";
-import { PublicAPIApp } from "~/server/public-api/hono";
-import { UnsendApiError } from "../../api-error";
-import { removeTrackingDomain } from "~/server/service/domain-service";
-
-const route = createRoute({
-  method: "delete",
-  path: "/v1/domains/{id}/tracking-domain",
-  request: {
-    params: z.object({
-      id: z.coerce.number().openapi({
-        param: { name: "id", in: "path" },
-        example: 1,
-      }),
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            success: z.boolean(),
-            error: z.string().optional(),
-          }),
-        },
-      },
-      description: "Tracking domain removed",
-    },
-  },
-});
-
-function deleteTrackingDomainEndpoint(app: PublicAPIApp) {
-  app.openapi(route, async (c) => {
-    const team = c.var.team;
-    const id = c.req.valid("param").id;
-
-    if (team.apiKey.domainId && team.apiKey.domainId !== id) {
-      throw new UnsendApiError({ code: "NOT_FOUND", message: "Domain not found" });
-    }
-
-    const result = await removeTrackingDomain(id, team.id);
-    return c.json(result);
-  });
-}
-
-export default deleteTrackingDomainEndpoint;
-```
-
-### 6.4 Register New Endpoints
-
-**File:** Update the public API router to include new endpoints (find the domains router registration file and add these).
+> Use a custom domain for click and open tracking links to improve
+> deliverability and isolate your sender reputation. When configured,
+> all tracking links in your emails will use this domain instead of
+> the default shared tracking URLs.
 
 ---
 
-## Task 7: Frontend UI Changes
+## Task 10: Update SES Hook Parser for Coexistence
 
-### 7.1 Update Domain Settings Component
+**File:** `apps/web/src/server/service/ses-hook-parser.ts`
 
-**File:** `/apps/web/src/app/(dashboard)/domains/[domainId]/page.tsx`
+When self-hosted tracking is active, SES will no longer send CLICK and OPEN events (since we use `configGeneral` which doesn't subscribe to those). However, we should still gracefully handle any CLICK/OPEN events that come through from SES in case of edge cases or mixed configurations.
 
-Add a new "Custom Tracking Domain" section to `DomainSettings` component:
+No changes needed — the parser already handles all event types. Just ensure there's no conflict between SES-originated and proxy-originated events for the same email.
 
-```tsx
-const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
-  // ... existing state ...
-
-  const [trackingDomainInput, setTrackingDomainInput] = React.useState(
-    domain.trackingDomain || ""
-  );
-
-  const setTrackingDomain = api.domain.setTrackingDomain.useMutation();
-  const verifyTrackingDomain = api.domain.verifyTrackingDomain.useMutation();
-  const removeTrackingDomainMutation = api.domain.removeTrackingDomain.useMutation();
-
-  const handleSetTrackingDomain = () => {
-    setTrackingDomain.mutate(
-      { id: domain.id, trackingDomain: trackingDomainInput },
-      {
-        onSuccess: () => {
-          utils.domain.invalidate();
-          toast.success("Tracking domain configured. Please add the DNS record.");
-        },
-        onError: (error) => {
-          toast.error(error.message);
-        },
-      }
-    );
-  };
-
-  const handleVerifyTrackingDomain = () => {
-    verifyTrackingDomain.mutate(
-      { id: domain.id },
-      {
-        onSuccess: (result) => {
-          utils.domain.invalidate();
-          if (result.success) {
-            toast.success("Tracking domain verified and activated!");
-          } else {
-            toast.error(result.error || "Verification failed");
-          }
-        },
-      }
-    );
-  };
-
-  const handleRemoveTrackingDomain = () => {
-    removeTrackingDomainMutation.mutate(
-      { id: domain.id },
-      {
-        onSuccess: () => {
-          utils.domain.invalidate();
-          setTrackingDomainInput("");
-          toast.success("Tracking domain removed");
-        },
-      }
-    );
-  };
-
-  return (
-    <div className="rounded-lg shadow p-4 border flex flex-col gap-6">
-      {/* ... existing click/open tracking settings ... */}
-
-      {/* Custom Tracking Domain Section */}
-      <div className="flex flex-col gap-2">
-        <div className="font-semibold">Custom Tracking Domain</div>
-        <p className="text-muted-foreground text-sm">
-          Use a custom domain for click and open tracking links to improve
-          deliverability and maintain brand consistency.
-        </p>
-
-        {domain.trackingDomain ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{domain.trackingDomain}</span>
-              <DomainStatusBadge status={domain.trackingDomainStatus || "NOT_STARTED"} />
-            </div>
-
-            {domain.trackingDomainStatus !== "SUCCESS" && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleVerifyTrackingDomain}
-                  disabled={verifyTrackingDomain.isPending}
-                >
-                  {verifyTrackingDomain.isPending ? "Verifying..." : "Verify DNS"}
-                </Button>
-              </div>
-            )}
-
-            {domain.trackingDomainError && (
-              <p className="text-destructive text-sm">{domain.trackingDomainError}</p>
-            )}
-
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemoveTrackingDomain}
-              disabled={removeTrackingDomainMutation.isPending}
-            >
-              Remove Tracking Domain
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={trackingDomainInput}
-              onChange={(e) => setTrackingDomainInput(e.target.value)}
-              placeholder={`track.${domain.name}`}
-              className="flex-1 px-3 py-2 border rounded-md"
-            />
-            <Button
-              onClick={handleSetTrackingDomain}
-              disabled={!trackingDomainInput || setTrackingDomain.isPending}
-            >
-              {setTrackingDomain.isPending ? "Setting..." : "Set Domain"}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* ... existing danger zone ... */}
-    </div>
-  );
-};
-```
-
-### 7.2 Update DNS Records Table
-
-The DNS records table will automatically show the CNAME record for the tracking domain since we updated `buildDnsRecords` to include it. Ensure the table handles CNAME type properly:
-
-```tsx
-// In the DNS records table, update any type-specific rendering if needed
-{(domainQuery.data?.dnsRecords ?? []).map((record) => {
-  // Handle CNAME records same as others - no changes needed if using generic rendering
-})}
-```
+**Deduplication:** Add a `source` field to EmailEvent or use the event `data` JSON to distinguish SES-originated vs proxy-originated events. This is optional but helpful for debugging.
 
 ---
 
-## Task 8: Webhook Events Update
+## Task 11: Webhook Events Update
 
-### 8.1 Update Webhook Event Types
+**File:** `packages/lib/src/webhook/webhook-events.ts`
 
-**File:** `/packages/lib/src/webhook/webhook-events.ts` (or wherever DomainPayload is defined)
+Update `DomainPayload` to include tracking domain fields:
 
 ```typescript
 export interface DomainPayload {
@@ -921,106 +589,144 @@ export interface DomainPayload {
 }
 ```
 
-This ensures webhook consumers receive tracking domain information in domain events.
-
 ---
 
-## Task 9: Migration Strategy for Existing Users
+## Task 12: SMTP Server Consideration
 
-### 9.1 Database Migration Safety
+**File:** `apps/smtp-server/src/server.ts`
 
-The schema changes add new optional fields, so existing data remains unaffected:
-- `trackingDomain` defaults to `null`
-- `trackingDomainStatus` defaults to `NOT_STARTED`
-- No data migration needed
-
-### 9.2 Feature Rollout
-
-1. **Phase 1**: Deploy backend changes without UI
-2. **Phase 2**: Enable UI for beta users via feature flag (optional)
-3. **Phase 3**: General availability
-
-### 9.3 Backward Compatibility
-
-- Existing domains continue to use default SES tracking links
-- No breaking changes to existing API contracts
-- New fields are optional in API responses
-
----
-
-## Task 10: Testing Considerations
-
-### 10.1 Unit Tests
-
-- DNS CNAME verification logic
-- Tracking domain validation (must be subdomain of sending domain)
-- AWS SES configuration set updates
-
-### 10.2 Integration Tests
-
-- Full flow: set tracking domain -> configure DNS -> verify -> activate
-- Remove tracking domain flow
-- API endpoint authorization
-
-### 10.3 Manual Testing Checklist
-
-- [ ] Add tracking domain via UI
-- [ ] Verify DNS record instructions are correct
-- [ ] Verify tracking domain via UI
-- [ ] Check that click/open tracking links use custom domain
-- [ ] Remove tracking domain
-- [ ] Verify fallback to default SES links
-- [ ] Test API endpoints
+The SMTP server forwards raw emails to the `/api/v1/emails` endpoint. Since tracking transformations happen in the email queue worker (not at API ingestion time), SMTP-sent emails will automatically get tracking applied. **No changes needed to the SMTP server.**
 
 ---
 
 ## Implementation Order
 
-1. **Task 1**: Database schema changes (migration)
-2. **Task 4**: Update types and schemas
-3. **Task 2**: AWS SES integration functions
-4. **Task 3**: Domain service updates
-5. **Task 5**: tRPC API endpoints
-6. **Task 6**: Public REST API endpoints
-7. **Task 7**: Frontend UI changes
-8. **Task 8**: Webhook events update
-9. **Task 9**: Migration/rollout
-10. **Task 10**: Testing
+| Step | Task | Dependencies |
+|------|------|-------------|
+| 1 | Database schema changes (Task 1) | None |
+| 2 | Types and schemas (Task 7) | Task 1 |
+| 3 | Tracking service — link rewriter + pixel injector (Task 2) | Task 1 |
+| 4 | Tracking proxy endpoints (Task 3) | Task 1, 2 |
+| 5 | Modify email sending pipeline (Task 4) | Task 2, 3 |
+| 6 | Domain service — set/verify/remove tracking domain (Task 5) | Task 1 |
+| 7 | Environment + SSL setup (Task 6) | Task 5 |
+| 8 | tRPC + Public API endpoints (Task 8) | Task 5 |
+| 9 | Frontend UI (Task 9) | Task 8 |
+| 10 | Hook parser updates (Task 10) | Task 4 |
+| 11 | Webhook events (Task 11) | Task 5 |
+| 12 | Testing | All |
 
 ---
 
-## Files to Create/Modify Summary
+## Files to Create
 
-### New Files
-- `/apps/web/src/server/public-api/api/domains/set-tracking-domain.ts`
-- `/apps/web/src/server/public-api/api/domains/verify-tracking-domain.ts`
-- `/apps/web/src/server/public-api/api/domains/delete-tracking-domain.ts`
+| File | Description |
+|------|-------------|
+| `apps/web/src/server/service/tracking-service.ts` | Link rewriting + open pixel injection |
+| `apps/web/src/app/t/c/[id]/route.ts` | Click tracking redirect endpoint |
+| `apps/web/src/app/t/o/[id]/route.ts` | Open tracking pixel endpoint |
+| `apps/web/src/server/public-api/api/domains/set-tracking-domain.ts` | Public API |
+| `apps/web/src/server/public-api/api/domains/verify-tracking-domain.ts` | Public API |
+| `apps/web/src/server/public-api/api/domains/delete-tracking-domain.ts` | Public API |
 
-### Modified Files
-- `/apps/web/prisma/schema.prisma`
-- `/apps/web/src/server/aws/ses.ts`
-- `/apps/web/src/server/service/domain-service.ts`
-- `/apps/web/src/server/api/routers/domain.ts`
-- `/apps/web/src/types/domain.ts`
-- `/apps/web/src/lib/zod/domain-schema.ts`
-- `/apps/web/src/app/(dashboard)/domains/[domainId]/page.tsx`
-- `/packages/lib/src/webhook/webhook-events.ts`
-- Public API router registration file
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `apps/web/prisma/schema.prisma` | Add tracking fields + TrackedLink model |
+| `apps/web/src/server/service/email-queue-service.ts` | Apply tracking transforms before SES send |
+| `apps/web/src/utils/ses-utils.ts` | Use `configGeneral` when self-hosted tracking is active |
+| `apps/web/src/server/service/domain-service.ts` | Add tracking domain CRUD + DNS verification |
+| `apps/web/src/server/api/routers/domain.ts` | Add tRPC endpoints |
+| `apps/web/src/types/domain.ts` | Add CNAME to DNS record type |
+| `apps/web/src/lib/zod/domain-schema.ts` | Add tracking domain fields |
+| `apps/web/src/app/(dashboard)/domains/[domainId]/page.tsx` | UI for tracking domain management |
+| `apps/web/src/env.js` | Add `TRACKING_DOMAIN_CNAME_TARGET` |
+| `packages/lib/src/webhook/webhook-events.ts` | Add tracking domain to webhook payload |
 
 ---
 
-## Notes and Considerations
+## Security Considerations
 
-### AWS SES Limitations
-- SES automatically provisions HTTPS certificates for custom tracking domains
-- Certificate provisioning may take a few minutes after CNAME verification
-- Each region shares configuration sets, so custom tracking domain applies region-wide
+1. **No open redirect:** Click tracking endpoint only redirects to URLs stored in TrackedLink table, never to arbitrary user-supplied URLs in the request.
 
-### Security Considerations
-- Validate that tracking domain is a subdomain of the verified sending domain
-- Prevent users from setting tracking domains they do not own
+2. **Tracking domain validation:** Must be a subdomain of the verified sending domain to prevent domain hijacking.
 
-### Future Enhancements
-- Per-domain tracking configuration (requires per-domain config sets)
-- Custom tracking domain for specific email types (transactional vs marketing)
-- SSL certificate status monitoring
+3. **Rate limiting:** Tracking endpoints should be rate-limited per IP to prevent abuse/scraping.
+
+4. **TrackedLink ID opacity:** Use cuid/nanoid (not sequential IDs) so link IDs can't be enumerated.
+
+5. **No PII in tracking URLs:** Link IDs are opaque — the original URL is only stored server-side.
+
+---
+
+## Performance Considerations
+
+1. **Link rewriting adds latency to email queue processing.** Mitigate with batch DB inserts for TrackedLink records.
+
+2. **Tracking endpoints must be fast** — they're in the critical path of user clicks.
+   - Redis cache for TrackedLink lookups
+   - Async event recording via BullMQ (don't block the redirect)
+
+3. **Open pixel requests are high volume** (email clients may prefetch).
+   - Return static GIF immediately, record event async
+   - Consider caching the GIF response at CDN level
+
+4. **Database growth:** TrackedLink table will grow fast. Add TTL-based cleanup (same pattern as `EMAIL_CLEANUP_DAYS` env var for Email records).
+
+---
+
+## Migration Strategy
+
+### For Existing Domains
+
+- All new fields are optional with defaults — zero-downtime migration
+- Existing domains continue using SES tracking until explicitly configured
+- No breaking API changes
+
+### Cloud vs Self-Hosted
+
+| Behavior | Cloud (`IS_CLOUD=true`) | Self-Hosted |
+|----------|------------------------|-------------|
+| Default tracking | Self-hosted proxy | SES config sets (existing behavior) |
+| Custom tracking domain | Supported | Supported |
+| SSL for custom domains | CloudFront/Caddy | User's own reverse proxy |
+| CNAME target | `track.usesend.com` | User's app hostname |
+
+### Rollout
+
+1. Deploy backend (tracking service + endpoints) with feature hidden
+2. Enable for internal testing
+3. Enable for beta users
+4. GA rollout with documentation
+
+---
+
+## Testing Checklist
+
+### Unit Tests
+- [ ] Link rewriter correctly transforms all `<a href>` tags
+- [ ] Link rewriter skips mailto:, tel:, anchor links
+- [ ] Link rewriter skips unsubscribe URLs
+- [ ] Open pixel injected before `</body>`
+- [ ] Open pixel handles emails without `</body>` tag
+- [ ] Tracking domain validation (must be subdomain of sending domain)
+- [ ] DNS CNAME verification
+
+### Integration Tests
+- [ ] Full click tracking flow: send email → click link → redirect + event recorded
+- [ ] Full open tracking flow: send email → load pixel → event recorded
+- [ ] Event shows up in EmailEvent table and daily metrics
+- [ ] Webhook fired on click/open
+- [ ] Campaign counters updated on click/open
+- [ ] Custom tracking domain: DNS verify → tracking URLs use custom domain
+- [ ] Fallback: no custom domain → tracking URLs use app URL
+- [ ] SMTP-sent emails get tracking applied
+
+### Manual Testing
+- [ ] Verify email renders correctly in Gmail, Outlook, Apple Mail
+- [ ] Verify tracking pixel doesn't break email layout
+- [ ] Verify redirects work with special characters in URLs
+- [ ] Verify redirects work with query parameters and fragments
+- [ ] Test with `clickTracking: true, openTracking: false` and vice versa
+- [ ] Test with both disabled (no transformation)
