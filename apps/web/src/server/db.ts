@@ -2,9 +2,9 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "~/env";
 import { logger } from "./logger/log";
 
-const MAX_RETRIES = 5;
-const BASE_DELAY_MS = 100;
-const MAX_DELAY_MS = 10000;
+const MAX_RETRY_DURATION_MS = 60000; // 1 minute total retry window
+const BASE_DELAY_MS = 1000; // Start with 1 second delay
+const MAX_DELAY_MS = 10000; // Cap individual delays at 10 seconds
 
 const RETRYABLE_ERROR_CODES = new Set([
   "P1001", // Can't reach database server
@@ -80,8 +80,10 @@ const createPrismaClient = () => {
         }
 
         let lastError: unknown;
+        const startTime = Date.now();
+        let attempt = 0;
 
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        while (true) {
           try {
             return await query(args);
           } catch (error) {
@@ -91,34 +93,43 @@ const createPrismaClient = () => {
               throw error;
             }
 
-            if (attempt < MAX_RETRIES - 1) {
-              const delay = calculateDelay(attempt);
-              logger.warn(
-                {
-                  operation,
-                  model,
-                  attempt: attempt + 1,
-                  maxRetries: MAX_RETRIES,
-                  delayMs: delay,
-                  error:
-                    error instanceof Error ? error.message : "Unknown error",
-                },
-                `Database connection error, retrying...`
-              );
-              await sleep(delay);
+            const elapsedTime = Date.now() - startTime;
+            const delay = calculateDelay(attempt);
+
+            // Stop retrying if we've exceeded the 1 minute window
+            if (elapsedTime + delay > MAX_RETRY_DURATION_MS) {
+              break;
             }
+
+            logger.warn(
+              {
+                operation,
+                model,
+                attempt: attempt + 1,
+                elapsedMs: elapsedTime,
+                maxDurationMs: MAX_RETRY_DURATION_MS,
+                delayMs: delay,
+                error:
+                  error instanceof Error ? error.message : "Unknown error",
+              },
+              `Database connection error, retrying...`
+            );
+            await sleep(delay);
+            attempt++;
           }
         }
 
+        const totalElapsed = Date.now() - startTime;
         logger.error(
           {
             operation,
             model,
-            attempts: MAX_RETRIES,
+            attempts: attempt + 1,
+            totalElapsedMs: totalElapsed,
             error:
               lastError instanceof Error ? lastError.message : "Unknown error",
           },
-          `Database operation failed after ${MAX_RETRIES} retries`
+          `Database operation failed after retrying for ${Math.round(totalElapsed / 1000)}s`
         );
         throw lastError;
       },
