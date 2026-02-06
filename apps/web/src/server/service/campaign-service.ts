@@ -1076,10 +1076,27 @@ export class CampaignBatchService {
       );
     }
 
+    const jobId = `campaign-batch:${campaignId}`;
+    const existingJob = await this.batchQueue.getJob(jobId);
+
+    if (existingJob) {
+      const state = await existingJob.getState();
+
+      if (state === "failed") {
+        logger.warn(
+          { campaignId, jobId },
+          "Removing failed campaign batch job before requeue",
+        );
+        await existingJob.remove();
+      } else if (state !== "completed") {
+        return;
+      }
+    }
+
     await this.batchQueue.add(
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch:${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      { jobId, ...DEFAULT_QUEUE_OPTIONS },
     );
   }
 }
