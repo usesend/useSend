@@ -35,10 +35,10 @@ export const ScheduleCampaign: React.FC<{
   const [scheduleInput, setScheduleInput] = useState<string>(
     initialScheduledAtDate
       ? format(initialScheduledAtDate, "yyyy-MM-dd HH:mm")
-      : ""
+      : "",
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(
-    initialScheduledAtDate ?? new Date()
+    initialScheduledAtDate ?? new Date(),
   );
   const [isConfirmNow, setIsConfirmNow] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,11 +63,18 @@ export const ScheduleCampaign: React.FC<{
     setScheduleInput("");
   }, [open, scheduledAtTimestamp]);
 
-  const onSchedule = (scheduledAt?: Date) => {
+  const onSchedule = ({
+    scheduledAt,
+    sendNow,
+  }: {
+    scheduledAt?: Date;
+    sendNow?: boolean;
+  }) => {
     if (error) setError(null);
     scheduleMutation.mutate(
       {
         campaignId: campaign.id,
+        sendNow,
         // Never send free text to backend; only a Date
         scheduledAt: scheduledAt ? scheduledAt : undefined,
       },
@@ -86,7 +93,7 @@ export const ScheduleCampaign: React.FC<{
         onError: (error) => {
           setError(error.message || "Failed to schedule campaign");
         },
-      }
+      },
     );
   };
 
@@ -97,7 +104,7 @@ export const ScheduleCampaign: React.FC<{
       return;
     }
 
-    onSchedule(parsed);
+    onSchedule({ scheduledAt: parsed });
   };
 
   const onScheduleInputChange = (input: string) => {
@@ -266,7 +273,7 @@ export const ScheduleCampaign: React.FC<{
                   <Button
                     size="sm"
                     onClick={() => {
-                      onSchedule(new Date());
+                      onSchedule({ sendNow: true });
                     }}
                     disabled={scheduleMutation.isPending}
                   >

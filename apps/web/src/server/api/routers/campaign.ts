@@ -261,6 +261,7 @@ export const campaignRouter = createTRPCRouter({
       z.object({
         campaignId: z.string(),
         scheduledAt: z.union([z.string().datetime(), z.date()]).optional(),
+        sendNow: z.boolean().optional(),
         batchSize: z.number().min(1).max(100_000).optional(),
       }),
     )
@@ -268,7 +269,7 @@ export const campaignRouter = createTRPCRouter({
       await campaignService.scheduleCampaign({
         campaignId: input.campaignId,
         teamId: team.id,
-        scheduledAt: input.scheduledAt,
+        scheduledAt: input.sendNow ? new Date() : input.scheduledAt,
         batchSize: input.batchSize,
       });
       return { ok: true };
