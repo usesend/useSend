@@ -202,6 +202,43 @@ export class SesSettingsService {
     await this.invalidateCache();
   }
 
+  public static async deleteSesSetting(id: string) {
+    await this.checkInitialized();
+
+    const setting = await db.sesSetting.findUnique({
+      where: { id },
+    });
+
+    if (!setting) {
+      throw new Error("SES setting not found");
+    }
+
+    const configNames = [
+      setting.configGeneral,
+      setting.configClick,
+      setting.configOpen,
+      setting.configFull,
+    ].filter(Boolean) as string[];
+
+    await Promise.all(
+      configNames.map((configName) =>
+        ses.deleteConfigurationSet(configName, setting.region)
+      )
+    );
+
+    if (setting.topicArn) {
+      await sns.deleteTopic(setting.topicArn, setting.region);
+    }
+
+    await EmailQueueService.removeRegion(setting.region);
+
+    await db.sesSetting.delete({
+      where: { id },
+    });
+
+    await this.invalidateCache();
+  }
+
   public static async checkInitialized() {
     if (!this.initialized) {
       await this.invalidateCache();
