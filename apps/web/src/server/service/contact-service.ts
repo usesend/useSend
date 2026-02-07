@@ -7,6 +7,7 @@ import { db } from "../db";
 import { ContactQueueService } from "./contact-queue-service";
 import { WebhookService } from "./webhook-service";
 import { logger } from "../logger/log";
+import { sendDoubleOptInConfirmationEmail } from "./double-opt-in-service";
 
 export type ContactInput = {
   email: string;
@@ -21,6 +22,20 @@ export async function addOrUpdateContact(
   contact: ContactInput,
   teamId?: number,
 ) {
+  const contactBook = await db.contactBook.findUnique({
+    where: {
+      id: contactBookId,
+    },
+    select: {
+      doubleOptInEnabled: true,
+      teamId: true,
+    },
+  });
+
+  if (!contactBook) {
+    throw new Error("Contact book not found");
+  }
+
   // Check if contact exists to handle subscribed logic
   const existingContact = await db.contact.findUnique({
     where: {
@@ -31,6 +46,7 @@ export async function addOrUpdateContact(
     },
     select: {
       subscribed: true,
+      unsubscribeReason: true,
     },
   });
 
@@ -45,6 +61,15 @@ export async function addOrUpdateContact(
     // All other cases (Yes→No, Yes→Yes, No→No) are allowed naturally
   }
 
+  const shouldSendDoubleOptIn =
+    contactBook.doubleOptInEnabled &&
+    (!existingContact ||
+      (!existingContact.subscribed &&
+        existingContact.unsubscribeReason === null));
+
+  const shouldCreatePendingContact =
+    contactBook.doubleOptInEnabled && existingContact === null;
+
   const savedContact = await db.contact.upsert({
     where: {
       contactBookId_email: {
@@ -58,7 +83,9 @@ export async function addOrUpdateContact(
       firstName: contact.firstName,
       lastName: contact.lastName,
       properties: contact.properties ?? {},
-      subscribed: contact.subscribed ?? true, // Default to subscribed for new contacts
+      subscribed: shouldCreatePendingContact
+        ? false
+        : (contact.subscribed ?? true),
     },
     update: {
       firstName: contact.firstName,
@@ -67,6 +94,14 @@ export async function addOrUpdateContact(
       ...(subscribedValue !== undefined ? { subscribed: subscribedValue } : {}),
     },
   });
+
+  if (shouldSendDoubleOptIn) {
+    await sendDoubleOptInConfirmationEmail({
+      contactId: savedContact.id,
+      contactBookId,
+      teamId: teamId ?? contactBook.teamId,
+    });
+  }
 
   const eventType: ContactWebhookEventType = existingContact
     ? "contact.updated"

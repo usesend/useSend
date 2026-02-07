@@ -49,6 +49,9 @@ export const contactsRouter = createTRPCRouter({
         name: z.string().optional(),
         properties: z.record(z.string()).optional(),
         emoji: z.string().optional(),
+        doubleOptInEnabled: z.boolean().optional(),
+        doubleOptInSubject: z.string().optional(),
+        doubleOptInContent: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {

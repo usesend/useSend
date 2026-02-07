@@ -293,15 +293,18 @@ model EmailEvent {
 }
 
 model ContactBook {
-  id         String    @id @default(cuid())
-  name       String
-  teamId     Int
-  properties Json
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  emoji      String    @default("📙")
-  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  contacts   Contact[]
+  id                 String    @id @default(cuid())
+  name               String
+  teamId             Int
+  properties         Json
+  doubleOptInEnabled Boolean   @default(false)
+  doubleOptInSubject String?
+  doubleOptInContent String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  emoji              String    @default("📙")
+  team               Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contacts           Contact[]
 
   @@index([teamId])
 }
