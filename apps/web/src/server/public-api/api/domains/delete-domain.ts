@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "../../hono";
 import { db } from "~/server/db";
-import { UnsendApiError } from "../../api-error";
+import { UseSendApiError } from "../../api-error";
 import { deleteDomain as deleteDomainService } from "~/server/service/domain-service";
 
 const route = createRoute({
@@ -61,7 +61,7 @@ function deleteDomain(app: PublicAPIApp) {
 
     // Enforce API key domain restriction
     if (team.apiKey.domainId && team.apiKey.domainId !== domainId) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "FORBIDDEN",
         message: "API key doesn't have access to this domain",
       });
@@ -75,7 +75,7 @@ function deleteDomain(app: PublicAPIApp) {
     });
 
     if (!domain) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_FOUND",
         message: "Domain not found",
       });

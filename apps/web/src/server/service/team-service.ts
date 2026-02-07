@@ -4,7 +4,7 @@ import { db } from "~/server/db";
 import { sendMail, sendTeamInviteEmail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
 import type { Prisma, Team, TeamInvite } from "@prisma/client";
-import { UnsendApiError } from "../public-api/api-error";
+import { UseSendApiError } from "../public-api/api-error";
 import { getRedis } from "~/server/redis";
 import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
@@ -164,7 +164,7 @@ export class TeamService {
 
     const { isLimitReached } = await LimitService.checkTeamMemberLimit(teamId);
     if (isLimitReached) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "FORBIDDEN",
         message: "Team invite limit reached",
       });
