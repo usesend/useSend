@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@usesend/ui/src/popover";
 import { Button } from "@usesend/ui/src/button";
+import { Switch } from "@usesend/ui/src/switch";
 import { useTheme } from "@usesend/ui";
 import { use } from "react";
 
@@ -195,6 +196,34 @@ export default function ContactsPage({
                 </div>
               </div>
             ))}
+          </div>
+          <div className="flex flex-col gap-3 rounded-lg border p-4 shadow">
+            <p className="font-semibold">Double opt-in</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm">Require email confirmation</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  New contacts stay pending until they confirm subscription.
+                </p>
+              </div>
+              <Switch
+                checked={
+                  contactBookDetailQuery.data?.doubleOptInEnabled ?? false
+                }
+                onCheckedChange={(checked) => {
+                  updateContactBookMutation.mutate({
+                    contactBookId,
+                    doubleOptInEnabled: checked,
+                  });
+                }}
+                className="data-[state=checked]:bg-success"
+              />
+            </div>
+            <Button asChild variant="outline" size="sm" className="w-fit">
+              <Link href={`/contacts/${contactBookId}/double-opt-in`}>
+                Edit confirmation email
+              </Link>
+            </Button>
           </div>
         </div>
         <div className="mt-16">
