@@ -485,6 +485,17 @@ EmailWebhookEventType = Literal[
     "email.clicked",
 ]
 
+EmailBaseWebhookEventType = Literal[
+    "email.queued",
+    "email.sent",
+    "email.delivery_delayed",
+    "email.delivered",
+    "email.rejected",
+    "email.rendering_failure",
+    "email.complained",
+    "email.cancelled",
+]
+
 WebhookTestEventType = Literal["webhook.test"]
 
 WebhookEventType = Literal[
@@ -764,7 +775,7 @@ class EmailWebhookEvent(TypedDict):
     """Structure for email webhook events."""
 
     id: str
-    type: EmailWebhookEventType
+    type: EmailBaseWebhookEventType
     createdAt: str
     data: EmailBasePayloadFull
 

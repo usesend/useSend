@@ -284,7 +284,13 @@ def _to_string(body: Union[str, bytes]) -> str:
     if isinstance(body, str):
         return body
     if isinstance(body, bytes):
-        return body.decode("utf-8")
+        try:
+            return body.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise WebhookVerificationError(
+                "INVALID_BODY",
+                "Webhook body must be valid UTF-8.",
+            ) from e
     raise WebhookVerificationError(
         "INVALID_BODY",
         f"Unsupported body type: {type(body).__name__}. Expected str or bytes.",
