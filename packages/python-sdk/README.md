@@ -84,6 +84,12 @@ else:
     print("ok:", raw)
 ```
 
+## Webhook Local Example
+
+For a runnable webhook verification demo project, see:
+
+- `example/webhook-test-project/README.md`
+
 ## Development
 
 This package is managed with Poetry. Models are maintained in-repo under
