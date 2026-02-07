@@ -237,66 +237,75 @@ export default function ContactList({
                   </TableCell>
                 </TableRow>
               ) : contactsQuery.data?.contacts.length ? (
-                contactsQuery.data?.contacts.map((contact) => (
-                  <TableRow key={contact.id} className="">
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={getGravatarUrl(contact.email, {
-                            size: 75,
-                            defaultImage: "robohash",
-                          })}
-                          alt={contact.email + "'s gravatar"}
-                          width={35}
-                          height={35}
-                          className="rounded-full"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">
-                            {contact.email}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {contact.firstName} {contact.lastName}
-                          </span>
+                contactsQuery.data?.contacts.map((contact) => {
+                  const isPendingConfirmation =
+                    !contact.subscribed && !contact.unsubscribeReason;
+
+                  return (
+                    <TableRow key={contact.id} className="">
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={getGravatarUrl(contact.email, {
+                              size: 75,
+                              defaultImage: "robohash",
+                            })}
+                            alt={contact.email + "'s gravatar"}
+                            width={35}
+                            height={35}
+                            className="rounded-full"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              {contact.email}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {contact.firstName} {contact.lastName}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {contact.subscribed ? (
-                        <div className="text-center w-[130px] rounded capitalize py-1 text-xs bg-green/15 text-green border border-green/25">
-                          Subscribed
+                      </TableCell>
+                      <TableCell>
+                        {contact.subscribed ? (
+                          <div className="text-center w-[130px] rounded capitalize py-1 text-xs bg-green/15 text-green border border-green/25">
+                            Subscribed
+                          </div>
+                        ) : isPendingConfirmation ? (
+                          <div className="text-center w-[130px] rounded capitalize py-1 text-xs bg-yellow/20 text-yellow border border-yellow/20">
+                            Pending
+                          </div>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="text-center w-[130px] rounded capitalize py-1 text-xs bg-red/10 text-red border border-red/10">
+                                Unsubscribed
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                {getUnsubscribeReason(
+                                  contact.unsubscribeReason ??
+                                    UnsubscribeReason.UNSUBSCRIBED,
+                                )}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                      <TableCell className="">
+                        {formatDistanceToNow(new Date(contact.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <EditContact contact={contact} />
+                          <DeleteContact contact={contact} />
                         </div>
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <div className="text-center w-[130px] rounded capitalize py-1 text-xs bg-red/10 text-red border border-red/10">
-                              Unsubscribed
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              {getUnsubscribeReason(
-                                contact.unsubscribeReason ??
-                                  UnsubscribeReason.UNSUBSCRIBED,
-                              )}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                    <TableCell className="">
-                      {formatDistanceToNow(new Date(contact.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <EditContact contact={contact} />
-                        <DeleteContact contact={contact} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow className="h-32">
                   <TableCell colSpan={4} className="text-center py-4">
