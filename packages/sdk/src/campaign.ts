@@ -11,7 +11,7 @@ type CreateCampaignResponse = {
 };
 
 type CreateCampaignResponseSuccess =
-	paths["/v1/campaigns"]["post"]["responses"]["200"]["content"]["application/json"];
+  paths["/v1/campaigns"]["post"]["responses"]["200"]["content"]["application/json"];
 
 type GetAllCampaignsQuery = {
   page?: string;
@@ -19,8 +19,7 @@ type GetAllCampaignsQuery = {
   search?: string;
 };
 
-type GetAllCampaignsResponseSuccess =
-  paths["/v1/campaigns"]["get"]["responses"]["200"]["content"]["application/json"];
+type GetAllCampaignsResponseSuccess = paths["/v1/campaigns"]["get"]["responses"]["200"]["content"]["application/json"];
 
 type GetAllCampaignsResponse = {
   data: GetAllCampaignsResponseSuccess | null;

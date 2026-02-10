@@ -1297,7 +1297,8 @@ export interface paths {
                                 createdAt: string;
                                 /** Format: date-time */
                                 updatedAt: string;
-                                status: string;
+                                /** @enum {string} */
+                                status: "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "PAUSED" | "COMPLETED" | "CANCELLED";
                                 /** Format: date-time */
                                 scheduledAt: string | null;
                                 total: number;

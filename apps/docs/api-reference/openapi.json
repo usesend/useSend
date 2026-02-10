@@ -1761,7 +1761,7 @@
 													"subject": { "type": "string" },
 													"createdAt": { "type": "string", "format": "date-time" },
 													"updatedAt": { "type": "string", "format": "date-time" },
-													"status": { "type": "string" },
+													"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
 													"scheduledAt": { "type": "string", "nullable": true, "format": "date-time" },
 													"total": { "type": "integer" },
 													"sent": { "type": "integer" },
