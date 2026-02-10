@@ -1929,19 +1929,19 @@
 			}
 		},
 		"/v1/campaigns/{campaignId}": {
+			"parameters": [
+				{
+					"schema": {
+						"type": "string",
+						"minLength": 1,
+						"example": "cmp_123"
+					},
+					"required": true,
+					"name": "campaignId",
+					"in": "path"
+				}
+			],
 			"get": {
-				"parameters": [
-					{
-						"schema": {
-							"type": "string",
-							"minLength": 1,
-							"example": "cmp_123"
-						},
-						"required": true,
-						"name": "campaignId",
-						"in": "path"
-					}
-				],
 				"responses": {
 					"200": {
 						"description": "Get campaign details",
@@ -2019,18 +2019,6 @@
 				}
 			},
 			"delete": {
-				"parameters": [
-					{
-						"schema": {
-							"type": "string",
-							"minLength": 1,
-							"example": "cmp_123"
-						},
-						"required": true,
-						"name": "campaignId",
-						"in": "path"
-					}
-				],
 				"responses": {
 					"200": {
 						"description": "Delete campaign",

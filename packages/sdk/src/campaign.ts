@@ -15,7 +15,7 @@ type CreateCampaignResponseSuccess =
 
 type GetAllCampaignsQuery = {
   page?: string;
-  status?: string;
+  status?: NonNullable<paths["/v1/campaigns"]["get"]["parameters"]["query"]>["status"];
   search?: string;
 };
 

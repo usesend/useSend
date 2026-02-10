@@ -1391,7 +1391,9 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                campaignId: string;
+            };
             cookie?: never;
         };
         get: {
