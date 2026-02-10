@@ -27,6 +27,8 @@ import createContactBook from "./api/contacts/create-contact-book";
 import getContactBook from "./api/contacts/get-contact-book";
 import updateContactBook from "./api/contacts/update-contact-book";
 import deleteContactBook from "./api/contacts/delete-contact-book";
+import emailTimeSeries from "./api/analytics/email-time-series";
+import reputationMetricsData from "./api/analytics/reputation-metrics-data";
 
 export const app = getApp();
 
@@ -67,5 +69,9 @@ getCampaigns(app);
 scheduleCampaign(app);
 pauseCampaign(app);
 resumeCampaign(app);
+
+/**Analytics related APIs */
+emailTimeSeries(app);
+reputationMetricsData(app);
 
 export default app;
