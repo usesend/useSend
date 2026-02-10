@@ -103,7 +103,8 @@
               "api-reference/campaigns/get-campaign",
               "api-reference/campaigns/schedule-campaign",
               "api-reference/campaigns/pause-campaign",
-              "api-reference/campaigns/resume-campaign"
+              "api-reference/campaigns/resume-campaign",
+              "api-reference/campaigns/delete-campaign"
             ]
           }
         ]

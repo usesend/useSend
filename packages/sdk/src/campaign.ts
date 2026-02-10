@@ -11,7 +11,21 @@ type CreateCampaignResponse = {
 };
 
 type CreateCampaignResponseSuccess =
-  paths["/v1/campaigns"]["post"]["responses"]["200"]["content"]["application/json"];
+	paths["/v1/campaigns"]["post"]["responses"]["200"]["content"]["application/json"];
+
+type GetAllCampaignsQuery = {
+  page?: string;
+  status?: string;
+  search?: string;
+};
+
+type GetAllCampaignsResponseSuccess =
+  paths["/v1/campaigns"]["get"]["responses"]["200"]["content"]["application/json"];
+
+type GetAllCampaignsResponse = {
+  data: GetAllCampaignsResponseSuccess | null;
+  error: ErrorResponse | null;
+};
 
 type GetCampaignResponseSuccess =
   paths["/v1/campaigns/{campaignId}"]["get"]["responses"]["200"]["content"]["application/json"];
@@ -29,6 +43,14 @@ type ScheduleCampaignResponseSuccess =
 
 type ScheduleCampaignResponse = {
   data: ScheduleCampaignResponseSuccess | null;
+  error: ErrorResponse | null;
+};
+
+type DeleteCampaignResponseSuccess =
+  paths["/v1/campaigns/{campaignId}"]["delete"]["responses"]["200"]["content"]["application/json"];
+
+type DeleteCampaignResponse = {
+  data: DeleteCampaignResponseSuccess | null;
   error: ErrorResponse | null;
 };
 
@@ -52,6 +74,21 @@ export class Campaigns {
       payload,
     );
 
+    return data;
+  }
+
+  async getAll(
+    query?: GetAllCampaignsQuery,
+  ): Promise<GetAllCampaignsResponse> {
+    const params = new URLSearchParams();
+    if (query?.page) params.set("page", query.page);
+    if (query?.status) params.set("status", query.status);
+    if (query?.search) params.set("search", query.search);
+
+    const queryString = params.toString();
+    const path = queryString ? `/campaigns?${queryString}` : `/campaigns`;
+
+    const data = await this.usesend.get<GetAllCampaignsResponseSuccess>(path);
     return data;
   }
 
@@ -89,6 +126,13 @@ export class Campaigns {
       {},
     );
 
+    return data;
+  }
+
+  async delete(campaignId: string): Promise<DeleteCampaignResponse> {
+    const data = await this.usesend.delete<DeleteCampaignResponseSuccess>(
+      `/campaigns/${campaignId}`,
+    );
     return data;
   }
 }
