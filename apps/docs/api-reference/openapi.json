@@ -2043,6 +2043,127 @@
 					}
 				}
 			}
+		},
+		"/v1/analytics/email-time-series": {
+			"get": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"enum": ["7", "30"],
+							"example": "30"
+						},
+						"required": false,
+						"name": "days",
+						"in": "query",
+						"description": "Number of days to retrieve data for (default: 30)"
+					},
+					{
+						"schema": { "type": "string" },
+						"required": false,
+						"name": "domainId",
+						"in": "query",
+						"description": "Filter by domain ID"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve email time series data",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"result": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"date": { "type": "string" },
+													"sent": { "type": "integer" },
+													"delivered": { "type": "integer" },
+													"opened": { "type": "integer" },
+													"clicked": { "type": "integer" },
+													"bounced": { "type": "integer" },
+													"complained": { "type": "integer" }
+												},
+												"required": [
+													"date",
+													"sent",
+													"delivered",
+													"opened",
+													"clicked",
+													"bounced",
+													"complained"
+												]
+											}
+										},
+										"totalCounts": {
+											"type": "object",
+											"properties": {
+												"sent": { "type": "integer" },
+												"delivered": { "type": "integer" },
+												"opened": { "type": "integer" },
+												"clicked": { "type": "integer" },
+												"bounced": { "type": "integer" },
+												"complained": { "type": "integer" }
+											},
+											"required": [
+												"sent",
+												"delivered",
+												"opened",
+												"clicked",
+												"bounced",
+												"complained"
+											]
+										}
+									},
+									"required": ["result", "totalCounts"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/analytics/reputation-metrics": {
+			"get": {
+				"parameters": [
+					{
+						"schema": { "type": "string" },
+						"required": false,
+						"name": "domainId",
+						"in": "query",
+						"description": "Filter by domain ID"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retrieve reputation metrics data",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"delivered": { "type": "integer" },
+										"hardBounced": { "type": "integer" },
+										"complained": { "type": "integer" },
+										"bounceRate": { "type": "number" },
+										"complaintRate": { "type": "number" }
+									},
+									"required": [
+										"delivered",
+										"hardBounced",
+										"complained",
+										"bounceRate",
+										"complaintRate"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }
