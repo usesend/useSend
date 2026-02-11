@@ -1565,6 +1565,30 @@
 								}
 							}
 						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
 					}
 				}
 			},
@@ -1601,6 +1625,7 @@
 									},
 									"required": ["email"]
 								},
+								"minItems": 1,
 								"maxItems": 1000
 							}
 						}
@@ -1618,6 +1643,30 @@
 										"count": { "type": "number" }
 									},
 									"required": ["message", "count"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
 								}
 							}
 						}
