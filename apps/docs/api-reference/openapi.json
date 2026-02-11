@@ -2024,7 +2024,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string" },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
@@ -2115,7 +2115,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string" },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
@@ -2192,7 +2192,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string" },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
