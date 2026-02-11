@@ -1,6 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { deleteCampaign as deleteCampaignService } from "~/server/service/campaign-service";
+import { deleteCampaign } from "~/server/service/campaign-service";
 import { campaignResponseSchema } from "~/server/public-api/schemas/campaign-schema";
 
 const route = createRoute({
@@ -32,14 +32,14 @@ const route = createRoute({
   },
 });
 
-function deleteCampaign(app: PublicAPIApp) {
+function deleteCampaignHandle(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const campaignId = c.req.param("campaignId");
 
-    const campaign = await deleteCampaignService(campaignId);
+    const campaign = await deleteCampaign(campaignId);
 
     return c.json(campaign);
   });
 }
 
-export default deleteCampaign;
+export default deleteCampaignHandle;

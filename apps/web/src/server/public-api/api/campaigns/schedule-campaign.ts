@@ -3,11 +3,9 @@ import { PublicAPIApp } from "~/server/public-api/hono";
 import {
   campaignScheduleSchema,
   CampaignScheduleInput,
-  campaignResponseSchema,
   parseScheduledAt,
 } from "~/server/public-api/schemas/campaign-schema";
 import {
-  getCampaignForTeam,
   scheduleCampaign as scheduleCampaignService,
 } from "~/server/service/campaign-service";
 const route = createRoute({
