@@ -1112,6 +1112,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/contactBooks/{contactBookId}/contacts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                        firstName?: string;
+                        lastName?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        subscribed?: boolean;
+                    }[];
+                };
+            };
+            responses: {
+                /** @description Bulk add contacts to a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        contactIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Bulk delete contacts from a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
         parameters: {
             query?: never;

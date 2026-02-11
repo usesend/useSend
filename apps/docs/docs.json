@@ -80,9 +80,11 @@
               "api-reference/contacts/get-contact",
               "api-reference/contacts/get-contacts",
               "api-reference/contacts/create-contact",
+              "api-reference/contacts/bulk-create-contact",
               "api-reference/contacts/update-contact",
               "api-reference/contacts/upsert-contact",
-              "api-reference/contacts/delete-contact"
+              "api-reference/contacts/delete-contact",
+              "api-reference/contacts/bulk-delete-contacts"
             ]
           },
           {

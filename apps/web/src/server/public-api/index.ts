@@ -28,6 +28,8 @@ import createContactBook from "./api/contacts/create-contact-book";
 import getContactBook from "./api/contacts/get-contact-book";
 import updateContactBook from "./api/contacts/update-contact-book";
 import deleteContactBook from "./api/contacts/delete-contact-book";
+import bulkAddContactsHandle from "./api/contacts/bulk-add-contacts";
+import bulkDeleteContacts from "./api/contacts/bulk-delete-contacts";
 
 export const app = getApp();
 
@@ -53,6 +55,8 @@ getContact(app);
 getContacts(app);
 upsertContact(app);
 deleteContact(app);
+bulkAddContactsHandle(app);
+bulkDeleteContacts(app);
 
 /**Contact Book related APIs */
 getContactBooks(app);

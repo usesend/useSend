@@ -1517,6 +1517,114 @@
 				}
 			}
 		},
+		"/v1/contactBooks/{contactBookId}/contacts/bulk": {
+			"delete": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"contactIds": {
+										"type": "array",
+										"items": { "type": "string" },
+										"minItems": 1,
+										"maxItems": 1000
+									}
+								},
+								"required": ["contactIds"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Bulk delete contacts from a contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": { "type": "boolean" },
+										"count": { "type": "number" }
+									},
+									"required": ["success", "count"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"email": { "type": "string" },
+										"firstName": { "type": "string" },
+										"lastName": { "type": "string" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"subscribed": { "type": "boolean" }
+									},
+									"required": ["email"]
+								},
+								"maxItems": 1000
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Bulk add contacts to a contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"message": { "type": "string" },
+										"count": { "type": "number" }
+									},
+									"required": ["message", "count"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
 			"patch": {
 				"parameters": [
