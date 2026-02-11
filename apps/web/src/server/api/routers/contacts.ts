@@ -190,6 +190,19 @@ export const contactsRouter = createTRPCRouter({
       return deletedContact;
     }),
 
+  bulkDeleteContacts: contactBookProcedure
+    .input(z.object({ contactIds: z.array(z.string()).min(1).max(1000) }))
+    .mutation(async ({ ctx: { contactBook, team }, input }) => {
+      const deletedContacts =
+        await contactService.bulkDeleteContactsInContactBook(
+          input.contactIds,
+          contactBook.id,
+          team.id,
+        );
+
+      return { count: deletedContacts.length };
+    }),
+
   exportContacts: contactBookProcedure
     .input(
       z.object({
