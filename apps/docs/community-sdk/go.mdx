@@ -1,18 +1,18 @@
 ---
 title: Go
-description: "The Unsend Go package lets you interact with the useSend API to send and manage emails as well as domains. This is a quick guide on using the package to send emails and retrieve email information."
+description: "The useSend Go package lets you interact with the useSend API to send and manage emails as well as domains. This is a quick guide on using the package to send emails and retrieve email information."
 icon: golang
 ---
 
 <Warning>
-  This is a community-maintained package and not maintained by the Unsend.
+  This is a community-maintained package and not maintained by the useSend.
 </Warning>
 
 **Shout out to [QGeeDev](https://bsky.app/profile/qgdev.co.uk) for maintaining this package.**
 
 ## Installation
 
-To install the Unsend package, you can use go get:
+To install the useSend package, you can use go get:
 
 ```bash
 go get github.com/QGeeDev/unsend-go
@@ -24,7 +24,7 @@ GitHub Repository: [GitHub](https://github.com/QGeeDev/unsend-go)
 
 ## Usage
 
-Below is an example of how to use the Unsend package to send an email and retrieve email information.
+Below is an example of how to use the useSend package to send an email and retrieve email information.
 
 ### Environment Variables
 
@@ -57,9 +57,9 @@ func main() {
 	request := &unsend.SendEmailRequest{
 		To: []string{"youremail@gmail.com"},
 		From: "hello@yourdomain.com",
-    Subject: "Unsend test email",
-		Text: "hello,\n\nUnsend is the best open source sending platform",
-    Html: "<p>hello,</p><p>Unsend is the best open source sending platform</p><p>check out <a href='https://unsend.dev'>unsend.dev</a></p>",
+    Subject: "useSend test email",
+		Text: "hello,\n\nuseSend is the best open source sending platform",
+    Html: "<p>hello,</p><p>useSend is the best open source sending platform</p><p>check out <a href='https://usesend.com'>usesend.com</a></p>",
 	}
 
 	response, err := client.Emails.SendEmail(context.Background(), *request)
