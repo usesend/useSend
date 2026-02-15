@@ -1,6 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("~/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -116,8 +115,10 @@ describeIntegration("tRPC integration", () => {
       }),
     );
 
-    await expect(caller.teamPing()).rejects.toBeInstanceOf(TRPCError);
-    await expect(caller.teamPing()).rejects.toMatchObject({
+    const teamPingPromise = caller.teamPing();
+
+    await expect(teamPingPromise).rejects.toBeInstanceOf(TRPCError);
+    await expect(teamPingPromise).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });

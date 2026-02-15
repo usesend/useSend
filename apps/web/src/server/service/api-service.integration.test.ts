@@ -1,7 +1,7 @@
 import { ApiPermission } from "@prisma/client";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { db } from "~/server/db";
 import { addApiKey, getTeamAndApiKey } from "~/server/service/api-service";
+import { createTeam } from "~/test/factories/core";
 import {
   closeIntegrationConnections,
   integrationEnabled,
@@ -22,11 +22,7 @@ describeIntegration("api-service integration", () => {
   });
 
   it("creates and verifies API key against postgres", async () => {
-    const team = await db.team.create({
-      data: {
-        name: "Integration Team",
-      },
-    });
+    const team = await createTeam({ name: "Integration Team" });
 
     const apiKey = await addApiKey({
       name: "primary",
@@ -43,11 +39,7 @@ describeIntegration("api-service integration", () => {
   });
 
   it("rejects domain-restricted key when domain does not belong to team", async () => {
-    const team = await db.team.create({
-      data: {
-        name: "Team Domain Check",
-      },
-    });
+    const team = await createTeam({ name: "Team Domain Check" });
 
     await expect(
       addApiKey({

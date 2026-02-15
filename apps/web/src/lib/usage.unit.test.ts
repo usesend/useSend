@@ -4,7 +4,7 @@ import {
   getCost,
   getUsageDate,
   getUsageTimestamp,
-  getUsageUinits,
+  getUsageUnits,
   TRANSACTIONAL_UNIT_CONVERSION,
 } from "~/lib/usage";
 
@@ -24,7 +24,7 @@ describe("usage helpers", () => {
   });
 
   it("converts transactional usage into billing units", () => {
-    const units = getUsageUinits(100, 40);
+    const units = getUsageUnits(100, 40);
     expect(units).toBe(100 + Math.floor(40 / TRANSACTIONAL_UNIT_CONVERSION));
   });
 
