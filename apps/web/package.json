@@ -8,6 +8,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
+    "test": "vitest run -c vitest.default.config.ts",
+    "test:watch": "vitest -c vitest.default.config.ts",
+    "test:all": "pnpm test:unit && pnpm test:trpc && pnpm test:api && pnpm test:integration:full",
+    "test:unit": "vitest run -c vitest.unit.config.ts",
+    "test:trpc": "vitest run -c vitest.trpc.config.ts",
+    "test:api": "vitest run -c vitest.api.config.ts",
+    "test:integration:prepare": "prisma migrate deploy",
+    "test:integration:prepare:local": "DATABASE_URL=postgresql://usesend:password@127.0.0.1:54329/usesend_test pnpm test:integration:prepare",
+    "test:integration": "RUN_INTEGRATION=true vitest run -c vitest.integration.config.ts",
+    "test:integration:full": "pnpm test:integration:prepare:local && pnpm test:integration",
+    "test:coverage": "vitest run -c vitest.default.config.ts --coverage",
     "db:post-install": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push --skip-generate",
@@ -97,7 +108,10 @@
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.4"
   },
   "overrides": {
     "react-is": "^19.0.0-rc-69d4b800-20241021"

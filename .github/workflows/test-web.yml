@@ -1,0 +1,86 @@
+name: Web Tests
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+
+jobs:
+  web-tests:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: test-secret
+      DATABASE_URL: postgresql://usesend:password@127.0.0.1:5432/usesend_test
+      REDIS_URL: redis://127.0.0.1:6379/15
+      AWS_ACCESS_KEY: test-access-key
+      AWS_SECRET_KEY: test-secret-key
+      AWS_DEFAULT_REGION: us-east-1
+      NEXT_PUBLIC_IS_CLOUD: "true"
+      API_RATE_LIMIT: "2"
+      AUTH_EMAIL_RATE_LIMIT: "5"
+      RUN_INTEGRATION: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: usesend
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: usesend_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U usesend -d usesend_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.9.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter=web db:generate
+
+      - name: Prepare test database schema
+        run: pnpm --filter=web test:integration:prepare
+
+      - name: Run unit tests
+        run: pnpm --filter=web test:unit
+
+      - name: Run tRPC tests
+        run: pnpm --filter=web test:trpc
+
+      - name: Run API tests
+        run: pnpm --filter=web test:api
+
+      - name: Run integration tests
+        run: pnpm --filter=web test:integration
