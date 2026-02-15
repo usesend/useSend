@@ -2,9 +2,13 @@ name: Web Tests
 
 on:
   pull_request:
+    paths:
+      - "apps/web/**"
   push:
     branches:
       - main
+    paths:
+      - "apps/web/**"
 
 jobs:
   web-tests:
