@@ -36,7 +36,13 @@
 
 ## Testing Guidelines
 
-- No repo-wide test runner is configured yet. do not add any tests unless required
+- Web testing is configured with Vitest in `apps/web`; add tests when changes impact logic, APIs, or behavior.
+- Prefer targeted suites first: `pnpm test:web:unit`, `pnpm test:web:trpc`, `pnpm test:web:api`; use `pnpm test:web` for default non-integration coverage.
+- Test file conventions: `*.unit.test.ts`, `*.trpc.test.ts`, `*.api.test.ts`, `*.integration.test.ts`.
+- Integration tests require infra and env (`RUN_INTEGRATION=true` with Postgres/Redis available). Root commands `pnpm test:web:all` and `pnpm test:web:integration:full` auto-manage infra lifecycle.
+- Use `pnpm test:infra:up` / `pnpm test:infra:down` when running targeted integration commands manually.
+- `pnpm test:web:integration:full` and `test:integration:prepare` run Prisma migrations (`prisma migrate deploy`); never run these unless the user explicitly asks.
+- Test defaults are cloud mode (`NEXT_PUBLIC_IS_CLOUD=true`); keep new tests compatible with cloud behavior unless the task says otherwise.
 
 ## Commit & Pull Request Guidelines
 
