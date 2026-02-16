@@ -230,6 +230,7 @@ export default function ContactsPage({
           <ContactList
             contactBookId={contactBookId}
             contactBookName={contactBookDetailQuery.data?.name}
+            doubleOptInEnabled={contactBookDetailQuery.data?.doubleOptInEnabled}
           />
         </div>
       </div>

@@ -7,10 +7,13 @@ export default async function SubscribePage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const getSingleValue = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value;
+
   const params = await searchParams;
-  const contactId = params.contactId as string;
-  const expiresAt = params.expiresAt as string;
-  const hash = params.hash as string;
+  const contactId = getSingleValue(params.contactId);
+  const expiresAt = getSingleValue(params.expiresAt);
+  const hash = getSingleValue(params.hash);
 
   if (!contactId || !expiresAt || !hash) {
     return (

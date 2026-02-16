@@ -94,17 +94,21 @@ function DoubleOptInEditor({
       });
       setIsSaving(false);
     },
-    onError: (error) => {
-      toast.error(error.message);
-      setIsSaving(false);
-    },
   });
 
   function updateContent() {
-    updateContactBook.mutate({
-      contactBookId: contactBook.id,
-      doubleOptInContent: JSON.stringify(json),
-    });
+    updateContactBook.mutate(
+      {
+        contactBookId: contactBook.id,
+        doubleOptInContent: JSON.stringify(json),
+      },
+      {
+        onError: (error) => {
+          toast.error(error.message);
+          setIsSaving(false);
+        },
+      },
+    );
   }
 
   const debouncedUpdateContent = useDebouncedCallback(updateContent, 1000);
@@ -159,6 +163,7 @@ function DoubleOptInEditor({
                   return;
                 }
 
+                setIsSaving(true);
                 updateContactBook.mutate(
                   {
                     contactBookId: contactBook.id,
@@ -166,7 +171,8 @@ function DoubleOptInEditor({
                   },
                   {
                     onError: (error) => {
-                      toast.error(`${error.message}. Reverting changes.`);
+                      toast.error(error.message);
+                      setIsSaving(false);
                       setSubject(
                         contactBook.doubleOptInSubject ??
                           DEFAULT_DOUBLE_OPT_IN_SUBJECT,

@@ -7,6 +7,8 @@ import {
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
 } from "~/lib/constants/double-opt-in";
 
+type ContactBookDbClient = Pick<typeof db, "contactBook">;
+
 export async function getContactBooks(teamId: number, search?: string) {
   return db.contactBook.findMany({
     where: {
@@ -23,6 +25,7 @@ export async function getContactBooks(teamId: number, search?: string) {
       updatedAt: true,
       doubleOptInEnabled: true,
       doubleOptInSubject: true,
+      doubleOptInContent: true,
       _count: {
         select: { contacts: true },
       },
@@ -30,7 +33,11 @@ export async function getContactBooks(teamId: number, search?: string) {
   });
 }
 
-export async function createContactBook(teamId: number, name: string) {
+export async function createContactBook(
+  teamId: number,
+  name: string,
+  client: ContactBookDbClient = db,
+) {
   const { isLimitReached, reason } =
     await LimitService.checkContactBookLimit(teamId);
 
@@ -41,7 +48,7 @@ export async function createContactBook(teamId: number, name: string) {
     });
   }
 
-  const created = await db.contactBook.create({
+  const created = await client.contactBook.create({
     data: {
       name,
       teamId,
@@ -92,6 +99,7 @@ export async function updateContactBook(
     doubleOptInSubject?: string;
     doubleOptInContent?: string;
   },
+  client: ContactBookDbClient = db,
 ) {
   const updateData = { ...data };
 
@@ -102,8 +110,15 @@ export async function updateContactBook(
     updateData.doubleOptInContent = DEFAULT_DOUBLE_OPT_IN_CONTENT;
   }
 
+  if (
+    data.doubleOptInSubject !== undefined &&
+    !data.doubleOptInSubject.trim()
+  ) {
+    updateData.doubleOptInSubject = DEFAULT_DOUBLE_OPT_IN_SUBJECT;
+  }
+
   if (data.doubleOptInEnabled === true) {
-    const contactBook = await db.contactBook.findUnique({
+    const contactBook = await client.contactBook.findUnique({
       where: { id: contactBookId },
       select: {
         doubleOptInSubject: true,
@@ -120,7 +135,7 @@ export async function updateContactBook(
     }
   }
 
-  return db.contactBook.update({
+  return client.contactBook.update({
     where: { id: contactBookId },
     data: updateData,
   });

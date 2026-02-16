@@ -24,7 +24,22 @@ const DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON = {
     {
       type: "paragraph",
       attrs: { textAlign: "left" },
-      content: [{ type: "text", text: "{{doubleOptInUrl}}" }],
+      content: [
+        {
+          type: "text",
+          text: "Confirm your subscription",
+          marks: [
+            {
+              type: "link",
+              attrs: {
+                href: "{{doubleOptInUrl}}",
+                target: "_blank",
+                rel: "noopener noreferrer nofollow",
+              },
+            },
+          ],
+        },
+      ],
     },
     {
       type: "paragraph",
@@ -51,5 +66,8 @@ export const DOUBLE_OPT_IN_EDITOR_VARIABLES = [
 ];
 
 export function getDefaultDoubleOptInContent() {
-  return JSON.parse(DEFAULT_DOUBLE_OPT_IN_CONTENT) as Record<string, any>;
+  return structuredClone(DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON) as Record<
+    string,
+    any
+  >;
 }

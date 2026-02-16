@@ -186,6 +186,34 @@ describe("double-opt-in-service", () => {
     expect(mockLogger.error).toHaveBeenCalled();
   });
 
+  it("replaces empty template variables instead of leaving tokens", async () => {
+    mockDb.contact.findUnique.mockResolvedValue({
+      id: "contact_1",
+      email: "alice@example.com",
+      firstName: null,
+      lastName: null,
+      contactBookId: "book_1",
+      contactBook: {
+        id: "book_1",
+        name: "Newsletter",
+        doubleOptInEnabled: true,
+        doubleOptInSubject: "Confirm {{firstName}}",
+        doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
+      },
+    });
+    mockDb.domain.findFirst.mockResolvedValue({ name: "example.com" });
+    mockRendererRender.mockResolvedValue("<p>Test</p>");
+
+    await sendDoubleOptInConfirmationEmail({
+      contactId: "contact_1",
+      contactBookId: "book_1",
+      teamId: 7,
+    });
+
+    const sendArgs = mockSendEmail.mock.calls[0]?.[0];
+    expect(sendArgs.subject).toBe("Confirm ");
+  });
+
   it("rejects invalid confirmation links", async () => {
     await expect(
       confirmDoubleOptInSubscription({
