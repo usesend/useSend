@@ -7,6 +7,7 @@ import {
   SendEmailCommand,
   CreateConfigurationSetEventDestinationCommand,
   CreateConfigurationSetCommand,
+  DeleteConfigurationSetCommand,
   EventType,
   GetAccountCommand,
   CreateTenantResourceAssociationCommand,
@@ -309,4 +310,27 @@ export async function addWebhookConfiguration(
 
   const response = await sesClient.send(command);
   return response.$metadata.httpStatusCode === 200;
+}
+
+export async function deleteConfigurationSet(
+  configName: string,
+  region: string
+) {
+  const sesClient = getSesClient(region);
+  const command = new DeleteConfigurationSetCommand({
+    ConfigurationSetName: configName,
+  });
+
+  try {
+    await sesClient.send(command);
+  } catch (error: any) {
+    if (error?.name === "NotFoundException") {
+      logger.warn(
+        { configName, region },
+        "Configuration set not found while deleting"
+      );
+      return;
+    }
+    throw error;
+  }
 }

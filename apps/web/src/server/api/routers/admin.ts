@@ -112,6 +112,17 @@ export const adminRouter = createTRPCRouter({
       });
     }),
 
+  deleteSesSettings: adminProcedure
+    .input(
+      z.object({
+        settingsId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await SesSettingsService.deleteSesSetting(input.settingsId);
+      return true;
+    }),
+
   getSetting: adminProcedure
     .input(
       z.object({
