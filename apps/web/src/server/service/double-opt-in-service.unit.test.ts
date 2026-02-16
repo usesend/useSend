@@ -264,6 +264,27 @@ describe("double-opt-in-service", () => {
     expect(mockDb.contact.update).not.toHaveBeenCalled();
   });
 
+  it("does not re-subscribe contacts with explicit unsubscribe reasons", async () => {
+    const expiresAt = Date.now() + 60_000;
+    const contact = {
+      id: "contact_1",
+      email: "alice@example.com",
+      subscribed: false,
+      unsubscribeReason: "UNSUBSCRIBED",
+    };
+
+    mockDb.contact.findUnique.mockResolvedValue(contact);
+
+    const result = await confirmDoubleOptInSubscription({
+      contactId: "contact_1",
+      expiresAt: String(expiresAt),
+      hash: getHash("contact_1", expiresAt),
+    });
+
+    expect(result).toBe(contact);
+    expect(mockDb.contact.update).not.toHaveBeenCalled();
+  });
+
   it("activates pending contacts with a valid link", async () => {
     const expiresAt = Date.now() + 60_000;
 

@@ -1,5 +1,5 @@
 import { DomainStatus } from "@prisma/client";
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { env } from "~/env";
 import {
@@ -171,7 +171,12 @@ export async function confirmDoubleOptInSubscription({
   }
 
   const expectedHash = createDoubleOptInHash(contactId, expiresAtTimestamp);
-  if (hash !== expectedHash) {
+  const providedHashBuffer = Buffer.from(hash, "utf-8");
+  const expectedHashBuffer = Buffer.from(expectedHash, "utf-8");
+  if (
+    providedHashBuffer.length !== expectedHashBuffer.length ||
+    !timingSafeEqual(providedHashBuffer, expectedHashBuffer)
+  ) {
     throw new Error("Invalid confirmation link");
   }
 
@@ -183,7 +188,7 @@ export async function confirmDoubleOptInSubscription({
     throw new Error("Contact not found");
   }
 
-  if (existingContact.subscribed) {
+  if (existingContact.subscribed || existingContact.unsubscribeReason != null) {
     return existingContact;
   }
 

@@ -159,6 +159,38 @@ describe("contact-service addOrUpdateContact", () => {
     });
   });
 
+  it("does not create pending contacts for explicit unsubscribes", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: true,
+      teamId: 7,
+    });
+    mockDb.contact.findUnique.mockResolvedValue(null);
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_5",
+      email: "erin@example.com",
+      contactBookId: "book_1",
+      subscribed: false,
+      properties: {},
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      { email: "erin@example.com", subscribed: false },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.create).toMatchObject({
+      subscribed: false,
+      unsubscribeReason: "UNSUBSCRIBED",
+    });
+    expect(mockSendDoubleOptInConfirmationEmail).not.toHaveBeenCalled();
+  });
+
   it("does not re-subscribe contacts that already unsubscribed", async () => {
     mockDb.contactBook.findUnique.mockResolvedValue({
       doubleOptInEnabled: true,
