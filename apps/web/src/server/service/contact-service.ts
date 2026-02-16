@@ -61,14 +61,19 @@ export async function addOrUpdateContact(
     // All other cases (Yes→No, Yes→Yes, No→No) are allowed naturally
   }
 
+  const isExplicitUnsubscribeRequest = contact.subscribed === false;
+
   const shouldSendDoubleOptIn =
     contactBook.doubleOptInEnabled &&
+    !isExplicitUnsubscribeRequest &&
     (!existingContact ||
       (!existingContact.subscribed &&
         existingContact.unsubscribeReason === null));
 
   const shouldCreatePendingContact =
-    contactBook.doubleOptInEnabled && existingContact === null;
+    contactBook.doubleOptInEnabled &&
+    existingContact === null &&
+    !isExplicitUnsubscribeRequest;
 
   const savedContact = await db.contact.upsert({
     where: {

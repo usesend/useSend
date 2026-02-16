@@ -2,6 +2,20 @@ import { confirmDoubleOptInSubscription } from "~/server/service/double-opt-in-s
 
 export const dynamic = "force-dynamic";
 
+const PUBLIC_CONFIRMATION_ERRORS = new Set([
+  "Invalid confirmation link",
+  "Confirmation link has expired",
+  "Contact not found",
+]);
+
+function getConfirmationErrorMessage(error: unknown) {
+  if (error instanceof Error && PUBLIC_CONFIRMATION_ERRORS.has(error.message)) {
+    return error.message;
+  }
+
+  return "Unable to confirm your subscription.";
+}
+
 export default async function SubscribePage({
   searchParams,
 }: {
@@ -48,6 +62,8 @@ export default async function SubscribePage({
       </div>
     );
   } catch (error) {
+    const errorMessage = getConfirmationErrorMessage(error);
+
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="max-w-md w-full space-y-4 p-8 shadow rounded-xl border">
@@ -55,9 +71,7 @@ export default async function SubscribePage({
             Confirmation Failed
           </h1>
           <p className="text-sm text-muted-foreground text-center">
-            {error instanceof Error
-              ? error.message
-              : "Unable to confirm your subscription."}
+            {errorMessage}
           </p>
         </div>
       </div>
