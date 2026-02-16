@@ -2,6 +2,7 @@ import { SuppressionReason, SuppressionList } from "@prisma/client";
 import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { logger } from "../logger/log";
+import { deleteFromSesSuppressionList } from "../aws/ses";
 
 export type AddSuppressionParams = {
   email: string;
@@ -120,22 +121,71 @@ export class SuppressionService {
   }
 
   /**
-   * Remove email from suppression list
+   * Remove email from suppression list (both local DB and AWS SES)
    */
   static async removeSuppression(email: string, teamId: number): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Get all unique regions from team's domains for AWS SES cleanup
+    try {
+      const teamDomains = await db.domain.findMany({
+        where: { teamId },
+        select: { region: true },
+      });
+      const uniqueRegions = [...new Set(teamDomains.map((d) => d.region))];
+
+      // Attempt to remove from AWS SES in all regions (best effort, don't throw)
+      if (uniqueRegions.length > 0) {
+        const results = await Promise.allSettled(
+          uniqueRegions.map((region) =>
+            deleteFromSesSuppressionList(normalizedEmail, region)
+          )
+        );
+
+        // Check for failures - deleteFromSesSuppressionList returns false on error
+        const failures = results.filter(
+          (r) =>
+            r.status === "rejected" ||
+            (r.status === "fulfilled" && r.value === false)
+        );
+        if (failures.length > 0) {
+          logger.warn(
+            {
+              email: normalizedEmail,
+              teamId,
+              failedRegions: failures.length,
+              totalRegions: uniqueRegions.length,
+            },
+            "Some AWS SES regions failed during suppression removal"
+          );
+        }
+      }
+    } catch (error) {
+      // AWS SES cleanup failure should not block local DB deletion
+      logger.error(
+        {
+          email: normalizedEmail,
+          teamId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        "Failed to cleanup AWS SES suppression (continuing with local deletion)"
+      );
+    }
+
+    // Delete from local database
     try {
       const deleted = await db.suppressionList.delete({
         where: {
           teamId_email: {
             teamId,
-            email: email.toLowerCase().trim(),
+            email: normalizedEmail,
           },
         },
       });
 
       logger.info(
         {
-          email,
+          email: normalizedEmail,
           teamId,
           suppressionId: deleted.id,
         },
@@ -149,7 +199,7 @@ export class SuppressionService {
       ) {
         logger.debug(
           {
-            email,
+            email: normalizedEmail,
             teamId,
           },
           "Attempted to remove non-existent suppression - already not suppressed"
@@ -159,7 +209,7 @@ export class SuppressionService {
 
       logger.error(
         {
-          email,
+          email: normalizedEmail,
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
