@@ -35,6 +35,7 @@ vi.mock("~/server/service/limit-service", () => ({
 
 import {
   createContactBook,
+  getContactBooks,
   updateContactBook,
 } from "~/server/service/contact-book-service";
 
@@ -42,8 +43,23 @@ describe("contact-book-service", () => {
   beforeEach(() => {
     mockCheckContactBookLimit.mockReset();
     mockDb.contactBook.create.mockReset();
+    mockDb.contactBook.findMany.mockReset();
     mockDb.contactBook.update.mockReset();
     mockDb.contactBook.findUnique.mockReset();
+  });
+
+  it("returns double opt-in content in contact book listings", async () => {
+    mockDb.contactBook.findMany.mockResolvedValue([]);
+
+    await getContactBooks(12);
+
+    expect(mockDb.contactBook.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          doubleOptInContent: true,
+        }),
+      }),
+    );
   });
 
   it("creates contact books with double opt-in defaults", async () => {

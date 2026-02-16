@@ -23,7 +23,7 @@ function replaceTemplateTokens(
   variables: Record<string, string | undefined>,
 ) {
   return Object.entries(variables).reduce((acc, [key, replacement]) => {
-    if (!replacement) {
+    if (replacement === undefined) {
       return acc;
     }
 

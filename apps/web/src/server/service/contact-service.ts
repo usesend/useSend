@@ -1,4 +1,4 @@
-import { type Contact } from "@prisma/client";
+import { type Contact, UnsubscribeReason } from "@prisma/client";
 import {
   type ContactPayload,
   type ContactWebhookEventType,
@@ -86,21 +86,45 @@ export async function addOrUpdateContact(
       subscribed: shouldCreatePendingContact
         ? false
         : (contact.subscribed ?? true),
+      unsubscribeReason: shouldCreatePendingContact
+        ? null
+        : contact.subscribed === false
+          ? UnsubscribeReason.UNSUBSCRIBED
+          : null,
     },
     update: {
       firstName: contact.firstName,
       lastName: contact.lastName,
       properties: contact.properties ?? {},
-      ...(subscribedValue !== undefined ? { subscribed: subscribedValue } : {}),
+      ...(subscribedValue !== undefined
+        ? {
+            subscribed: subscribedValue,
+            unsubscribeReason: subscribedValue
+              ? null
+              : UnsubscribeReason.UNSUBSCRIBED,
+          }
+        : {}),
     },
   });
 
   if (shouldSendDoubleOptIn) {
-    await sendDoubleOptInConfirmationEmail({
-      contactId: savedContact.id,
-      contactBookId,
-      teamId: teamId ?? contactBook.teamId,
-    });
+    try {
+      await sendDoubleOptInConfirmationEmail({
+        contactId: savedContact.id,
+        contactBookId,
+        teamId: teamId ?? contactBook.teamId,
+      });
+    } catch (error) {
+      logger.error(
+        {
+          error,
+          contactId: savedContact.id,
+          contactBookId,
+          teamId: teamId ?? contactBook.teamId,
+        },
+        "[ContactService]: Failed to send double opt-in confirmation email",
+      );
+    }
   }
 
   const eventType: ContactWebhookEventType = existingContact
@@ -143,7 +167,16 @@ export async function updateContactInContactBook(
     where: {
       id: contactId,
     },
-    data: contact,
+    data: {
+      ...contact,
+      ...(contact.subscribed !== undefined
+        ? {
+            unsubscribeReason: contact.subscribed
+              ? null
+              : UnsubscribeReason.UNSUBSCRIBED,
+          }
+        : {}),
+    },
   });
 
   await emitContactEvent(updatedContact, "contact.updated", teamId);
@@ -196,6 +229,7 @@ export async function unsubscribeContact(contactId: string) {
     },
     data: {
       subscribed: false,
+      unsubscribeReason: UnsubscribeReason.UNSUBSCRIBED,
     },
   });
 }
@@ -207,6 +241,7 @@ export async function subscribeContact(contactId: string) {
     },
     data: {
       subscribed: true,
+      unsubscribeReason: null,
     },
   });
 }

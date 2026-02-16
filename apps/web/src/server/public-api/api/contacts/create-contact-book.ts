@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { ContactBookSchema } from "~/lib/zod/contact-book-schema";
+import { db } from "~/server/db";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import {
   createContactBook as createContactBookService,
@@ -43,29 +44,32 @@ function createContactBook(app: PublicAPIApp) {
     const team = c.var.team;
     const body = c.req.valid("json");
 
-    const contactBook = await createContactBookService(team.id, body.name);
-
-    // Update optional fields if provided
-    if (
-      body.emoji ||
-      body.properties ||
+    const hasOptionalFields =
+      body.emoji !== undefined ||
+      body.properties !== undefined ||
       body.doubleOptInEnabled !== undefined ||
       body.doubleOptInSubject !== undefined ||
-      body.doubleOptInContent !== undefined
-    ) {
-      const updated = await updateContactBook(contactBook.id, {
-        emoji: body.emoji,
-        properties: body.properties,
-        doubleOptInEnabled: body.doubleOptInEnabled,
-        doubleOptInSubject: body.doubleOptInSubject,
-        doubleOptInContent: body.doubleOptInContent,
-      });
+      body.doubleOptInContent !== undefined;
 
-      return c.json({
-        ...updated,
-        properties: updated.properties as Record<string, string>,
-      });
-    }
+    const contactBook = await db.$transaction(async (tx) => {
+      const created = await createContactBookService(team.id, body.name, tx);
+
+      if (!hasOptionalFields) {
+        return created;
+      }
+
+      return updateContactBook(
+        created.id,
+        {
+          emoji: body.emoji,
+          properties: body.properties,
+          doubleOptInEnabled: body.doubleOptInEnabled,
+          doubleOptInSubject: body.doubleOptInSubject,
+          doubleOptInContent: body.doubleOptInContent,
+        },
+        tx,
+      );
+    });
 
     return c.json({
       ...contactBook,

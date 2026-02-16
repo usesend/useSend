@@ -60,6 +60,8 @@ describe("contact-service addOrUpdateContact", () => {
     mockDb.contact.upsert.mockReset();
     mockWebhookEmit.mockReset();
     mockSendDoubleOptInConfirmationEmail.mockReset();
+    mockLogger.warn.mockReset();
+    mockLogger.error.mockReset();
   });
 
   it("creates pending contacts and sends double opt-in confirmation", async () => {
@@ -84,6 +86,7 @@ describe("contact-service addOrUpdateContact", () => {
 
     const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
     expect(upsertArgs.create.subscribed).toBe(false);
+    expect(upsertArgs.create.unsubscribeReason).toBeNull();
     expect(mockSendDoubleOptInConfirmationEmail).toHaveBeenCalledWith({
       contactId: "contact_1",
       contactBookId: "book_1",
@@ -121,7 +124,39 @@ describe("contact-service addOrUpdateContact", () => {
 
     const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
     expect(upsertArgs.create.subscribed).toBe(true);
+    expect(upsertArgs.create.unsubscribeReason).toBeNull();
     expect(mockSendDoubleOptInConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it("stores unsubscribe reason when creating unsubscribed contacts", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+    });
+    mockDb.contact.findUnique.mockResolvedValue(null);
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_3",
+      email: "carol@example.com",
+      contactBookId: "book_1",
+      subscribed: false,
+      properties: {},
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      { email: "carol@example.com", subscribed: false },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.create).toMatchObject({
+      subscribed: false,
+      unsubscribeReason: "UNSUBSCRIBED",
+    });
   });
 
   it("does not re-subscribe contacts that already unsubscribed", async () => {
@@ -168,5 +203,41 @@ describe("contact-service addOrUpdateContact", () => {
       addOrUpdateContact("missing-book", { email: "alice@example.com" }, 7),
     ).rejects.toThrow("Contact book not found");
     expect(mockDb.contact.upsert).not.toHaveBeenCalled();
+  });
+
+  it("persists contact when double opt-in email send fails", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: true,
+      teamId: 7,
+    });
+    mockDb.contact.findUnique.mockResolvedValue(null);
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_4",
+      email: "dana@example.com",
+      contactBookId: "book_1",
+      subscribed: false,
+      properties: {},
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    mockSendDoubleOptInConfirmationEmail.mockRejectedValue(
+      new Error("send failed"),
+    );
+
+    await expect(
+      addOrUpdateContact("book_1", { email: "dana@example.com" }, 7),
+    ).resolves.toMatchObject({
+      id: "contact_4",
+    });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: "contact_4",
+        contactBookId: "book_1",
+        teamId: 7,
+      }),
+      "[ContactService]: Failed to send double opt-in confirmation email",
+    );
   });
 });

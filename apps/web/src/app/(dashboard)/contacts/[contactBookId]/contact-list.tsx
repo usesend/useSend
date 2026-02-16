@@ -70,9 +70,11 @@ function getUnsubscribeReason(reason: UnsubscribeReason) {
 export default function ContactList({
   contactBookId,
   contactBookName,
+  doubleOptInEnabled,
 }: {
   contactBookId: string;
   contactBookName?: string;
+  doubleOptInEnabled?: boolean;
 }) {
   const [page, setPage] = useUrlState("page", "1");
   const [status, setStatus] = useUrlState("status");
@@ -239,7 +241,9 @@ export default function ContactList({
               ) : contactsQuery.data?.contacts.length ? (
                 contactsQuery.data?.contacts.map((contact) => {
                   const isPendingConfirmation =
-                    !contact.subscribed && !contact.unsubscribeReason;
+                    Boolean(doubleOptInEnabled) &&
+                    !contact.subscribed &&
+                    !contact.unsubscribeReason;
 
                   return (
                     <TableRow key={contact.id} className="">
