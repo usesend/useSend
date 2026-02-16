@@ -1,0 +1,147 @@
+---
+title: Go
+description: "The useSend Go package lets you interact with the useSend API to send emails, manage contacts, and work with domains. This guide covers basic setup and usage."
+icon: golang
+---
+
+## Prerequisites
+
+- [useSend API key](https://app.usesend.com/dev-settings/api-keys)
+- [Verified domain](https://app.usesend.com/domains)
+
+## Installation
+
+Install the useSend Go SDK:
+```bash
+go get github.com/usesend/usesend-go
+```
+
+## Initialize
+
+Create a new client using your API key.
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    usesend "github.com/usesend/usesend-go"
+)
+
+func main() {
+    client, err := usesend.NewClient("us_12345")
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+API keys can also be supplied via the `USESEND_API_KEY` environment variable.
+
+### Self-Hosted Setup
+
+If you are running a self-hosted version of useSend, provide the base URL using `WithBaseURL`.
+```go
+client, err := usesend.NewClient(
+    "us_12345",
+    usesend.WithBaseURL("https://app.usesend.com"),
+)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+<Info>
+The base URL should be the root domain only. Do not include `/api/v1`, as the SDK manages API paths internally.
+</Info>
+
+### Options
+
+- `WithBaseURL(url string)`: Override the base API URL (e.g. for self-hosting)
+- `WithHTTPClient(*http.Client)`: Provide a custom HTTP client
+
+<Info>
+The default HTTP client uses a 30s timeout. Requests include a `User-Agent: usesend-go` header.
+</Info>
+
+## Sending Emails
+```go
+resp, errResp, err := client.Emails.Send(
+    context.Background(),
+    usesend.SendEmailPayload{
+        To:      []string{"hello@acme.com"},
+        From:    "hello@company.com",
+        Subject: "useSend email",
+        HTML:    "<p>useSend is the best open source product to send emails</p>",
+        Text:    "useSend is the best open source product to send emails",
+        Headers: map[string]string{
+            "X-Campaign": "welcome",
+        },
+    },
+)
+
+if err != nil {
+    log.Fatal(err)
+}
+
+if errResp != nil {
+    log.Fatalf("API error: %s", errResp.Message)
+}
+
+log.Printf("Email queued with ID: %s", resp.EmailID)
+```
+
+<Info>
+Custom headers are forwarded as-is. useSend only manages the `X-Usesend-Email-ID` and `References` headers.
+</Info>
+
+## Managing Contacts
+
+### Get Contact Book ID
+
+Retrieve the contact book ID from the useSend dashboard.
+
+### Create Contacts
+```go
+contact, apiErr, err := client.Contacts.Create(
+    context.Background(),
+    "contactBook_123",
+    usesend.CreateContactPayload{
+        Email:     "hey@koushik.dev",
+        FirstName: "Koushik",
+        LastName:  "KM",
+    },
+)
+
+if err != nil {
+    log.Fatal(err) // transport error
+}
+
+if apiErr != nil {
+    log.Fatalf("API error: %s", apiErr.Message)
+}
+
+log.Printf("Contact ID: %s", contact.ContactID)
+```
+
+### Update Contacts
+```go
+contact, apiErr, err := client.Contacts.Update(
+    context.Background(),
+    "contactBook_123",
+    "contact_456",
+    usesend.UpdateContactPayload{
+        FirstName: "Koushik",
+        LastName:  "KM",
+    },
+)
+
+if err != nil {
+    log.Fatal(err)
+}
+
+if apiErr != nil {
+    log.Fatalf("API error: %s", apiErr.Message)
+}
+```

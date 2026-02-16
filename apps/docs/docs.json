@@ -28,6 +28,7 @@
               "introduction",
               "get-started/nodejs",
               "get-started/python",
+              "get-started/go",
               "get-started/local",
               "get-started/smtp"
             ]
@@ -39,10 +40,6 @@
           {
             "group": "Guides",
             "pages": ["guides/webhooks", "guides/use-with-react-email"]
-          },
-          {
-            "group": "Community SDKs",
-            "pages": ["community-sdk/python", "community-sdk/go"]
           }
         ]
       },
