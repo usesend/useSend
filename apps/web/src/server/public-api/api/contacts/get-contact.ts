@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { db } from "~/server/db";
-import { UnsendApiError } from "../../api-error";
+import { UseSendApiError } from "../../api-error";
 import { getContactBook } from "../../api-utils";
 
 const route = createRoute({
@@ -63,7 +63,7 @@ function getContact(app: PublicAPIApp) {
     });
 
     if (!contact) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_FOUND",
         message: "Contact not found",
       });

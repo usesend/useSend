@@ -3,7 +3,7 @@ import { PublicAPIApp } from "~/server/public-api/hono";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { db } from "~/server/db";
 import { EmailStatus } from "@prisma/client";
-import { UnsendApiError } from "../../api-error";
+import { UseSendApiError } from "../../api-error";
 
 const route = createRoute({
   method: "get",
@@ -88,7 +88,7 @@ function send(app: PublicAPIApp) {
     });
 
     if (!email) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_FOUND",
         message: "Email not found",
       });
