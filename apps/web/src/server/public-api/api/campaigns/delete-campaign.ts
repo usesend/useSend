@@ -1,12 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import {
-  pauseCampaign,
-} from "~/server/service/campaign-service";
+import { deleteCampaign } from "~/server/service/campaign-service";
+import { campaignResponseSchema } from "~/server/public-api/schemas/campaign-schema";
 
 const route = createRoute({
-  method: "post",
-  path: "/v1/campaigns/{campaignId}/pause",
+  method: "delete",
+  path: "/v1/campaigns/{campaignId}",
   request: {
     params: z.object({
       campaignId: z
@@ -23,30 +22,24 @@ const route = createRoute({
   },
   responses: {
     200: {
-      description: "Pause a campaign",
+      description: "Delete campaign",
       content: {
         "application/json": {
-          schema: z.object({
-            success: z.boolean(),
-          }),
+          schema: campaignResponseSchema,
         },
       },
     },
   },
 });
 
-function pauseCampaignHandle(app: PublicAPIApp) {
-  app.openapi(route, async (c) => {
-    const team = c.var.team;
+function deleteCampaignHandle(app: PublicAPIApp) {
+	app.openapi(route, async (c) => {
+	  const team = c.var.team;
     const campaignId = c.req.param("campaignId");
 
-    await pauseCampaign({
-      campaignId,
-      teamId: team.id,
-    });
-
-    return c.json({ success: true });
+    const campaign = await deleteCampaign(campaignId, team.id);
+    return c.json(campaign);
   });
 }
 
-export default pauseCampaignHandle;
+export default deleteCampaignHandle;
