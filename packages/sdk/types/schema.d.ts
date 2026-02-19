@@ -1353,7 +1353,7 @@ export interface paths {
                     /** @description Page number for pagination (default: 1) */
                     page?: string;
                     /** @description Filter campaigns by status */
-                    status?: "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "PAUSED" | "COMPLETED" | "CANCELLED";
+                    status?: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
                     /** @description Search campaigns by name or subject */
                     search?: string;
                 };
@@ -1380,7 +1380,7 @@ export interface paths {
                                 /** Format: date-time */
                                 updatedAt: string;
                                 /** @enum {string} */
-                                status: "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "PAUSED" | "COMPLETED" | "CANCELLED";
+                                status: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
                                 /** Format: date-time */
                                 scheduledAt: string | null;
                                 total: number;

@@ -1879,10 +1879,9 @@
 							"enum": [
 								"DRAFT",
 								"SCHEDULED",
-								"IN_PROGRESS",
+								"RUNNING",
 								"PAUSED",
-								"COMPLETED",
-								"CANCELLED"
+								"SENT"
 							],
 							"example": "DRAFT"
 						},
@@ -1918,7 +1917,7 @@
 													"subject": { "type": "string" },
 													"createdAt": { "type": "string", "format": "date-time" },
 													"updatedAt": { "type": "string", "format": "date-time" },
-													"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
+													"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 													"scheduledAt": { "type": "string", "nullable": true, "format": "date-time" },
 													"total": { "type": "integer" },
 													"sent": { "type": "integer" },
@@ -2024,7 +2023,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
@@ -2115,7 +2114,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
@@ -2192,7 +2191,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"] },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
