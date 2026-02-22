@@ -307,10 +307,17 @@ export class TeamService {
     return deleted;
   }
 
-  static async resendTeamInvite(inviteId: string, teamName: string) {
-    const invite = await db.teamInvite.findUnique({
+  static async resendTeamInvite(
+    teamId: number,
+    inviteId: string,
+    teamName: string,
+  ) {
+    const invite = await db.teamInvite.findFirst({
       where: {
-        id: inviteId,
+        teamId,
+        id: {
+          equals: inviteId,
+        },
       },
     });
 
@@ -448,7 +455,6 @@ export class TeamService {
       );
       throw err;
     }
-
   }
 
   /**
@@ -555,7 +561,6 @@ export class TeamService {
       );
       throw err;
     }
-
   }
 }
 
