@@ -25,6 +25,12 @@ vi.mock("~/server/billing/payments", () => ({
   syncStripeData: vi.fn(),
 }));
 
+vi.mock("~/env", () => ({
+  env: {
+    STRIPE_WEBHOOK_SECRET: undefined,
+  },
+}));
+
 import { POST } from "~/app/api/webhook/stripe/route";
 
 describe("stripe webhook route", () => {
