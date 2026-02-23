@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb } = vi.hoisted(() => ({
+const { mockDb, mockValidateDomainFromEmail } = vi.hoisted(() => ({
   mockDb: {
     teamUser: {
       findFirst: vi.fn(),
@@ -13,6 +13,7 @@ const { mockDb } = vi.hoisted(() => ({
       findUnique: vi.fn(),
     },
   },
+  mockValidateDomainFromEmail: vi.fn(),
 }));
 
 vi.mock("~/server/db", () => ({
@@ -25,6 +26,9 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/server/service/campaign-service", () => ({}));
 vi.mock("~/server/service/webhook-service", () => ({}));
+vi.mock("~/server/service/domain-service", () => ({
+  validateDomainFromEmail: mockValidateDomainFromEmail,
+}));
 
 import { createCallerFactory } from "~/server/api/trpc";
 import { campaignRouter } from "~/server/api/routers/campaign";
