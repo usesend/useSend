@@ -561,7 +561,9 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    "Idempotency-Key"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -628,7 +630,9 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    "Idempotency-Key"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -724,6 +728,300 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/contactBooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve contact books accessible by the API key */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The ID of the contact book
+                             * @example clx1234567890
+                             */
+                            id: string;
+                            /**
+                             * @description The name of the contact book
+                             * @example Newsletter Subscribers
+                             */
+                            name: string;
+                            /**
+                             * @description The ID of the team
+                             * @example 1
+                             */
+                            teamId: number;
+                            /**
+                             * @description Custom properties for the contact book
+                             * @example {
+                             *       "customField1": "value1"
+                             *     }
+                             */
+                            properties: {
+                                [key: string]: string;
+                            };
+                            /**
+                             * @description The emoji associated with the contact book
+                             * @example 📙
+                             */
+                            emoji: string;
+                            /** @description The creation timestamp */
+                            createdAt: string;
+                            /** @description The last update timestamp */
+                            updatedAt: string;
+                            _count?: {
+                                /** @description The number of contacts in the contact book */
+                                contacts?: number;
+                            };
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        emoji?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Create a new contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            teamId: number;
+                            properties: {
+                                [key: string]: string;
+                            };
+                            emoji: string;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contactBooks/{contactBookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve the contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            teamId: number;
+                            properties: {
+                                [key: string]: string;
+                            };
+                            emoji: string;
+                            createdAt: string;
+                            updatedAt: string;
+                            _count?: {
+                                contacts?: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contact book deleted successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            success: boolean;
+                            message: string;
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        emoji?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Update the contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            teamId: number;
+                            properties: {
+                                [key: string]: string;
+                            };
+                            emoji: string;
+                            createdAt: string;
+                            updatedAt: string;
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/v1/contactBooks/{contactBookId}/contacts": {
         parameters: {
             query?: never;
@@ -814,6 +1112,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/contactBooks/{contactBookId}/contacts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                        firstName?: string;
+                        lastName?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        subscribed?: boolean;
+                    }[];
+                };
+            };
+            responses: {
+                /** @description Bulk add contacts to a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        contactIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Bulk delete contacts from a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
         parameters: {
             query?: never;
@@ -863,6 +1243,7 @@ export interface paths {
                 header?: never;
                 path: {
                     contactBookId: string;
+                    contactId: string;
                 };
                 cookie?: never;
             };
@@ -966,7 +1347,53 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number for pagination (default: 1) */
+                    page?: string;
+                    /** @description Filter campaigns by status */
+                    status?: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
+                    /** @description Search campaigns by name or subject */
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Get list of campaigns */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            campaigns: {
+                                id: string;
+                                name: string;
+                                from: string;
+                                subject: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                                /** @enum {string} */
+                                status: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
+                                /** Format: date-time */
+                                scheduledAt: string | null;
+                                total: number;
+                                sent: number;
+                                delivered: number;
+                                unsubscribed: number;
+                            }[];
+                            totalPage: number;
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         post: {
             parameters: {
@@ -1047,7 +1474,9 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                campaignId: string;
+            };
             cookie?: never;
         };
         get: {
@@ -1104,7 +1533,58 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Delete campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            from: string;
+                            subject: string;
+                            previewText: string | null;
+                            contactBookId: string | null;
+                            html: string | null;
+                            content: string | null;
+                            status: string;
+                            /** Format: date-time */
+                            scheduledAt: string | null;
+                            batchSize: number;
+                            batchWindowMinutes: number;
+                            total: number;
+                            sent: number;
+                            delivered: number;
+                            opened: number;
+                            clicked: number;
+                            unsubscribed: number;
+                            bounced: number;
+                            hardBounced: number;
+                            complained: number;
+                            replyTo: string[];
+                            cc: string[];
+                            bcc: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

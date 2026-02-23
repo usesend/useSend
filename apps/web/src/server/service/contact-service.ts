@@ -141,6 +141,38 @@ export async function deleteContactInContactBook(
   return deletedContact;
 }
 
+export async function bulkDeleteContactsInContactBook(
+  contactIds: string[],
+  contactBookId: string,
+  teamId?: number,
+) {
+  const contacts = await db.contact.findMany({
+    where: {
+      id: { in: contactIds },
+      contactBookId,
+    },
+  });
+
+  if (contacts.length === 0) {
+    return [];
+  }
+
+  await db.contact.deleteMany({
+    where: {
+      id: { in: contacts.map((c) => c.id) },
+      contactBookId,
+    },
+  });
+
+  await Promise.all(
+    contacts.map((contact) =>
+      emitContactEvent(contact, "contact.deleted", teamId),
+    ),
+  );
+
+  return contacts;
+}
+
 export async function bulkAddContacts(
   contactBookId: string,
   contacts: Array<ContactInput>,

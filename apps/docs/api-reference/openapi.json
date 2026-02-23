@@ -1517,6 +1517,163 @@
 				}
 			}
 		},
+		"/v1/contactBooks/{contactBookId}/contacts/bulk": {
+			"delete": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"contactIds": {
+										"type": "array",
+										"items": { "type": "string" },
+										"minItems": 1,
+										"maxItems": 1000
+									}
+								},
+								"required": ["contactIds"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Bulk delete contacts from a contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": { "type": "boolean" },
+										"count": { "type": "number" }
+									},
+									"required": ["success", "count"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 3,
+							"example": "cuiwqdj74rygf74"
+						},
+						"required": true,
+						"name": "contactBookId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"email": { "type": "string" },
+										"firstName": { "type": "string" },
+										"lastName": { "type": "string" },
+										"properties": {
+											"type": "object",
+											"additionalProperties": { "type": "string" }
+										},
+										"subscribed": { "type": "boolean" }
+									},
+									"required": ["email"]
+								},
+								"minItems": 1,
+								"maxItems": 1000
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Bulk add contacts to a contact book",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"message": { "type": "string" },
+										"count": { "type": "number" }
+									},
+									"required": ["message", "count"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden - API key doesn't have access",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Contact book not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "error": { "type": "string" } },
+									"required": ["error"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
 			"patch": {
 				"parameters": [
@@ -1722,10 +1879,9 @@
 							"enum": [
 								"DRAFT",
 								"SCHEDULED",
-								"IN_PROGRESS",
+								"RUNNING",
 								"PAUSED",
-								"COMPLETED",
-								"CANCELLED"
+								"SENT"
 							],
 							"example": "DRAFT"
 						},
@@ -1761,7 +1917,7 @@
 													"subject": { "type": "string" },
 													"createdAt": { "type": "string", "format": "date-time" },
 													"updatedAt": { "type": "string", "format": "date-time" },
-													"status": { "type": "string" },
+													"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 													"scheduledAt": { "type": "string", "nullable": true, "format": "date-time" },
 													"total": { "type": "integer" },
 													"sent": { "type": "integer" },
@@ -1867,7 +2023,7 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string" },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,
@@ -1929,19 +2085,19 @@
 			}
 		},
 		"/v1/campaigns/{campaignId}": {
+			"parameters": [
+				{
+					"schema": {
+						"type": "string",
+						"minLength": 1,
+						"example": "cmp_123"
+					},
+					"required": true,
+					"name": "campaignId",
+					"in": "path"
+				}
+			],
 			"get": {
-				"parameters": [
-					{
-						"schema": {
-							"type": "string",
-							"minLength": 1,
-							"example": "cmp_123"
-						},
-						"required": true,
-						"name": "campaignId",
-						"in": "path"
-					}
-				],
 				"responses": {
 					"200": {
 						"description": "Get campaign details",
@@ -1958,7 +2114,84 @@
 										"contactBookId": { "type": "string", "nullable": true },
 										"html": { "type": "string", "nullable": true },
 										"content": { "type": "string", "nullable": true },
-										"status": { "type": "string" },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
+										"scheduledAt": {
+											"type": "string",
+											"nullable": true,
+											"format": "date-time"
+										},
+										"batchSize": { "type": "integer" },
+										"batchWindowMinutes": { "type": "integer" },
+										"total": { "type": "integer" },
+										"sent": { "type": "integer" },
+										"delivered": { "type": "integer" },
+										"opened": { "type": "integer" },
+										"clicked": { "type": "integer" },
+										"unsubscribed": { "type": "integer" },
+										"bounced": { "type": "integer" },
+										"hardBounced": { "type": "integer" },
+										"complained": { "type": "integer" },
+										"replyTo": {
+											"type": "array",
+											"items": { "type": "string" }
+										},
+										"cc": { "type": "array", "items": { "type": "string" } },
+										"bcc": { "type": "array", "items": { "type": "string" } },
+										"createdAt": { "type": "string", "format": "date-time" },
+										"updatedAt": { "type": "string", "format": "date-time" }
+									},
+									"required": [
+										"id",
+										"name",
+										"from",
+										"subject",
+										"previewText",
+										"contactBookId",
+										"html",
+										"content",
+										"status",
+										"scheduledAt",
+										"batchSize",
+										"batchWindowMinutes",
+										"total",
+										"sent",
+										"delivered",
+										"opened",
+										"clicked",
+										"unsubscribed",
+										"bounced",
+										"hardBounced",
+										"complained",
+										"replyTo",
+										"cc",
+										"bcc",
+										"createdAt",
+										"updatedAt"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"responses": {
+					"200": {
+						"description": "Delete campaign",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"id": { "type": "string" },
+										"name": { "type": "string" },
+										"from": { "type": "string" },
+										"subject": { "type": "string" },
+										"previewText": { "type": "string", "nullable": true },
+										"contactBookId": { "type": "string", "nullable": true },
+										"html": { "type": "string", "nullable": true },
+										"content": { "type": "string", "nullable": true },
+										"status": { "type": "string", "enum": ["DRAFT", "SCHEDULED", "RUNNING", "PAUSED", "SENT"] },
 										"scheduledAt": {
 											"type": "string",
 											"nullable": true,

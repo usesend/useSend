@@ -77,9 +77,11 @@
               "api-reference/contacts/get-contact",
               "api-reference/contacts/get-contacts",
               "api-reference/contacts/create-contact",
+              "api-reference/contacts/bulk-create-contact",
               "api-reference/contacts/update-contact",
               "api-reference/contacts/upsert-contact",
-              "api-reference/contacts/delete-contact"
+              "api-reference/contacts/delete-contact",
+              "api-reference/contacts/bulk-delete-contacts"
             ]
           },
           {
@@ -100,7 +102,8 @@
               "api-reference/campaigns/get-campaign",
               "api-reference/campaigns/schedule-campaign",
               "api-reference/campaigns/pause-campaign",
-              "api-reference/campaigns/resume-campaign"
+              "api-reference/campaigns/resume-campaign",
+              "api-reference/campaigns/delete-campaign"
             ]
           }
         ]

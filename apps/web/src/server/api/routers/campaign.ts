@@ -171,8 +171,8 @@ export const campaignRouter = createTRPCRouter({
       return campaign;
     }),
 
-  deleteCampaign: campaignProcedure.mutation(async ({ input }) => {
-    return await campaignService.deleteCampaign(input.campaignId);
+  deleteCampaign: campaignProcedure.mutation(async ({ ctx: { team }, input }) => {
+    return await campaignService.deleteCampaign(input.campaignId, team.id);
   }),
 
   getCampaign: campaignProcedure.query(async ({ ctx: { db, team }, input }) => {
