@@ -102,6 +102,13 @@
               "api-reference/campaigns/pause-campaign",
               "api-reference/campaigns/resume-campaign"
             ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "api-reference/analytics/email-time-series",
+              "api-reference/analytics/reputation-metrics"
+            ]
           }
         ]
       },
