@@ -243,7 +243,11 @@ export const campaignRouter = createTRPCRouter({
         data: {
           name: `${campaign.name} (Copy)`,
           from: campaign.from,
+          replyTo: campaign.replyTo,
+          cc: campaign.cc,
+          bcc: campaign.bcc,
           subject: campaign.subject,
+          previewText: campaign.previewText,
           content: campaign.content,
           html: campaign.html,
           teamId: team.id,

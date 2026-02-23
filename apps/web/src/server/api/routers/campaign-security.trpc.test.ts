@@ -8,6 +8,7 @@ const { mockDb, mockValidateDomainFromEmail } = vi.hoisted(() => ({
     campaign: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      create: vi.fn(),
     },
     contactBook: {
       findUnique: vi.fn(),
@@ -56,6 +57,7 @@ describe("campaignRouter.updateCampaign authorization", () => {
     mockDb.teamUser.findFirst.mockReset();
     mockDb.campaign.findUnique.mockReset();
     mockDb.campaign.update.mockReset();
+    mockDb.campaign.create.mockReset();
     mockDb.contactBook.findUnique.mockReset();
 
     mockDb.teamUser.findFirst.mockResolvedValue({
@@ -76,6 +78,11 @@ describe("campaignRouter.updateCampaign authorization", () => {
       teamId: 10,
       domainId: 2,
       contactBookId: "cb_other_team",
+    });
+
+    mockDb.campaign.create.mockResolvedValue({
+      id: "camp_copy",
+      teamId: 10,
     });
   });
 
@@ -98,6 +105,67 @@ describe("campaignRouter.updateCampaign authorization", () => {
       where: {
         id: "cb_other_team",
         teamId: 10,
+      },
+    });
+  });
+});
+
+describe("campaignRouter.duplicateCampaign", () => {
+  beforeEach(() => {
+    mockDb.teamUser.findFirst.mockReset();
+    mockDb.campaign.findUnique.mockReset();
+    mockDb.campaign.create.mockReset();
+
+    mockDb.teamUser.findFirst.mockResolvedValue({
+      teamId: 10,
+      userId: 1,
+      role: "ADMIN",
+      team: { id: 10, name: "Acme" },
+    });
+
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "camp_1",
+      teamId: 10,
+      name: "Weekly update",
+      from: "Team <hello@example.com>",
+      replyTo: ["support@example.com"],
+      cc: ["ops@example.com"],
+      bcc: ["audit@example.com"],
+      subject: "This week",
+      previewText: "Quick overview",
+      content: '{"root":{}}',
+      html: "<p>This week</p>",
+      domainId: 2,
+      contactBookId: "cb_1",
+    });
+
+    mockDb.campaign.create.mockResolvedValue({
+      id: "camp_copy",
+      teamId: 10,
+    });
+  });
+
+  it("duplicates reply-to and other email headers", async () => {
+    const caller = createCaller(getContext());
+
+    await caller.duplicateCampaign({
+      campaignId: "camp_1",
+    });
+
+    expect(mockDb.campaign.create).toHaveBeenCalledWith({
+      data: {
+        name: "Weekly update (Copy)",
+        from: "Team <hello@example.com>",
+        replyTo: ["support@example.com"],
+        cc: ["ops@example.com"],
+        bcc: ["audit@example.com"],
+        subject: "This week",
+        previewText: "Quick overview",
+        content: '{"root":{}}',
+        html: "<p>This week</p>",
+        teamId: 10,
+        domainId: 2,
+        contactBookId: "cb_1",
       },
     });
   });
