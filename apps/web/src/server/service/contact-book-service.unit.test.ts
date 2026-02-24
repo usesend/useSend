@@ -84,6 +84,7 @@ describe("contact-book-service", () => {
         name: "Newsletter",
         teamId: 12,
         properties: {},
+        variables: [],
         doubleOptInEnabled: true,
         doubleOptInSubject: DEFAULT_DOUBLE_OPT_IN_SUBJECT,
         doubleOptInContent: DEFAULT_DOUBLE_OPT_IN_CONTENT,
