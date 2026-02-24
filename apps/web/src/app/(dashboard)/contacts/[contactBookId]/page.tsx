@@ -212,6 +212,23 @@ export default function ContactsPage({
                     : "--"}
                 </p>
               </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Variables</p>
+                <div className="flex flex-wrap gap-1">
+                  {(contactBookDetailQuery.data?.variables ?? []).length > 0 ? (
+                    contactBookDetailQuery.data?.variables.map((variable) => (
+                      <span
+                        key={variable}
+                        className="font-mono text-xs bg-muted px-2 py-0.5 rounded"
+                      >
+                        {variable}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">--</span>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -329,6 +346,7 @@ export default function ContactsPage({
           contactBookId={contactBookId}
           contactBookName={contactBookDetailQuery.data?.name}
           doubleOptInEnabled={contactBookDetailQuery.data?.doubleOptInEnabled}
+          contactBookVariables={contactBookDetailQuery.data?.variables}
         />
       </div>
     </div>

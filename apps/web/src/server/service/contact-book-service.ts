@@ -1,13 +1,17 @@
 import { CampaignStatus } from "@prisma/client";
-import { db } from "../db";
-import { LimitService } from "./limit-service";
-import { UnsendApiError } from "../public-api/api-error";
 import {
   DEFAULT_DOUBLE_OPT_IN_CONTENT,
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
   hasDoubleOptInUrlPlaceholder,
 } from "~/lib/constants/double-opt-in";
+import { db } from "../db";
+import { UnsendApiError } from "../public-api/api-error";
 import { validateDomainFromEmail } from "./domain-service";
+import { LimitService } from "./limit-service";
+import {
+  normalizeContactBookVariables,
+  validateContactBookVariables,
+} from "./contact-variable-service";
 
 type ContactBookDbClient = Pick<typeof db, "contactBook">;
 
@@ -22,6 +26,7 @@ export async function getContactBooks(teamId: number, search?: string) {
       name: true,
       teamId: true,
       properties: true,
+      variables: true,
       emoji: true,
       createdAt: true,
       updatedAt: true,
@@ -39,6 +44,7 @@ export async function getContactBooks(teamId: number, search?: string) {
 export async function createContactBook(
   teamId: number,
   name: string,
+  variables?: string[],
   client: ContactBookDbClient = db,
 ) {
   const { isLimitReached, reason } =
@@ -51,11 +57,23 @@ export async function createContactBook(
     });
   }
 
+  const normalizedVariables = normalizeContactBookVariables(variables);
+
+  try {
+    validateContactBookVariables(normalizedVariables);
+  } catch (error) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: error instanceof Error ? error.message : "Invalid variables",
+    });
+  }
+
   const created = await client.contactBook.create({
     data: {
       name,
       teamId,
       properties: {},
+      variables: normalizedVariables,
       doubleOptInEnabled: true,
       doubleOptInSubject: DEFAULT_DOUBLE_OPT_IN_SUBJECT,
       doubleOptInContent: DEFAULT_DOUBLE_OPT_IN_CONTENT,
@@ -98,6 +116,7 @@ export async function updateContactBook(
     name?: string;
     properties?: Record<string, string>;
     emoji?: string;
+    variables?: string[];
     doubleOptInEnabled?: boolean;
     doubleOptInFrom?: string | null;
     doubleOptInSubject?: string;
@@ -105,7 +124,36 @@ export async function updateContactBook(
   },
   client: ContactBookDbClient = db,
 ) {
-  const updateData = { ...data };
+  const normalizedVariables =
+    data.variables === undefined
+      ? undefined
+      : normalizeContactBookVariables(data.variables);
+
+  if (normalizedVariables !== undefined) {
+    try {
+      validateContactBookVariables(normalizedVariables);
+    } catch (error) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Invalid variables",
+      });
+    }
+  }
+
+  const updateData: {
+    name?: string;
+    properties?: Record<string, string>;
+    emoji?: string;
+    variables?: string[];
+    doubleOptInEnabled?: boolean;
+    doubleOptInSubject?: string;
+    doubleOptInContent?: string;
+  } = {
+    ...data,
+    ...(normalizedVariables !== undefined
+      ? { variables: normalizedVariables }
+      : {}),
+  };
 
   if (data.doubleOptInFrom !== undefined) {
     const normalizedFrom = data.doubleOptInFrom?.trim() ?? "";

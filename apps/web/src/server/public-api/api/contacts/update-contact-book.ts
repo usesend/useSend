@@ -29,6 +29,7 @@ const route = createRoute({
             doubleOptInFrom: z.string().nullable().optional(),
             doubleOptInSubject: z.string().optional(),
             doubleOptInContent: z.string().optional(),
+            variables: z.array(z.string()).optional(),
           }),
         },
       },
@@ -80,6 +81,7 @@ function updateContactBook(app: PublicAPIApp) {
     return c.json({
       ...updated,
       properties: updated.properties as Record<string, string>,
+      variables: updated.variables,
     });
   });
 }
