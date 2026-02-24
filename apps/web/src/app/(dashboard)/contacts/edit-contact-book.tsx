@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -27,10 +28,11 @@ import { toast } from "@usesend/ui/src/toaster";
 
 const contactBookSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
+  variables: z.string().optional(),
 });
 
 export const EditContactBook: React.FC<{
-  contactBook: { id: string; name: string };
+  contactBook: { id: string; name: string; variables?: string[] };
 }> = ({ contactBook }) => {
   const [open, setOpen] = useState(false);
   const updateContactBookMutation =
@@ -42,16 +44,21 @@ export const EditContactBook: React.FC<{
     resolver: zodResolver(contactBookSchema),
     defaultValues: {
       name: contactBook.name || "",
+      variables: (contactBook.variables ?? []).join(", "),
     },
   });
 
   async function onContactBookUpdate(
-    values: z.infer<typeof contactBookSchema>
+    values: z.infer<typeof contactBookSchema>,
   ) {
     updateContactBookMutation.mutate(
       {
         contactBookId: contactBook.id,
-        ...values,
+        name: values.name,
+        variables: values.variables
+          ?.split(",")
+          .map((variable) => variable.trim())
+          .filter(Boolean),
       },
       {
         onSuccess: async () => {
@@ -62,7 +69,7 @@ export const EditContactBook: React.FC<{
         onError: async (error) => {
           toast.error(error.message);
         },
-      }
+      },
     );
   }
 
@@ -101,6 +108,25 @@ export const EditContactBook: React.FC<{
                       <Input placeholder="Contact Book Name" {...field} />
                     </FormControl>
                     {formState.errors.name ? <FormMessage /> : null}
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactBookForm.control}
+                name="variables"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variables</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="registrationCode, company, plan"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Comma-separated variable names available in campaigns for
+                      this contact book.
+                    </FormDescription>
                   </FormItem>
                 )}
               />

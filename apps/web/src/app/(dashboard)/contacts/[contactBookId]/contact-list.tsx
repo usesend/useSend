@@ -72,10 +72,12 @@ export default function ContactList({
   contactBookId,
   contactBookName,
   doubleOptInEnabled,
+  contactBookVariables,
 }: {
   contactBookId: string;
   contactBookName?: string;
   doubleOptInEnabled?: boolean;
+  contactBookVariables?: string[];
 }) {
   const [page, setPage] = useUrlState("page", "1");
   const [status, setStatus] = useUrlState("status");
@@ -135,6 +137,7 @@ export default function ContactList({
       "Subscribed",
       "Unsubscribe Reason",
       "Created At",
+      ...(contactBookVariables ?? []),
     ];
 
     // CSV Rows
@@ -145,6 +148,13 @@ export default function ContactList({
       escapeCell(contact.subscribed ? "Yes" : "No"),
       escapeCell(contact.unsubscribeReason ?? ""),
       escapeCell(contact.createdAt.toISOString()),
+      ...(contactBookVariables ?? []).map((variable) =>
+        escapeCell(
+          ((contact.properties as Record<string, string> | undefined)?.[
+            variable
+          ] ?? "") as string,
+        ),
+      ),
     ]);
 
     // Build CSV with UTF-8 BOM
@@ -311,7 +321,10 @@ export default function ContactList({
                               email={contact.email}
                             />
                           ) : null}
-                          <EditContact contact={contact} />
+                          <EditContact
+                            contact={contact}
+                            contactBookVariables={contactBookVariables}
+                          />
                           <DeleteContact contact={contact} />
                         </div>
                       </TableCell>

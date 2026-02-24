@@ -5,7 +5,7 @@ import { Spinner } from "@usesend/ui/src/spinner";
 import { Button } from "@usesend/ui/src/button";
 import { Input } from "@usesend/ui/src/input";
 import { Editor } from "@usesend/email-editor";
-import { use, useState } from "react";
+import { use, useMemo, useState } from "react";
 import { Campaign } from "@prisma/client";
 import {
   Select,
@@ -65,7 +65,7 @@ export default function EditCampaignPage({
     { campaignId },
     {
       enabled: !!campaignId,
-    }
+    },
   );
 
   if (isLoading) {
@@ -102,7 +102,7 @@ function CampaignEditor({
   const utils = api.useUtils();
 
   const [json, setJson] = useState<Record<string, any> | undefined>(
-    campaign.content ? JSON.parse(campaign.content) : undefined
+    campaign.content ? JSON.parse(campaign.content) : undefined,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(campaign.name);
@@ -110,10 +110,10 @@ function CampaignEditor({
   const [from, setFrom] = useState(campaign.from);
   const [contactBookId, setContactBookId] = useState(campaign.contactBookId);
   const [replyTo, setReplyTo] = useState<string | undefined>(
-    campaign.replyTo[0]
+    campaign.replyTo[0],
   );
   const [previewText, setPreviewText] = useState<string | null>(
-    campaign.previewText
+    campaign.previewText,
   );
 
   const updateCampaignMutation = api.campaign.updateCampaign.useMutation({
@@ -136,13 +136,13 @@ function CampaignEditor({
 
   const deboucedUpdateCampaign = useDebouncedCallback(
     updateEditorContent,
-    1000
+    1000,
   );
 
   const handleFileChange = async (file: File) => {
     if (file.size > IMAGE_SIZE_LIMIT) {
       throw new Error(
-        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`
+        `File should be less than ${IMAGE_SIZE_LIMIT / 1024 / 1024}MB`,
       );
     }
 
@@ -165,8 +165,14 @@ function CampaignEditor({
   };
 
   const contactBook = contactBooksQuery.data?.find(
-    (book) => book.id === contactBookId
+    (book) => book.id === contactBookId,
   );
+  const editorVariables = useMemo(() => {
+    const baseVariables = ["email", "firstName", "lastName"];
+    const registryVariables = contactBook?.variables ?? [];
+
+    return Array.from(new Set([...baseVariables, ...registryVariables]));
+  }, [contactBook?.variables]);
 
   return (
     <div className="p-4 container mx-auto ">
@@ -196,7 +202,7 @@ function CampaignEditor({
                     toast.error(`${e.message}. Reverting changes.`);
                     setName(campaign.name);
                   },
-                }
+                },
               );
             }}
           />
@@ -251,7 +257,7 @@ function CampaignEditor({
                           toast.error(`${e.message}. Reverting changes.`);
                           setSubject(campaign.subject);
                         },
-                      }
+                      },
                     );
                   }}
                   className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent  focus:border-border bg-transparent"
@@ -291,7 +297,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setFrom(campaign.from);
                           },
-                        }
+                        },
                       );
                     }}
                     disabled={isApiCampaign}
@@ -327,7 +333,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setReplyTo(campaign.replyTo[0]);
                           },
-                        }
+                        },
                       );
                     }}
                     disabled={isApiCampaign}
@@ -365,7 +371,7 @@ function CampaignEditor({
                             toast.error(`${e.message}. Reverting changes.`);
                             setPreviewText(campaign.previewText ?? "");
                           },
-                        }
+                        },
                       );
                     }}
                     className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent bg-transparent  focus:border-border"
@@ -397,7 +403,7 @@ function CampaignEditor({
                             onError: () => {
                               setContactBookId(campaign.contactBookId);
                             },
-                          }
+                          },
                         );
                         setContactBookId(val);
                       }}
@@ -441,7 +447,7 @@ function CampaignEditor({
                   setIsSaving(true);
                   deboucedUpdateCampaign();
                 }}
-                variables={["email", "firstName", "lastName"]}
+                variables={editorVariables}
                 uploadImage={
                   campaign.imageUploadSupported ? handleFileChange : undefined
                 }

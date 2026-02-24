@@ -296,6 +296,7 @@ model ContactBook {
   id                 String    @id @default(cuid())
   name               String
   teamId             Int
+  variables          String[]  @default([])
   properties         Json
   doubleOptInEnabled Boolean   @default(false)
   doubleOptInFrom    String?

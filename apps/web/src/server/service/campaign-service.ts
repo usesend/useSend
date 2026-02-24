@@ -36,13 +36,69 @@ const CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES =
   });
 
 const CONTACT_VARIABLE_REGEX =
-  /\{\{\s*(?:contact\.)?(email|firstName|lastName)(?:,fallback=([^}]+))?\s*\}\}/gi;
+  /\{\{\s*(?:contact\.)?([a-zA-Z0-9_]+)(?:,fallback=([^}]+))?\s*\}\}/gi;
+
+const BUILT_IN_CONTACT_VARIABLES = ["email", "firstName", "lastName"] as const;
+
+function getContactReplacementValue({
+  contact,
+  key,
+  allowedVariables,
+}: {
+  contact: Contact;
+  key: string;
+  allowedVariables: string[];
+}) {
+  const normalizedKey = key.toLowerCase();
+
+  if (normalizedKey === "email") {
+    return contact.email;
+  }
+
+  if (normalizedKey === "firstname") {
+    return contact.firstName;
+  }
+
+  if (normalizedKey === "lastname") {
+    return contact.lastName;
+  }
+
+  const variableMap = new Map(
+    allowedVariables.map((variable) => [variable.toLowerCase(), variable]),
+  );
+  const matchedVariable = variableMap.get(normalizedKey);
+  if (!matchedVariable) {
+    return undefined;
+  }
+
+  if (!contact.properties || typeof contact.properties !== "object") {
+    return undefined;
+  }
+
+  const contactProperties = contact.properties as Record<string, unknown>;
+  const propertyKey = Object.keys(contactProperties).find(
+    (candidate) => candidate.toLowerCase() === matchedVariable.toLowerCase(),
+  );
+  const propertyValue = propertyKey
+    ? contactProperties[propertyKey]
+    : undefined;
+
+  if (
+    typeof propertyValue === "string" ||
+    typeof propertyValue === "number" ||
+    typeof propertyValue === "boolean"
+  ) {
+    return String(propertyValue);
+  }
+
+  return undefined;
+}
 
 function campaignHasUnsubscribePlaceholder(
   ...sources: Array<string | null | undefined>
 ) {
   return CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES.some((regex) =>
-    sources.some((source) => (source ? regex.test(source) : false))
+    sources.some((source) => (source ? regex.test(source) : false)),
   );
 }
 
@@ -52,25 +108,38 @@ function replaceUnsubscribePlaceholders(html: string, url: string) {
   }, html);
 }
 
-function replaceContactVariables(html: string, contact: Contact) {
+function replaceContactVariables(
+  html: string,
+  contact: Contact,
+  allowedVariables: string[],
+) {
   return html.replace(
     CONTACT_VARIABLE_REGEX,
-    (_, key: string, fallback?: string) => {
-      const valueMap: Record<string, string | null | undefined> = {
-        email: contact.email,
-        firstname: contact.firstName,
-        lastname: contact.lastName,
-      };
-
+    (match: string, key: string, fallback?: string) => {
       const normalizedKey = key.toLowerCase();
-      const contactValue = valueMap[normalizedKey];
+      const isBuiltIn = ["email", "firstname", "lastname"].includes(
+        normalizedKey,
+      );
+      const isAllowedRegistryVariable = allowedVariables.some(
+        (variable) => variable.toLowerCase() === normalizedKey,
+      );
+
+      if (!isBuiltIn && !isAllowedRegistryVariable) {
+        return match;
+      }
+
+      const contactValue = getContactReplacementValue({
+        contact,
+        key,
+        allowedVariables,
+      });
 
       if (contactValue && contactValue.length > 0) {
         return contactValue;
       }
 
       return fallback ?? "";
-    }
+    },
   );
 }
 
@@ -87,7 +156,7 @@ function sanitizeAddressList(addresses?: string | string[]) {
 }
 
 async function prepareCampaignHtml(
-  campaign: Campaign
+  campaign: Campaign,
 ): Promise<{ campaign: Campaign; html: string }> {
   if (campaign.content) {
     try {
@@ -120,10 +189,12 @@ async function renderCampaignHtmlForContact({
   campaign,
   contact,
   unsubscribeUrl,
+  allowedVariables,
 }: {
   campaign: Campaign;
   contact: Contact;
   unsubscribeUrl: string;
+  allowedVariables: string[];
 }) {
   if (campaign.content) {
     try {
@@ -141,6 +212,22 @@ async function renderCampaignHtmlForContact({
           email: contact.email,
           firstName: contact.firstName,
           lastName: contact.lastName,
+          ...allowedVariables.reduce(
+            (acc, variable) => {
+              const value = getContactReplacementValue({
+                contact,
+                key: variable,
+                allowedVariables,
+              });
+
+              if (value !== undefined) {
+                acc[variable] = value;
+              }
+
+              return acc;
+            },
+            {} as Record<string, string | null | undefined>,
+          ),
         },
         linkValues,
       });
@@ -155,7 +242,7 @@ async function renderCampaignHtmlForContact({
   }
 
   let html = replaceUnsubscribePlaceholders(campaign.html, unsubscribeUrl);
-  html = replaceContactVariables(html, contact);
+  html = replaceContactVariables(html, contact, allowedVariables);
 
   return html;
 }
@@ -245,7 +332,7 @@ export async function createCampaignFromApi({
 
   const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
     sanitizedContent,
-    sanitizedHtml
+    sanitizedHtml,
   );
 
   if (!unsubPlaceholderFound) {
@@ -351,7 +438,7 @@ export async function sendCampaign(id: string) {
 
   const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
     campaign.content,
-    html
+    html,
   );
 
   if (!unsubPlaceholderFound) {
@@ -430,7 +517,7 @@ export async function scheduleCampaign({
 
   const unsubPlaceholderFound = campaignHasUnsubscribePlaceholder(
     campaign.content,
-    html
+    html,
   );
   if (!unsubPlaceholderFound) {
     throw new UnsendApiError({
@@ -688,6 +775,7 @@ export async function deleteCampaign(id: string) {
 type CampaignEmailJob = {
   contact: Contact;
   campaign: Campaign;
+  allowedVariables: string[];
   emailConfig: {
     from: string;
     subject: string;
@@ -703,12 +791,12 @@ type CampaignEmailJob = {
 };
 
 async function processContactEmail(jobData: CampaignEmailJob) {
-  const { contact, campaign, emailConfig } = jobData;
+  const { contact, campaign, emailConfig, allowedVariables } = jobData;
 
   const unsubscribeUrl = createUnsubUrl(contact.id, emailConfig.campaignId);
   const oneClickUnsubUrl = createOneClickUnsubUrl(
     contact.id,
-    emailConfig.campaignId
+    emailConfig.campaignId,
   );
 
   // Check for suppressed emails before processing
@@ -723,18 +811,18 @@ async function processContactEmail(jobData: CampaignEmailJob) {
 
   const suppressionResults = await SuppressionService.checkMultipleEmails(
     allEmailsToCheck,
-    emailConfig.teamId
+    emailConfig.teamId,
   );
 
   // Filter each field separately
   const filteredToEmails = toEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
   const filteredCcEmails = ccEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
   const filteredBccEmails = bccEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
 
   // Check if the contact's email (TO recipient) is suppressed
@@ -744,6 +832,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     campaign,
     contact,
     unsubscribeUrl,
+    allowedVariables,
   });
 
   if (isContactSuppressed) {
@@ -754,7 +843,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
         campaignId: emailConfig.campaignId,
         teamId: emailConfig.teamId,
       },
-      "Contact email is suppressed. Creating suppressed email record."
+      "Contact email is suppressed. Creating suppressed email record.",
     );
 
     const email = await db.email.create({
@@ -810,7 +899,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
         campaignId: emailConfig.campaignId,
         teamId: emailConfig.teamId,
       },
-      "Some CC recipients were suppressed and filtered out from campaign email."
+      "Some CC recipients were suppressed and filtered out from campaign email.",
     );
   }
 
@@ -822,7 +911,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
         campaignId: emailConfig.campaignId,
         teamId: emailConfig.teamId,
       },
-      "Some BCC recipients were suppressed and filtered out from campaign email."
+      "Some BCC recipients were suppressed and filtered out from campaign email.",
     );
   }
 
@@ -855,7 +944,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
   } catch (error) {
     logger.error(
       { err: error },
-      "Failed to create campaign email record so skipping email sending"
+      "Failed to create campaign email record so skipping email sending",
     );
     return;
   }
@@ -866,14 +955,14 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     emailConfig.teamId,
     emailConfig.region,
     false,
-    oneClickUnsubUrl
+    oneClickUnsubUrl,
   );
 }
 
 export async function updateCampaignAnalytics(
   campaignId: string,
   emailStatus: EmailStatus,
-  hardBounce: boolean = false
+  hardBounce: boolean = false,
 ) {
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
@@ -928,7 +1017,7 @@ export class CampaignBatchService {
     CAMPAIGN_BATCH_QUEUE,
     {
       connection: getRedis(),
-    }
+    },
   );
 
   static worker = new Worker(
@@ -974,6 +1063,16 @@ export class CampaignBatchService {
 
       const contacts = await db.contact.findMany({ where, ...pagination });
 
+      const contactBook = await db.contactBook.findUnique({
+        where: { id: campaign.contactBookId },
+        select: { variables: true },
+      });
+
+      const allowedVariables = [
+        ...BUILT_IN_CONTACT_VARIABLES,
+        ...(contactBook?.variables ?? []),
+      ];
+
       if (contacts.length === 0) {
         // No more contacts -> mark SENT
         await db.campaign.update({
@@ -1006,6 +1105,7 @@ export class CampaignBatchService {
         await processContactEmail({
           contact,
           campaign,
+          allowedVariables,
           emailConfig: {
             from: campaign.from,
             subject: campaign.subject,
@@ -1028,7 +1128,7 @@ export class CampaignBatchService {
         data: { lastCursor: newCursor, lastSentAt: new Date() },
       });
     }),
-    { connection: getRedis(), concurrency: 20 }
+    { connection: getRedis(), concurrency: 20 },
   );
 
   static async queueBatch({
@@ -1053,7 +1153,7 @@ export class CampaignBatchService {
         if (elapsedMs < windowMs) {
           logger.debug(
             { campaignId, remainingMs: windowMs - elapsedMs },
-            "Defensive skip enqueue; window not elapsed"
+            "Defensive skip enqueue; window not elapsed",
           );
           return;
         }
@@ -1061,14 +1161,14 @@ export class CampaignBatchService {
     } catch (err) {
       logger.warn(
         { err, campaignId },
-        "Failed defensive window check; proceeding to enqueue"
+        "Failed defensive window check; proceeding to enqueue",
       );
     }
 
     await this.batchQueue.add(
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch:${campaignId}`, ...DEFAULT_QUEUE_OPTIONS }
+      { jobId: `campaign-batch:${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
     );
   }
 }

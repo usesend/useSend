@@ -21,11 +21,12 @@ export const contactsRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string(),
+        variables: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
-      const { name } = input;
-      return contactBookService.createContactBook(team.id, name);
+      const { name, variables } = input;
+      return contactBookService.createContactBook(team.id, name, variables);
     }),
 
   getContactBookDetails: contactBookProcedure.query(
@@ -53,6 +54,7 @@ export const contactsRouter = createTRPCRouter({
         doubleOptInFrom: z.string().nullable().optional(),
         doubleOptInSubject: z.string().optional(),
         doubleOptInContent: z.string().optional(),
+        variables: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {
@@ -104,6 +106,7 @@ export const contactsRouter = createTRPCRouter({
           email: true,
           firstName: true,
           lastName: true,
+          properties: true,
           subscribed: true,
           createdAt: true,
           contactBookId: true,
@@ -263,6 +266,7 @@ export const contactsRouter = createTRPCRouter({
           email: true,
           firstName: true,
           lastName: true,
+          properties: true,
           subscribed: true,
           unsubscribeReason: true,
           createdAt: true,
