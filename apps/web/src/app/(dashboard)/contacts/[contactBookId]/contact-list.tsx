@@ -150,9 +150,9 @@ export default function ContactList({
       escapeCell(contact.createdAt.toISOString()),
       ...(contactBookVariables ?? []).map((variable) =>
         escapeCell(
-          ((contact.properties as Record<string, string> | undefined)?.[
+          (contact.properties as Record<string, string> | undefined)?.[
             variable
-          ] ?? "") as string,
+          ] ?? "",
         ),
       ),
     ]);

@@ -124,6 +124,9 @@ export async function updateContactBook(
   },
   client: ContactBookDbClient = db,
 ) {
+  const restData = { ...data };
+  delete restData.variables;
+
   const normalizedVariables =
     data.variables === undefined
       ? undefined
@@ -149,7 +152,7 @@ export async function updateContactBook(
     doubleOptInSubject?: string;
     doubleOptInContent?: string;
   } = {
-    ...data,
+    ...restData,
     ...(normalizedVariables !== undefined
       ? { variables: normalizedVariables }
       : {}),

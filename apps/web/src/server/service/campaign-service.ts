@@ -94,6 +94,37 @@ function getContactReplacementValue({
   return undefined;
 }
 
+function createCaseInsensitiveVariableValues(
+  values: Record<string, string | null | undefined>,
+) {
+  const normalizedValues = Object.entries(values).reduce(
+    (acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = value;
+        acc[key.toLowerCase()] = value;
+      }
+
+      return acc;
+    },
+    {} as Record<string, string | null>,
+  );
+
+  return new Proxy(normalizedValues, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string") {
+        const exact = Reflect.get(target, prop, receiver);
+        if (exact !== undefined) {
+          return exact;
+        }
+
+        return Reflect.get(target, prop.toLowerCase(), receiver);
+      }
+
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as Record<string, string | null>;
+}
+
 function campaignHasUnsubscribePlaceholder(
   ...sources: Array<string | null | undefined>
 ) {
@@ -117,8 +148,8 @@ function replaceContactVariables(
     CONTACT_VARIABLE_REGEX,
     (match: string, key: string, fallback?: string) => {
       const normalizedKey = key.toLowerCase();
-      const isBuiltIn = ["email", "firstname", "lastname"].includes(
-        normalizedKey,
+      const isBuiltIn = BUILT_IN_CONTACT_VARIABLES.some(
+        (variable) => variable.toLowerCase() === normalizedKey,
       );
       const isAllowedRegistryVariable = allowedVariables.some(
         (variable) => variable.toLowerCase() === normalizedKey,
@@ -206,29 +237,31 @@ async function renderCampaignHtmlForContact({
         linkValues[token] = unsubscribeUrl;
       }
 
+      const variableValues = createCaseInsensitiveVariableValues({
+        email: contact.email,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        ...allowedVariables.reduce(
+          (acc, variable) => {
+            const value = getContactReplacementValue({
+              contact,
+              key: variable,
+              allowedVariables,
+            });
+
+            if (value !== undefined) {
+              acc[variable] = value;
+            }
+
+            return acc;
+          },
+          {} as Record<string, string | null | undefined>,
+        ),
+      });
+
       return renderer.render({
         shouldReplaceVariableValues: true,
-        variableValues: {
-          email: contact.email,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          ...allowedVariables.reduce(
-            (acc, variable) => {
-              const value = getContactReplacementValue({
-                contact,
-                key: variable,
-                allowedVariables,
-              });
-
-              if (value !== undefined) {
-                acc[variable] = value;
-              }
-
-              return acc;
-            },
-            {} as Record<string, string | null | undefined>,
-          ),
-        },
+        variableValues,
         linkValues,
       });
     } catch (error) {

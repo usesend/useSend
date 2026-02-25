@@ -49,7 +49,6 @@ function createContactBook(app: PublicAPIApp) {
     const hasOptionalFields =
       body.emoji !== undefined ||
       body.properties !== undefined ||
-      body.variables !== undefined ||
       body.doubleOptInEnabled !== undefined ||
       body.doubleOptInFrom !== undefined ||
       body.doubleOptInSubject !== undefined ||
@@ -72,7 +71,6 @@ function createContactBook(app: PublicAPIApp) {
         {
           emoji: body.emoji,
           properties: body.properties,
-          variables: body.variables,
           doubleOptInEnabled: body.doubleOptInEnabled,
           doubleOptInFrom: body.doubleOptInFrom,
           doubleOptInSubject: body.doubleOptInSubject,
