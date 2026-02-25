@@ -1,4 +1,9 @@
-import { BubbleMenu, BubbleMenuProps, isTextSelection } from "@tiptap/react";
+import {
+  BubbleMenu,
+  BubbleMenuProps,
+  Editor,
+  isTextSelection,
+} from "@tiptap/react";
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -20,16 +25,13 @@ import {
   TextQuoteIcon,
   UnderlineIcon,
 } from "lucide-react";
-import { TextMenuButton } from "./TextMenuButton";
-import { Button } from "@usesend/ui/src/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@usesend/ui/src/popover";
-import { Separator } from "@usesend/ui/src/separator";
-import { useMemo, useState } from "react";
-import { LinkEditorPanel } from "../components/panels/LinkEditorPanel";
+import {TextMenuButton} from "./TextMenuButton";
+import {Button} from "@usesend/ui/src/button";
+import {Popover, PopoverContent, PopoverTrigger} from "@usesend/ui/src/popover";
+import {Separator} from "@usesend/ui/src/separator";
+import {useMemo, useState} from "react";
+import {LinkEditorPanel} from "../components/panels/LinkEditorPanel";
+import {EditorState} from "@tiptap/pm/state";
 // import { allowedLogoAlignment } from "../nodes/logo";
 
 export interface TextMenuItem {
@@ -92,15 +94,15 @@ const textColors = [
 ];
 
 export function TextMenu(props: TextMenuProps) {
-  const { editor } = props;
+  const {editor} = props;
 
   const icons = [AlignLeftIcon, AlignCenterIcon, AlignRightIcon];
   const alignmentItems: TextMenuItem[] = ["left", "center", "right"].map(
     (alignment, index) => ({
       name: alignment,
-      isActive: () => editor?.isActive({ textAlign: alignment })!,
+      isActive: () => editor?.isActive({textAlign: alignment})!,
       command: () => {
-        if (props?.editor?.isActive({ textAlign: alignment })) {
+        if (props?.editor?.isActive({textAlign: alignment})) {
           props?.editor?.chain()?.focus().unsetTextAlign().run();
         } else {
           props?.editor?.chain().focus().setTextAlign(alignment).run()!;
@@ -185,11 +187,11 @@ export function TextMenu(props: TextMenuProps) {
             .focus()
             .lift("taskItem")
             .liftListItem("listItem")
-            .setHeading({ level: 1 })
+            .setHeading({level: 1})
             .run(),
         id: "heading1",
-        disabled: () => !editor?.can().setHeading({ level: 1 }),
-        isActive: () => editor?.isActive("heading", { level: 1 }),
+        disabled: () => !editor?.can().setHeading({level: 1}),
+        isActive: () => editor?.isActive("heading", {level: 1}),
         label: "Heading 1",
         type: "option",
       },
@@ -201,11 +203,11 @@ export function TextMenu(props: TextMenuProps) {
             ?.focus()
             ?.lift("taskItem")
             .liftListItem("listItem")
-            .setHeading({ level: 2 })
+            .setHeading({level: 2})
             .run(),
         id: "heading2",
-        disabled: () => !editor?.can().setHeading({ level: 2 }),
-        isActive: () => editor?.isActive("heading", { level: 2 }),
+        disabled: () => !editor?.can().setHeading({level: 2}),
+        isActive: () => editor?.isActive("heading", {level: 2}),
         label: "Heading 2",
         type: "option",
       },
@@ -217,11 +219,11 @@ export function TextMenu(props: TextMenuProps) {
             ?.focus()
             ?.lift("taskItem")
             .liftListItem("listItem")
-            .setHeading({ level: 3 })
+            .setHeading({level: 3})
             .run(),
         id: "heading3",
-        disabled: () => !editor?.can().setHeading({ level: 3 }),
-        isActive: () => editor?.isActive("heading", { level: 3 }),
+        disabled: () => !editor?.can().setHeading({level: 3}),
+        isActive: () => editor?.isActive("heading", {level: 3}),
         label: "Heading 3",
         type: "option",
       },
@@ -249,9 +251,9 @@ export function TextMenu(props: TextMenuProps) {
 
   const bubbleMenuProps: TextMenuProps = {
     ...props,
-    shouldShow: ({ editor, state, from, to }) => {
-      const { doc, selection } = state;
-      const { empty } = selection;
+    shouldShow: ({editor, state, from, to}) => {
+      const {doc, selection} = state;
+      const {empty} = selection;
 
       // Sometime check for `empty` is not enough.
       // Doubleclick an empty paragraph returns a node size of 2.
@@ -300,11 +302,7 @@ export function TextMenu(props: TextMenuProps) {
       <ContentTypePicker options={contentTypePickerOptions} />
       <EditLinkPopover
         onSetLink={(url) => {
-          editor
-            ?.chain()
-            .focus()
-            .setLink({ href: url, target: "_blank" })
-            .run();
+          editor?.chain().focus().setLink({href: url, target: "_blank"}).run();
 
           // editor?.commands.blur();
         }}
@@ -320,7 +318,7 @@ export function TextMenu(props: TextMenuProps) {
             variant="ghost"
             className="hover:bg-slate-100 hover:text-slate-900"
           >
-            <span style={{ color: selectedColor }}>A</span>
+            <span style={{color: selectedColor}}>A</span>
             <ChevronDown className="h-4 w-4 ml-1.5 text-gray-800" />
           </Button>
         </PopoverTrigger>
@@ -341,7 +339,7 @@ export function TextMenu(props: TextMenuProps) {
                   : ""
               }`}
             >
-              <span style={{ color: color.value }}>A</span>
+              <span style={{color: color.value}}>A</span>
               <span className=" capitalize">{color.name}</span>
             </button>
           ))}
@@ -355,7 +353,7 @@ type ContentTypePickerProps = {
   options: ContentTypePickerOption[];
 };
 
-function ContentTypePicker({ options }: ContentTypePickerProps) {
+function ContentTypePicker({options}: ContentTypePickerProps) {
   const activeOption = useMemo(
     () => options.find((option) => option.isActive()),
     [options]
@@ -401,7 +399,7 @@ type EditLinkPopoverType = {
   onSetLink: (url: string) => void;
 };
 
-function EditLinkPopover({ onSetLink }: EditLinkPopoverType) {
+function EditLinkPopover({onSetLink}: EditLinkPopoverType) {
   return (
     <Popover>
       <PopoverTrigger asChild>

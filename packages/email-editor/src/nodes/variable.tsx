@@ -1,16 +1,12 @@
-import { NodeViewProps, NodeViewWrapper, ReactRenderer } from "@tiptap/react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@usesend/ui/src/popover";
-import { cn } from "@usesend/ui/lib/utils";
-import { Input } from "@usesend/ui/src/input";
-import { Button } from "@usesend/ui/src/button";
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { SuggestionOptions } from "@tiptap/suggestion";
-import tippy, { GetReferenceClientRect } from "tippy.js";
-import { CheckIcon, TriangleAlert } from "lucide-react";
+import {NodeViewProps, NodeViewWrapper, ReactRenderer} from "@tiptap/react";
+import {Popover, PopoverContent, PopoverTrigger} from "@usesend/ui/src/popover";
+import {cn} from "@usesend/ui/lib/utils";
+import {Input} from "@usesend/ui/src/input";
+import {Button} from "@usesend/ui/src/button";
+import {forwardRef, useEffect, useImperativeHandle, useState} from "react";
+import {SuggestionOptions} from "@tiptap/suggestion";
+import tippy, {GetReferenceClientRect} from "tippy.js";
+import {CheckIcon, TriangleAlert} from "lucide-react";
 
 export interface VariableOptions {
   name: string;
@@ -26,14 +22,14 @@ export const VariableList = forwardRef((props: any, ref) => {
     console.log("item: ", item);
 
     if (item) {
-      props.command({ id: item, name: item, fallback: "" });
+      props.command({id: item, name: item, fallback: ""});
     }
   };
 
   useEffect(() => setSelectedIndex(0), [props.items]);
 
   useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+    onKeyDown: ({event}: {event: KeyboardEvent}) => {
       if (event.key === "ArrowUp") {
         setSelectedIndex(
           (selectedIndex + props.items.length - 1) % props.items.length
@@ -85,7 +81,7 @@ export function getVariableSuggestions(
   variables: Array<string> = []
 ): Omit<SuggestionOptions, "editor"> {
   return {
-    items: ({ query }) => {
+    items: ({query}) => {
       return variables
         .concat(query.length > 0 ? [query] : [])
         .filter((item) => item.toLowerCase().startsWith(query.toLowerCase()))
@@ -154,9 +150,10 @@ export function getVariableSuggestions(
 }
 
 export function VariableComponent(props: NodeViewProps) {
-  const { name, fallback } = props.node.attrs as VariableOptions;
+  const [isEditing, setIsEditing] = useState(false);
+  const {name, fallback} = props.node.attrs as VariableOptions;
   const [fallbackValue, setFallbackValue] = useState(fallback);
-  const { getPos, editor } = props;
+  const {getPos, editor} = props;
 
   console.log(props.selected);
 
@@ -165,6 +162,8 @@ export function VariableComponent(props: NodeViewProps) {
     props.updateAttributes({
       fallback: fallbackValue,
     });
+
+    setIsEditing(false);
   };
 
   return (
@@ -175,17 +174,26 @@ export function VariableComponent(props: NodeViewProps) {
       draggable="false"
       data-drag-handle=""
     >
-      <Popover open={props.selected}>
+      <Popover
+        open={isEditing}
+        onOpenChange={(open) => !open && setIsEditing(false)}
+      >
         <PopoverTrigger asChild>
           <button
             className={cn(
               "inline-flex items-center justify-center rounded-md text-sm gap-1 ring-offset-white transition-colors",
               "px-2 border border-gray-300 shadow-sm  cursor-pointer text-foreground/80"
             )}
-            onClick={(e) => {
+            // onClick={(e) => {
+            //   e.preventDefault();
+            //   const pos = getPos();
+            //   editor.commands.setNodeSelection(pos);
+            // }}
+            onDoubleClick={(e) => {
               e.preventDefault();
               const pos = getPos();
               editor.commands.setNodeSelection(pos);
+              setIsEditing(true);
             }}
           >
             <span className="">{`{{${name}}}`}</span>
