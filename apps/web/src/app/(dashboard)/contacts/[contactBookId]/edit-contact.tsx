@@ -19,7 +19,7 @@ import {
 } from "@usesend/ui/src/form";
 
 import { api } from "~/trpc/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Edit } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -63,6 +63,18 @@ export const EditContact: React.FC<{
     );
   }, [contact.properties, contactBookVariables]);
   const [variableValues, setVariableValues] = useState(initialVariableValues);
+
+  useEffect(() => {
+    setVariableValues((prev) =>
+      Object.keys(initialVariableValues).reduce(
+        (acc, key) => {
+          acc[key] = prev[key] ?? initialVariableValues[key] ?? "";
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
+    );
+  }, [initialVariableValues]);
 
   const utils = api.useUtils();
 
@@ -174,23 +186,28 @@ export const EditContact: React.FC<{
                   </FormItem>
                 )}
               />
-              {(contactBookVariables ?? []).map((variable) => (
-                <FormItem key={variable}>
-                  <FormLabel>{variable}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={variable}
-                      value={variableValues[variable] ?? ""}
-                      onChange={(e) => {
-                        setVariableValues((prev) => ({
-                          ...prev,
-                          [variable]: e.target.value,
-                        }));
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              ))}
+              {(contactBookVariables ?? []).map((variable) => {
+                const variableInputId = `contact-variable-${contact.id}-${variable.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+                return (
+                  <FormItem key={variable}>
+                    <FormLabel htmlFor={variableInputId}>{variable}</FormLabel>
+                    <FormControl>
+                      <Input
+                        id={variableInputId}
+                        placeholder={variable}
+                        value={variableValues[variable] ?? ""}
+                        onChange={(e) => {
+                          setVariableValues((prev) => ({
+                            ...prev,
+                            [variable]: e.target.value,
+                          }));
+                        }}
+                      />
+                    </FormControl>
+                  </FormItem>
+                );
+              })}
               <div className="flex justify-end">
                 <Button
                   className=" w-[100px] "

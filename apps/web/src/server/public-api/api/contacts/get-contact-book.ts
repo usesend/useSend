@@ -78,7 +78,6 @@ function getContactBook(app: PublicAPIApp) {
     return c.json({
       ...contactBook,
       properties: contactBook.properties as Record<string, string>,
-      variables: contactBook.variables,
     });
   });
 }

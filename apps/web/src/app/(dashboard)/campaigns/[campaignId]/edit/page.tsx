@@ -172,7 +172,7 @@ function CampaignEditor({
     const registryVariables = contactBook?.variables ?? [];
 
     return Array.from(new Set([...baseVariables, ...registryVariables]));
-  }, [contactBook?.variables]);
+  }, [contactBook]);
 
   return (
     <div className="p-4 container mx-auto ">

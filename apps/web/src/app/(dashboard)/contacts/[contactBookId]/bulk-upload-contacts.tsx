@@ -227,7 +227,7 @@ export default function BulkUploadContacts({
     const firstLineParts = lines[0]
       ?.split(",")
       .map((part) => part.trim().replace(/^"|"$/g, ""));
-    const hasHeader =
+    const hasEmailHeader =
       firstLineParts?.some((part) => {
         const normalized = part.toLowerCase();
         return (
@@ -236,6 +236,9 @@ export default function BulkUploadContacts({
           normalized === "email address"
         );
       }) ?? false;
+    const hasDataEmail =
+      firstLineParts?.some((part) => validateEmail(part)) ?? false;
+    const hasHeader = hasEmailHeader && !hasDataEmail;
     const headers = hasHeader ? firstLineParts : undefined;
 
     for (let i = 0; i < lines.length; i++) {
