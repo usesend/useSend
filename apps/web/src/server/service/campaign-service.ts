@@ -23,11 +23,7 @@ import {
   validateApiKeyDomainAccess,
   validateDomainFromEmail,
 } from "./domain-service";
-import {
-  createCampaignId,
-  createEmailEventId,
-  createEmailId,
-} from "~/server/id";
+import { newId } from "~/server/id";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -262,7 +258,7 @@ export async function createCampaignFromApi({
 
   const campaign = await db.campaign.create({
     data: {
-      id: createCampaignId(),
+      id: newId("campaign"),
       name,
       from,
       subject,
@@ -765,7 +761,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
 
     const email = await db.email.create({
       data: {
-        id: createEmailId(),
+        id: newId("email"),
         to: toEmails,
         replyTo: emailConfig.replyTo,
         cc: ccEmails.length > 0 ? ccEmails : undefined,
@@ -784,7 +780,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
 
     await db.emailEvent.create({
       data: {
-        id: createEmailEventId(),
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "SUPPRESSED",
         data: {
@@ -837,7 +833,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
   // Create email with filtered recipients
   const email = await db.email.create({
     data: {
-      id: createEmailId(),
+      id: newId("email"),
       to: filteredToEmails,
       replyTo: emailConfig.replyTo,
       cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,

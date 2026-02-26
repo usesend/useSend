@@ -11,7 +11,7 @@ import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
-import { createEmailEventId } from "~/server/id";
+import { newId } from "~/server/id";
 // Notifications about limits are handled inside LimitService.
 
 type QueueEmailJob = TeamJob<{
@@ -381,7 +381,7 @@ async function executeEmail(job: QueueEmailJob) {
     if (limitCheck.isLimitReached) {
       await db.emailEvent.create({
         data: {
-          id: createEmailEventId(),
+          id: newId("emailEvent"),
           emailId: email.id,
           status: "FAILED",
           data: {
@@ -434,7 +434,7 @@ async function executeEmail(job: QueueEmailJob) {
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
-        id: createEmailEventId(),
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "FAILED",
         data: {

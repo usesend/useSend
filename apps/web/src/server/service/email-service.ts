@@ -11,7 +11,7 @@ import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 import { Prisma } from "@prisma/client";
-import { createEmailEventId, createEmailId } from "~/server/id";
+import { newId } from "~/server/id";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -137,7 +137,7 @@ export async function sendEmail(
 
     const email = await db.email.create({
       data: {
-        id: createEmailId(),
+        id: newId("email"),
         to: toEmails,
         from,
         subject: subject as string,
@@ -155,7 +155,7 @@ export async function sendEmail(
 
     await db.emailEvent.create({
       data: {
-        id: createEmailEventId(),
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "SUPPRESSED",
         data: {
@@ -251,7 +251,7 @@ export async function sendEmail(
 
   const email = await db.email.create({
     data: {
-      id: createEmailId(),
+      id: newId("email"),
       to: filteredToEmails,
       from,
       subject: subject as string,
@@ -287,7 +287,7 @@ export async function sendEmail(
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
-        id: createEmailEventId(),
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "FAILED",
         data: {
@@ -359,7 +359,7 @@ export async function cancelEmail(emailId: string) {
 
   await db.emailEvent.create({
     data: {
-      id: createEmailEventId(),
+      id: newId("emailEvent"),
       emailId,
       status: "CANCELLED",
       teamId: email.teamId,
@@ -550,7 +550,7 @@ export async function sendBulkEmails(
 
     const email = await db.email.create({
       data: {
-        id: createEmailId(),
+        id: newId("email"),
         to: originalToEmails,
         from,
         subject: subject as string,
@@ -578,7 +578,7 @@ export async function sendBulkEmails(
 
     await db.emailEvent.create({
       data: {
-        id: createEmailEventId(),
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "SUPPRESSED",
         data: {
@@ -712,7 +712,7 @@ export async function sendBulkEmails(
       try {
         const email = await db.email.create({
           data: {
-            id: createEmailId(),
+            id: newId("email"),
             to: Array.isArray(to) ? to : [to],
             from,
             subject: subject as string,
@@ -772,7 +772,7 @@ export async function sendBulkEmails(
       createdEmails.map(async (email) => {
         await db.emailEvent.create({
           data: {
-            id: createEmailEventId(),
+            id: newId("emailEvent"),
             emailId: email.email.id,
             status: "FAILED",
             data: {

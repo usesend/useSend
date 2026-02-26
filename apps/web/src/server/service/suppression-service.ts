@@ -3,7 +3,7 @@ import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { logger } from "../logger/log";
 import { deleteFromSesSuppressionList } from "../aws/ses";
-import { createSuppressionId } from "~/server/id";
+import { newId } from "~/server/id";
 
 export type AddSuppressionParams = {
   email: string;
@@ -45,7 +45,7 @@ export class SuppressionService {
           },
         },
         create: {
-          id: createSuppressionId(),
+          id: newId("suppression"),
           email: email.toLowerCase().trim(),
           teamId,
           reason,
@@ -320,7 +320,7 @@ export class SuppressionService {
 
         await db.suppressionList.createMany({
           data: emailsToAdd.map((email) => ({
-            id: createSuppressionId(),
+            id: newId("suppression"),
             teamId,
             email,
             reason,

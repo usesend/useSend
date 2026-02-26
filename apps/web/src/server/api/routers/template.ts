@@ -13,7 +13,7 @@ import {
   getDocumentUploadUrl,
   isStorageConfigured,
 } from "~/server/service/storage-service";
-import { createTemplateId } from "~/server/id";
+import { newId } from "~/server/id";
 
 export const templateRouter = createTRPCRouter({
   getTemplates: teamProcedure
@@ -65,7 +65,7 @@ export const templateRouter = createTRPCRouter({
     .mutation(async ({ ctx: { db, team }, input }) => {
       const template = await db.template.create({
         data: {
-          id: createTemplateId(),
+          id: newId("template"),
           ...input,
           teamId: team.id,
         },
@@ -136,7 +136,7 @@ export const templateRouter = createTRPCRouter({
     async ({ ctx: { db, team, template }, input }) => {
       const newTemplate = await db.template.create({
         data: {
-          id: createTemplateId(),
+          id: newId("template"),
           name: `${template.name} (Copy)`,
           subject: template.subject,
           content: template.content,

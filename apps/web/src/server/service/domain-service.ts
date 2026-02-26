@@ -14,7 +14,7 @@ import {
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
 import { WebhookService } from "./webhook-service";
-import { createDomainPublicId, parseNumericId } from "~/server/id";
+import { newId, parseNumericId } from "~/server/id";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
 
@@ -216,7 +216,7 @@ export async function createDomain(
 
   const domain = await db.domain.create({
     data: {
-      publicId: createDomainPublicId(),
+      publicId: newId("domainPublic"),
       name,
       publicKey,
       teamId,

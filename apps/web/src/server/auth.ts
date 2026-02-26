@@ -13,7 +13,7 @@ import { Provider } from "next-auth/providers/index";
 import { sendSignUpEmail } from "~/server/mailer";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { createUserPublicId } from "~/server/id";
+import { newId } from "~/server/id";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -121,7 +121,7 @@ export const authOptions: NextAuthOptions = {
   events: {
     createUser: async ({ user }) => {
       let invitesAvailable = false;
-      const publicId = createUserPublicId();
+      const publicId = newId("userPublic");
 
       if (user.email) {
         const invites = await db.teamInvite.findMany({

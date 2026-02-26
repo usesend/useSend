@@ -6,8 +6,31 @@ const ID_SUFFIX_LENGTH = 16;
 
 const nextIdSuffix = customAlphabet(ID_ALPHABET, ID_SUFFIX_LENGTH);
 
-function createId(prefix: string) {
-  return `${prefix}_${nextIdSuffix()}`;
+export const ID_PREFIX = {
+  userPublic: "usr",
+  teamPublic: "tm",
+  domainPublic: "dom",
+  apiKeyPublic: "ak",
+  sesSetting: "ses",
+  teamInvite: "inv",
+  email: "em",
+  emailEvent: "evt",
+  contactBook: "cb",
+  contact: "ct",
+  campaign: "cmp",
+  template: "tpl",
+  suppression: "sup",
+  webhook: "wh",
+  webhookCall: "call",
+} as const;
+
+export type IdKind = keyof typeof ID_PREFIX;
+type PrefixFor<K extends IdKind> = (typeof ID_PREFIX)[K];
+export type IdFor<K extends IdKind> = `${PrefixFor<K>}_${string}`;
+
+export function newId<K extends IdKind>(kind: K): IdFor<K> {
+  const prefix = ID_PREFIX[kind];
+  return `${prefix}_${nextIdSuffix()}` as IdFor<K>;
 }
 
 export function parseNumericId(input: string): number | null {
@@ -21,64 +44,4 @@ export function parseNumericId(input: string): number | null {
   }
 
   return parsed;
-}
-
-export function createUserPublicId() {
-  return createId("usr");
-}
-
-export function createTeamPublicId() {
-  return createId("tm");
-}
-
-export function createDomainPublicId() {
-  return createId("dom");
-}
-
-export function createApiKeyPublicId() {
-  return createId("ak");
-}
-
-export function createSesSettingId() {
-  return createId("ses");
-}
-
-export function createTeamInviteId() {
-  return createId("inv");
-}
-
-export function createEmailId() {
-  return createId("em");
-}
-
-export function createEmailEventId() {
-  return createId("evt");
-}
-
-export function createContactBookId() {
-  return createId("cb");
-}
-
-export function createContactId() {
-  return createId("ct");
-}
-
-export function createCampaignId() {
-  return createId("cmp");
-}
-
-export function createTemplateId() {
-  return createId("tpl");
-}
-
-export function createSuppressionId() {
-  return createId("sup");
-}
-
-export function createWebhookId() {
-  return createId("wh");
-}
-
-export function createWebhookCallId() {
-  return createId("call");
 }

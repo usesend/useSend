@@ -7,7 +7,7 @@ import { EventType } from "@aws-sdk/client-sesv2";
 import { EmailQueueService } from "./email-queue-service";
 import { smallNanoid } from "../nanoid";
 import { logger } from "../logger/log";
-import { createSesSettingId } from "~/server/id";
+import { newId } from "~/server/id";
 
 const GENERAL_EVENTS: EventType[] = [
   "BOUNCE",
@@ -94,7 +94,7 @@ export class SesSettingsService {
 
       const setting = await db.sesSetting.create({
         data: {
-          id: createSesSettingId(),
+          id: newId("sesSetting"),
           region,
           callbackUrl: `${parsedUrl}/api/ses_callback`,
           topic: topicName,

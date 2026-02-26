@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { smallNanoid } from "../nanoid";
 import { createSecureHash, verifySecureHash } from "../crypto";
 import { logger } from "../logger/log";
-import { createApiKeyPublicId } from "~/server/id";
+import { newId } from "~/server/id";
 
 export async function addApiKey({
   name,
@@ -41,7 +41,7 @@ export async function addApiKey({
 
     await db.apiKey.create({
       data: {
-        publicId: createApiKeyPublicId(),
+        publicId: newId("apiKeyPublic"),
         name,
         permission: permission,
         teamId,

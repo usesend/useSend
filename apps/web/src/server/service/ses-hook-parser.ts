@@ -31,7 +31,7 @@ import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
-import { createEmailEventId } from "~/server/id";
+import { newId } from "~/server/id";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -296,7 +296,7 @@ export async function parseSesHook(data: SesEvent) {
 
   await db.emailEvent.create({
     data: {
-      id: createEmailEventId(),
+      id: newId("emailEvent"),
       emailId: email.id,
       status: mailStatus,
       data: mailData as any,
