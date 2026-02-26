@@ -1,5 +1,6 @@
 import { Role, type Prisma, type Team, type User } from "@prisma/client";
 import { db } from "~/server/db";
+import { createTeamPublicId, createUserPublicId } from "~/server/id";
 
 let sequence = 1;
 
@@ -13,6 +14,7 @@ export async function createUser(data?: Prisma.UserCreateInput): Promise<User> {
   const n = nextValue();
   return db.user.create({
     data: {
+      publicId: createUserPublicId(),
       email: `user-${n}@example.com`,
       isBetaUser: true,
       isWaitlisted: false,
@@ -25,6 +27,7 @@ export async function createTeam(data?: Prisma.TeamCreateInput): Promise<Team> {
   const n = nextValue();
   return db.team.create({
     data: {
+      publicId: createTeamPublicId(),
       name: `Team ${n}`,
       ...data,
     },

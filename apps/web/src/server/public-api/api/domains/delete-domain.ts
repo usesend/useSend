@@ -2,20 +2,26 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "../../hono";
 import { db } from "~/server/db";
 import { UnsendApiError } from "../../api-error";
-import { deleteDomain as deleteDomainService } from "~/server/service/domain-service";
+import {
+  deleteDomain as deleteDomainService,
+  resolveDomainId,
+} from "~/server/service/domain-service";
 
 const route = createRoute({
   method: "delete",
   path: "/v1/domains/{id}",
   request: {
     params: z.object({
-      id: z.coerce.number().openapi({
-        param: {
-          name: "id",
-          in: "path",
-        },
-        example: 1,
-      }),
+      id: z
+        .string()
+        .min(1)
+        .openapi({
+          param: {
+            name: "id",
+            in: "path",
+          },
+          example: "dom_3NfPq7hK9a2Tj6Rx",
+        }),
     }),
   },
   responses: {
@@ -57,7 +63,15 @@ const route = createRoute({
 function deleteDomain(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
-    const domainId = c.req.valid("param").id;
+    const identifier = c.req.valid("param").id;
+    const domainId = await resolveDomainId(identifier, team.id);
+
+    if (!domainId) {
+      throw new UnsendApiError({
+        code: "NOT_FOUND",
+        message: "Domain not found",
+      });
+    }
 
     // Enforce API key domain restriction
     if (team.apiKey.domainId && team.apiKey.domainId !== domainId) {

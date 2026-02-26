@@ -14,6 +14,7 @@ import {
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
 import { WebhookService } from "./webhook-service";
+import { createDomainPublicId, parseNumericId } from "~/server/id";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
 
@@ -215,6 +216,7 @@ export async function createDomain(
 
   const domain = await db.domain.create({
     data: {
+      publicId: createDomainPublicId(),
       name,
       publicKey,
       teamId,
@@ -230,6 +232,37 @@ export async function createDomain(
   await emitDomainEvent(domain, "domain.created");
 
   return withDnsRecords(domain);
+}
+
+export async function findDomainByIdentifier(
+  identifier: string,
+  teamId: number,
+) {
+  const numericId = parseNumericId(identifier);
+
+  if (numericId !== null) {
+    return db.domain.findFirst({
+      where: {
+        id: numericId,
+        teamId,
+      },
+    });
+  }
+
+  return db.domain.findFirst({
+    where: {
+      publicId: identifier,
+      teamId,
+    },
+  });
+}
+
+export async function resolveDomainId(
+  identifier: string,
+  teamId: number,
+): Promise<number | null> {
+  const domain = await findDomainByIdentifier(identifier, teamId);
+  return domain?.id ?? null;
 }
 
 export async function getDomain(id: number, teamId: number) {

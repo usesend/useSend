@@ -2,6 +2,7 @@ import { CampaignStatus, type ContactBook } from "@prisma/client";
 import { db } from "../db";
 import { LimitService } from "./limit-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { createContactBookId } from "~/server/id";
 
 export async function getContactBooks(teamId: number, search?: string) {
   return db.contactBook.findMany({
@@ -30,6 +31,7 @@ export async function createContactBook(teamId: number, name: string) {
 
   const created = await db.contactBook.create({
     data: {
+      id: createContactBookId(),
       name,
       teamId,
       properties: {},
@@ -72,7 +74,7 @@ export async function updateContactBook(
     name?: string;
     properties?: Record<string, string>;
     emoji?: string;
-  }
+  },
 ) {
   return db.contactBook.update({
     where: { id: contactBookId },

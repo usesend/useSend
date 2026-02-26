@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { smallNanoid } from "../nanoid";
 import { createSecureHash, verifySecureHash } from "../crypto";
 import { logger } from "../logger/log";
+import { createApiKeyPublicId } from "~/server/id";
 
 export async function addApiKey({
   name,
@@ -20,13 +21,13 @@ export async function addApiKey({
     // Validate domain ownership if domainId is provided
     if (domainId !== undefined) {
       const domain = await db.domain.findUnique({
-        where: { 
+        where: {
           id: domainId,
-          teamId: teamId 
+          teamId: teamId,
         },
         select: { id: true },
       });
-      
+
       if (!domain) {
         throw new Error("DOMAIN_NOT_FOUND");
       }
@@ -40,6 +41,7 @@ export async function addApiKey({
 
     await db.apiKey.create({
       data: {
+        publicId: createApiKeyPublicId(),
         name,
         permission: permission,
         teamId,

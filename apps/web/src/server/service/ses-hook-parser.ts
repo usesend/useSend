@@ -31,6 +31,7 @@ import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
+import { createEmailEventId } from "~/server/id";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -128,16 +129,19 @@ export async function parseSesHook(data: SesEvent) {
 
     // Get the actual affected recipients from the event data
     let recipientEmails: string[] = [];
-    
+
     if (isHardBounced && data.bounce?.bouncedRecipients) {
       // For bounces, only add the recipients that actually bounced
       recipientEmails = data.bounce.bouncedRecipients.map(
-        (recipient) => recipient.emailAddress
+        (recipient) => recipient.emailAddress,
       );
-    } else if (mailStatus === EmailStatus.COMPLAINED && data.complaint?.complainedRecipients) {
+    } else if (
+      mailStatus === EmailStatus.COMPLAINED &&
+      data.complaint?.complainedRecipients
+    ) {
       // For complaints, only add the recipients that actually complained
       recipientEmails = data.complaint.complainedRecipients.map(
-        (recipient) => recipient.emailAddress
+        (recipient) => recipient.emailAddress,
       );
     }
 
@@ -292,6 +296,7 @@ export async function parseSesHook(data: SesEvent) {
 
   await db.emailEvent.create({
     data: {
+      id: createEmailEventId(),
       emailId: email.id,
       status: mailStatus,
       data: mailData as any,

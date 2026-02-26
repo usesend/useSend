@@ -17,6 +17,7 @@ import {
   getDocumentUploadUrl,
   isStorageConfigured,
 } from "~/server/service/storage-service";
+import { createCampaignId } from "~/server/id";
 
 const statuses = Object.values(CampaignStatus) as [CampaignStatus];
 
@@ -102,6 +103,7 @@ export const campaignRouter = createTRPCRouter({
 
       const campaign = await db.campaign.create({
         data: {
+          id: createCampaignId(),
           ...input,
           teamId: team.id,
           domainId: domain.id,
@@ -241,6 +243,7 @@ export const campaignRouter = createTRPCRouter({
     async ({ ctx: { db, team, campaign } }) => {
       const newCampaign = await db.campaign.create({
         data: {
+          id: createCampaignId(),
           name: `${campaign.name} (Copy)`,
           from: campaign.from,
           replyTo: campaign.replyTo,

@@ -11,6 +11,7 @@ import { logger } from "../logger/log";
 import { SuppressionService } from "./suppression-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
 import { Prisma } from "@prisma/client";
+import { createEmailEventId, createEmailId } from "~/server/id";
 
 async function checkIfValidEmail(emailId: string) {
   const email = await db.email.findUnique({
@@ -40,7 +41,7 @@ async function checkIfValidEmail(emailId: string) {
 
 export const replaceVariables = (
   text: string,
-  variables: Record<string, string>
+  variables: Record<string, string>,
 ) => {
   return Object.keys(variables).reduce((accum, key) => {
     const re = new RegExp(`{{${key}}}`, "g");
@@ -53,7 +54,7 @@ export const replaceVariables = (
  Send transactional email
  */
 export async function sendEmail(
-  emailContent: EmailContent & { teamId: number; apiKeyId?: number }
+  emailContent: EmailContent & { teamId: number; apiKeyId?: number },
 ) {
   const {
     to,
@@ -110,18 +111,18 @@ export async function sendEmail(
 
   const suppressionResults = await SuppressionService.checkMultipleEmails(
     allEmailsToCheck,
-    teamId
+    teamId,
   );
 
   // Filter each field separately
   const filteredToEmails = toEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
   const filteredCcEmails = ccEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
   const filteredBccEmails = bccEmails.filter(
-    (email) => !suppressionResults[email]
+    (email) => !suppressionResults[email],
   );
 
   // Only block the email if all TO recipients are suppressed
@@ -131,11 +132,12 @@ export async function sendEmail(
         to,
         teamId,
       },
-      "All TO recipients are suppressed. No emails to send."
+      "All TO recipients are suppressed. No emails to send.",
     );
 
     const email = await db.email.create({
       data: {
+        id: createEmailId(),
         to: toEmails,
         from,
         subject: subject as string,
@@ -153,6 +155,7 @@ export async function sendEmail(
 
     await db.emailEvent.create({
       data: {
+        id: createEmailEventId(),
         emailId: email.id,
         status: "SUPPRESSED",
         data: {
@@ -173,7 +176,7 @@ export async function sendEmail(
         filteredCc: filteredCcEmails,
         teamId,
       },
-      "Some CC recipients were suppressed and filtered out."
+      "Some CC recipients were suppressed and filtered out.",
     );
   }
 
@@ -184,7 +187,7 @@ export async function sendEmail(
         filteredBcc: filteredBccEmails,
         teamId,
       },
-      "Some BCC recipients were suppressed and filtered out."
+      "Some BCC recipients were suppressed and filtered out.",
     );
   }
 
@@ -207,7 +210,7 @@ export async function sendEmail(
             acc[`{{${key}}}`] = variables?.[key] || "";
             return acc;
           },
-          {} as Record<string, string>
+          {} as Record<string, string>,
         ),
       };
 
@@ -248,6 +251,7 @@ export async function sendEmail(
 
   const email = await db.email.create({
     data: {
+      id: createEmailId(),
       to: filteredToEmails,
       from,
       subject: subject as string,
@@ -278,11 +282,12 @@ export async function sendEmail(
       domain.region,
       true,
       undefined,
-      delay
+      delay,
     );
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
+        id: createEmailEventId(),
         emailId: email.id,
         status: "FAILED",
         data: {
@@ -307,7 +312,7 @@ export async function updateEmail(
     scheduledAt,
   }: {
     scheduledAt?: string;
-  }
+  },
 ) {
   const { email, domain } = await checkIfValidEmail(emailId);
 
@@ -354,6 +359,7 @@ export async function cancelEmail(emailId: string) {
 
   await db.emailEvent.create({
     data: {
+      id: createEmailEventId(),
       emailId,
       status: "CANCELLED",
       teamId: email.teamId,
@@ -371,7 +377,7 @@ export async function sendBulkEmails(
       teamId: number;
       apiKeyId?: number;
     }
-  >
+  >,
 ) {
   if (emailContents.length === 0) {
     throw new UnsendApiError({
@@ -409,18 +415,18 @@ export async function sendBulkEmails(
 
       const suppressionResults = await SuppressionService.checkMultipleEmails(
         allEmailsToCheck,
-        content.teamId
+        content.teamId,
       );
 
       // Filter each field separately
       const filteredToEmails = toEmails.filter(
-        (email) => !suppressionResults[email]
+        (email) => !suppressionResults[email],
       );
       const filteredCcEmails = ccEmails.filter(
-        (email) => !suppressionResults[email]
+        (email) => !suppressionResults[email],
       );
       const filteredBccEmails = bccEmails.filter(
-        (email) => !suppressionResults[email]
+        (email) => !suppressionResults[email],
       );
 
       // Only consider it suppressed if all TO recipients are suppressed
@@ -437,13 +443,13 @@ export async function sendBulkEmails(
         suppressed: hasSuppressedToEmails,
         suppressedEmails: toEmails.filter((email) => suppressionResults[email]),
         suppressedCcEmails: ccEmails.filter(
-          (email) => suppressionResults[email]
+          (email) => suppressionResults[email],
         ),
         suppressedBccEmails: bccEmails.filter(
-          (email) => suppressionResults[email]
+          (email) => suppressionResults[email],
         ),
       };
-    })
+    }),
   );
 
   const validEmails = emailChecks.filter((check) => !check.suppressed);
@@ -460,7 +466,7 @@ export async function sendBulkEmails(
           suppressedAddresses: info.suppressedEmails,
         })),
       },
-      "Filtered suppressed emails from bulk send"
+      "Filtered suppressed emails from bulk send",
     );
   }
 
@@ -517,7 +523,7 @@ export async function sendBulkEmails(
               acc[`{{${key}}}`] = variables?.[key] || "";
               return acc;
             },
-            {} as Record<string, string>
+            {} as Record<string, string>,
           ),
         };
 
@@ -544,6 +550,7 @@ export async function sendBulkEmails(
 
     const email = await db.email.create({
       data: {
+        id: createEmailId(),
         to: originalToEmails,
         from,
         subject: subject as string,
@@ -571,6 +578,7 @@ export async function sendBulkEmails(
 
     await db.emailEvent.create({
       data: {
+        id: createEmailEventId(),
         emailId: email.id,
         status: "SUPPRESSED",
         data: {
@@ -678,7 +686,7 @@ export async function sendBulkEmails(
                 acc[`{{${key}}}`] = variables?.[key] || "";
                 return acc;
               },
-              {} as Record<string, string>
+              {} as Record<string, string>,
             ),
           };
 
@@ -704,6 +712,7 @@ export async function sendBulkEmails(
       try {
         const email = await db.email.create({
           data: {
+            id: createEmailId(),
             to: Array.isArray(to) ? to : [to],
             from,
             subject: subject as string,
@@ -740,7 +749,7 @@ export async function sendBulkEmails(
       } catch (error: any) {
         logger.error(
           { err: error, to },
-          `Failed to create email record for recipient`
+          `Failed to create email record for recipient`,
         );
         // Continue processing other emails
       }
@@ -763,6 +772,7 @@ export async function sendBulkEmails(
       createdEmails.map(async (email) => {
         await db.emailEvent.create({
           data: {
+            id: createEmailEventId(),
             emailId: email.email.id,
             status: "FAILED",
             data: {
@@ -775,7 +785,7 @@ export async function sendBulkEmails(
           where: { id: email.email.id },
           data: { latestStatus: "FAILED" },
         });
-      })
+      }),
     );
     throw error;
   }

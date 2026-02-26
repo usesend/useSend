@@ -40,7 +40,7 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
   const utils = api.useUtils();
 
   const [clickTracking, setClickTracking] = React.useState(
-    domain.clickTracking
+    domain.clickTracking,
   );
   const [openTracking, setOpenTracking] = React.useState(domain.openTracking);
 
@@ -52,7 +52,7 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
         onSuccess: () => {
           utils.domain.domains.invalidate();
         },
-      }
+      },
     );
   }
 
@@ -64,7 +64,7 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
         onSuccess: () => {
           utils.domain.domains.invalidate();
         },
-      }
+      },
     );
   }
 
@@ -75,7 +75,7 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
         <div className="flex justify-between w-full pl-8 py-4">
           <div className="flex flex-col gap-4 w-1/5">
             <Link
-              href={`/domains/${domain.id}`}
+              href={`/domains/${domain.publicId ?? domain.id}`}
               className="text-lg font-medium underline underline-offset-4 decoration-dashed"
             >
               {domain.name}

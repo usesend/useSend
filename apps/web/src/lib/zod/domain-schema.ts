@@ -8,18 +8,12 @@ export const DomainDnsRecordSchema = z.object({
     description: "DNS record type",
     example: "TXT",
   }),
-  name: z
-    .string()
-    .openapi({ description: "DNS record name", example: "mail" }),
-  value: z
-    .string()
-    .openapi({
-      description: "DNS record value",
-      example: "v=spf1 include:amazonses.com ~all",
-    }),
-  ttl: z
-    .string()
-    .openapi({ description: "DNS record TTL", example: "Auto" }),
+  name: z.string().openapi({ description: "DNS record name", example: "mail" }),
+  value: z.string().openapi({
+    description: "DNS record value",
+    example: "v=spf1 include:amazonses.com ~all",
+  }),
+  ttl: z.string().openapi({ description: "DNS record TTL", example: "Auto" }),
   priority: z
     .string()
     .nullish()
@@ -33,6 +27,10 @@ export const DomainDnsRecordSchema = z.object({
 
 export const DomainSchema = z.object({
   id: z.number().openapi({ description: "The ID of the domain", example: 1 }),
+  publicId: z.string().nullable().optional().openapi({
+    description: "Public domain identifier",
+    example: "dom_3NfPq7hK9a2Tj6Rx",
+  }),
   name: z
     .string()
     .openapi({ description: "The name of the domain", example: "example.com" }),

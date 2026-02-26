@@ -7,6 +7,7 @@ import { db } from "../db";
 import { ContactQueueService } from "./contact-queue-service";
 import { WebhookService } from "./webhook-service";
 import { logger } from "../logger/log";
+import { createContactId } from "~/server/id";
 
 export type ContactInput = {
   email: string;
@@ -53,6 +54,7 @@ export async function addOrUpdateContact(
       },
     },
     create: {
+      id: createContactId(),
       contactBookId,
       email: contact.email,
       firstName: contact.firstName,

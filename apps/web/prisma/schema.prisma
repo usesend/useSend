@@ -80,6 +80,7 @@ model VerificationToken {
 
 model User {
   id               Int        @id @default(autoincrement())
+  publicId         String?    @unique
   name             String?
   email            String?    @unique
   emailVerified    DateTime?
@@ -100,6 +101,7 @@ enum Plan {
 
 model Team {
   id               Int               @id @default(autoincrement())
+  publicId         String?           @unique
   name             String
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -181,6 +183,7 @@ enum DomainStatus {
 
 model Domain {
   id            Int          @id @default(autoincrement())
+  publicId      String?      @unique
   name          String       @unique
   teamId        Int
   status        DomainStatus @default(PENDING)
@@ -209,6 +212,7 @@ enum ApiPermission {
 
 model ApiKey {
   id           Int           @id @default(autoincrement())
+  publicId     String?       @unique
   clientId     String        @unique
   tokenHash    String
   partialToken String

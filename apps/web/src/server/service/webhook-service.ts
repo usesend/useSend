@@ -19,6 +19,7 @@ import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { createWebhookCallId, createWebhookId } from "~/server/id";
 
 const WEBHOOK_DISPATCH_CONCURRENCY = 25;
 const WEBHOOK_MAX_ATTEMPTS = 6;
@@ -119,6 +120,7 @@ export class WebhookService {
     for (const webhook of activeWebhooks) {
       const call = await db.webhookCall.create({
         data: {
+          id: createWebhookCallId(),
           webhookId: webhook.id,
           teamId: webhook.teamId,
           type: type,
@@ -179,6 +181,7 @@ export class WebhookService {
 
     const call = await db.webhookCall.create({
       data: {
+        id: createWebhookCallId(),
         webhookId: webhook.id,
         teamId: webhook.teamId,
         type: "webhook.test",
@@ -242,6 +245,7 @@ export class WebhookService {
 
     return db.webhook.create({
       data: {
+        id: createWebhookId(),
         teamId: params.teamId,
         url: params.url,
         description: params.description,

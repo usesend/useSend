@@ -63,7 +63,7 @@ export class Domains {
     return data;
   }
 
-  async verify(id: number): Promise<VerifyDomainResponse> {
+  async verify(id: string | number): Promise<VerifyDomainResponse> {
     const data = await this.usesend.put<VerifyDomainResponseSuccess>(
       `/domains/${id}/verify`,
       {},
@@ -71,7 +71,7 @@ export class Domains {
     return data;
   }
 
-  async get(id: number): Promise<GetDomainResponse> {
+  async get(id: string | number): Promise<GetDomainResponse> {
     const data = await this.usesend.get<GetDomainResponseSuccess>(
       `/domains/${id}`,
     );
@@ -79,7 +79,7 @@ export class Domains {
     return data;
   }
 
-  async delete(id: number): Promise<DeleteDomainResponse> {
+  async delete(id: string | number): Promise<DeleteDomainResponse> {
     const data = await this.usesend.delete<DeleteDomainResponseSuccess>(
       `/domains/${id}`,
     );

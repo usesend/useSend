@@ -101,13 +101,13 @@ export default function AddDomain() {
       {
         onSuccess: async (data) => {
           utils.domain.domains.invalidate();
-          await router.push(`/domains/${data.id}`);
+          await router.push(`/domains/${data.publicId ?? data.id}`);
           setOpen(false);
         },
         onError: async (error) => {
           toast.error(error.message);
         },
-      }
+      },
     );
   }
 

@@ -16,6 +16,7 @@ import { getServerAuthSession } from "~/server/auth";
 import { db } from "~/server/db";
 import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
+import { parseNumericId } from "~/server/id";
 
 /**
  * 1. CONTEXT
@@ -147,7 +148,7 @@ export const teamProcedure = protectedProcedure.use(async ({ ctx, next }) => {
           session: { ...ctx.session, user: ctx.session.user },
         },
       });
-    }
+    },
   );
 });
 
@@ -163,11 +164,30 @@ export const teamAdminProcedure = teamProcedure.use(async ({ ctx, next }) => {
 });
 
 export const domainProcedure = teamProcedure
-  .input(z.object({ id: z.number() }))
+  .input(
+    z.object({
+      id: z.union([z.number().int().positive(), z.string().min(1)]),
+    }),
+  )
   .use(async ({ ctx, next, input }) => {
-    const domain = await db.domain.findUnique({
-      where: { id: input.id, teamId: ctx.team.id },
-    });
+    const domainId =
+      typeof input.id === "number" ? input.id : parseNumericId(input.id);
+    const domainPublicId = typeof input.id === "string" ? input.id : null;
+
+    const domain =
+      domainId !== null
+        ? await db.domain.findUnique({
+            where: { id: domainId, teamId: ctx.team.id },
+          })
+        : domainPublicId
+          ? await db.domain.findFirst({
+              where: {
+                publicId: domainPublicId,
+                teamId: ctx.team.id,
+              },
+            })
+          : null;
+
     if (!domain) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found" });
     }
@@ -205,7 +225,7 @@ export const contactBookProcedure = teamProcedure
   .input(
     z.object({
       contactBookId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const contactBook = await db.contactBook.findUnique({
@@ -225,7 +245,7 @@ export const campaignProcedure = teamProcedure
   .input(
     z.object({
       campaignId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const campaign = await db.campaign.findUnique({
@@ -245,7 +265,7 @@ export const templateProcedure = teamProcedure
   .input(
     z.object({
       templateId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const template = await db.template.findUnique({

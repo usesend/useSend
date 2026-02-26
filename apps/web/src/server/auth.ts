@@ -13,6 +13,7 @@ import { Provider } from "next-auth/providers/index";
 import { sendSignUpEmail } from "~/server/mailer";
 import { env } from "~/env";
 import { db } from "~/server/db";
+import { createUserPublicId } from "~/server/id";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -60,7 +61,7 @@ function getProviders() {
             scope: "read:user user:email",
           },
         },
-      })
+      }),
     );
   }
 
@@ -70,7 +71,7 @@ function getProviders() {
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         allowDangerousEmailAccountLinking: true,
-      })
+      }),
     );
   }
 
@@ -84,7 +85,7 @@ function getProviders() {
         async generateVerificationToken() {
           return Math.random().toString(36).substring(2, 7).toLowerCase();
         },
-      })
+      }),
     );
   }
 
@@ -120,6 +121,7 @@ export const authOptions: NextAuthOptions = {
   events: {
     createUser: async ({ user }) => {
       let invitesAvailable = false;
+      const publicId = createUserPublicId();
 
       if (user.email) {
         const invites = await db.teamInvite.findMany({
@@ -136,12 +138,12 @@ export const authOptions: NextAuthOptions = {
       ) {
         await db.user.update({
           where: { id: user.id },
-          data: { isBetaUser: true },
+          data: { isBetaUser: true, publicId },
         });
       } else {
         await db.user.update({
           where: { id: user.id },
-          data: { isBetaUser: true, isWaitlisted: true },
+          data: { isBetaUser: true, isWaitlisted: true, publicId },
         });
       }
     },
