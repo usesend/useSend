@@ -3,6 +3,7 @@ import { db } from "../db";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { logger } from "../logger/log";
 import { deleteFromSesSuppressionList } from "../aws/ses";
+import { newId } from "~/server/id";
 
 export type AddSuppressionParams = {
   email: string;
@@ -31,7 +32,7 @@ export class SuppressionService {
    * Add email to suppression list
    */
   static async addSuppression(
-    params: AddSuppressionParams
+    params: AddSuppressionParams,
   ): Promise<SuppressionList> {
     const { email, teamId, reason, source } = params;
 
@@ -44,6 +45,7 @@ export class SuppressionService {
           },
         },
         create: {
+          id: newId("suppression"),
           email: email.toLowerCase().trim(),
           teamId,
           reason,
@@ -64,7 +66,7 @@ export class SuppressionService {
           source,
           suppressionId: suppression.id,
         },
-        "Email added to suppression list"
+        "Email added to suppression list",
       );
 
       return suppression;
@@ -77,7 +79,7 @@ export class SuppressionService {
           source,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to add email to suppression list"
+        "Failed to add email to suppression list",
       );
 
       throw new UnsendApiError({
@@ -92,7 +94,7 @@ export class SuppressionService {
    */
   static async isEmailSuppressed(
     email: string,
-    teamId: number
+    teamId: number,
   ): Promise<boolean> {
     try {
       const suppression = await db.suppressionList.findUnique({
@@ -112,7 +114,7 @@ export class SuppressionService {
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to check email suppression status"
+        "Failed to check email suppression status",
       );
 
       // In case of error, err on the side of caution and don't suppress
@@ -138,15 +140,15 @@ export class SuppressionService {
       if (uniqueRegions.length > 0) {
         const results = await Promise.allSettled(
           uniqueRegions.map((region) =>
-            deleteFromSesSuppressionList(normalizedEmail, region)
-          )
+            deleteFromSesSuppressionList(normalizedEmail, region),
+          ),
         );
 
         // Check for failures - deleteFromSesSuppressionList returns false on error
         const failures = results.filter(
           (r) =>
             r.status === "rejected" ||
-            (r.status === "fulfilled" && r.value === false)
+            (r.status === "fulfilled" && r.value === false),
         );
         if (failures.length > 0) {
           logger.warn(
@@ -156,7 +158,7 @@ export class SuppressionService {
               failedRegions: failures.length,
               totalRegions: uniqueRegions.length,
             },
-            "Some AWS SES regions failed during suppression removal"
+            "Some AWS SES regions failed during suppression removal",
           );
         }
       }
@@ -168,7 +170,7 @@ export class SuppressionService {
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to cleanup AWS SES suppression (continuing with local deletion)"
+        "Failed to cleanup AWS SES suppression (continuing with local deletion)",
       );
     }
 
@@ -189,7 +191,7 @@ export class SuppressionService {
           teamId,
           suppressionId: deleted.id,
         },
-        "Email removed from suppression list"
+        "Email removed from suppression list",
       );
     } catch (error) {
       // If the record doesn't exist, that's fine - it's already not suppressed
@@ -202,7 +204,7 @@ export class SuppressionService {
             email: normalizedEmail,
             teamId,
           },
-          "Attempted to remove non-existent suppression - already not suppressed"
+          "Attempted to remove non-existent suppression - already not suppressed",
         );
         return;
       }
@@ -213,7 +215,7 @@ export class SuppressionService {
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to remove email from suppression list"
+        "Failed to remove email from suppression list",
       );
 
       throw new UnsendApiError({
@@ -227,7 +229,7 @@ export class SuppressionService {
    * Get suppression list for team with pagination
    */
   static async getSuppressionList(
-    params: GetSuppressionListParams
+    params: GetSuppressionListParams,
   ): Promise<SuppressionListResult> {
     const {
       teamId,
@@ -277,7 +279,7 @@ export class SuppressionService {
           reason,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to get suppression list"
+        "Failed to get suppression list",
       );
 
       throw new UnsendApiError({
@@ -293,7 +295,7 @@ export class SuppressionService {
   static async addMultipleSuppressions(
     teamId: number,
     emails: string[],
-    reason: SuppressionReason
+    reason: SuppressionReason,
   ) {
     // Remove duplicates by normalizing emails first, then using Set
     const normalizedEmails = emails.map((email) => email.toLowerCase().trim());
@@ -313,11 +315,12 @@ export class SuppressionService {
         });
 
         const emailsToAdd = batch.filter(
-          (email) => !alreadySuppressed.some((s) => s.email === email)
+          (email) => !alreadySuppressed.some((s) => s.email === email),
         );
 
         await db.suppressionList.createMany({
           data: emailsToAdd.map((email) => ({
+            id: newId("suppression"),
             teamId,
             email,
             reason,
@@ -330,7 +333,7 @@ export class SuppressionService {
           originalCount: emails.length,
           uniqueCount: uniqueEmails.length,
         },
-        "Added multiple emails to suppression list"
+        "Added multiple emails to suppression list",
       );
     } catch (error) {
       logger.error(
@@ -339,7 +342,7 @@ export class SuppressionService {
           uniqueCount: uniqueEmails.length,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to add multiple emails to suppression list"
+        "Failed to add multiple emails to suppression list",
       );
 
       throw new UnsendApiError({
@@ -353,7 +356,7 @@ export class SuppressionService {
    * Get suppression statistics for a team
    */
   static async getSuppressionStats(
-    teamId: number
+    teamId: number,
   ): Promise<Record<SuppressionReason, number>> {
     try {
       const stats = await db.suppressionList.groupBy({
@@ -379,7 +382,7 @@ export class SuppressionService {
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to get suppression stats"
+        "Failed to get suppression stats",
       );
 
       throw new UnsendApiError({
@@ -394,11 +397,11 @@ export class SuppressionService {
    */
   static async checkMultipleEmails(
     emails: string[],
-    teamId: number
+    teamId: number,
   ): Promise<Record<string, boolean>> {
     try {
       const normalizedEmails = emails.map((email) =>
-        email.toLowerCase().trim()
+        email.toLowerCase().trim(),
       );
 
       const suppressions = await db.suppressionList.findMany({
@@ -428,7 +431,7 @@ export class SuppressionService {
           teamId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        "Failed to check multiple emails for suppression"
+        "Failed to check multiple emails for suppression",
       );
 
       // In case of error, err on the side of caution and don't suppress any

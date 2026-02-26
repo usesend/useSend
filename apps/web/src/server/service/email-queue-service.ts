@@ -11,6 +11,7 @@ import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
 import { sanitizeCustomHeaders } from "~/server/utils/email-headers";
+import { newId } from "~/server/id";
 // Notifications about limits are handled inside LimitService.
 
 type QueueEmailJob = TeamJob<{
@@ -46,22 +47,22 @@ export class EmailQueueService {
   public static initializeQueue(
     region: string,
     quota: number,
-    transactionalQuotaPercentage: number
+    transactionalQuotaPercentage: number,
   ) {
     logger.info(
       { region },
-      `[EmailQueueService]: Initializing queue for region`
+      `[EmailQueueService]: Initializing queue for region`,
     );
 
     const transactionalQuota = Math.floor(
-      (quota * transactionalQuotaPercentage) / 100
+      (quota * transactionalQuotaPercentage) / 100,
     );
     const marketingQuota = quota - transactionalQuota;
 
     if (this.transactionalQueue.has(region)) {
       logger.info(
         { region, transactionalQuota },
-        `[EmailQueueService]: Updating transactional quota for region`
+        `[EmailQueueService]: Updating transactional quota for region`,
       );
       const transactionalWorker = this.transactionalWorker.get(region);
       if (transactionalWorker) {
@@ -71,13 +72,13 @@ export class EmailQueueService {
     } else {
       logger.info(
         { region, transactionalQuota },
-        `[EmailQueueService]: Creating transactional queue for region`
+        `[EmailQueueService]: Creating transactional queue for region`,
       );
       const { queue: transactionalQueue, worker: transactionalWorker } =
         createQueueAndWorker(
           region,
           transactionalQuota !== 0 ? transactionalQuota : 1,
-          "transaction"
+          "transaction",
         );
       this.transactionalQueue.set(region, transactionalQueue);
       this.transactionalWorker.set(region, transactionalWorker);
@@ -86,7 +87,7 @@ export class EmailQueueService {
     if (this.marketingQueue.has(region)) {
       logger.info(
         { region, marketingQuota },
-        `[EmailQueueService]: Updating marketing quota for region`
+        `[EmailQueueService]: Updating marketing quota for region`,
       );
       const marketingWorker = this.marketingWorker.get(region);
       if (marketingWorker) {
@@ -95,13 +96,13 @@ export class EmailQueueService {
     } else {
       logger.info(
         { region, marketingQuota },
-        `[EmailQueueService]: Creating marketing queue for region`
+        `[EmailQueueService]: Creating marketing queue for region`,
       );
       const { queue: marketingQueue, worker: marketingWorker } =
         createQueueAndWorker(
           region,
           marketingQuota !== 0 ? marketingQuota : 1,
-          "marketing"
+          "marketing",
         );
       this.marketingQueue.set(region, marketingQueue);
       this.marketingWorker.set(region, marketingWorker);
@@ -114,7 +115,7 @@ export class EmailQueueService {
     region: string,
     transactional: boolean,
     unsubUrl?: string,
-    delay?: number
+    delay?: number,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -135,7 +136,7 @@ export class EmailQueueService {
         isBulk,
         teamId,
       },
-      { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS }
+      { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS },
     );
   }
 
@@ -155,7 +156,7 @@ export class EmailQueueService {
       unsubUrl?: string;
       delay?: number;
       timestamp?: number; // Optional: pass timestamp if needed for data
-    }[]
+    }[],
   ): Promise<void> {
     if (jobs.length === 0) {
       logger.info("[EmailQueueService]: No jobs provided for bulk queue.");
@@ -168,7 +169,7 @@ export class EmailQueueService {
 
     logger.info(
       { count: jobs.length },
-      `[EmailQueueService]: Starting bulk queue for jobs.`
+      `[EmailQueueService]: Starting bulk queue for jobs.`,
     );
 
     // Group jobs by region and type
@@ -196,7 +197,7 @@ export class EmailQueueService {
           transactional: boolean;
           jobDetails: typeof jobs;
         }
-      >
+      >,
     );
 
     const bulkAddPromises: Promise<any>[] = [];
@@ -206,7 +207,7 @@ export class EmailQueueService {
       if (!group || !group.queue) {
         logger.error(
           { groupKey, count: group?.jobDetails?.length ?? 0 },
-          `[EmailQueueService]: Queue not found for group during bulk add. Skipping jobs.`
+          `[EmailQueueService]: Queue not found for group during bulk add. Skipping jobs.`,
         );
         // Optionally: handle these skipped jobs (e.g., mark corresponding emails as failed)
         continue;
@@ -232,22 +233,22 @@ export class EmailQueueService {
 
       logger.info(
         { count: bulkData.length, queue: queue.name },
-        `[EmailQueueService]: Adding jobs to queue`
+        `[EmailQueueService]: Adding jobs to queue`,
       );
       bulkAddPromises.push(
         queue.addBulk(bulkData).catch((error) => {
           logger.error(
             { err: error, queue: queue.name },
-            `[EmailQueueService]: Failed to add bulk jobs to queue`
+            `[EmailQueueService]: Failed to add bulk jobs to queue`,
           );
           // Optionally: handle bulk add failure (e.g., mark corresponding emails as failed)
-        })
+        }),
       );
     }
 
     await Promise.allSettled(bulkAddPromises);
     logger.info(
-      "[EmailQueueService]: Finished processing bulk queue requests."
+      "[EmailQueueService]: Finished processing bulk queue requests.",
     );
   }
 
@@ -255,7 +256,7 @@ export class EmailQueueService {
     emailId: string,
     region: string,
     transactional: boolean,
-    delay: number
+    delay: number,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -277,7 +278,7 @@ export class EmailQueueService {
   public static async chancelEmail(
     emailId: string,
     region: string,
-    transactional: boolean
+    transactional: boolean,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -302,7 +303,7 @@ export class EmailQueueService {
       this.initializeQueue(
         sesSetting.region,
         sesSetting.sesEmailRateLimit,
-        sesSetting.transactionalQuota
+        sesSetting.transactionalQuota,
       );
     }
     this.initialized = true;
@@ -312,7 +313,7 @@ export class EmailQueueService {
 async function executeEmail(job: QueueEmailJob) {
   logger.info(
     { emailId: job.data.emailId, elapsed: Date.now() - job.data.timestamp },
-    `[EmailQueueService]: Executing email job`
+    `[EmailQueueService]: Executing email job`,
   );
 
   const email = await db.email.findUnique({
@@ -328,7 +329,7 @@ async function executeEmail(job: QueueEmailJob) {
   if (!email) {
     logger.info(
       { emailId: job.data.emailId },
-      `[EmailQueueService]: Email not found, skipping`
+      `[EmailQueueService]: Email not found, skipping`,
     );
     return;
   }
@@ -342,7 +343,7 @@ async function executeEmail(job: QueueEmailJob) {
   const configurationSetName = await getConfigurationSetName(
     domain?.clickTracking ?? false,
     domain?.openTracking ?? false,
-    domain?.region ?? env.AWS_DEFAULT_REGION
+    domain?.region ?? env.AWS_DEFAULT_REGION,
   );
 
   if (!configurationSetName) {
@@ -380,6 +381,7 @@ async function executeEmail(job: QueueEmailJob) {
     if (limitCheck.isLimitReached) {
       await db.emailEvent.create({
         data: {
+          id: newId("emailEvent"),
           emailId: email.id,
           status: "FAILED",
           data: {
@@ -421,7 +423,7 @@ async function executeEmail(job: QueueEmailJob) {
 
     logger.info(
       { emailId: email.id, sesEmailId: messageId },
-      `[EmailQueueService]: Email sent`
+      `[EmailQueueService]: Email sent`,
     );
 
     // Delete attachments and headers after sending the email
@@ -432,6 +434,7 @@ async function executeEmail(job: QueueEmailJob) {
   } catch (error: any) {
     await db.emailEvent.create({
       data: {
+        id: newId("emailEvent"),
         emailId: email.id,
         status: "FAILED",
         data: {

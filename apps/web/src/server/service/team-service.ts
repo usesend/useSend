@@ -10,6 +10,7 @@ import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
 import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
 import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
+import { newId } from "~/server/id";
 
 // Cache stores exactly Prisma Team shape (no counts)
 
@@ -83,6 +84,7 @@ export class TeamService {
 
     const created = await db.team.create({
       data: {
+        publicId: newId("teamPublic"),
         name,
         teamUsers: {
           create: {
@@ -188,6 +190,7 @@ export class TeamService {
 
     const teamInvite = await db.teamInvite.create({
       data: {
+        id: newId("teamInvite"),
         teamId,
         email,
         role,

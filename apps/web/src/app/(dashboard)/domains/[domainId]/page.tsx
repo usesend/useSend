@@ -42,7 +42,7 @@ export default function DomainItemPage({
 
   const domainQuery = api.domain.getDomain.useQuery(
     {
-      id: Number(domainId),
+      id: domainId,
     },
     {
       refetchInterval: (q) => (q?.state.data?.isVerifying ? 10000 : false),
@@ -54,7 +54,7 @@ export default function DomainItemPage({
 
   const handleVerify = () => {
     verifyQuery.mutate(
-      { id: Number(domainId) },
+      { id: domainId },
       {
         onSettled: () => {
           domainQuery.refetch();
@@ -154,7 +154,9 @@ export default function DomainItemPage({
                         />
                       </TableCell>
                       <TableCell className="">{record.ttl}</TableCell>
-                      <TableCell className="">{record.priority ?? ""}</TableCell>
+                      <TableCell className="">
+                        {record.priority ?? ""}
+                      </TableCell>
                       <TableCell className="">
                         <DnsVerificationStatus status={record.status} />
                       </TableCell>
@@ -248,7 +250,9 @@ const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
   );
 };
 
-const DnsVerificationStatus: React.FC<{ status: DomainStatus }> = ({ status }) => {
+const DnsVerificationStatus: React.FC<{ status: DomainStatus }> = ({
+  status,
+}) => {
   let badgeColor = "bg-gray/10 text-gray border-gray/10"; // Default color
   switch (status) {
     case DomainStatus.SUCCESS:

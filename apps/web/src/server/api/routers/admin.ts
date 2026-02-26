@@ -33,6 +33,7 @@ function formatDisplayNameFromEmail(email: string) {
 
 const teamAdminSelection = {
   id: true,
+  publicId: true,
   name: true,
   plan: true,
   apiRateLimit: true,
@@ -55,6 +56,7 @@ const teamAdminSelection = {
   domains: {
     select: {
       id: true,
+      publicId: true,
       name: true,
       status: true,
       isVerifying: true,
@@ -347,6 +349,9 @@ export const adminRouter = createTRPCRouter({
             OR: [
               { name: { equals: query, mode: "insensitive" } },
               { billingEmail: { equals: query, mode: "insensitive" } },
+              {
+                publicId: { equals: query, mode: "insensitive" },
+              },
               {
                 teamUsers: {
                   some: {

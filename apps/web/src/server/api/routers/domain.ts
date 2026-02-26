@@ -6,7 +6,6 @@ import {
   protectedProcedure,
   domainProcedure,
 } from "~/server/api/trpc";
-import { db } from "~/server/db";
 import {
   createDomain,
   deleteDomain,
@@ -30,13 +29,13 @@ export const domainRouter = createTRPCRouter({
         ctx.team.id,
         input.name,
         input.region,
-        ctx.team.sesTenantId ?? undefined
+        ctx.team.sesTenantId ?? undefined,
       );
     }),
 
-  startVerification: domainProcedure.mutation(async ({ ctx, input }) => {
+  startVerification: domainProcedure.mutation(async ({ ctx }) => {
     await ctx.db.domain.update({
-      where: { id: input.id },
+      where: { id: ctx.domain.id },
       data: { isVerifying: true },
     });
   }),
@@ -45,8 +44,8 @@ export const domainRouter = createTRPCRouter({
     return getDomains(ctx.team.id);
   }),
 
-  getDomain: domainProcedure.query(async ({ input, ctx }) => {
-    return getDomain(input.id, ctx.team.id);
+  getDomain: domainProcedure.query(async ({ ctx }) => {
+    return getDomain(ctx.domain.id, ctx.team.id);
   }),
 
   updateDomain: domainProcedure
@@ -54,17 +53,17 @@ export const domainRouter = createTRPCRouter({
       z.object({
         clickTracking: z.boolean().optional(),
         openTracking: z.boolean().optional(),
-      })
+      }),
     )
-    .mutation(async ({ input }) => {
-      return updateDomain(input.id, {
+    .mutation(async ({ input, ctx }) => {
+      return updateDomain(ctx.domain.id, {
         clickTracking: input.clickTracking,
         openTracking: input.openTracking,
       });
     }),
 
-  deleteDomain: domainProcedure.mutation(async ({ input }) => {
-    await deleteDomain(input.id);
+  deleteDomain: domainProcedure.mutation(async ({ ctx }) => {
+    await deleteDomain(ctx.domain.id);
     return { success: true };
   }),
 
@@ -73,17 +72,9 @@ export const domainRouter = createTRPCRouter({
       ctx: {
         session: { user },
         team,
+        domain,
       },
-      input,
     }) => {
-      const domain = await db.domain.findFirst({
-        where: { id: input.id, teamId: team.id },
-      });
-
-      if (!domain) {
-        throw new Error("Domain not found");
-      }
-
       if (!user.email) {
         throw new Error("User email not found");
       }
@@ -96,6 +87,6 @@ export const domainRouter = createTRPCRouter({
         text: "hello,\n\nuseSend is the best open source sending platform\n\ncheck out https://usesend.com",
         html: "<p>hello,</p><p>useSend is the best open source sending platform<p><p>check out <a href='https://usesend.com'>usesend.com</a>",
       });
-    }
+    },
   ),
 });

@@ -154,6 +154,7 @@ describe("campaignRouter.duplicateCampaign", () => {
 
     expect(mockDb.campaign.create).toHaveBeenCalledWith({
       data: {
+        id: expect.stringMatching(/^cmp_/),
         name: "Weekly update (Copy)",
         from: "Team <hello@example.com>",
         replyTo: ["support@example.com"],
