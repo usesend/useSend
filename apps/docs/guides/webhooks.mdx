@@ -127,19 +127,19 @@ HMAC-SHA256(secret, "${timestamp}.${rawBody}")
 
 <CodeGroup>
 ```bash npm
-npm install usesend
+npm install usesend-js
 ```
 
 ```bash yarn
-yarn add usesend
+yarn add usesend-js
 ```
 
 ```bash pnpm
-pnpm add usesend
+pnpm add usesend-js
 ```
 
 ```bash bun
-bun add usesend
+bun add usesend-js
 ```
 
 </CodeGroup>
@@ -147,7 +147,7 @@ bun add usesend
 ### Next.js App Router
 
 ```typescript
-import { UseSend } from "usesend";
+import { UseSend } from "usesend-js";
 
 const usesend = new UseSend("us_your_api_key");
 const webhooks = usesend.webhooks(process.env.USESEND_WEBHOOK_SECRET!);
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
 
 ```typescript
 import express from "express";
-import { Webhooks } from "usesend";
+import { Webhooks } from "usesend-js";
 
 const webhooks = new Webhooks(process.env.USESEND_WEBHOOK_SECRET!);
 
