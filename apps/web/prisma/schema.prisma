@@ -464,6 +464,7 @@ enum WebhookCallStatus {
 model Webhook {
   id                  String        @id @default(cuid())
   teamId              Int
+  domainIds           Int[]         @default([])
   url                 String
   description         String?
   secret              String

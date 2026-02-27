@@ -86,22 +86,50 @@ export class WebhookService {
     teamId: number,
     type: TType,
     payload: WebhookEventInput<TType>,
+    options?: { domainId?: number | null },
   ) {
+    const domainFilter =
+      options?.domainId == null
+        ? {
+            domainIds: {
+              isEmpty: true,
+            },
+          }
+        : {
+            OR: [
+              {
+                domainIds: {
+                  isEmpty: true,
+                },
+              },
+              {
+                domainIds: {
+                  has: options.domainId,
+                },
+              },
+            ],
+          };
+
     const activeWebhooks = await db.webhook.findMany({
       where: {
         teamId,
         status: WebhookStatus.ACTIVE,
-        OR: [
+        AND: [
           {
-            eventTypes: {
-              has: type,
-            },
+            OR: [
+              {
+                eventTypes: {
+                  has: type,
+                },
+              },
+              {
+                eventTypes: {
+                  isEmpty: true,
+                },
+              },
+            ],
           },
-          {
-            eventTypes: {
-              isEmpty: true,
-            },
-          },
+          domainFilter,
         ],
       },
     });
@@ -225,6 +253,7 @@ export class WebhookService {
     url: string;
     description?: string;
     eventTypes: string[];
+    domainIds?: number[];
     secret?: string;
   }) {
     const { isLimitReached, reason } = await LimitService.checkWebhookLimit(
@@ -238,11 +267,23 @@ export class WebhookService {
       });
     }
 
+    const normalizedDomainIds = WebhookService.normalizeDomainIds(
+      params.domainIds,
+    );
+
+    if (normalizedDomainIds.length > 0) {
+      await WebhookService.assertDomainsBelongToTeam(
+        normalizedDomainIds,
+        params.teamId,
+      );
+    }
+
     const secret = params.secret ?? WebhookService.generateSecret();
 
     return db.webhook.create({
       data: {
         teamId: params.teamId,
+        domainIds: normalizedDomainIds,
         url: params.url,
         description: params.description,
         secret,
@@ -259,6 +300,7 @@ export class WebhookService {
     url?: string;
     description?: string | null;
     eventTypes?: string[];
+    domainIds?: number[];
     rotateSecret?: boolean;
     secret?: string;
   }) {
@@ -278,6 +320,18 @@ export class WebhookService {
         ? WebhookService.generateSecret()
         : params.secret;
 
+    const normalizedDomainIds =
+      params.domainIds === undefined
+        ? undefined
+        : WebhookService.normalizeDomainIds(params.domainIds);
+
+    if (normalizedDomainIds && normalizedDomainIds.length > 0) {
+      await WebhookService.assertDomainsBelongToTeam(
+        normalizedDomainIds,
+        params.teamId,
+      );
+    }
+
     return db.webhook.update({
       where: { id: webhook.id },
       data: {
@@ -287,9 +341,42 @@ export class WebhookService {
             ? webhook.description
             : (params.description ?? null),
         eventTypes: params.eventTypes ?? webhook.eventTypes,
+        domainIds: normalizedDomainIds ?? webhook.domainIds,
         secret: secret ?? webhook.secret,
       },
     });
+  }
+
+  private static normalizeDomainIds(domainIds?: number[]) {
+    if (!domainIds) {
+      return [];
+    }
+
+    return Array.from(new Set(domainIds));
+  }
+
+  private static async assertDomainsBelongToTeam(
+    domainIds: number[],
+    teamId: number,
+  ) {
+    const matchingDomains = await db.domain.findMany({
+      where: {
+        id: {
+          in: domainIds,
+        },
+        teamId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (matchingDomains.length !== domainIds.length) {
+      throw new UnsendApiError({
+        code: "NOT_FOUND",
+        message: "One or more domains were not found",
+      });
+    }
   }
 
   public static async setWebhookStatus(params: {
