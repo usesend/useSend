@@ -4,7 +4,7 @@ import { env } from "~/env";
 import { authedProcedure, createTRPCRouter } from "~/server/api/trpc";
 import { logger } from "~/server/logger/log";
 import { sendMail } from "~/server/mailer";
-import { getRedis } from "~/server/redis";
+import { getRedis, redisKey } from "~/server/redis";
 import {
   WAITLIST_EMAIL_TYPES,
   waitlistSubmissionSchema,
@@ -40,7 +40,7 @@ export const waitlistRouter = createTRPCRouter({
       }
 
       const redis = getRedis();
-      const rateKey = `waitlist:requests:${user.id}`;
+      const rateKey = redisKey(`waitlist:requests:${user.id}`);
 
       const currentCountRaw = await redis.get(rateKey);
       const currentCount = currentCountRaw ? Number(currentCountRaw) : 0;

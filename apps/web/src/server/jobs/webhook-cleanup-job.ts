@@ -1,7 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import { subDays } from "date-fns";
 import { db } from "~/server/db";
-import { getRedis } from "~/server/redis";
+import { getRedis, BULL_PREFIX } from "~/server/redis";
 import { DEFAULT_QUEUE_OPTIONS, WEBHOOK_CLEANUP_QUEUE } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 
@@ -9,6 +9,7 @@ const WEBHOOK_RETENTION_DAYS = 30;
 
 const webhookCleanupQueue = new Queue(WEBHOOK_CLEANUP_QUEUE, {
   connection: getRedis(),
+  prefix: BULL_PREFIX,
 });
 
 const worker = new Worker(
@@ -30,6 +31,7 @@ const worker = new Worker(
   },
   {
     connection: getRedis(),
+    prefix: BULL_PREFIX,
   }
 );
 

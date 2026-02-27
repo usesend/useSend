@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import {
   DEFAULT_QUEUE_OPTIONS,
   CONTACT_BULK_ADD_QUEUE,
@@ -19,6 +19,7 @@ type ContactJob = TeamJob<ContactJobData>;
 class ContactQueueService {
   public static queue = new Queue<ContactJobData>(CONTACT_BULK_ADD_QUEUE, {
     connection: getRedis(),
+    prefix: BULL_PREFIX,
     defaultJobOptions: DEFAULT_QUEUE_OPTIONS,
   });
 
@@ -27,6 +28,7 @@ class ContactQueueService {
     createWorkerHandler(processContactJob),
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
       concurrency: 20,
     },
   );

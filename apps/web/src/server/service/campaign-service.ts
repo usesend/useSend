@@ -10,7 +10,7 @@ import {
 } from "@prisma/client";
 import { EmailQueueService } from "./email-queue-service";
 import { Queue, Worker } from "bullmq";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import {
   CAMPAIGN_BATCH_QUEUE,
   DEFAULT_QUEUE_OPTIONS,
@@ -928,6 +928,7 @@ export class CampaignBatchService {
     CAMPAIGN_BATCH_QUEUE,
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
     }
   );
 
@@ -1028,7 +1029,7 @@ export class CampaignBatchService {
         data: { lastCursor: newCursor, lastSentAt: new Date() },
       });
     }),
-    { connection: getRedis(), concurrency: 20 }
+    { connection: getRedis(), concurrency: 20, prefix: BULL_PREFIX }
   );
 
   static async queueBatch({
