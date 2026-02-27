@@ -513,18 +513,25 @@ async function processWebhookCall(job: WebhookCallJob) {
         ? new Date(Date.now() + computeBackoff(attempt))
         : null;
 
+    const isFinalAttempt = attempt >= WEBHOOK_MAX_ATTEMPTS;
+
     const updatedWebhook = await db.$transaction(async (tx) => {
       const webhookAfterFailure = await tx.webhook.update({
         where: { id: call.webhookId },
         data: {
-          consecutiveFailures: {
-            increment: 1,
-          },
           lastFailureAt: new Date(),
+          ...(isFinalAttempt
+            ? {
+                consecutiveFailures: {
+                  increment: 1,
+                },
+              }
+            : {}),
         },
       });
 
       if (
+        isFinalAttempt &&
         webhookAfterFailure.status === WebhookStatus.ACTIVE &&
         webhookAfterFailure.consecutiveFailures >=
           WEBHOOK_AUTO_DISABLE_THRESHOLD

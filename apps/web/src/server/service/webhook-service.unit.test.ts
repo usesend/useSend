@@ -220,6 +220,32 @@ describe("WebhookService documented behavior", () => {
     });
   });
 
+  it("does not increment consecutive failure counter before final attempt", async () => {
+    mockDb.webhookCall.findUnique.mockResolvedValue(buildCall());
+    mockTxWebhookUpdate.mockResolvedValue({
+      id: "wh_123",
+      status: WebhookStatus.ACTIVE,
+      consecutiveFailures: 0,
+    });
+
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("network down"));
+
+    await expect(invokeProcessWebhookCall(0)).rejects.toThrow("network down");
+
+    expect(mockTxWebhookUpdate).toHaveBeenCalledTimes(1);
+    const firstUpdateInput = mockTxWebhookUpdate.mock.calls[0]![0] as {
+      data: { consecutiveFailures?: { increment: number } };
+    };
+    expect(firstUpdateInput.data.consecutiveFailures).toBeUndefined();
+    expect(mockDb.webhookCall.update).toHaveBeenLastCalledWith({
+      where: { id: "call_123" },
+      data: expect.objectContaining({
+        status: WebhookCallStatus.PENDING,
+        attempt: 1,
+      }),
+    });
+  });
+
   it("auto-disables only when the persisted failure count reaches 30", async () => {
     mockDb.webhookCall.findUnique.mockResolvedValue(
       buildCall({ consecutiveFailures: 29 }),
@@ -238,7 +264,7 @@ describe("WebhookService documented behavior", () => {
 
     vi.spyOn(global, "fetch").mockRejectedValue(new Error("endpoint 500"));
 
-    await expect(invokeProcessWebhookCall(0)).resolves.toBeUndefined();
+    await expect(invokeProcessWebhookCall(5)).resolves.toBeUndefined();
 
     expect(mockTxWebhookUpdate).toHaveBeenCalledTimes(2);
     expect(mockTxWebhookUpdate).toHaveBeenLastCalledWith({
@@ -261,7 +287,7 @@ describe("WebhookService documented behavior", () => {
 
     vi.spyOn(global, "fetch").mockRejectedValue(new Error("endpoint 500"));
 
-    await expect(invokeProcessWebhookCall(0)).rejects.toThrow("endpoint 500");
+    await expect(invokeProcessWebhookCall(5)).rejects.toThrow("endpoint 500");
     expect(mockTxWebhookUpdate).toHaveBeenCalledTimes(1);
   });
 

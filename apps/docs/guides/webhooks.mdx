@@ -277,9 +277,9 @@ If your endpoint doesn't return a 2xx response, useSend will retry delivery with
 After 6 failed attempts, the webhook call is marked as failed.
 
 <Warning>
-  If your webhook endpoint fails 30 consecutive times across any calls, the
-  webhook will be automatically disabled to prevent continued failures. You can
-  re-enable it from the dashboard.
+  If your webhook endpoint fails 30 consecutive calls, the webhook will be
+  automatically disabled to prevent continued failures. You can re-enable it
+  from the dashboard.
 </Warning>
 
 ## Best practices
@@ -340,9 +340,9 @@ The test event will have type `webhook.test` with the following payload:
     "${timestamp}.${rawBody}")`
   </Accordion>
   <Accordion title="Webhook auto-disabled">
-    After 30 consecutive failures, webhooks are automatically disabled. Fix the
-    issue with your endpoint, then re-enable the webhook from the dashboard. The
-    failure counter resets on the next successful delivery.
+    After 30 consecutive failed calls, webhooks are automatically disabled. Fix
+    the issue with your endpoint, then re-enable the webhook from the dashboard.
+    The failure counter resets on the next successful delivery.
   </Accordion>
 </AccordionGroup>
 
