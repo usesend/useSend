@@ -48,9 +48,11 @@ const editWebhookSchema = z.object({
   eventTypes: z.array(EVENT_TYPES_ENUM, {
     required_error: "Select at least one event",
   }),
+  domainIds: z.array(z.number().int().positive()),
 });
 
 type EditWebhookFormValues = z.infer<typeof editWebhookSchema>;
+type WebhookWithDomainIds = Webhook & { domainIds?: number[] };
 
 const eventGroups: {
   label: string;
@@ -66,11 +68,12 @@ export function EditWebhookDialog({
   open,
   onOpenChange,
 }: {
-  webhook: Webhook;
+  webhook: WebhookWithDomainIds;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const updateWebhook = api.webhook.update.useMutation();
+  const domainsQuery = api.domain.domains.useQuery();
   const utils = api.useUtils();
   const initialHasAllEvents =
     (webhook.eventTypes as WebhookEventType[]).length === 0;
@@ -84,6 +87,7 @@ export function EditWebhookDialog({
       eventTypes: initialHasAllEvents
         ? []
         : (webhook.eventTypes as WebhookEventType[]),
+      domainIds: webhook.domainIds ?? [],
     },
   });
 
@@ -96,6 +100,7 @@ export function EditWebhookDialog({
         eventTypes: hasAllEvents
           ? []
           : (webhook.eventTypes as WebhookEventType[]),
+        domainIds: webhook.domainIds ?? [],
       });
       setAllEventsSelected(hasAllEvents);
     }
@@ -114,6 +119,7 @@ export function EditWebhookDialog({
         id: webhook.id,
         url: values.url,
         eventTypes: allEventsSelected ? [] : selectedEvents,
+        domainIds: values.domainIds,
       },
       {
         onSuccess: async () => {
@@ -304,6 +310,85 @@ export function EditWebhookDialog({
                         </DropdownMenu>
                       </FormControl>
                       {formState.errors.eventTypes ? <FormMessage /> : null}
+                    </FormItem>
+                  );
+                }}
+              />
+              <FormField
+                control={form.control}
+                name="domainIds"
+                render={({ field }) => {
+                  const selectedDomainIds = field.value ?? [];
+                  const selectedDomains =
+                    domainsQuery.data?.filter((domain) =>
+                      selectedDomainIds.includes(domain.id),
+                    ) ?? [];
+
+                  const selectedDomainsLabel =
+                    selectedDomainIds.length === 0
+                      ? "All domains"
+                      : selectedDomainIds.length === 1
+                        ? (selectedDomains[0]?.name ?? "1 domain selected")
+                        : `${selectedDomainIds.length} domains selected`;
+
+                  const handleToggleDomain = (domainId: number) => {
+                    const exists = selectedDomainIds.includes(domainId);
+                    const next = exists
+                      ? selectedDomainIds.filter((id) => id !== domainId)
+                      : [...selectedDomainIds, domainId];
+                    field.onChange(next);
+                  };
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Domains</FormLabel>
+                      <FormControl>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="mt-3 inline-flex w-full items-center justify-between"
+                            >
+                              <span className="truncate text-left text-sm">
+                                {selectedDomainsLabel}
+                              </span>
+                              <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="h-[30vh] w-[--radix-dropdown-menu-trigger-width]">
+                            <div className="space-y-3">
+                              <DropdownMenuCheckboxItem
+                                checked={selectedDomainIds.length === 0}
+                                onCheckedChange={() => field.onChange([])}
+                                onSelect={(event) => event.preventDefault()}
+                                className="mb-2 px-2 font-medium"
+                              >
+                                All domains
+                              </DropdownMenuCheckboxItem>
+                              {domainsQuery.data?.map((domain) => (
+                                <DropdownMenuCheckboxItem
+                                  key={domain.id}
+                                  checked={selectedDomainIds.includes(
+                                    domain.id,
+                                  )}
+                                  onCheckedChange={() =>
+                                    handleToggleDomain(domain.id)
+                                  }
+                                  onSelect={(event) => event.preventDefault()}
+                                  className="pl-3 pr-2"
+                                >
+                                  {domain.name}
+                                </DropdownMenuCheckboxItem>
+                              ))}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </FormControl>
+                      <FormDescription>
+                        Leave this as all domains to receive events from every
+                        domain.
+                      </FormDescription>
                     </FormItem>
                   );
                 }}
