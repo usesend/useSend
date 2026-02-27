@@ -60,6 +60,12 @@ vi.mock("~/server/logger/log", () => ({
   logger: mockLogger,
 }));
 
+vi.mock("~/server/service/limit-service", () => ({
+  LimitService: {
+    checkWebhookLimit: vi.fn(),
+  },
+}));
+
 vi.mock("~/server/queue/bullmq-context", () => ({
   createWorkerHandler: (handler: any) => {
     capturedProcessWebhookCall.handler = handler;
