@@ -59,7 +59,7 @@ function statusToCode(status: StatusCode): z.infer<typeof ErrorCode> {
   }
 }
 
-export class UnsendApiError extends HTTPException {
+export class UseSendApiError extends HTTPException {
   public readonly code: z.infer<typeof ErrorCode>;
 
   constructor({
@@ -78,7 +78,7 @@ export function handleError(err: Error, c: Context): Response {
   /**
    * We can handle this very well, as it is something we threw ourselves
    */
-  if (err instanceof UnsendApiError) {
+  if (err instanceof UseSendApiError) {
     if (err.status >= 500) {
       logger.error(
         { name: err.name, code: err.code, status: err.status, err },

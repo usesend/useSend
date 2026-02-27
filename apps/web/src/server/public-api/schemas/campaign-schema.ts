@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import * as chrono from "chrono-node";
-import { UnsendApiError } from "../api-error";
+import { UseSendApiError } from "../api-error";
 
 const stringOrStringArray = z.union([
   z.string().min(1),
@@ -22,7 +22,7 @@ export const parseScheduledAt = (scheduledAt?: string): Date | undefined => {
     return chronoDate;
   }
 
-  throw new UnsendApiError({
+  throw new UseSendApiError({
     code: "BAD_REQUEST",
     message: `Invalid date format: ${scheduledAt}. Use ISO 8601 format or natural language like 'tomorrow 9am'.`,
   });

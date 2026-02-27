@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { DomainSchema } from "~/lib/zod/domain-schema";
 import { PublicAPIApp } from "~/server/public-api/hono";
-import { UnsendApiError } from "../../api-error";
+import { UseSendApiError } from "../../api-error";
 import { db } from "~/server/db";
 import { getDomain as getDomainService } from "~/server/service/domain-service";
 
@@ -35,7 +35,7 @@ function getDomain(app: PublicAPIApp) {
 
     // Enforce API key domain restriction (if any)
     if (team.apiKey.domainId && team.apiKey.domainId !== id) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "NOT_FOUND",
         message: "Domain not found",
       });
@@ -46,7 +46,7 @@ function getDomain(app: PublicAPIApp) {
     try {
       enriched = await getDomainService(id, team.id);
     } catch (e) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "INTERNAL_SERVER_ERROR",
         message: e instanceof Error ? e.message : "Internal server error",
       });

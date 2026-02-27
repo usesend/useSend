@@ -1,6 +1,6 @@
 import { EmailContent } from "~/types";
 import { db } from "../db";
-import { UnsendApiError } from "~/server/public-api/api-error";
+import { UseSendApiError } from "~/server/public-api/api-error";
 import { EmailQueueService } from "./email-queue-service";
 import {
   validateDomainFromEmail,
@@ -18,7 +18,7 @@ async function checkIfValidEmail(emailId: string) {
   });
 
   if (!email || !email.domainId) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Email not found",
     });
@@ -29,7 +29,7 @@ async function checkIfValidEmail(emailId: string) {
   });
 
   if (!domain) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Email not found",
     });
@@ -86,7 +86,7 @@ export async function sendEmail(
     });
 
     if (!apiKey) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "BAD_REQUEST",
         message: "Invalid API key",
       });
@@ -227,7 +227,7 @@ export async function sendEmail(
     });
 
     if (!email) {
-      throw new UnsendApiError({
+      throw new UseSendApiError({
         code: "BAD_REQUEST",
         message: '"inReplyTo" is invalid',
       });
@@ -235,7 +235,7 @@ export async function sendEmail(
   }
 
   if (!text && !html) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Either text or html is required",
     });
@@ -312,7 +312,7 @@ export async function updateEmail(
   const { email, domain } = await checkIfValidEmail(emailId);
 
   if (email.latestStatus !== "SCHEDULED") {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Email already processed",
     });
@@ -337,7 +337,7 @@ export async function cancelEmail(emailId: string) {
   const { email, domain } = await checkIfValidEmail(emailId);
 
   if (email.latestStatus !== "SCHEDULED") {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Email already processed",
     });
@@ -374,14 +374,14 @@ export async function sendBulkEmails(
   >
 ) {
   if (emailContents.length === 0) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "No emails provided for bulk send",
     });
   }
 
   if (emailContents.length > 100) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "BAD_REQUEST",
       message: "Cannot send more than 100 emails in a single bulk request",
     });
@@ -690,7 +690,7 @@ export async function sendBulkEmails(
       }
 
       if (!text && !html) {
-        throw new UnsendApiError({
+        throw new UseSendApiError({
           code: "BAD_REQUEST",
           message: `Either text or html is required for email to ${to}`,
         });
@@ -748,7 +748,7 @@ export async function sendBulkEmails(
   }
 
   if (queueJobs.length === 0) {
-    throw new UnsendApiError({
+    throw new UseSendApiError({
       code: "INTERNAL_SERVER_ERROR",
       message: "Failed to create any email records",
     });
