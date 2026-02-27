@@ -125,6 +125,8 @@ model Team {
   suppressionList  SuppressionList[]
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
+  forwardingRules  EmailForwardingRule[]
+  inboundEmails    InboundEmail[]
 }
 
 model TeamInvite {
@@ -195,11 +197,15 @@ model Domain {
   errorMessage  String?
   subdomain     String?
   sesTenantId   String?
-  isVerifying   Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  apiKeys       ApiKey[]
+  isVerifying      Boolean              @default(false)
+  inboundEnabled   Boolean              @default(false)
+  sesReceiptRuleId String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  team             Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  apiKeys          ApiKey[]
+  forwardingRules  EmailForwardingRule[]
+  inboundEmails    InboundEmail[]
 }
 
 enum ApiPermission {
@@ -263,6 +269,7 @@ model Email {
   contactId    String?
   inReplyToId  String?
   headers      String?
+  isForwarded  Boolean      @default(false)
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
@@ -502,5 +509,54 @@ model WebhookCall {
   team           Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([teamId, webhookId, status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model EmailForwardingRule {
+  id                 String   @id @default(cuid())
+  teamId             Int
+  domainId           Int
+  sourceAddress      String
+  destinationAddress String
+  enabled            Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  domain         Domain         @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  inboundEmails  InboundEmail[]
+
+  @@unique([domainId, sourceAddress])
+  @@index([teamId])
+}
+
+enum InboundEmailStatus {
+  RECEIVED
+  FORWARDING
+  FORWARDED
+  FAILED
+  NO_RULE
+}
+
+model InboundEmail {
+  id               String             @id @default(cuid())
+  teamId           Int
+  domainId         Int
+  forwardingRuleId String?
+  from             String
+  to               String
+  subject          String?
+  receivedAt       DateTime           @default(now())
+  status           InboundEmailStatus @default(RECEIVED)
+  s3Key            String?
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  team           Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  domain         Domain               @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  forwardingRule EmailForwardingRule?  @relation(fields: [forwardingRuleId], references: [id], onDelete: SetNull)
+
+  @@index([domainId, status])
   @@index([createdAt(sort: Desc)])
 }

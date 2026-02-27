@@ -34,6 +34,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.0",
     "@aws-sdk/client-s3": "^3.797.0",
+    "@aws-sdk/client-ses": "^3.999.0",
     "@aws-sdk/client-sesv2": "^3.858.0",
     "@aws-sdk/client-sns": "^3.797.0",
     "@aws-sdk/client-sts": "^3.864.0",
@@ -62,6 +63,7 @@
     "ioredis": "^5.6.1",
     "jsx-email": "^2.7.1",
     "lucide-react": "^0.503.0",
+    "mailparser": "^3.7.2",
     "mime-types": "^3.0.1",
     "nanoid": "^5.1.5",
     "next": "15.5.9",
@@ -91,6 +93,7 @@
     "@next/eslint-plugin-next": "^15.3.1",
     "@types/eslint": "^9.6.1",
     "@types/html-to-text": "^9.0.4",
+    "@types/mailparser": "^3.4.5",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^22.15.2",
     "@types/nodemailer": "^6.4.17",
@@ -102,6 +105,7 @@
     "@usesend/eslint-config": "workspace:*",
     "@usesend/tailwind-config": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.3.1",
     "postcss": "^8.5.3",
@@ -110,8 +114,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.8.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.4",
-    "@vitest/coverage-v8": "^3.2.4"
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "react-is": "^19.0.0-rc-69d4b800-20241021"

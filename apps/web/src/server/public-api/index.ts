@@ -27,6 +27,10 @@ import createContactBook from "./api/contacts/create-contact-book";
 import getContactBook from "./api/contacts/get-contact-book";
 import updateContactBook from "./api/contacts/update-contact-book";
 import deleteContactBook from "./api/contacts/delete-contact-book";
+import listForwardingRules from "./api/domains/list-forwarding-rules";
+import createForwardingRule from "./api/domains/create-forwarding-rule";
+import deleteForwardingRule from "./api/domains/delete-forwarding-rule";
+import updateDomainInbound from "./api/domains/update-domain-inbound";
 
 export const app = getApp();
 
@@ -59,6 +63,12 @@ createContactBook(app);
 getContactBook(app);
 updateContactBook(app);
 deleteContactBook(app);
+
+/**Forwarding related APIs */
+listForwardingRules(app);
+createForwardingRule(app);
+deleteForwardingRule(app);
+updateDomainInbound(app);
 
 /**Campaign related APIs */
 createCampaign(app);

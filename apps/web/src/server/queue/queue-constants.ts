@@ -5,6 +5,8 @@ export const CAMPAIGN_BATCH_QUEUE = "campaign-batch";
 export const CAMPAIGN_SCHEDULER_QUEUE = "campaign-scheduler";
 export const WEBHOOK_DISPATCH_QUEUE = "webhook-dispatch";
 export const WEBHOOK_CLEANUP_QUEUE = "webhook-cleanup";
+export const INBOUND_EMAIL_QUEUE = "inbound-email";
+export const INBOUND_EMAIL_CLEANUP_QUEUE = "inbound-email-cleanup";
 
 export const DEFAULT_QUEUE_OPTIONS = {
   removeOnComplete: true,
