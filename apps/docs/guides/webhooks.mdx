@@ -35,20 +35,21 @@ Webhooks allow you to receive HTTP POST requests to your server when events occu
 
 ### Email events
 
-| Event                    | Description                                          |
-| ------------------------ | ---------------------------------------------------- |
-| `email.queued`           | Email has been queued for sending                    |
-| `email.sent`             | Email has been sent to the recipient's mail server   |
-| `email.delivered`        | Email was successfully delivered                     |
-| `email.delivery_delayed` | Email delivery is being retried                      |
-| `email.bounced`          | Email bounced (permanent or temporary)               |
-| `email.rejected`         | Email was rejected                                   |
-| `email.complained`       | Recipient marked email as spam                       |
-| `email.failed`           | Email failed to send                                 |
-| `email.cancelled`        | Scheduled email was cancelled                        |
-| `email.suppressed`       | Email was suppressed (recipient on suppression list) |
-| `email.opened`           | Recipient opened the email                           |
-| `email.clicked`          | Recipient clicked a link in the email                |
+| Event                     | Description                                          |
+| ------------------------- | ---------------------------------------------------- |
+| `email.queued`            | Email has been queued for sending                    |
+| `email.sent`              | Email has been sent to the recipient's mail server   |
+| `email.delivered`         | Email was successfully delivered                     |
+| `email.delivery_delayed`  | Email delivery is being retried                      |
+| `email.bounced`           | Email bounced (permanent or temporary)               |
+| `email.rejected`          | Email was rejected                                   |
+| `email.rendering_failure` | Email failed during template rendering               |
+| `email.complained`        | Recipient marked email as spam                       |
+| `email.failed`            | Email failed to send                                 |
+| `email.cancelled`         | Scheduled email was cancelled                        |
+| `email.suppressed`        | Email was suppressed (recipient on suppression list) |
+| `email.opened`            | Recipient opened the email                           |
+| `email.clicked`           | Recipient clicked a link in the email                |
 
 ### Contact events
 
