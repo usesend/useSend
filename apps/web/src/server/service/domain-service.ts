@@ -386,7 +386,9 @@ async function getDmarcRecord(domain: string) {
 
 async function emitDomainEvent(domain: Domain, type: DomainWebhookEventType) {
   try {
-    await WebhookService.emit(domain.teamId, type, buildDomainPayload(domain));
+    await WebhookService.emit(domain.teamId, type, buildDomainPayload(domain), {
+      domainId: domain.id,
+    });
   } catch (error) {
     logger.error(
       { error, domainId: domain.id, type },

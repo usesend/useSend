@@ -26,6 +26,7 @@ export const webhookRouter = createTRPCRouter({
         url: z.string().url(),
         description: z.string().optional(),
         eventTypes: z.array(EVENT_TYPES_ENUM),
+        domainIds: z.array(z.number().int().positive()).optional(),
         secret: z.string().min(16).optional(),
       }),
     )
@@ -36,6 +37,7 @@ export const webhookRouter = createTRPCRouter({
         url: input.url,
         description: input.description,
         eventTypes: input.eventTypes,
+        domainIds: input.domainIds,
         secret: input.secret,
       });
     }),
@@ -47,6 +49,7 @@ export const webhookRouter = createTRPCRouter({
         url: z.string().url().optional(),
         description: z.string().nullable().optional(),
         eventTypes: z.array(EVENT_TYPES_ENUM).optional(),
+        domainIds: z.array(z.number().int().positive()).optional(),
         rotateSecret: z.boolean().optional(),
         secret: z.string().min(16).optional(),
       }),
@@ -58,6 +61,7 @@ export const webhookRouter = createTRPCRouter({
         url: input.url,
         description: input.description,
         eventTypes: input.eventTypes,
+        domainIds: input.domainIds,
         rotateSecret: input.rotateSecret,
         secret: input.secret,
       });

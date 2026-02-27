@@ -10,7 +10,9 @@ import { api } from "~/trpc/react";
 import { Badge } from "@usesend/ui/src/badge";
 import { WebhookStatusBadge } from "../webhook-status-badge";
 
-export function WebhookInfo({ webhook }: { webhook: Webhook }) {
+type WebhookWithDomainIds = Webhook & { domainIds?: number[] };
+
+export function WebhookInfo({ webhook }: { webhook: WebhookWithDomainIds }) {
   const [showSecret, setShowSecret] = useState(false);
 
   const sevenDaysAgo = new Date();
@@ -20,6 +22,7 @@ export function WebhookInfo({ webhook }: { webhook: Webhook }) {
     webhookId: webhook.id,
     limit: 50,
   });
+  const domainsQuery = api.domain.domains.useQuery();
 
   const calls = callsQuery.data?.items ?? [];
   const last7DaysCalls = calls.filter(
@@ -37,6 +40,13 @@ export function WebhookInfo({ webhook }: { webhook: Webhook }) {
       c.status === WebhookCallStatus.PENDING ||
       c.status === WebhookCallStatus.IN_PROGRESS,
   ).length;
+
+  const domainNameById = new Map(
+    (domainsQuery.data ?? []).map((domain) => [domain.id, domain.name]),
+  );
+  const selectedDomainLabels = (webhook.domainIds ?? []).map(
+    (domainId) => domainNameById.get(domainId) ?? `Domain #${domainId}`,
+  );
 
   const handleCopySecret = () => {
     navigator.clipboard.writeText(webhook.secret);
@@ -60,6 +70,27 @@ export function WebhookInfo({ webhook }: { webhook: Webhook }) {
               {webhook.eventTypes.length > 2 && (
                 <span className="text-xs text-muted-foreground">
                   +{webhook.eventTypes.length - 2} more
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-muted-foreground">Domains</span>
+        <div className="flex items-center gap-1 flex-wrap text-sm">
+          {(webhook.domainIds ?? []).length === 0 ? (
+            <span className="text-sm">All domains</span>
+          ) : (
+            <>
+              {selectedDomainLabels.slice(0, 2).map((domainName, index) => (
+                <Badge key={`${domainName}-${index}`} variant="outline">
+                  {domainName}
+                </Badge>
+              ))}
+              {(webhook.domainIds ?? []).length > 2 && (
+                <span className="text-xs text-muted-foreground">
+                  +{(webhook.domainIds ?? []).length - 2} more
                 </span>
               )}
             </>
