@@ -43,6 +43,7 @@ export class WebhookQueueService {
   private static queue = new Queue<WebhookCallJobData>(WEBHOOK_DISPATCH_QUEUE, {
     connection: getRedis(),
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
     defaultJobOptions: {
       ...DEFAULT_QUEUE_OPTIONS,
       attempts: WEBHOOK_MAX_ATTEMPTS,
@@ -59,6 +60,7 @@ export class WebhookQueueService {
     {
       connection: getRedis(),
       prefix: BULL_PREFIX,
+      skipVersionCheck: true,
       concurrency: WEBHOOK_DISPATCH_CONCURRENCY,
     },
   );

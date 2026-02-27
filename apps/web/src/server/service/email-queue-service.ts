@@ -25,13 +25,14 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queueName = `${region}-${suffix}`;
 
-  const queue = new Queue(queueName, { connection, prefix: BULL_PREFIX });
+  const queue = new Queue(queueName, { connection, prefix: BULL_PREFIX, skipVersionCheck: true });
 
   // TODO: Add team context to job data when queueing
   const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
     concurrency: quota,
     connection,
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   });
 
   return { queue, worker };

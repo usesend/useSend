@@ -929,6 +929,7 @@ export class CampaignBatchService {
     {
       connection: getRedis(),
       prefix: BULL_PREFIX,
+      skipVersionCheck: true,
     }
   );
 
@@ -1029,7 +1030,7 @@ export class CampaignBatchService {
         data: { lastCursor: newCursor, lastSentAt: new Date() },
       });
     }),
-    { connection: getRedis(), concurrency: 20, prefix: BULL_PREFIX }
+    { connection: getRedis(), concurrency: 20, prefix: BULL_PREFIX, skipVersionCheck: true }
   );
 
   static async queueBatch({

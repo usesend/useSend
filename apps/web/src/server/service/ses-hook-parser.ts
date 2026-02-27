@@ -620,6 +620,7 @@ export class SesHookParser {
   private static sesHookQueue = new Queue(SES_WEBHOOK_QUEUE, {
     connection: getRedis(),
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   });
 
   private static worker = new Worker(
@@ -637,6 +638,7 @@ export class SesHookParser {
     {
       connection: getRedis(),
       prefix: BULL_PREFIX,
+      skipVersionCheck: true,
       concurrency: 50,
     },
   );

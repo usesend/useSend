@@ -20,6 +20,7 @@ class ContactQueueService {
   public static queue = new Queue<ContactJobData>(CONTACT_BULK_ADD_QUEUE, {
     connection: getRedis(),
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
     defaultJobOptions: DEFAULT_QUEUE_OPTIONS,
   });
 
@@ -29,6 +30,7 @@ class ContactQueueService {
     {
       connection: getRedis(),
       prefix: BULL_PREFIX,
+      skipVersionCheck: true,
       concurrency: 20,
     },
   );
