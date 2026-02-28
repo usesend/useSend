@@ -13,7 +13,6 @@ import Link from "next/link";
 import AddContact from "./add-contact";
 import BulkUploadContacts from "./bulk-upload-contacts";
 import ContactList from "./contact-list";
-import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import {
@@ -25,6 +24,18 @@ import { Button } from "@usesend/ui/src/button";
 import { Switch } from "@usesend/ui/src/switch";
 import { useTheme } from "@usesend/ui";
 import { use } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
+import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
+import {
+  Users,
+  MailX,
+  Clock,
+  Hash,
+  Calendar,
+  Megaphone,
+  Shield,
+  ChevronRight,
+} from "lucide-react";
 
 export default function ContactsPage({
   params,
@@ -126,85 +137,159 @@ export default function ContactsPage({
           <AddContact contactBookId={contactBookId} />
         </div>
       </div>
-      <div className="mt-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-          <div className="flex flex-col gap-2 rounded-lg border p-4 shadow">
-            <p className="font-semibold mb-1">Metrics</p>
-            <div className="flex items-center gap-2">
-              <div className="text-muted-foreground w-[130px] text-sm">
-                Total Contacts
-              </div>
-              <div className="font-mono text-sm">
-                {contactBookDetailQuery.data?.totalContacts !== undefined
-                  ? contactBookDetailQuery.data?.totalContacts
-                  : "--"}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-muted-foreground w-[130px] text-sm">
-                Unsubscribed
-              </div>
-              <div className="font-mono text-sm">
-                {contactBookDetailQuery.data?.unsubscribedContacts !== undefined
-                  ? contactBookDetailQuery.data?.unsubscribedContacts
-                  : "--"}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 rounded-lg border p-4 shadow">
-            <p className="font-semibold">Details</p>
-            <div className="flex items-center gap-2">
-              <div className="text-muted-foreground w-[130px] text-sm">
-                Contact book ID
-              </div>
-              <TextWithCopyButton
-                value={contactBookId}
-                alwaysShowCopy
-                className="text-sm w-[130px] overflow-hidden text-ellipsis font-mono"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-muted-foreground w-[130px] text-sm">
-                Created at
-              </div>
-              <div className="text-sm">
-                {contactBookDetailQuery.data?.createdAt
-                  ? formatDistanceToNow(contactBookDetailQuery.data.createdAt, {
-                      addSuffix: true,
-                    })
-                  : "--"}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 rounded-lg border p-4 shadow">
-            <p className="font-semibold">Recent campaigns</p>
-            {!contactBookDetailQuery.isLoading &&
-            contactBookDetailQuery.data?.campaigns.length === 0 ? (
-              <div className="text-muted-foreground text-sm">
-                No campaigns yet.
-              </div>
-            ) : null}
-            {contactBookDetailQuery.data?.campaigns.map((campaign) => (
-              <div key={campaign.id} className="flex items-center gap-2">
-                <Link href={`/campaigns/${campaign.id}`}>
-                  <div className="text-sm hover:underline hover:decoration-dashed text-nowrap w-[200px] overflow-hidden text-ellipsis">
-                    {campaign.name}
-                  </div>
-                </Link>
-                <div className="text-muted-foreground text-xs">
-                  {formatDistanceToNow(campaign.createdAt, {})}
+
+      <div className="mt-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Metrics Card */}
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-muted rounded-md">
+                  <Users className="w-4 h-4 text-muted-foreground" />
                 </div>
+                <CardTitle className="text-sm font-medium">Metrics</CardTitle>
               </div>
-            ))}
-          </div>
-          <div className="flex flex-col gap-3 rounded-lg border p-4 shadow">
-            <p className="font-semibold">Double opt-in</p>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm">Require email confirmation</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  New contacts stay pending until they confirm subscription.
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5" />
+                  Total Contacts
+                </span>
+                <span className="text-lg font-semibold font-mono">
+                  {contactBookDetailQuery.data?.totalContacts !== undefined
+                    ? contactBookDetailQuery.data?.totalContacts.toLocaleString()
+                    : "--"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                  <MailX className="w-3.5 h-3.5" />
+                  Unsubscribed
+                </span>
+                <span className="text-lg font-semibold font-mono text-destructive">
+                  {contactBookDetailQuery.data?.unsubscribedContacts !==
+                  undefined
+                    ? contactBookDetailQuery.data?.unsubscribedContacts.toLocaleString()
+                    : "--"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Details Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-muted rounded-md">
+                  <Hash className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-sm font-medium">Details</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Contact book ID</p>
+                <TextWithCopyButton
+                  value={contactBookId}
+                  alwaysShowCopy
+                  className="text-sm font-mono bg-muted px-2 py-1 rounded w-full"
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  Created
                 </p>
+                <p className="text-sm">
+                  {contactBookDetailQuery.data?.createdAt
+                    ? formatDistanceToNow(
+                        contactBookDetailQuery.data.createdAt,
+                        {
+                          addSuffix: true,
+                        },
+                      )
+                    : "--"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Campaigns Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-muted rounded-md">
+                  <Megaphone className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <CardTitle className="text-sm font-medium">
+                  Recent Campaigns
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!contactBookDetailQuery.isLoading &&
+              contactBookDetailQuery.data?.campaigns.length === 0 ? (
+                <div className="text-muted-foreground text-sm py-4 text-center">
+                  No campaigns yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {contactBookDetailQuery.data?.campaigns
+                    .slice(0, 5)
+                    .map((campaign) => (
+                      <Link
+                        key={campaign.id}
+                        href={`/campaigns/${campaign.id}`}
+                        className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Megaphone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="text-sm font-medium truncate">
+                            {campaign.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDistanceToNow(campaign.createdAt, {
+                              addSuffix: true,
+                            })}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </Link>
+                    ))}
+                  {(contactBookDetailQuery.data?.campaigns.length || 0) > 5 && (
+                    <Link
+                      href="/campaigns"
+                      className="flex items-center justify-center p-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      View all campaigns
+                    </Link>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Double Opt-in Section */}
+        <Card className="mt-6">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-muted rounded-md">
+                  <Shield className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-medium">
+                    Double Opt-in
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Require email confirmation for new contacts
+                  </p>
+                </div>
               </div>
               <Switch
                 checked={
@@ -216,23 +301,35 @@ export default function ContactsPage({
                     doubleOptInEnabled: checked,
                   });
                 }}
-                className="data-[state=checked]:bg-success"
+                className="data-[state=checked]:bg-green-500"
               />
             </div>
-            <Button asChild variant="outline" size="sm" className="w-fit">
-              <Link href={`/contacts/${contactBookId}/double-opt-in`}>
-                Edit confirmation email
-              </Link>
-            </Button>
-          </div>
-        </div>
-        <div className="mt-16">
-          <ContactList
-            contactBookId={contactBookId}
-            contactBookName={contactBookDetailQuery.data?.name}
-            doubleOptInEnabled={contactBookDetailQuery.data?.doubleOptInEnabled}
-          />
-        </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                {contactBookDetailQuery.data?.doubleOptInEnabled
+                  ? "New contacts will receive a confirmation email before being added to this list."
+                  : "New contacts will be immediately added to this list without confirmation."}
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/contacts/${contactBookId}/double-opt-in`}>
+                  {contactBookDetailQuery.data?.doubleOptInEnabled
+                    ? "Edit confirmation email"
+                    : "Preview confirmation email"}
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-10">
+        <ContactList
+          contactBookId={contactBookId}
+          contactBookName={contactBookDetailQuery.data?.name}
+          doubleOptInEnabled={contactBookDetailQuery.data?.doubleOptInEnabled}
+        />
       </div>
     </div>
   );
