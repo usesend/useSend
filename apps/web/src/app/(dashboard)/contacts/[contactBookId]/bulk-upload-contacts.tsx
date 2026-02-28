@@ -25,6 +25,7 @@ import {
 } from "@usesend/ui/src/table";
 import { Upload, FileText, Check, X } from "lucide-react";
 import { toast } from "@usesend/ui/src/toaster";
+import { normalizePropertyHeader } from "~/lib/contact-properties";
 
 interface BulkUploadContactsProps {
   contactBookId: string;
@@ -34,6 +35,7 @@ interface ParsedContact {
   email: string;
   firstName?: string;
   lastName?: string;
+  properties?: Record<string, string>;
   subscribed?: boolean;
   isValid: boolean;
 }
@@ -48,6 +50,13 @@ export default function BulkUploadContacts({
   const [isDragOver, setIsDragOver] = useState(false);
 
   const utils = api.useUtils();
+  const contactBookDetailQuery = api.contacts.getContactBookDetails.useQuery({
+    contactBookId,
+  });
+  const contactBookVariables = useMemo(
+    () => contactBookDetailQuery.data?.variables ?? [],
+    [contactBookDetailQuery.data?.variables],
+  );
 
   const addContactsMutation = api.contacts.addContacts.useMutation({
     onSuccess: (result) => {
@@ -77,11 +86,12 @@ export default function BulkUploadContacts({
 
   const parseContactLine = (
     line: string,
-    isFirstLine: boolean = false,
+    headers?: string[],
   ): {
     email: string;
     firstName?: string;
     lastName?: string;
+    properties?: Record<string, string>;
     subscribed?: boolean;
   } | null => {
     const trimmedLine = line.trim();
@@ -107,27 +117,93 @@ export default function BulkUploadContacts({
 
     if (parts.length === 0 || !parts[0]) return null;
 
-    // Check if this is a header row (case-insensitive)
-    if (isFirstLine) {
-      const firstPart = parts[0]?.toLowerCase();
-      if (
-        firstPart === "email" ||
-        firstPart === "e-mail" ||
-        firstPart === "email address"
-      ) {
-        return null; // Skip header row
-      }
+    const firstPart = parts[0]?.toLowerCase();
+    if (
+      firstPart === "email" ||
+      firstPart === "e-mail" ||
+      firstPart === "email address"
+    ) {
+      return null;
     }
 
-    const email = parts[0]!.toLowerCase();
+    const getHeader = (index: number) => headers?.[index]?.trim().toLowerCase();
+
+    const email = (
+      headers
+        ? parts[
+            headers.findIndex((header) => {
+              const normalized = header.trim().toLowerCase();
+              return (
+                normalized === "email" ||
+                normalized === "e-mail" ||
+                normalized === "email address"
+              );
+            })
+          ]
+        : parts[0]
+    )?.toLowerCase();
 
     // Skip if doesn't look like an email
-    if (!email.includes("@")) return null;
+    if (!email || !email.includes("@")) return null;
 
     // Parse subscribed value (support CSV export format: Email, First Name, Last Name, Subscribed, ...)
     let subscribed: boolean | undefined = undefined;
     let firstName: string | undefined = undefined;
     let lastName: string | undefined = undefined;
+    const properties: Record<string, string> = {};
+
+    if (headers) {
+      for (let i = 0; i < parts.length; i++) {
+        const header = getHeader(i);
+        if (!header) {
+          continue;
+        }
+
+        if (
+          header === "email" ||
+          header === "e-mail" ||
+          header === "email address"
+        ) {
+          continue;
+        }
+
+        if (header === "firstname" || header === "first name") {
+          firstName = parts[i] || undefined;
+          continue;
+        }
+
+        if (header === "lastname" || header === "last name") {
+          lastName = parts[i] || undefined;
+          continue;
+        }
+
+        if (header === "subscribed") {
+          const subscribedValue = parts[i]?.toLowerCase();
+          if (subscribedValue === "yes" || subscribedValue === "true") {
+            subscribed = true;
+          } else if (subscribedValue === "no" || subscribedValue === "false") {
+            subscribed = false;
+          }
+          continue;
+        }
+
+        if (parts[i]) {
+          const propertyKey = normalizePropertyHeader(
+            headers[i]!,
+            contactBookVariables,
+          );
+          properties[propertyKey] = parts[i]!;
+        }
+      }
+
+      return {
+        email,
+        firstName,
+        lastName,
+        subscribed,
+        properties: Object.keys(properties).length > 0 ? properties : undefined,
+      };
+    }
 
     if (parts.length >= 4) {
       // Could be: email,firstName,lastName,subscribed
@@ -152,6 +228,7 @@ export default function BulkUploadContacts({
       email,
       firstName,
       lastName,
+      properties: Object.keys(properties).length > 0 ? properties : undefined,
       subscribed,
     };
   };
@@ -159,9 +236,25 @@ export default function BulkUploadContacts({
   const parseContacts = (text: string): ParsedContact[] => {
     const lines = text.split("\n");
     const contactsMap = new Map<string, ParsedContact>();
+    const firstLineParts = lines[0]
+      ?.split(",")
+      .map((part) => part.trim().replace(/^"|"$/g, ""));
+    const hasEmailHeader =
+      firstLineParts?.some((part) => {
+        const normalized = part.toLowerCase();
+        return (
+          normalized === "email" ||
+          normalized === "e-mail" ||
+          normalized === "email address"
+        );
+      }) ?? false;
+    const hasDataEmail =
+      firstLineParts?.some((part) => validateEmail(part)) ?? false;
+    const hasHeader = hasEmailHeader && !hasDataEmail;
+    const headers = hasHeader ? firstLineParts : undefined;
 
     for (let i = 0; i < lines.length; i++) {
-      const parsed = parseContactLine(lines[i]!, i === 0);
+      const parsed = parseContactLine(lines[i]!, headers);
       if (parsed) {
         // Use email as key to deduplicate
         if (!contactsMap.has(parsed.email)) {
@@ -267,6 +360,7 @@ export default function BulkUploadContacts({
           email: c.email,
           firstName: c.firstName,
           lastName: c.lastName,
+          properties: c.properties,
           subscribed: c.subscribed,
         })),
       });
@@ -275,7 +369,10 @@ export default function BulkUploadContacts({
     }
   };
 
-  const parsedContacts = useMemo(() => parseContacts(inputText), [inputText]);
+  const parsedContacts = useMemo(
+    () => parseContacts(inputText),
+    [inputText, contactBookVariables],
+  );
 
   const validContacts = useMemo(
     () => parsedContacts.filter((c) => c.isValid),
@@ -385,7 +482,8 @@ Format: email,firstName,lastName,subscribed (all fields except email are optiona
                         : "Upload a .txt or .csv file or drag and drop here"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Format: email,firstName,lastName,subscribed (one per line)
+                      Format: email,firstName,lastName,subscribed (+ optional
+                      custom columns)
                     </p>
                   </div>
                 </div>
