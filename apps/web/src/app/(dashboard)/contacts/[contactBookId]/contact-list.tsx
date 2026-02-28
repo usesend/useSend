@@ -34,6 +34,7 @@ import {
 } from "@usesend/ui/src/tooltip";
 import { UnsubscribeReason } from "@prisma/client";
 import { Download } from "lucide-react";
+import { getContactPropertyValue } from "~/lib/contact-properties";
 
 function sanitizeFilename(
   name: string | undefined,
@@ -149,11 +150,7 @@ export default function ContactList({
       escapeCell(contact.unsubscribeReason ?? ""),
       escapeCell(contact.createdAt.toISOString()),
       ...(contactBookVariables ?? []).map((variable) =>
-        escapeCell(
-          (contact.properties as Record<string, string> | undefined)?.[
-            variable
-          ] ?? "",
-        ),
+        escapeCell(getContactPropertyValue(contact.properties, variable) ?? ""),
       ),
     ]);
 

@@ -27,6 +27,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@usesend/ui/src/toaster";
 import { Switch } from "@usesend/ui/src/switch";
 import { Contact } from "@prisma/client";
+import {
+  getContactPropertyValue,
+  mergeContactPropertiesWithVariableValues,
+} from "~/lib/contact-properties";
 
 const contactSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -43,20 +47,10 @@ export const EditContact: React.FC<{
   const [open, setOpen] = useState(false);
   const updateContactMutation = api.contacts.updateContact.useMutation();
   const initialVariableValues = useMemo(() => {
-    const contactProperties =
-      contact.properties && typeof contact.properties === "object"
-        ? (contact.properties as Record<string, unknown>)
-        : {};
-
     return (contactBookVariables ?? []).reduce(
       (acc, variable) => {
-        const propertyValue = contactProperties[variable];
         acc[variable] =
-          typeof propertyValue === "string" ||
-          typeof propertyValue === "number" ||
-          typeof propertyValue === "boolean"
-            ? String(propertyValue)
-            : "";
+          getContactPropertyValue(contact.properties, variable) ?? "";
         return acc;
       },
       {} as Record<string, string>,
@@ -89,14 +83,18 @@ export const EditContact: React.FC<{
   });
 
   async function onContactUpdate(values: z.infer<typeof contactSchema>) {
+    const mergedProperties = mergeContactPropertiesWithVariableValues({
+      properties: contact.properties,
+      variableValues,
+      contactBookVariables: contactBookVariables ?? [],
+    });
+
     updateContactMutation.mutate(
       {
         contactId: contact.id,
         contactBookId: contact.contactBookId,
         ...values,
-        properties: Object.fromEntries(
-          Object.entries(variableValues).filter(([, value]) => value.trim()),
-        ),
+        properties: mergedProperties,
       },
       {
         onSuccess: async () => {

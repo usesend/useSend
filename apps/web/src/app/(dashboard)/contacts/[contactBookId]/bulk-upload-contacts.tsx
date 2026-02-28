@@ -25,6 +25,7 @@ import {
 } from "@usesend/ui/src/table";
 import { Upload, FileText, Check, X } from "lucide-react";
 import { toast } from "@usesend/ui/src/toaster";
+import { normalizePropertyHeader } from "~/lib/contact-properties";
 
 interface BulkUploadContactsProps {
   contactBookId: string;
@@ -49,6 +50,13 @@ export default function BulkUploadContacts({
   const [isDragOver, setIsDragOver] = useState(false);
 
   const utils = api.useUtils();
+  const contactBookDetailQuery = api.contacts.getContactBookDetails.useQuery({
+    contactBookId,
+  });
+  const contactBookVariables = useMemo(
+    () => contactBookDetailQuery.data?.variables ?? [],
+    [contactBookDetailQuery.data?.variables],
+  );
 
   const addContactsMutation = api.contacts.addContacts.useMutation({
     onSuccess: (result) => {
@@ -180,7 +188,11 @@ export default function BulkUploadContacts({
         }
 
         if (parts[i]) {
-          properties[headers[i]!.trim()] = parts[i]!;
+          const propertyKey = normalizePropertyHeader(
+            headers[i]!,
+            contactBookVariables,
+          );
+          properties[propertyKey] = parts[i]!;
         }
       }
 
@@ -357,7 +369,10 @@ export default function BulkUploadContacts({
     }
   };
 
-  const parsedContacts = useMemo(() => parseContacts(inputText), [inputText]);
+  const parsedContacts = useMemo(
+    () => parseContacts(inputText),
+    [inputText, contactBookVariables],
+  );
 
   const validContacts = useMemo(
     () => parsedContacts.filter((c) => c.isValid),
