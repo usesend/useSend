@@ -22,7 +22,6 @@ import {
 import { api } from "~/trpc/react";
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -71,7 +70,7 @@ export default function AddContact({
         onError: async (error) => {
           toast.error(error.message);
         },
-      }
+      },
     );
   }
 
@@ -105,6 +104,15 @@ export default function AddContact({
                     <FormControl>
                       <Textarea
                         placeholder="email1@example.com, email2@example.com"
+                        onKeyDown={(event) => {
+                          if (
+                            (event.metaKey || event.ctrlKey) &&
+                            event.key === "Enter"
+                          ) {
+                            event.preventDefault();
+                            void contactsForm.handleSubmit(onContactsAdd)();
+                          }
+                        }}
                         {...field}
                       />
                     </FormControl>
@@ -112,7 +120,8 @@ export default function AddContact({
                       <FormMessage />
                     ) : (
                       <FormDescription>
-                        Enter comma-separated email addresses.
+                        Enter comma-separated email addresses. Press Cmd/Ctrl +
+                        Enter to submit.
                       </FormDescription>
                     )}
                   </FormItem>
