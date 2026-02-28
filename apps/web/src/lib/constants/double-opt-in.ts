@@ -9,7 +9,7 @@ const DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON = {
       content: [
         {
           type: "text",
-          text: "Hello, Thank you for sigining up. Please confirm that you want to receive emails from us.",
+          text: "Hello, Thank you for signing up. Please confirm that you want to receive emails from us.",
         },
       ],
     },
