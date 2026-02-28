@@ -111,6 +111,28 @@ describe("contact-book-service", () => {
     });
   });
 
+  it("rejects double opt-in content without confirmation placeholder", async () => {
+    await expect(
+      updateContactBook("book_1", {
+        doubleOptInContent: JSON.stringify({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Missing link" }],
+            },
+          ],
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Double opt-in email content must include the {{doubleOptInUrl}} placeholder",
+    });
+
+    expect(mockDb.contactBook.update).not.toHaveBeenCalled();
+  });
+
   it("backfills default subject and content when enabling double opt-in", async () => {
     mockDb.contactBook.findUnique.mockResolvedValue({
       doubleOptInSubject: null,

@@ -5,6 +5,7 @@ import { UnsendApiError } from "../public-api/api-error";
 import {
   DEFAULT_DOUBLE_OPT_IN_CONTENT,
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
+  hasDoubleOptInUrlPlaceholder,
 } from "~/lib/constants/double-opt-in";
 
 type ContactBookDbClient = Pick<typeof db, "contactBook">;
@@ -108,6 +109,15 @@ export async function updateContactBook(
     !data.doubleOptInContent.trim()
   ) {
     updateData.doubleOptInContent = DEFAULT_DOUBLE_OPT_IN_CONTENT;
+  } else if (
+    data.doubleOptInContent !== undefined &&
+    !hasDoubleOptInUrlPlaceholder(data.doubleOptInContent)
+  ) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Double opt-in email content must include the {{doubleOptInUrl}} placeholder",
+    });
   }
 
   if (

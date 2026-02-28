@@ -7,14 +7,18 @@ import { toast } from "@usesend/ui/src/toaster";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import {
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
   DOUBLE_OPT_IN_EDITOR_VARIABLES,
   getDefaultDoubleOptInContent,
+  hasDoubleOptInUrlPlaceholder,
 } from "~/lib/constants/double-opt-in";
 import { api } from "~/trpc/react";
+
+const DOUBLE_OPT_IN_URL_REQUIRED_MESSAGE =
+  "Double opt-in email content must include {{doubleOptInUrl}}.";
 
 function parseEditorContent(content: string | null | undefined) {
   if (!content) {
@@ -86,6 +90,7 @@ function DoubleOptInEditor({
     contactBook.doubleOptInSubject ?? DEFAULT_DOUBLE_OPT_IN_SUBJECT,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const hasShownMissingPlaceholderToast = useRef(false);
 
   const updateContactBook = api.contacts.updateContactBook.useMutation({
     onSuccess: async () => {
@@ -96,11 +101,11 @@ function DoubleOptInEditor({
     },
   });
 
-  function updateContent() {
+  function updateContent(contentValue: string) {
     updateContactBook.mutate(
       {
         contactBookId: contactBook.id,
-        doubleOptInContent: JSON.stringify(json),
+        doubleOptInContent: contentValue,
       },
       {
         onError: (error) => {
@@ -195,9 +200,26 @@ function DoubleOptInEditor({
             <Editor
               initialContent={json}
               onUpdate={(content) => {
-                setJson(content.getJSON());
+                const nextContent = content.getJSON();
+                const serializedContent = JSON.stringify(nextContent);
+
+                setJson(nextContent);
+
+                if (!hasDoubleOptInUrlPlaceholder(serializedContent)) {
+                  debouncedUpdateContent.cancel();
+                  setIsSaving(false);
+
+                  if (!hasShownMissingPlaceholderToast.current) {
+                    toast.error(DOUBLE_OPT_IN_URL_REQUIRED_MESSAGE);
+                    hasShownMissingPlaceholderToast.current = true;
+                  }
+
+                  return;
+                }
+
+                hasShownMissingPlaceholderToast.current = false;
                 setIsSaving(true);
-                debouncedUpdateContent();
+                debouncedUpdateContent(serializedContent);
               }}
               variables={DOUBLE_OPT_IN_EDITOR_VARIABLES}
             />

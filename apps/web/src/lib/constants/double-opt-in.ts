@@ -65,6 +65,42 @@ export const DOUBLE_OPT_IN_EDITOR_VARIABLES = [
   "doubleOptInUrl",
 ];
 
+const DOUBLE_OPT_IN_URL_PLACEHOLDER_REGEX =
+  /\{\{\s*doubleOptInUrl(?:\s*,\s*fallback=[^}]+)?\s*\}\}/i;
+
+function valueIncludesDoubleOptInUrl(value: unknown): boolean {
+  if (typeof value === "string") {
+    const normalizedValue = value.trim().toLowerCase();
+
+    return (
+      DOUBLE_OPT_IN_URL_PLACEHOLDER_REGEX.test(value) ||
+      normalizedValue === "doubleoptinurl"
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(valueIncludesDoubleOptInUrl);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).some(valueIncludesDoubleOptInUrl);
+  }
+
+  return false;
+}
+
+export function hasDoubleOptInUrlPlaceholder(content: string): boolean {
+  if (DOUBLE_OPT_IN_URL_PLACEHOLDER_REGEX.test(content)) {
+    return true;
+  }
+
+  try {
+    return valueIncludesDoubleOptInUrl(JSON.parse(content));
+  } catch {
+    return false;
+  }
+}
+
 export function getDefaultDoubleOptInContent() {
   return structuredClone(DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON) as Record<
     string,
