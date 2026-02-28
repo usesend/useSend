@@ -12,6 +12,7 @@ const {
       findUnique: vi.fn(),
     },
     contact: {
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       upsert: vi.fn(),
     },
@@ -49,13 +50,17 @@ vi.mock("~/server/logger/log", () => ({
   logger: mockLogger,
 }));
 
-import { addOrUpdateContact } from "~/server/service/contact-service";
+import {
+  addOrUpdateContact,
+  resendDoubleOptInConfirmationInContactBook,
+} from "~/server/service/contact-service";
 
 const createdAt = new Date("2026-02-08T00:00:00.000Z");
 
 describe("contact-service addOrUpdateContact", () => {
   beforeEach(() => {
     mockDb.contactBook.findUnique.mockReset();
+    mockDb.contact.findFirst.mockReset();
     mockDb.contact.findUnique.mockReset();
     mockDb.contact.upsert.mockReset();
     mockWebhookEmit.mockReset();
@@ -271,5 +276,53 @@ describe("contact-service addOrUpdateContact", () => {
       }),
       "[ContactService]: Failed to send double opt-in confirmation email",
     );
+  });
+
+  it("resends double opt-in confirmation for pending contacts", async () => {
+    mockDb.contact.findFirst.mockResolvedValue({
+      id: "contact_6",
+      contactBookId: "book_1",
+      subscribed: false,
+      unsubscribeReason: null,
+    });
+
+    const result = await resendDoubleOptInConfirmationInContactBook(
+      "contact_6",
+      "book_1",
+      7,
+    );
+
+    expect(mockSendDoubleOptInConfirmationEmail).toHaveBeenCalledWith({
+      contactId: "contact_6",
+      contactBookId: "book_1",
+      teamId: 7,
+    });
+    expect(result).toMatchObject({ id: "contact_6" });
+  });
+
+  it("rejects resending confirmation for non-pending contacts", async () => {
+    mockDb.contact.findFirst.mockResolvedValue({
+      id: "contact_7",
+      contactBookId: "book_1",
+      subscribed: true,
+      unsubscribeReason: null,
+    });
+
+    await expect(
+      resendDoubleOptInConfirmationInContactBook("contact_7", "book_1", 7),
+    ).rejects.toThrow(
+      "Double opt-in confirmation can only be resent to pending contacts",
+    );
+
+    expect(mockSendDoubleOptInConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it("returns null when resending confirmation for missing contact", async () => {
+    mockDb.contact.findFirst.mockResolvedValue(null);
+
+    await expect(
+      resendDoubleOptInConfirmationInContactBook("missing", "book_1", 7),
+    ).resolves.toBeNull();
+    expect(mockSendDoubleOptInConfirmationEmail).not.toHaveBeenCalled();
   });
 });

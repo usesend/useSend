@@ -23,6 +23,7 @@ import { api } from "~/trpc/react";
 import { getGravatarUrl } from "~/utils/gravatar-utils";
 import DeleteContact from "./delete-contact";
 import EditContact from "./edit-contact";
+import { ResendDoubleOptInConfirmation } from "./resend-double-opt-in-confirmation";
 import { Input } from "@usesend/ui/src/input";
 import { useDebouncedCallback } from "use-debounce";
 import {
@@ -303,6 +304,13 @@ export default function ContactList({
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          {isPendingConfirmation ? (
+                            <ResendDoubleOptInConfirmation
+                              contactBookId={contactBookId}
+                              contactId={contact.id}
+                              email={contact.email}
+                            />
+                          ) : null}
                           <EditContact contact={contact} />
                           <DeleteContact contact={contact} />
                         </div>

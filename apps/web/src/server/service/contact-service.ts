@@ -214,6 +214,51 @@ export async function deleteContactInContactBook(
   return deletedContact;
 }
 
+export async function resendDoubleOptInConfirmationInContactBook(
+  contactId: string,
+  contactBookId: string,
+  teamId?: number,
+) {
+  const existingContact = await getContactInContactBook(
+    contactId,
+    contactBookId,
+  );
+
+  if (!existingContact) {
+    return null;
+  }
+
+  const isPendingConfirmation =
+    !existingContact.subscribed && existingContact.unsubscribeReason === null;
+
+  if (!isPendingConfirmation) {
+    throw new Error(
+      "Double opt-in confirmation can only be resent to pending contacts",
+    );
+  }
+
+  const resolvedTeamId =
+    teamId ??
+    (await db.contactBook
+      .findUnique({
+        where: { id: contactBookId },
+        select: { teamId: true },
+      })
+      .then((contactBook) => contactBook?.teamId));
+
+  if (!resolvedTeamId) {
+    throw new Error("Team not found for contact book");
+  }
+
+  await sendDoubleOptInConfirmationEmail({
+    contactId: existingContact.id,
+    contactBookId,
+    teamId: resolvedTeamId,
+  });
+
+  return existingContact;
+}
+
 export async function bulkAddContacts(
   contactBookId: string,
   contacts: Array<ContactInput>,
