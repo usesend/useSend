@@ -1095,6 +1095,28 @@
 												"description": "The emoji associated with the contact book",
 												"example": "📙"
 											},
+											"doubleOptInEnabled": {
+												"type": "boolean",
+												"description": "Whether double opt-in is enabled for new contacts",
+												"example": true
+											},
+											"doubleOptInFrom": {
+												"type": "string",
+												"nullable": true,
+												"description": "From address used for double opt-in emails (must use a verified domain)",
+												"example": "Newsletter <hello@example.com>"
+											},
+											"doubleOptInSubject": {
+												"type": "string",
+												"nullable": true,
+												"description": "Subject line used for double opt-in confirmation email",
+												"example": "Please confirm your subscription"
+											},
+											"doubleOptInContent": {
+												"type": "string",
+												"nullable": true,
+												"description": "Email editor JSON content used for double opt-in confirmation"
+											},
 											"createdAt": {
 												"type": "string",
 												"description": "The creation timestamp"
@@ -1142,6 +1164,23 @@
 									"properties": {
 										"type": "object",
 										"additionalProperties": { "type": "string" }
+									},
+									"doubleOptInEnabled": {
+										"type": "boolean",
+										"description": "Whether double opt-in is enabled for new contacts"
+									},
+									"doubleOptInFrom": {
+										"type": "string",
+										"nullable": true,
+										"description": "From address used for double opt-in emails (must use a verified domain)"
+									},
+									"doubleOptInSubject": {
+										"type": "string",
+										"description": "Subject line used for double opt-in confirmation email"
+									},
+									"doubleOptInContent": {
+										"type": "string",
+										"description": "Email editor JSON content used for double opt-in confirmation"
 									}
 								},
 								"required": ["name"]
@@ -1165,6 +1204,10 @@
 											"additionalProperties": { "type": "string" }
 										},
 										"emoji": { "type": "string" },
+										"doubleOptInEnabled": { "type": "boolean", "description": "Whether double opt-in is enabled for new contacts" },
+										"doubleOptInFrom": { "type": "string", "nullable": true, "description": "From address used for double opt-in emails" },
+										"doubleOptInSubject": { "type": "string", "nullable": true, "description": "Subject line used for double opt-in confirmation email" },
+										"doubleOptInContent": { "type": "string", "nullable": true, "description": "Email editor JSON content used for double opt-in confirmation" },
 										"createdAt": { "type": "string" },
 										"updatedAt": { "type": "string" }
 									},
@@ -1210,6 +1253,10 @@
 											"additionalProperties": { "type": "string" }
 										},
 										"emoji": { "type": "string" },
+										"doubleOptInEnabled": { "type": "boolean", "description": "Whether double opt-in is enabled for new contacts" },
+										"doubleOptInFrom": { "type": "string", "nullable": true, "description": "From address used for double opt-in emails" },
+										"doubleOptInSubject": { "type": "string", "nullable": true, "description": "Subject line used for double opt-in confirmation email" },
+										"doubleOptInContent": { "type": "string", "nullable": true, "description": "Email editor JSON content used for double opt-in confirmation" },
 										"createdAt": { "type": "string" },
 										"updatedAt": { "type": "string" },
 										"_count": {
@@ -1279,6 +1326,23 @@
 									"properties": {
 										"type": "object",
 										"additionalProperties": { "type": "string" }
+									},
+									"doubleOptInEnabled": {
+										"type": "boolean",
+										"description": "Whether double opt-in is enabled for new contacts"
+									},
+									"doubleOptInFrom": {
+										"type": "string",
+										"nullable": true,
+										"description": "From address used for double opt-in emails (must use a verified domain)"
+									},
+									"doubleOptInSubject": {
+										"type": "string",
+										"description": "Subject line used for double opt-in confirmation email"
+									},
+									"doubleOptInContent": {
+										"type": "string",
+										"description": "Email editor JSON content used for double opt-in confirmation"
 									}
 								}
 							}
@@ -1301,6 +1365,10 @@
 											"additionalProperties": { "type": "string" }
 										},
 										"emoji": { "type": "string" },
+										"doubleOptInEnabled": { "type": "boolean", "description": "Whether double opt-in is enabled for new contacts" },
+										"doubleOptInFrom": { "type": "string", "nullable": true, "description": "From address used for double opt-in emails" },
+										"doubleOptInSubject": { "type": "string", "nullable": true, "description": "Subject line used for double opt-in confirmation email" },
+										"doubleOptInContent": { "type": "string", "nullable": true, "description": "Email editor JSON content used for double opt-in confirmation" },
 										"createdAt": { "type": "string" },
 										"updatedAt": { "type": "string" }
 									},

@@ -1,0 +1,171 @@
+---
+title: Double Opt-In
+description: "Verify new subscribers with a confirmation email before adding them to your contact book"
+---
+
+## Overview
+
+Double opt-in requires new contacts to confirm their email address before they become subscribed. When enabled on a contact book, newly added contacts receive a confirmation email with a verification link. Only after clicking the link do they become fully subscribed.
+
+**Why use double opt-in?**
+
+- Ensures email addresses are valid and owned by the subscriber
+- Reduces bounce rates and spam complaints
+- Improves deliverability and sender reputation
+- Helps comply with email marketing regulations (GDPR, CAN-SPAM)
+
+## How it works
+
+<Steps>
+  <Step title="Contact is added">
+    When a contact is added to a contact book with double opt-in enabled (via
+    dashboard, API, or CSV import), they are created with a **Pending** status
+    instead of being immediately subscribed.
+  </Step>
+  <Step title="Confirmation email is sent">
+    A confirmation email is automatically sent to the contact with a unique
+    verification link. The link is signed with HMAC-SHA256 and expires after 7
+    days.
+  </Step>
+  <Step title="Contact confirms">
+    The contact clicks the verification link in the email and confirms their
+    subscription on the confirmation page.
+  </Step>
+  <Step title="Contact is subscribed">
+    The contact's status changes from **Pending** to **Subscribed** and they
+    will now receive your emails.
+  </Step>
+</Steps>
+
+## Enabling double opt-in
+
+### Via the dashboard
+
+1. Go to [Contacts](https://app.usesend.com/contacts) and select a contact book
+2. Click on the **Double Opt-In** tab
+3. Toggle double opt-in on
+4. Customize the confirmation email (optional)
+5. Save your changes
+
+### Via the API
+
+Create a contact book with double opt-in enabled:
+
+```bash
+curl -X POST https://app.usesend.com/api/v1/contactBooks \
+  -H "Authorization: Bearer us_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Newsletter Subscribers",
+    "doubleOptInEnabled": true,
+    "doubleOptInFrom": "Newsletter <hello@yourdomain.com>",
+    "doubleOptInSubject": "Please confirm your subscription"
+  }'
+```
+
+Or enable it on an existing contact book:
+
+```bash
+curl -X PATCH https://app.usesend.com/api/v1/contactBooks/{contactBookId} \
+  -H "Authorization: Bearer us_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "doubleOptInEnabled": true
+  }'
+```
+
+## Contact statuses
+
+When double opt-in is enabled, contacts have three possible statuses:
+
+| Status           | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| **Subscribed**   | Contact has confirmed their subscription and will receive emails |
+| **Pending**      | Contact has been added but hasn't confirmed yet                  |
+| **Unsubscribed** | Contact has explicitly unsubscribed                              |
+
+<Warning>
+  Contacts with **Pending** status will not receive campaign emails. They will
+  only receive the double opt-in confirmation email.
+</Warning>
+
+## Customizing the confirmation email
+
+You can customize three aspects of the confirmation email:
+
+### From address
+
+Set a custom sender address for confirmation emails. The address must use one of your verified domains.
+
+```json
+{
+  "doubleOptInFrom": "Newsletter <hello@yourdomain.com>"
+}
+```
+
+If not set, the confirmation email will be sent from the first available verified domain.
+
+### Subject line
+
+Customize the email subject. The default is "Please confirm your subscription".
+
+```json
+{
+  "doubleOptInSubject": "Confirm your subscription to our newsletter"
+}
+```
+
+### Email template
+
+The confirmation email body can be customized using the useSend email editor (via the dashboard) or by providing the editor JSON content via the API.
+
+#### Template variables
+
+The following variables can be used in the confirmation email template:
+
+| Variable             | Description                      |
+| -------------------- | -------------------------------- |
+| `{{doubleOptInUrl}}` | The confirmation link (required) |
+| `{{email}}`          | The contact's email address      |
+| `{{firstName}}`      | The contact's first name         |
+| `{{lastName}}`       | The contact's last name          |
+
+<Warning>
+  The `{{doubleOptInUrl}}` variable is **required** in the email template. The
+  confirmation email cannot be saved without it. This ensures every confirmation
+  email contains a working verification link.
+</Warning>
+
+## Resending confirmation emails
+
+If a contact hasn't confirmed their subscription, you can resend the confirmation email from the dashboard:
+
+1. Go to your contact book and find the pending contact
+2. Click the **Resend** button next to the contact
+
+Each resend generates a new confirmation link with a fresh 7-day expiration window.
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Set up a verified domain first">
+    Double opt-in requires at least one verified domain to send confirmation
+    emails. Make sure to [verify your domain](https://app.usesend.com/domains)
+    before enabling double opt-in.
+  </Accordion>
+  <Accordion title="Keep the confirmation email simple">
+    The confirmation email should be clear and concise. Include a prominent
+    confirmation button and a brief explanation of what the subscriber is
+    confirming.
+  </Accordion>
+  <Accordion title="Use a recognizable from address">
+    Use a from address that your subscribers will recognize, such as
+    `newsletter@yourdomain.com` or `hello@yourdomain.com`. This reduces the
+    chance of the confirmation email being marked as spam.
+  </Accordion>
+  <Accordion title="Monitor pending contacts">
+    Regularly check for contacts stuck in Pending status. If many contacts
+    aren't confirming, consider improving your confirmation email or resending
+    confirmations.
+  </Accordion>
+</AccordionGroup>

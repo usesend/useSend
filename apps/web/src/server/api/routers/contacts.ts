@@ -49,6 +49,10 @@ export const contactsRouter = createTRPCRouter({
         name: z.string().optional(),
         properties: z.record(z.string()).optional(),
         emoji: z.string().optional(),
+        doubleOptInEnabled: z.boolean().optional(),
+        doubleOptInFrom: z.string().nullable().optional(),
+        doubleOptInSubject: z.string().optional(),
+        doubleOptInContent: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx: { contactBook }, input }) => {
@@ -188,6 +192,45 @@ export const contactsRouter = createTRPCRouter({
       }
 
       return deletedContact;
+    }),
+
+  resendDoubleOptInConfirmation: contactBookProcedure
+    .input(z.object({ contactId: z.string() }))
+    .mutation(async ({ ctx: { contactBook, team }, input }) => {
+      try {
+        const contact =
+          await contactService.resendDoubleOptInConfirmationInContactBook(
+            input.contactId,
+            contactBook.id,
+            team.id,
+          );
+
+        if (!contact) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Contact not found",
+          });
+        }
+
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        if (
+          error instanceof Error &&
+          error.message ===
+            "Double opt-in confirmation can only be resent to pending contacts"
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message,
+          });
+        }
+
+        throw error;
+      }
     }),
 
   exportContacts: contactBookProcedure

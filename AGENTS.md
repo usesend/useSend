@@ -15,17 +15,12 @@
 - `pnpm dev`: Turbo dev for all relevant apps (loads `.env`).
 - `pnpm start:web:local`: Run only `apps/web` locally on port 3000.
 - `pnpm build`: Turbo build across the monorepo.
-- `pnpm lint`: Run ESLint via shared config; fail on warnings.
-- `pnpm format`: Prettier over ts/tsx/md.
 - `pnpm dx` / `pnpm dx:up` / `pnpm dx:down`: Spin up/down local infra via Docker Compose, then run migrations.
 - Database (apps/web filter): `pnpm db:generate` | `db:migrate-dev` | `db:push` | `db:studio`.
 - Never run migrations unless users explicitly asked
 
 ## Coding Style & Naming Conventions
 
-- TypeScript-first; 2-space indent; semicolons enabled by Prettier.
-- Linting: `@usesend/eslint-config`; run `pnpm lint` before PRs.
-- Formatting: Prettier 3; run `pnpm format`.
 - Files: React components PascalCase (e.g., `AppSideBar.tsx`); folders kebab/lowercase.
 - Paths (web): use alias `~/` for src imports (e.g., `import { x } from "~/utils/x"`).
 - NEVER USE DYNAMIC IMPORTS. ALWAYS IMPORT ON THE TOP
