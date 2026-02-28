@@ -6,25 +6,23 @@ import {
 } from "~/lib/constants/double-opt-in";
 
 describe("double opt-in defaults", () => {
-  it("uses a clickable link placeholder in the default editor content", () => {
+  it("uses a confirmation button placeholder in the default editor content", () => {
     const content = JSON.parse(DEFAULT_DOUBLE_OPT_IN_CONTENT) as {
       content?: Array<{
-        content?: Array<{
-          marks?: Array<{ type?: string; attrs?: { href?: string } }>;
-        }>;
+        type?: string;
+        attrs?: { url?: string };
       }>;
     };
 
-    const hasLinkPlaceholder = content.content?.some((node) =>
-      node.content?.some((child) =>
-        child.marks?.some(
-          (mark) =>
-            mark.type === "link" && mark.attrs?.href === "{{doubleOptInUrl}}",
-        ),
-      ),
+    const hasButtonPlaceholder = content.content?.some(
+      (node) =>
+        node.type === "button" && node.attrs?.url === "{{doubleOptInUrl}}",
     );
 
-    expect(hasLinkPlaceholder).toBe(true);
+    expect(hasButtonPlaceholder).toBe(true);
+    expect(hasDoubleOptInUrlPlaceholder(DEFAULT_DOUBLE_OPT_IN_CONTENT)).toBe(
+      true,
+    );
   });
 
   it("returns a clone when requesting default content", () => {

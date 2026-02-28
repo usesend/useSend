@@ -20,6 +20,7 @@ const route = createRoute({
             emoji: z.string().optional(),
             properties: z.record(z.string()).optional(),
             doubleOptInEnabled: z.boolean().optional(),
+            doubleOptInFrom: z.string().nullable().optional(),
             doubleOptInSubject: z.string().optional(),
             doubleOptInContent: z.string().optional(),
           }),
@@ -48,6 +49,7 @@ function createContactBook(app: PublicAPIApp) {
       body.emoji !== undefined ||
       body.properties !== undefined ||
       body.doubleOptInEnabled !== undefined ||
+      body.doubleOptInFrom !== undefined ||
       body.doubleOptInSubject !== undefined ||
       body.doubleOptInContent !== undefined;
 
@@ -64,6 +66,7 @@ function createContactBook(app: PublicAPIApp) {
           emoji: body.emoji,
           properties: body.properties,
           doubleOptInEnabled: body.doubleOptInEnabled,
+          doubleOptInFrom: body.doubleOptInFrom,
           doubleOptInSubject: body.doubleOptInSubject,
           doubleOptInContent: body.doubleOptInContent,
         },

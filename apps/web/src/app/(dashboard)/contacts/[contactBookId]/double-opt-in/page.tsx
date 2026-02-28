@@ -77,6 +77,7 @@ function DoubleOptInEditor({
     id: string;
     name: string;
     updatedAt: Date;
+    doubleOptInFrom: string | null;
     doubleOptInSubject: string | null;
     doubleOptInContent: string | null;
   };
@@ -89,6 +90,7 @@ function DoubleOptInEditor({
   const [subject, setSubject] = useState(
     contactBook.doubleOptInSubject ?? DEFAULT_DOUBLE_OPT_IN_SUBJECT,
   );
+  const [from, setFrom] = useState(contactBook.doubleOptInFrom ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const hasShownMissingPlaceholderToast = useRef(false);
 
@@ -186,6 +188,43 @@ function DoubleOptInEditor({
                   },
                 );
               }}
+              className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent focus:border-border bg-transparent"
+            />
+          </div>
+          <div className="flex items-center gap-4 mt-4">
+            <label className="block text-sm w-[80px] text-muted-foreground">
+              From
+            </label>
+            <Input
+              type="text"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+              }}
+              onBlur={() => {
+                const normalizedFrom = from.trim();
+                const currentFrom = contactBook.doubleOptInFrom ?? "";
+
+                if (normalizedFrom === currentFrom) {
+                  return;
+                }
+
+                setIsSaving(true);
+                updateContactBook.mutate(
+                  {
+                    contactBookId: contactBook.id,
+                    doubleOptInFrom: normalizedFrom || null,
+                  },
+                  {
+                    onError: (error) => {
+                      toast.error(error.message);
+                      setIsSaving(false);
+                      setFrom(contactBook.doubleOptInFrom ?? "");
+                    },
+                  },
+                );
+              }}
+              placeholder="Friendly name<hello@example.com>"
               className="mt-1 py-1 text-sm block w-full outline-none border-b border-transparent focus:border-border bg-transparent"
             />
           </div>

@@ -1,24 +1,29 @@
 import { createHash } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb, mockSendEmail, mockRendererRender, mockLogger } = vi.hoisted(
-  () => ({
-    mockDb: {
-      contact: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-      domain: {
-        findFirst: vi.fn(),
-      },
+const {
+  mockDb,
+  mockSendEmail,
+  mockRendererRender,
+  mockLogger,
+  mockValidateDomainFromEmail,
+} = vi.hoisted(() => ({
+  mockDb: {
+    contact: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
-    mockSendEmail: vi.fn(),
-    mockRendererRender: vi.fn(),
-    mockLogger: {
-      error: vi.fn(),
+    domain: {
+      findFirst: vi.fn(),
     },
-  }),
-);
+  },
+  mockSendEmail: vi.fn(),
+  mockRendererRender: vi.fn(),
+  mockLogger: {
+    error: vi.fn(),
+  },
+  mockValidateDomainFromEmail: vi.fn(),
+}));
 
 vi.mock("~/server/db", () => ({
   db: mockDb,
@@ -30,6 +35,10 @@ vi.mock("~/server/service/email-service", () => ({
 
 vi.mock("~/server/logger/log", () => ({
   logger: mockLogger,
+}));
+
+vi.mock("~/server/service/domain-service", () => ({
+  validateDomainFromEmail: mockValidateDomainFromEmail,
 }));
 
 vi.mock("@usesend/email-editor/src/renderer", () => ({
@@ -61,6 +70,12 @@ describe("double-opt-in-service", () => {
     mockSendEmail.mockReset();
     mockRendererRender.mockReset();
     mockLogger.error.mockReset();
+    mockValidateDomainFromEmail.mockReset();
+    mockValidateDomainFromEmail.mockResolvedValue({
+      id: 1,
+      name: "example.com",
+      status: "SUCCESS",
+    });
   });
 
   afterEach(() => {
@@ -78,6 +93,7 @@ describe("double-opt-in-service", () => {
         id: "book_1",
         name: "Newsletter",
         doubleOptInEnabled: false,
+        doubleOptInFrom: null,
         doubleOptInSubject: null,
         doubleOptInContent: null,
       },
@@ -104,6 +120,7 @@ describe("double-opt-in-service", () => {
         id: "book_1",
         name: "Newsletter",
         doubleOptInEnabled: true,
+        doubleOptInFrom: null,
         doubleOptInSubject: "Confirm {{firstName}}",
         doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
       },
@@ -133,6 +150,7 @@ describe("double-opt-in-service", () => {
         id: "book_1",
         name: "Newsletter",
         doubleOptInEnabled: true,
+        doubleOptInFrom: null,
         doubleOptInSubject: "Confirm {{firstName}}",
         doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
       },
@@ -167,6 +185,7 @@ describe("double-opt-in-service", () => {
         id: "book_1",
         name: "Newsletter",
         doubleOptInEnabled: true,
+        doubleOptInFrom: null,
         doubleOptInSubject: "Confirm {{firstName}}",
         doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
       },
@@ -197,6 +216,7 @@ describe("double-opt-in-service", () => {
         id: "book_1",
         name: "Newsletter",
         doubleOptInEnabled: true,
+        doubleOptInFrom: null,
         doubleOptInSubject: "Confirm {{firstName}}",
         doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
       },
@@ -212,6 +232,39 @@ describe("double-opt-in-service", () => {
 
     const sendArgs = mockSendEmail.mock.calls[0]?.[0];
     expect(sendArgs.subject).toBe("Confirm ");
+  });
+
+  it("uses configured double opt-in from address when present", async () => {
+    mockDb.contact.findUnique.mockResolvedValue({
+      id: "contact_1",
+      email: "alice@example.com",
+      firstName: "Alice",
+      lastName: "Smith",
+      contactBookId: "book_1",
+      contactBook: {
+        id: "book_1",
+        name: "Newsletter",
+        doubleOptInEnabled: true,
+        doubleOptInFrom: "Newsletter <hello@example.com>",
+        doubleOptInSubject: "Confirm {{firstName}}",
+        doubleOptInContent: JSON.stringify({ type: "doc", content: [] }),
+      },
+    });
+    mockRendererRender.mockResolvedValue("<p>Test</p>");
+
+    await sendDoubleOptInConfirmationEmail({
+      contactId: "contact_1",
+      contactBookId: "book_1",
+      teamId: 7,
+    });
+
+    expect(mockDb.domain.findFirst).not.toHaveBeenCalled();
+    expect(mockValidateDomainFromEmail).toHaveBeenCalledWith(
+      "Newsletter <hello@example.com>",
+      7,
+    );
+    const sendArgs = mockSendEmail.mock.calls[0]?.[0];
+    expect(sendArgs.from).toBe("Newsletter <hello@example.com>");
   });
 
   it("rejects invalid confirmation links", async () => {

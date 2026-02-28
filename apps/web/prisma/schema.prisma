@@ -298,6 +298,7 @@ model ContactBook {
   teamId             Int
   properties         Json
   doubleOptInEnabled Boolean   @default(false)
+  doubleOptInFrom    String?
   doubleOptInSubject String?
   doubleOptInContent String?
   createdAt          DateTime  @default(now())

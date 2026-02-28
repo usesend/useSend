@@ -27,19 +27,26 @@ const DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON = {
       content: [
         {
           type: "text",
-          text: "Confirm your subscription",
-          marks: [
-            {
-              type: "link",
-              attrs: {
-                href: "{{doubleOptInUrl}}",
-                target: "_blank",
-                rel: "noopener noreferrer nofollow",
-              },
-            },
-          ],
+          text: "If you did not request this, you can ignore this email.",
         },
       ],
+    },
+    {
+      type: "button",
+      attrs: {
+        component: "button",
+        text: "Confirm",
+        url: "{{doubleOptInUrl}}",
+        alignment: "left",
+        borderRadius: "8",
+        borderWidth: "1",
+        buttonColor: "#000000",
+        borderColor: "#000000",
+        textColor: "#ffffff",
+      },
+    },
+    {
+      type: "horizontalRule",
     },
     {
       type: "paragraph",
@@ -47,7 +54,7 @@ const DEFAULT_DOUBLE_OPT_IN_CONTENT_JSON = {
       content: [
         {
           type: "text",
-          text: "If you did not request this, you can ignore this email.",
+          text: "You are receiving this email because you opted in via our site.",
         },
       ],
     },

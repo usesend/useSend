@@ -50,6 +50,7 @@ export const contactsRouter = createTRPCRouter({
         properties: z.record(z.string()).optional(),
         emoji: z.string().optional(),
         doubleOptInEnabled: z.boolean().optional(),
+        doubleOptInFrom: z.string().nullable().optional(),
         doubleOptInSubject: z.string().optional(),
         doubleOptInContent: z.string().optional(),
       }),

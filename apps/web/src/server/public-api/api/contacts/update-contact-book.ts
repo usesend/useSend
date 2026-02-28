@@ -26,6 +26,7 @@ const route = createRoute({
             emoji: z.string().optional(),
             properties: z.record(z.string()).optional(),
             doubleOptInEnabled: z.boolean().optional(),
+            doubleOptInFrom: z.string().nullable().optional(),
             doubleOptInSubject: z.string().optional(),
             doubleOptInContent: z.string().optional(),
           }),

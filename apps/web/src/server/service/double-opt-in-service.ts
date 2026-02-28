@@ -9,6 +9,7 @@ import {
 import { db } from "../db";
 import { logger } from "../logger/log";
 import { sendEmail } from "./email-service";
+import { validateDomainFromEmail } from "./domain-service";
 
 const DOUBLE_OPT_IN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -67,6 +68,7 @@ export async function sendDoubleOptInConfirmationEmail({
           id: true,
           name: true,
           doubleOptInEnabled: true,
+          doubleOptInFrom: true,
           doubleOptInSubject: true,
           doubleOptInContent: true,
         },
@@ -82,23 +84,32 @@ export async function sendDoubleOptInConfirmationEmail({
     return;
   }
 
-  const domain = await db.domain.findFirst({
-    where: {
-      teamId,
-      status: DomainStatus.SUCCESS,
-    },
-    select: {
-      name: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+  const configuredFrom = contact.contactBook.doubleOptInFrom?.trim();
+  let from: string;
 
-  if (!domain) {
-    throw new Error(
-      "Double opt-in requires at least one verified domain to send confirmation emails",
-    );
+  if (!configuredFrom) {
+    const domain = await db.domain.findFirst({
+      where: {
+        teamId,
+        status: DomainStatus.SUCCESS,
+      },
+      select: {
+        name: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    if (!domain) {
+      throw new Error(
+        "Double opt-in requires at least one verified domain to send confirmation emails",
+      );
+    }
+
+    from = `hello@${domain.name}`;
+  } else {
+    from = configuredFrom;
   }
 
   const confirmationUrl = createDoubleOptInConfirmationUrl(contact.id);
@@ -142,9 +153,11 @@ export async function sendDoubleOptInConfirmationEmail({
     variableValues,
   );
 
+  await validateDomainFromEmail(from, teamId);
+
   await sendEmail({
     to: contact.email,
-    from: `hello@${domain.name}`,
+    from,
     subject,
     html: replaceTemplateTokens(html, { doubleOptInUrl: confirmationUrl }),
     teamId,

@@ -4,24 +4,26 @@ import {
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
 } from "~/lib/constants/double-opt-in";
 
-const { mockDb, mockCheckContactBookLimit } = vi.hoisted(() => ({
-  mockDb: {
-    contactBook: {
-      create: vi.fn(),
-      update: vi.fn(),
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      delete: vi.fn(),
+const { mockDb, mockCheckContactBookLimit, mockValidateDomainFromEmail } =
+  vi.hoisted(() => ({
+    mockDb: {
+      contactBook: {
+        create: vi.fn(),
+        update: vi.fn(),
+        findUnique: vi.fn(),
+        findMany: vi.fn(),
+        delete: vi.fn(),
+      },
+      contact: {
+        count: vi.fn(),
+      },
+      campaign: {
+        findMany: vi.fn(),
+      },
     },
-    contact: {
-      count: vi.fn(),
-    },
-    campaign: {
-      findMany: vi.fn(),
-    },
-  },
-  mockCheckContactBookLimit: vi.fn(),
-}));
+    mockCheckContactBookLimit: vi.fn(),
+    mockValidateDomainFromEmail: vi.fn(),
+  }));
 
 vi.mock("~/server/db", () => ({
   db: mockDb,
@@ -31,6 +33,10 @@ vi.mock("~/server/service/limit-service", () => ({
   LimitService: {
     checkContactBookLimit: mockCheckContactBookLimit,
   },
+}));
+
+vi.mock("~/server/service/domain-service", () => ({
+  validateDomainFromEmail: mockValidateDomainFromEmail,
 }));
 
 import {
@@ -46,6 +52,7 @@ describe("contact-book-service", () => {
     mockDb.contactBook.findMany.mockReset();
     mockDb.contactBook.update.mockReset();
     mockDb.contactBook.findUnique.mockReset();
+    mockValidateDomainFromEmail.mockReset();
   });
 
   it("returns double opt-in content in contact book listings", async () => {
@@ -57,6 +64,7 @@ describe("contact-book-service", () => {
       expect.objectContaining({
         select: expect.objectContaining({
           doubleOptInContent: true,
+          doubleOptInFrom: true,
         }),
       }),
     );
@@ -150,6 +158,48 @@ describe("contact-book-service", () => {
         doubleOptInEnabled: true,
         doubleOptInSubject: DEFAULT_DOUBLE_OPT_IN_SUBJECT,
         doubleOptInContent: DEFAULT_DOUBLE_OPT_IN_CONTENT,
+      },
+    });
+  });
+
+  it("validates and stores a configured double opt-in from address", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      teamId: 12,
+    });
+    mockValidateDomainFromEmail.mockResolvedValue({
+      id: 1,
+      name: "example.com",
+    });
+    mockDb.contactBook.update.mockResolvedValue({ id: "book_1" });
+
+    await updateContactBook("book_1", {
+      doubleOptInFrom: " Newsletter <hello@example.com> ",
+    });
+
+    expect(mockValidateDomainFromEmail).toHaveBeenCalledWith(
+      "Newsletter <hello@example.com>",
+      12,
+    );
+    expect(mockDb.contactBook.update).toHaveBeenCalledWith({
+      where: { id: "book_1" },
+      data: {
+        doubleOptInFrom: "Newsletter <hello@example.com>",
+      },
+    });
+  });
+
+  it("clears configured double opt-in from when empty", async () => {
+    mockDb.contactBook.update.mockResolvedValue({ id: "book_1" });
+
+    await updateContactBook("book_1", {
+      doubleOptInFrom: "   ",
+    });
+
+    expect(mockValidateDomainFromEmail).not.toHaveBeenCalled();
+    expect(mockDb.contactBook.update).toHaveBeenCalledWith({
+      where: { id: "book_1" },
+      data: {
+        doubleOptInFrom: null,
       },
     });
   });

@@ -7,6 +7,7 @@ import {
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
   hasDoubleOptInUrlPlaceholder,
 } from "~/lib/constants/double-opt-in";
+import { validateDomainFromEmail } from "./domain-service";
 
 type ContactBookDbClient = Pick<typeof db, "contactBook">;
 
@@ -25,6 +26,7 @@ export async function getContactBooks(teamId: number, search?: string) {
       createdAt: true,
       updatedAt: true,
       doubleOptInEnabled: true,
+      doubleOptInFrom: true,
       doubleOptInSubject: true,
       doubleOptInContent: true,
       _count: {
@@ -97,12 +99,36 @@ export async function updateContactBook(
     properties?: Record<string, string>;
     emoji?: string;
     doubleOptInEnabled?: boolean;
+    doubleOptInFrom?: string | null;
     doubleOptInSubject?: string;
     doubleOptInContent?: string;
   },
   client: ContactBookDbClient = db,
 ) {
   const updateData = { ...data };
+
+  if (data.doubleOptInFrom !== undefined) {
+    const normalizedFrom = data.doubleOptInFrom?.trim() ?? "";
+
+    if (!normalizedFrom) {
+      updateData.doubleOptInFrom = null;
+    } else {
+      const contactBook = await client.contactBook.findUnique({
+        where: { id: contactBookId },
+        select: { teamId: true },
+      });
+
+      if (!contactBook) {
+        throw new UnsendApiError({
+          code: "BAD_REQUEST",
+          message: "Contact book not found",
+        });
+      }
+
+      await validateDomainFromEmail(normalizedFrom, contactBook.teamId);
+      updateData.doubleOptInFrom = normalizedFrom;
+    }
+  }
 
   if (
     data.doubleOptInContent !== undefined &&
