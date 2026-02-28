@@ -121,9 +121,15 @@ export async function parseSesHook(data: SesEvent) {
     mailStatus === EmailStatus.BOUNCED &&
     (mailData as SesBounce).bounceType === "Permanent";
 
-  // Fix: Only add the actual bounced/complained recipients to suppression list
-  // Add emails to suppression list for hard bounces and complaints
-  if (isHardBounced || mailStatus === EmailStatus.COMPLAINED) {
+  if (
+    (isHardBounced || mailStatus === EmailStatus.COMPLAINED) &&
+    email.isForwarded
+  ) {
+    logger.info(
+      { emailId: email.id },
+      "Skipping suppression for forwarded email bounce/complaint"
+    );
+  } else if (isHardBounced || mailStatus === EmailStatus.COMPLAINED) {
     logger.info("Adding emails to suppression list");
 
     // Get the actual affected recipients from the event data

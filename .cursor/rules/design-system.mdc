@@ -1,0 +1,174 @@
+---
+description: Design system rules for Unsend - tokens, components, and patterns for Figma-to-code consistency
+globs: ["**/*.tsx", "**/*.ts", "**/*.css"]
+---
+
+# Unsend Design System Rules
+
+## Token Definitions
+
+### Colors
+
+Design tokens are CSS variables defined in `packages/ui/styles/globals.css` using HSL format (without the `hsl()` wrapper). Tailwind maps these in `packages/tailwind-config/tailwind.config.ts`.
+
+**Status color palette (use these for badges, indicators, status):**
+- `green` → `--green` (success states)
+- `red` → `--red` (error/failure states)
+- `blue` → `--blue` (info/neutral active states)
+- `yellow` → `--yellow` (warning/pending states)
+- `gray` → `--gray` (disabled/inactive states)
+- `purple` → `--purple`
+
+**Semantic colors (use these for UI chrome):**
+- `primary` / `primary-foreground` → brand actions, primary buttons
+- `destructive` / `destructive-foreground` → delete actions, danger zones
+- `success` / `success-foreground` → toggle switches in "on" state
+- `warning` / `warning-foreground` → caution states
+- `muted` / `muted-foreground` → secondary text, descriptions
+- `border` → card/input borders
+- `input` → input field borders
+
+**IMPORTANT:** Never use Tailwind's default color scale (e.g. `blue-500`, `red-400`, `green-600`). Always use the CSS variable-based colors above. This ensures dark mode works correctly.
+
+### Typography
+
+- **Sans-serif:** Inter (`font-sans`, `--font-sans`)
+- **Monospace:** JetBrains Mono (`font-mono`, `--font-mono`)
+- **Heading components:** `H1` (`font-mono text-xl font-medium text-primary`), `H2` (`font-mono text-lg`)
+- **Section titles in cards:** `<p className="font-semibold text-xl">` (not H1/H2 — those are page-level)
+- **Descriptions:** `<p className="text-muted-foreground text-sm">`
+
+### Spacing
+
+Standard Tailwind scale. Common patterns:
+- Card padding: `p-4` or `p-6`
+- Section gaps: `gap-8` (between cards), `gap-6` (within cards), `gap-4` (form fields), `gap-2` (label to input), `gap-1` (title to description)
+- Table margin from title: `mt-2`
+
+### Border Radius
+
+- `--radius`: `0.5rem` (8px)
+- Cards: `rounded-lg`
+- Dialogs: `rounded-2xl` (built into DialogContent)
+- Badges: `rounded-md`
+- Inputs: `rounded-md` (built into Input)
+
+## Component Library
+
+All components live in `packages/ui/src/` and are imported as:
+```typescript
+import { Button } from "@usesend/ui/src/button";
+```
+
+Not barrel imports (except `cn`, `H1`, `H2`, `ThemeProvider` from `@usesend/ui`).
+
+### Component Inventory
+
+| Component | File | Wraps | Key Variants |
+|-----------|------|-------|-------------|
+| Button | `button.tsx` | Radix Slot | `default`, `destructive`, `outline`, `secondary`, `ghost`, `icon`, `link`, `silent` / sizes: `default`, `sm`, `lg`, `icon` |
+| Dialog | `dialog.tsx` | Radix Dialog | — |
+| Table | `table.tsx` | Custom | `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell` |
+| Switch | `switch.tsx` | Radix Switch | Use `data-[state=checked]:bg-success` for green on-state |
+| Input | `input.tsx` | Custom | Standard HTML input props |
+| Tabs | `tabs.tsx` | Radix Tabs | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` |
+| Badge | `badge.tsx` | CVA | `default`, `secondary`, `destructive`, `outline` |
+| Select | `select.tsx` | Radix Select | — |
+| Accordion | `accordion.tsx` | Radix Accordion + framer-motion | Animated expand/collapse |
+| Card | `card.tsx` | Custom | `Card`, `CardHeader`, `CardContent`, `CardFooter`, `CardTitle`, `CardDescription` |
+| Label | `label.tsx` | Radix Label | Use for form labels instead of raw `<label>` |
+| Form | `form.tsx` | react-hook-form | `FormField`, `FormItem`, `FormLabel`, `FormControl`, `FormMessage` |
+| TextWithCopyButton | `text-with-copy.tsx` | Custom | Copy-to-clipboard with icon |
+| Breadcrumb | `breadcrumb.tsx` | Custom + Radix Slot | — |
+| Tooltip | `tooltip.tsx` | Radix Tooltip | — |
+| Separator | `separator.tsx` | Radix Separator | — |
+| Skeleton | `skeleton.tsx` | Custom | Loading placeholders |
+
+### Icons
+
+**Library:** `lucide-react` (v0.503.0)
+
+Import directly:
+```typescript
+import { Plus, Trash2, ChevronDown } from "lucide-react";
+```
+
+Standard size: `h-4 w-4` (16px). Larger contextual: `h-5 w-5` (20px).
+
+## Patterns
+
+### Status Badges (inline, not using Badge component)
+
+The codebase uses custom inline status badges matching `DnsVerificationStatus` in the domain page:
+
+```typescript
+<div className={`text-xs text-center min-w-[70px] capitalize rounded-md py-1 justify-center flex items-center ${badgeColor}`}>
+  {label}
+</div>
+```
+
+Color mappings (use CSS variable colors, NOT Tailwind defaults):
+- Success/active: `bg-green/15 text-green border border-green/25`
+- Error/failed: `bg-red/10 text-red border border-red/10`
+- Warning/pending: `bg-yellow/20 text-yellow border border-yellow/10`
+- Info/received: `bg-blue/15 text-blue border border-blue/25`
+- Neutral/disabled: `bg-gray/10 text-gray border border-gray/20`
+
+### Card Sections
+
+```typescript
+<div className="border rounded-lg p-4 shadow">
+  <p className="font-semibold text-xl">Section Title</p>
+  <p className="text-muted-foreground text-sm">Description text.</p>
+  {/* content */}
+</div>
+```
+
+### Settings Toggle Pattern
+
+```typescript
+<div className="flex flex-col gap-1">
+  <div className="font-semibold">Setting name</div>
+  <p className="text-muted-foreground text-sm">Description.</p>
+  <Switch checked={value} onCheckedChange={handler} className="data-[state=checked]:bg-success" />
+</div>
+```
+
+### Dialog Pattern
+
+```typescript
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Title</DialogTitle>
+      <DialogDescription>Description.</DialogDescription>
+    </DialogHeader>
+    {/* form content */}
+    <DialogFooter>
+      <Button variant="outline" onClick={close}>Cancel</Button>
+      <Button onClick={submit}>Confirm</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+## Theming
+
+- Library: `next-themes` with class-based dark mode (`darkMode: ["class"]`)
+- Default theme: `system`
+- All colors automatically switch via CSS variables in `.dark` selector
+- Never hardcode light/dark colors — always use CSS variable tokens
+
+## Responsive Design
+
+- Breakpoints: Tailwind defaults (`sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`)
+- Mobile detection: `useIsMobile()` hook from `packages/ui/src/hooks/use-mobile.tsx` (768px threshold)
+- Container: centered, `2rem` padding, max `1400px` at 2xl
+
+## Styling Approach
+
+- Tailwind CSS utility-first
+- `cn()` helper from `packages/ui/lib/utils.ts` for conditional class merging (`clsx` + `tailwind-merge`)
+- `class-variance-authority` for component variants
+- No CSS Modules
+- No inline styles

@@ -24,7 +24,9 @@ import React, { use } from "react";
 import { Switch } from "@usesend/ui/src/switch";
 import DeleteDomain from "./delete-domain";
 import SendTestMail from "./send-test-mail";
+import ForwardingTab from "./forwarding-tab";
 import { Button } from "@usesend/ui/src/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@usesend/ui/src/tabs";
 import Link from "next/link";
 import { toast } from "@usesend/ui/src/toaster";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -71,9 +73,6 @@ export default function DomainItemPage({
         <div className="flex flex-col gap-8">
           <div className="flex justify-between items-center">
             <div className="flex items-center  gap-4">
-              {/* <div className="flex items-center gap-4">
-              <H1>{domainQuery.data?.name}</H1>
-            </div> */}
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem>
@@ -114,59 +113,80 @@ export default function DomainItemPage({
             </div>
           </div>
 
-          <div className=" border rounded-lg p-4 shadow">
-            <p className="font-semibold text-xl">DNS records</p>
-            <Table className="mt-2">
-              <TableHeader className="">
-                <TableRow className="">
-                  <TableHead className="rounded-tl-xl">Type</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead className="">TTL</TableHead>
-                  <TableHead className="">Priority</TableHead>
-                  <TableHead className="rounded-tr-xl">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(domainQuery.data?.dnsRecords ?? []).map((record) => {
-                  const key = `${record.type}-${record.name}`;
-                  const valueClassName = record.name.includes("_domainkey")
-                    ? "w-[200px] overflow-hidden text-ellipsis"
-                    : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
+          <Tabs defaultValue="overview">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="forwarding">Forwarding</TabsTrigger>
+            </TabsList>
 
-                  return (
-                    <TableRow key={key}>
-                      <TableCell className="">{record.type}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 items-center">
-                          {record.recommended ? (
-                            <span className="text-sm text-muted-foreground">
-                              (recommended)
-                            </span>
-                          ) : null}
-                          <TextWithCopyButton value={record.name} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="">
-                        <TextWithCopyButton
-                          value={record.value}
-                          className={valueClassName}
-                        />
-                      </TableCell>
-                      <TableCell className="">{record.ttl}</TableCell>
-                      <TableCell className="">{record.priority ?? ""}</TableCell>
-                      <TableCell className="">
-                        <DnsVerificationStatus status={record.status} />
-                      </TableCell>
+            <TabsContent value="overview" className="flex flex-col gap-8 mt-6">
+              <div className=" border rounded-lg p-4 shadow">
+                <p className="font-semibold text-xl">DNS records</p>
+                <Table className="mt-2">
+                  <TableHeader className="">
+                    <TableRow className="">
+                      <TableHead className="rounded-tl-xl">Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Content</TableHead>
+                      <TableHead className="">TTL</TableHead>
+                      <TableHead className="">Priority</TableHead>
+                      <TableHead className="rounded-tr-xl">Status</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-          {domainQuery.data ? (
-            <DomainSettings domain={domainQuery.data} />
-          ) : null}
+                  </TableHeader>
+                  <TableBody>
+                    {(domainQuery.data?.dnsRecords ?? []).map((record) => {
+                      const key = `${record.type}-${record.name}`;
+                      const valueClassName = record.name.includes("_domainkey")
+                        ? "w-[200px] overflow-hidden text-ellipsis"
+                        : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
+
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className="">{record.type}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2 items-center">
+                              {record.recommended ? (
+                                <span className="text-sm text-muted-foreground">
+                                  (recommended)
+                                </span>
+                              ) : null}
+                              <TextWithCopyButton value={record.name} />
+                            </div>
+                          </TableCell>
+                          <TableCell className="">
+                            <TextWithCopyButton
+                              value={record.value}
+                              className={valueClassName}
+                            />
+                          </TableCell>
+                          <TableCell className="">{record.ttl}</TableCell>
+                          <TableCell className="">
+                            {record.priority ?? ""}
+                          </TableCell>
+                          <TableCell className="">
+                            <DnsVerificationStatus status={record.status} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              {domainQuery.data ? (
+                <DomainSettings domain={domainQuery.data} />
+              ) : null}
+            </TabsContent>
+
+            <TabsContent value="forwarding" className="mt-6">
+              <ForwardingTab
+                domainId={Number(domainId)}
+                domainName={domainQuery.data?.name ?? ""}
+                domainRegion={domainQuery.data?.region ?? "us-east-1"}
+                domainStatus={domainQuery.data?.status ?? "PENDING"}
+                inboundEnabled={domainQuery.data?.inboundEnabled ?? false}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
