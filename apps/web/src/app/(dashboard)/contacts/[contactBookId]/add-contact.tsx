@@ -106,12 +106,18 @@ export default function AddContact({
                         placeholder="email1@example.com, email2@example.com"
                         onKeyDown={(event) => {
                           if (
-                            (event.metaKey || event.ctrlKey) &&
-                            event.key === "Enter"
+                            !(event.metaKey || event.ctrlKey) ||
+                            event.key !== "Enter"
                           ) {
-                            event.preventDefault();
-                            void contactsForm.handleSubmit(onContactsAdd)();
+                            return;
                           }
+
+                          if (addContactsMutation.isPending) {
+                            return;
+                          }
+
+                          event.preventDefault();
+                          void contactsForm.handleSubmit(onContactsAdd)();
                         }}
                         {...field}
                       />
