@@ -96,8 +96,14 @@ export default function ContactList({
   });
 
   const debouncedSearch = useDebouncedCallback((value: string) => {
-    setSearch(value);
+    setSearch(value || null);
+    setPage("1");
   }, 1000);
+
+  const handleStatusChange = (val: string) => {
+    setStatus(val === "All" ? null : val);
+    setPage("1");
+  };
 
   const exportQuery = api.contacts.exportContacts.useQuery(
     {
@@ -182,10 +188,7 @@ export default function ContactList({
             />
           </div>
           <div className="flex gap-2">
-            <Select
-              value={status ?? "All"}
-              onValueChange={(val) => setStatus(val === "All" ? null : val)}
-            >
+            <Select value={status ?? "All"} onValueChange={handleStatusChange}>
               <SelectTrigger className="w-[180px] capitalize">
                 {status || "All statuses"}
               </SelectTrigger>
