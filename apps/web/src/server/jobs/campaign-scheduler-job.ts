@@ -19,6 +19,7 @@ export class CampaignSchedulerService {
     {
       connection: getRedis(),
       prefix: BULL_PREFIX,
+      skipVersionCheck: true,
     }
   );
 
@@ -83,7 +84,7 @@ export class CampaignSchedulerService {
         logger.error({ err }, "Campaign scheduler tick failed");
       }
     }),
-    { connection: getRedis(), concurrency: 1, prefix: BULL_PREFIX }
+    { connection: getRedis(), concurrency: 1, prefix: BULL_PREFIX, skipVersionCheck: true }
   );
 
   static async start() {

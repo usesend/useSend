@@ -10,6 +10,7 @@ const WEBHOOK_RETENTION_DAYS = 30;
 const webhookCleanupQueue = new Queue(WEBHOOK_CLEANUP_QUEUE, {
   connection: getRedis(),
   prefix: BULL_PREFIX,
+  skipVersionCheck: true,
 });
 
 const worker = new Worker(
@@ -32,6 +33,7 @@ const worker = new Worker(
   {
     connection: getRedis(),
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   }
 );
 

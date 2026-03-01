@@ -12,6 +12,7 @@ const USAGE_QUEUE_NAME = "usage-reporting";
 const usageQueue = new Queue(USAGE_QUEUE_NAME, {
   connection: getRedis(),
   prefix: BULL_PREFIX,
+  skipVersionCheck: true,
 });
 
 const worker = new Worker(
@@ -71,6 +72,7 @@ const worker = new Worker(
   {
     connection: getRedis(),
     prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   },
 );
 

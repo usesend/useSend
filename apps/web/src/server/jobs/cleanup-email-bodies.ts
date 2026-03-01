@@ -20,6 +20,7 @@ if (isSelfHosted() && isEmailCleanupEnabled()) {
     const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, {
         connection: getRedis(),
         prefix: BULL_PREFIX,
+        skipVersionCheck: true,
     });
 
     const worker = new Worker(
@@ -49,6 +50,7 @@ if (isSelfHosted() && isEmailCleanupEnabled()) {
         {
             connection: getRedis(),
             prefix: BULL_PREFIX,
+            skipVersionCheck: true,
         }
     );
 
