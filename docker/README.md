@@ -48,15 +48,15 @@ docker pull ghcr.io/usesend/usesend
 ```
 docker run -d \
   -p 3000:3000 \
-  -e NEXTAUTH_URL="<your-nextauth-url>"
-  -e NEXTAUTH_SECRET="<your-nextauth-secret>"
-  -e DATABASE_URL="<your-next-private-database-url>"
-  -e REDIS_URL="<your-next-private-redis-url>"
-  -e AWS_ACCESS_KEY="<your-next-private-aws-access-key-id>"
-  -e AWS_SECRET_KEY="<your-next-private-aws-secret-access-key>"
-  -e AWS_DEFAULT_REGION="<your-next-private-aws-region>"
-  -e GITHUB_ID="<your-next-private-github-id>"
-  -e GITHUB_SECRET="<your-next-private-github-secret>"
+  -e NEXTAUTH_URL="<your-nextauth-url>" \
+  -e NEXTAUTH_SECRET="<your-nextauth-secret>" \
+  -e DATABASE_URL="<your-database-url>" \
+  -e REDIS_URL="<your-redis-url>" \
+  -e AWS_ACCESS_KEY="<your-aws-access-key-id>" \
+  -e AWS_SECRET_KEY="<your-aws-secret-access-key>" \
+  -e AWS_DEFAULT_REGION="<your-aws-region>" \
+  -e GITHUB_ID="<your-github-client-id>" \
+  -e GITHUB_SECRET="<your-github-client-secret>" \
   usesend/usesend
 ```
 

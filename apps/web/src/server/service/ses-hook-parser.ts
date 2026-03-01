@@ -21,7 +21,7 @@ import {
   updateCampaignAnalytics,
 } from "./campaign-service";
 import { env } from "~/env";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import { Queue, Worker } from "bullmq";
 import {
   DEFAULT_QUEUE_OPTIONS,
@@ -619,6 +619,8 @@ function getEmailData(data: SesEvent) {
 export class SesHookParser {
   private static sesHookQueue = new Queue(SES_WEBHOOK_QUEUE, {
     connection: getRedis(),
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   });
 
   private static worker = new Worker(
@@ -635,6 +637,8 @@ export class SesHookParser {
     },
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
+      skipVersionCheck: true,
       concurrency: 50,
     },
   );

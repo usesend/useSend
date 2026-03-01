@@ -10,7 +10,7 @@ import {
   type WebhookEventType,
 } from "@usesend/lib/src/webhook/webhook-events";
 import { db } from "../db";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX, redisKey } from "../redis";
 import {
   DEFAULT_QUEUE_OPTIONS,
   WEBHOOK_DISPATCH_QUEUE,
@@ -42,6 +42,8 @@ type WebhookEventInput<TType extends WebhookEventType> =
 export class WebhookQueueService {
   private static queue = new Queue<WebhookCallJobData>(WEBHOOK_DISPATCH_QUEUE, {
     connection: getRedis(),
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
     defaultJobOptions: {
       ...DEFAULT_QUEUE_OPTIONS,
       attempts: WEBHOOK_MAX_ATTEMPTS,
@@ -57,6 +59,8 @@ export class WebhookQueueService {
     createWorkerHandler(processWebhookCall),
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
+      skipVersionCheck: true,
       concurrency: WEBHOOK_DISPATCH_CONCURRENCY,
     },
   );
@@ -446,7 +450,7 @@ async function processWebhookCall(job: WebhookCallJob) {
     },
   });
 
-  const lockKey = `webhook:lock:${call.webhookId}`;
+  const lockKey = redisKey(`webhook:lock:${call.webhookId}`);
   const redis = getRedis();
   const lockValue = randomUUID();
 

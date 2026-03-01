@@ -1,4 +1,4 @@
-import { getRedis } from "~/server/redis";
+import { getRedis, redisKey } from "~/server/redis";
 import { canonicalizePayload } from "~/server/utils/idempotency";
 import { UnsendApiError } from "~/server/public-api/api-error";
 import { logger } from "~/server/logger/log";
@@ -22,11 +22,11 @@ export type IdempotencyHandlerOptions<TPayload, TResult> = {
 };
 
 function resultKey(teamId: number, key: string) {
-  return `idem:${teamId}:${key}`;
+  return redisKey(`idem:${teamId}:${key}`);
 }
 
 function lockKey(teamId: number, key: string) {
-  return `idemlock:${teamId}:${key}`;
+  return redisKey(`idemlock:${teamId}:${key}`);
 }
 
 export const IdempotencyService = {
