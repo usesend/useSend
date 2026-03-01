@@ -75,6 +75,7 @@ vi.mock("~/server/queue/bullmq-context", () => ({
 
 vi.mock("~/server/redis", () => ({
   getRedis: () => mockRedis,
+  redisKey: (key: string) => key,
 }));
 
 import { WebhookService } from "~/server/service/webhook-service";

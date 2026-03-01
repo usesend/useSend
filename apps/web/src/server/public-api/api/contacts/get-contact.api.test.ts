@@ -23,6 +23,7 @@ vi.mock("~/server/public-api/auth", () => ({
 
 vi.mock("~/server/redis", () => ({
   getRedis: () => mockRedis,
+  redisKey: (key: string) => key,
 }));
 
 vi.mock("~/server/db", () => ({
