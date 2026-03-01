@@ -74,6 +74,7 @@ vi.mock("~/server/queue/bullmq-context", () => ({
 }));
 
 vi.mock("~/server/redis", () => ({
+  BULL_PREFIX: "bull",
   getRedis: () => mockRedis,
   redisKey: (key: string) => key,
 }));
