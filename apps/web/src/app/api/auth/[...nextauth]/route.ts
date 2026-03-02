@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 
 import { authOptions } from "~/server/auth";
 import { env } from "~/env";
-import { getRedis } from "~/server/redis";
+import { getRedis, redisKey } from "~/server/redis";
 import { logger } from "~/server/logger/log";
 
 const handler = NextAuth(authOptions);
@@ -60,7 +60,7 @@ export async function POST(req: Request, ctx: any) {
           return handler(req, ctx);
         }
         const redis = getRedis();
-        const key = `auth-rl:${ip}`;
+        const key = redisKey(`auth-rl:${ip}`);
         const ttl = 60;
         const count = await redis.incr(key);
         if (count === 1) await redis.expire(key, ttl);

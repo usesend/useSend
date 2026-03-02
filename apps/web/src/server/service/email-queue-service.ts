@@ -5,7 +5,7 @@ import { convert as htmlToText } from "html-to-text";
 import { getConfigurationSetName } from "~/utils/ses-utils";
 import { db } from "../db";
 import { sendRawEmail } from "../aws/ses";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
@@ -25,12 +25,14 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queueName = `${region}-${suffix}`;
 
-  const queue = new Queue(queueName, { connection });
+  const queue = new Queue(queueName, { connection, prefix: BULL_PREFIX, skipVersionCheck: true });
 
   // TODO: Add team context to job data when queueing
   const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
     concurrency: quota,
     connection,
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
   });
 
   return { queue, worker };

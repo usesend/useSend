@@ -3,7 +3,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { Context, Next } from "hono";
 import { handleError } from "./api-error";
 import { env } from "~/env";
-import { getRedis } from "~/server/redis";
+import { getRedis, redisKey } from "~/server/redis";
 import { getTeamFromToken } from "~/server/public-api/auth";
 import { isSelfHosted } from "~/utils/common";
 import { UnsendApiError } from "./api-error";
@@ -66,7 +66,7 @@ export function getApp() {
 
     const team = c.var.team;
     const limit = team.apiRateLimit ?? 2; // Default limit from your previous setup
-    const key = `rl:${team.id}`; // Rate limit key for Redis
+    const key = redisKey(`rl:${team.id}`); // Rate limit key for Redis
     const redis = getRedis();
 
     let currentRequests: number;

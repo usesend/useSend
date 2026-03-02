@@ -128,7 +128,7 @@ export const campaignRouter = createTRPCRouter({
       const { html: htmlInput, campaignId, ...data } = input;
       if (data.contactBookId) {
         const contactBook = await db.contactBook.findUnique({
-          where: { id: data.contactBookId },
+          where: { id: data.contactBookId, teamId: team.id },
         });
 
         if (!contactBook) {
@@ -191,7 +191,7 @@ export const campaignRouter = createTRPCRouter({
 
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
-        where: { id: campaign.contactBookId },
+        where: { id: campaign.contactBookId, teamId: team.id },
       });
       return { ...campaign, contactBook, imageUploadSupported };
     }
@@ -243,7 +243,11 @@ export const campaignRouter = createTRPCRouter({
         data: {
           name: `${campaign.name} (Copy)`,
           from: campaign.from,
+          replyTo: campaign.replyTo,
+          cc: campaign.cc,
+          bcc: campaign.bcc,
           subject: campaign.subject,
+          previewText: campaign.previewText,
           content: campaign.content,
           html: campaign.html,
           teamId: team.id,

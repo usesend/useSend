@@ -33,7 +33,7 @@ export const teamRouter = createTRPCRouter({
         email: z.string(),
         role: z.enum(["MEMBER", "ADMIN"]),
         sendEmail: z.boolean().default(true),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       return TeamService.createTeamInvite(
@@ -41,7 +41,7 @@ export const teamRouter = createTRPCRouter({
         input.email,
         input.role,
         ctx.team.name,
-        input.sendEmail
+        input.sendEmail,
       );
     }),
 
@@ -50,13 +50,13 @@ export const teamRouter = createTRPCRouter({
       z.object({
         userId: z.string(),
         role: z.enum(["MEMBER", "ADMIN"]),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       return TeamService.updateTeamUserRole(
         ctx.team.id,
         input.userId,
-        input.role
+        input.role,
       );
     }),
 
@@ -67,14 +67,18 @@ export const teamRouter = createTRPCRouter({
         ctx.team.id,
         input.userId,
         ctx.teamUser.role,
-        ctx.session.user.id
+        ctx.session.user.id,
       );
     }),
 
   resendTeamInvite: teamAdminProcedure
     .input(z.object({ inviteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return TeamService.resendTeamInvite(input.inviteId, ctx.team.name);
+      return TeamService.resendTeamInvite(
+        ctx.team.id,
+        input.inviteId,
+        ctx.team.name,
+      );
     }),
 
   deleteTeamInvite: teamAdminProcedure

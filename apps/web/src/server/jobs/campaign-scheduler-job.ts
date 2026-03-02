@@ -4,7 +4,7 @@ import {
   CAMPAIGN_SCHEDULER_QUEUE,
   DEFAULT_QUEUE_OPTIONS,
 } from "../queue/queue-constants";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import { CampaignBatchService } from "../service/campaign-service";
 import { db } from "../db";
 import { logger } from "../logger/log";
@@ -18,6 +18,8 @@ export class CampaignSchedulerService {
     CAMPAIGN_SCHEDULER_QUEUE,
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
+      skipVersionCheck: true,
     }
   );
 
@@ -82,7 +84,7 @@ export class CampaignSchedulerService {
         logger.error({ err }, "Campaign scheduler tick failed");
       }
     }),
-    { connection: getRedis(), concurrency: 1 }
+    { connection: getRedis(), concurrency: 1, prefix: BULL_PREFIX, skipVersionCheck: true }
   );
 
   static async start() {

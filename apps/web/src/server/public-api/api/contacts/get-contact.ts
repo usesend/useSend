@@ -52,13 +52,14 @@ function getContact(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
 
-    await getContactBook(c, team.id);
+    const contactBook = await getContactBook(c, team.id);
 
     const contactId = c.req.param("contactId");
 
-    const contact = await db.contact.findUnique({
+    const contact = await db.contact.findFirst({
       where: {
         id: contactId,
+        contactBookId: contactBook.id,
       },
     });
 
