@@ -1,13 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import {
-  getCampaignForTeam,
-  resumeCampaign as resumeCampaignService,
+  resumeCampaign,
 } from "~/server/service/campaign-service";
-import {
-  campaignResponseSchema,
-  parseScheduledAt,
-} from "~/server/public-api/schemas/campaign-schema";
 
 const route = createRoute({
   method: "post",
@@ -40,17 +35,12 @@ const route = createRoute({
   },
 });
 
-function resumeCampaign(app: PublicAPIApp) {
+function resumeCampaignHandle(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
     const campaignId = c.req.param("campaignId");
 
-    await resumeCampaignService({
-      campaignId,
-      teamId: team.id,
-    });
-
-    await getCampaignForTeam({
+    await resumeCampaign({
       campaignId,
       teamId: team.id,
     });
@@ -59,4 +49,4 @@ function resumeCampaign(app: PublicAPIApp) {
   });
 }
 
-export default resumeCampaign;
+export default resumeCampaignHandle;

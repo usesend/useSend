@@ -43,6 +43,28 @@ type UpsertContactResponse = {
   error: ErrorResponse | null;
 };
 
+type BulkCreateContactsPayload =
+  paths["/v1/contactBooks/{contactBookId}/contacts/bulk"]["post"]["requestBody"]["content"]["application/json"];
+
+type BulkCreateContactsResponseSuccess =
+  paths["/v1/contactBooks/{contactBookId}/contacts/bulk"]["post"]["responses"]["200"]["content"]["application/json"];
+
+type BulkCreateContactsResponse = {
+  data: BulkCreateContactsResponseSuccess | null;
+  error: ErrorResponse | null;
+};
+
+type BulkDeleteContactsPayload =
+  paths["/v1/contactBooks/{contactBookId}/contacts/bulk"]["delete"]["requestBody"]["content"]["application/json"];
+
+type BulkDeleteContactsResponseSuccess =
+  paths["/v1/contactBooks/{contactBookId}/contacts/bulk"]["delete"]["responses"]["200"]["content"]["application/json"];
+
+type BulkDeleteContactsResponse = {
+  data: BulkDeleteContactsResponseSuccess | null;
+  error: ErrorResponse | null;
+};
+
 type DeleteContactResponse = {
   data: { success: boolean } | null;
   error: ErrorResponse | null;
@@ -95,6 +117,30 @@ export class Contacts {
   ): Promise<UpsertContactResponse> {
     const data = await this.usesend.put<UpsertContactResponseSuccess>(
       `/contactBooks/${contactBookId}/contacts/${contactId}`,
+      payload
+    );
+
+    return data;
+  }
+
+  async bulkCreate(
+    contactBookId: string,
+    payload: BulkCreateContactsPayload
+  ): Promise<BulkCreateContactsResponse> {
+    const data = await this.usesend.post<BulkCreateContactsResponseSuccess>(
+      `/contactBooks/${contactBookId}/contacts/bulk`,
+      payload
+    );
+
+    return data;
+  }
+
+  async bulkDelete(
+    contactBookId: string,
+    payload: BulkDeleteContactsPayload
+  ): Promise<BulkDeleteContactsResponse> {
+    const data = await this.usesend.delete<BulkDeleteContactsResponseSuccess>(
+      `/contactBooks/${contactBookId}/contacts/bulk`,
       payload
     );
 

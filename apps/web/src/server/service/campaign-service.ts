@@ -669,7 +669,18 @@ export async function subscribeContact(id: string, hash: string) {
   }
 }
 
-export async function deleteCampaign(id: string) {
+export async function deleteCampaign(id: string, teamId: number) {
+  const existing = await db.campaign.findFirst({
+    where: { id, teamId },
+  });
+
+  if (!existing) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
   const campaign = await db.$transaction(async (tx) => {
     await tx.campaignEmail.deleteMany({
       where: { campaignId: id },
