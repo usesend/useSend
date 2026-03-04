@@ -18,10 +18,11 @@ import deleteDomain from "./api/domains/delete-domain";
 import sendBatch from "./api/emails/batch-email";
 import createCampaign from "./api/campaigns/create-campaign";
 import getCampaign from "./api/campaigns/get-campaign";
+import deleteCampaignHandle from "./api/campaigns/delete-campaign";
 import getCampaigns from "./api/campaigns/get-campaigns";
 import scheduleCampaign from "./api/campaigns/schedule-campaign";
-import pauseCampaign from "./api/campaigns/pause-campaign";
-import resumeCampaign from "./api/campaigns/resume-campaign";
+import pauseCampaignHandle from "./api/campaigns/pause-campaign";
+import resumeCampaignHandle from "./api/campaigns/resume-campaign";
 import getContactBooks from "./api/contacts/get-contact-books";
 import createContactBook from "./api/contacts/create-contact-book";
 import getContactBook from "./api/contacts/get-contact-book";
@@ -29,6 +30,9 @@ import updateContactBook from "./api/contacts/update-contact-book";
 import deleteContactBook from "./api/contacts/delete-contact-book";
 import emailTimeSeries from "./api/analytics/email-time-series";
 import reputationMetricsData from "./api/analytics/reputation-metrics-data";
+import bulkAddContactsHandle from "./api/contacts/bulk-add-contacts";
+import bulkDeleteContacts from "./api/contacts/bulk-delete-contacts";
+
 
 export const app = getApp();
 
@@ -54,6 +58,8 @@ getContact(app);
 getContacts(app);
 upsertContact(app);
 deleteContact(app);
+bulkAddContactsHandle(app);
+bulkDeleteContacts(app);
 
 /**Contact Book related APIs */
 getContactBooks(app);
@@ -67,8 +73,9 @@ createCampaign(app);
 getCampaign(app);
 getCampaigns(app);
 scheduleCampaign(app);
-pauseCampaign(app);
-resumeCampaign(app);
+pauseCampaignHandle(app);
+resumeCampaignHandle(app);
+deleteCampaignHandle(app);
 
 /**Analytics related APIs */
 emailTimeSeries(app);

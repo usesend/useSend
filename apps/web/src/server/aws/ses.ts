@@ -11,6 +11,7 @@ import {
   GetAccountCommand,
   CreateTenantResourceAssociationCommand,
   DeleteTenantResourceAssociationCommand,
+  DeleteSuppressedDestinationCommand,
 } from "@aws-sdk/client-sesv2";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { generateKeyPairSync } from "crypto";
@@ -309,4 +310,37 @@ export async function addWebhookConfiguration(
 
   const response = await sesClient.send(command);
   return response.$metadata.httpStatusCode === 200;
+}
+
+/**
+ * Remove email from AWS SES account-level suppression list
+ * Returns true if successful or email wasn't suppressed, false on error
+ */
+export async function deleteFromSesSuppressionList(
+  email: string,
+  region: string
+): Promise<boolean> {
+  const sesClient = getSesClient(region);
+  try {
+    const command = new DeleteSuppressedDestinationCommand({
+      EmailAddress: email,
+    });
+    await sesClient.send(command);
+    logger.info({ email, region }, "Removed email from SES suppression list");
+    return true;
+  } catch (error: any) {
+    // NotFoundException means email wasn't in SES suppression list - that's fine
+    if (error.name === "NotFoundException") {
+      logger.debug(
+        { email, region },
+        "Email not in SES suppression list (already removed or never added)"
+      );
+      return true;
+    }
+    logger.error(
+      { email, region, error: error.message },
+      "Failed to remove email from SES suppression list"
+    );
+    return false;
+  }
 }

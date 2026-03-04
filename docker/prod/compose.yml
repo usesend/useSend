@@ -60,6 +60,7 @@ services:
       - GITHUB_ID=${GITHUB_ID:?err}
       - GITHUB_SECRET=${GITHUB_SECRET:?err}
       - REDIS_URL=${REDIS_URL:?err}
+      - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-}
       - NEXT_PUBLIC_IS_CLOUD=${NEXT_PUBLIC_IS_CLOUD:-false}
       - API_RATE_LIMIT=${API_RATE_LIMIT:-1}
       - SMTP_HOST=${SMTP_HOST:-smtp.usesend.com}

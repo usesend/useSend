@@ -33,7 +33,7 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 export interface ButtonProps
@@ -56,7 +56,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       showSpinner = false,
       ...props
     },
-    ref
+    ref,
   ) => {
     const Comp = asChild ? Slot : "button";
 
@@ -67,13 +67,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isLoading || props.disabled}
         {...props}
       >
-        {isLoading && showSpinner ? (
-          <Spinner className="h-4 w-4 mr-2 " innerSvgClass="stroke-white" />
-        ) : null}
-        {children}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {isLoading && showSpinner ? (
+              <Spinner className="h-4 w-4 mr-2 " innerSvgClass="stroke-white" />
+            ) : null}
+            {children}
+          </>
+        )}
       </Comp>
     );
-  }
+  },
 );
 Button.displayName = "Button";
 

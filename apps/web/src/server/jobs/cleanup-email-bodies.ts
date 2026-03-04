@@ -1,6 +1,6 @@
 import {Queue, Worker} from "bullmq";
 import {db} from "~/server/db";
-import {getRedis} from "~/server/redis";
+import {getRedis, BULL_PREFIX} from "~/server/redis";
 import {logger} from "../logger/log";
 import {DEFAULT_QUEUE_OPTIONS} from "../queue/queue-constants";
 import {env} from "~/env";
@@ -19,6 +19,8 @@ if (isSelfHosted() && isEmailCleanupEnabled()) {
      */
     const cleanupQueue = new Queue(CLEANUP_QUEUE_NAME, {
         connection: getRedis(),
+        prefix: BULL_PREFIX,
+        skipVersionCheck: true,
     });
 
     const worker = new Worker(
@@ -47,6 +49,8 @@ if (isSelfHosted() && isEmailCleanupEnabled()) {
         },
         {
             connection: getRedis(),
+            prefix: BULL_PREFIX,
+            skipVersionCheck: true,
         }
     );
 

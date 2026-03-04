@@ -1,13 +1,16 @@
 import { z } from "zod";
 import { ApiPermission } from "@prisma/client";
-import { TRPCError } from "@trpc/server";
 
 import {
   apiKeyProcedure,
   createTRPCRouter,
   teamProcedure,
 } from "~/server/api/trpc";
-import { addApiKey, deleteApiKey } from "~/server/service/api-service";
+import {
+  addApiKey,
+  deleteApiKey,
+  updateApiKey,
+} from "~/server/service/api-service";
 
 export const apiRouter = createTRPCRouter({
   createToken: teamProcedure
@@ -45,11 +48,30 @@ export const apiRouter = createTRPCRouter({
             name: true,
           },
         },
+        },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
     return keys;
   }),
+
+  updateApiKey: apiKeyProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).optional(),
+        domainId: z.number().int().positive().nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await updateApiKey({
+        id: input.id,
+        teamId: ctx.team.id,
+        name: input.name,
+        domainId: input.domainId,
+      });
+    }),
 
   deleteApiKey: apiKeyProcedure.mutation(async ({ input }) => {
     return deleteApiKey(input.id);

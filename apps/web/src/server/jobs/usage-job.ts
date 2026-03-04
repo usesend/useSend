@@ -1,9 +1,9 @@
 import { Queue, Worker } from "bullmq";
 import { db } from "~/server/db";
 import { env } from "~/env";
-import { getUsageDate, getUsageUinits } from "~/lib/usage";
+import { getUsageDate, getUsageUnits } from "~/lib/usage";
 import { sendUsageToStripe } from "~/server/billing/usage";
-import { getRedis } from "~/server/redis";
+import { getRedis, BULL_PREFIX } from "~/server/redis";
 import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 
@@ -11,6 +11,8 @@ const USAGE_QUEUE_NAME = "usage-reporting";
 
 const usageQueue = new Queue(USAGE_QUEUE_NAME, {
   connection: getRedis(),
+  prefix: BULL_PREFIX,
+  skipVersionCheck: true,
 });
 
 const worker = new Worker(
@@ -47,13 +49,13 @@ const worker = new Worker(
         .filter((usage) => usage.type === "MARKETING")
         .reduce((sum, usage) => sum + usage.sent, 0);
 
-      const totalUsage = getUsageUinits(marketingUsage, transactionUsage);
+      const totalUsage = getUsageUnits(marketingUsage, transactionUsage);
 
       try {
         await sendUsageToStripe(team.stripeCustomerId, totalUsage);
         logger.info(
           { teamId: team.id, date: getUsageDate(), usage: totalUsage },
-          `[Usage Reporting] Reported usage for team`
+          `[Usage Reporting] Reported usage for team`,
         );
       } catch (error) {
         logger.error(
@@ -62,14 +64,16 @@ const worker = new Worker(
             teamId: team.id,
             message: error instanceof Error ? error.message : error,
           },
-          `[Usage Reporting] Failed to report usage for team`
+          `[Usage Reporting] Failed to report usage for team`,
         );
       }
     }
   },
   {
     connection: getRedis(),
-  }
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
+  },
 );
 
 // Schedule job to run daily
@@ -83,7 +87,7 @@ await usageQueue.upsertJobScheduler(
     opts: {
       ...DEFAULT_QUEUE_OPTIONS,
     },
-  }
+  },
 );
 
 worker.on("completed", (job) => {

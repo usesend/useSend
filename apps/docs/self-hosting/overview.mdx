@@ -59,6 +59,8 @@ DATABASE_URL="postgres://<username>:<password>@<host>:<port>/<database-name>"
 REDIS_URL="redis://<username>:<password>@<host>:<port>"
 ```
 
+If you're sharing a Redis instance across multiple apps and using Redis ACL for isolation, set `REDIS_KEY_PREFIX` to namespace all keys (e.g. `REDIS_KEY_PREFIX="usesend"` prefixes all keys with `usesend:`).
+
   </Step>
   <Step title="Next auth url and secret">
   Url is the app url you're going to use and secret is random string. You can generate a random secret using this command.

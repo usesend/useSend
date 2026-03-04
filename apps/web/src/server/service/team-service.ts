@@ -5,7 +5,7 @@ import { sendMail, sendTeamInviteEmail } from "~/server/mailer";
 import { logger } from "~/server/logger/log";
 import type { Prisma, Team, TeamInvite } from "@prisma/client";
 import { UnsendApiError } from "../public-api/api-error";
-import { getRedis } from "~/server/redis";
+import { getRedis, redisKey } from "~/server/redis";
 import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
 import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
@@ -17,7 +17,7 @@ const TEAM_CACHE_TTL_SECONDS = 120; // 2 minutes
 
 export class TeamService {
   private static cacheKey(teamId: number) {
-    return `team:${teamId}`;
+    return redisKey(`team:${teamId}`);
   }
 
   static async refreshTeamCache(teamId: number): Promise<Team | null> {
@@ -307,10 +307,17 @@ export class TeamService {
     return deleted;
   }
 
-  static async resendTeamInvite(inviteId: string, teamName: string) {
-    const invite = await db.teamInvite.findUnique({
+  static async resendTeamInvite(
+    teamId: number,
+    inviteId: string,
+    teamName: string,
+  ) {
+    const invite = await db.teamInvite.findFirst({
       where: {
-        id: inviteId,
+        teamId,
+        id: {
+          equals: inviteId,
+        },
       },
     });
 
@@ -389,7 +396,7 @@ export class TeamService {
     }
 
     const redis = getRedis();
-    const cacheKey = `limit:notify:${teamId}:${reason}`;
+    const cacheKey = redisKey(`limit:notify:${teamId}:${reason}`);
     // Atomic SET NX to prevent race conditions: only one concurrent caller
     // can acquire the cooldown key. TTL = 24 hours (one notification per day).
     const acquired = await redis.set(cacheKey, "1", "EX", 24 * 60 * 60, "NX");
@@ -448,7 +455,6 @@ export class TeamService {
       );
       throw err;
     }
-
   }
 
   /**
@@ -487,7 +493,7 @@ export class TeamService {
     }
 
     const redis = getRedis();
-    const cacheKey = `limit:warning:${teamId}:${reason}`;
+    const cacheKey = redisKey(`limit:warning:${teamId}:${reason}`);
     // Atomic SET NX to prevent race conditions: only one concurrent caller
     // can acquire the cooldown key. TTL = 24 hours (one notification per day).
     const acquired = await redis.set(cacheKey, "1", "EX", 24 * 60 * 60, "NX");
@@ -555,7 +561,6 @@ export class TeamService {
       );
       throw err;
     }
-
   }
 }
 

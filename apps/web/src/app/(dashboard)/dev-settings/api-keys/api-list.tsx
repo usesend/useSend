@@ -11,10 +11,15 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { api } from "~/trpc/react";
 import DeleteApiKey from "./delete-api-key";
+import { EditApiKeyDialog } from "./edit-api-key";
 import Spinner from "@usesend/ui/src/spinner";
+import { useState } from "react";
+import { Edit3 } from "lucide-react";
+import { Button } from "@usesend/ui/src/button";
 
 export default function ApiList() {
   const apiKeysQuery = api.apiKey.getApiKeys.useQuery();
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   return (
     <div className="mt-10">
@@ -60,14 +65,34 @@ export default function ApiList() {
                   </TableCell>
                   <TableCell>
                     {apiKey.lastUsed
-                      ? formatDistanceToNow(apiKey.lastUsed, { addSuffix: true })
+                      ? formatDistanceToNow(apiKey.lastUsed, {
+                          addSuffix: true,
+                        })
                       : "Never"}
                   </TableCell>
                   <TableCell>
-                    {formatDistanceToNow(apiKey.createdAt, { addSuffix: true })}
+                    {formatDistanceToNow(apiKey.createdAt, {
+                      addSuffix: true,
+                    })}
                   </TableCell>
                   <TableCell>
-                    <DeleteApiKey apiKey={apiKey} />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingId(apiKey.id)}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <DeleteApiKey apiKey={apiKey} />
+                      <EditApiKeyDialog
+                        apiKey={apiKey}
+                        open={editingId === apiKey.id}
+                        onOpenChange={(open) => {
+                          if (!open) setEditingId(null);
+                        }}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

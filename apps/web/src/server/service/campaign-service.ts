@@ -10,7 +10,7 @@ import {
 } from "@prisma/client";
 import { EmailQueueService } from "./email-queue-service";
 import { Queue, Worker } from "bullmq";
-import { getRedis } from "../redis";
+import { getRedis, BULL_PREFIX } from "../redis";
 import {
   CAMPAIGN_BATCH_QUEUE,
   DEFAULT_QUEUE_OPTIONS,
@@ -669,7 +669,18 @@ export async function subscribeContact(id: string, hash: string) {
   }
 }
 
-export async function deleteCampaign(id: string) {
+export async function deleteCampaign(id: string, teamId: number) {
+  const existing = await db.campaign.findFirst({
+    where: { id, teamId },
+  });
+
+  if (!existing) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Campaign not found",
+    });
+  }
+
   const campaign = await db.$transaction(async (tx) => {
     await tx.campaignEmail.deleteMany({
       where: { campaignId: id },
@@ -928,6 +939,8 @@ export class CampaignBatchService {
     CAMPAIGN_BATCH_QUEUE,
     {
       connection: getRedis(),
+      prefix: BULL_PREFIX,
+      skipVersionCheck: true,
     }
   );
 
@@ -1028,7 +1041,7 @@ export class CampaignBatchService {
         data: { lastCursor: newCursor, lastSentAt: new Date() },
       });
     }),
-    { connection: getRedis(), concurrency: 20 }
+    { connection: getRedis(), concurrency: 20, prefix: BULL_PREFIX, skipVersionCheck: true }
   );
 
   static async queueBatch({

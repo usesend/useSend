@@ -1112,6 +1112,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/contactBooks/{contactBookId}/contacts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                        firstName?: string;
+                        lastName?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        subscribed?: boolean;
+                    }[];
+                };
+            };
+            responses: {
+                /** @description Bulk add contacts to a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        contactIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Bulk delete contacts from a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
         parameters: {
             query?: never;
@@ -1265,7 +1347,53 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number for pagination (default: 1) */
+                    page?: string;
+                    /** @description Filter campaigns by status */
+                    status?: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
+                    /** @description Search campaigns by name or subject */
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Get list of campaigns */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            campaigns: {
+                                id: string;
+                                name: string;
+                                from: string;
+                                subject: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                                /** @enum {string} */
+                                status: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
+                                /** Format: date-time */
+                                scheduledAt: string | null;
+                                total: number;
+                                sent: number;
+                                delivered: number;
+                                unsubscribed: number;
+                            }[];
+                            totalPage: number;
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         post: {
             parameters: {
@@ -1346,7 +1474,9 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                campaignId: string;
+            };
             cookie?: never;
         };
         get: {
@@ -1403,7 +1533,58 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    campaignId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Delete campaign */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            from: string;
+                            subject: string;
+                            previewText: string | null;
+                            contactBookId: string | null;
+                            html: string | null;
+                            content: string | null;
+                            status: string;
+                            /** Format: date-time */
+                            scheduledAt: string | null;
+                            batchSize: number;
+                            batchWindowMinutes: number;
+                            total: number;
+                            sent: number;
+                            delivered: number;
+                            opened: number;
+                            clicked: number;
+                            unsubscribed: number;
+                            bounced: number;
+                            hardBounced: number;
+                            complained: number;
+                            replyTo: string[];
+                            cc: string[];
+                            bcc: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

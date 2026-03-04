@@ -1,5 +1,6 @@
 import { ErrorResponse } from "../types";
 import { Contacts } from "./contact";
+import { ContactBooks } from "./contactBook";
 import { Emails } from "./email";
 import { Domains } from "./domain";
 import { Campaigns } from "./campaign";
@@ -24,6 +25,7 @@ export class UseSend {
   readonly emails = new Emails(this);
   readonly domains = new Domains(this);
   readonly contacts = new Contacts(this);
+  readonly contactBooks = new ContactBooks(this);
   readonly campaigns = new Campaigns(this);
   readonly analytics = new Analytics(this);
   url = baseUrl;

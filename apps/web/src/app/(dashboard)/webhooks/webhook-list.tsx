@@ -160,6 +160,7 @@ function WebhookActions({
   const [open, setOpen] = useState(false);
   const isPaused = webhook.status === "PAUSED";
   const isAutoDisabled = webhook.status === "AUTO_DISABLED";
+  const canActivate = isPaused || isAutoDisabled;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -190,12 +191,12 @@ function WebhookActions({
               onToggleStatus();
               setOpen(false);
             }}
-            disabled={isToggling || isAutoDisabled}
+            disabled={isToggling}
           >
-            {isPaused ? (
+            {canActivate ? (
               <>
                 <Play className="mr-2 h-4 w-4" />
-                Resume
+                {isAutoDisabled ? "Re-enable" : "Resume"}
               </>
             ) : (
               <>

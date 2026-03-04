@@ -93,6 +93,45 @@ export async function getTeamAndApiKey(apiKey: string) {
   }
 }
 
+export async function updateApiKey({
+  id,
+  teamId,
+  name,
+  domainId,
+}: {
+  id: number;
+  teamId: number;
+  name?: string;
+  domainId?: number | null;
+}) {
+  try {
+    if (domainId !== undefined && domainId !== null) {
+      const domain = await db.domain.findUnique({
+        where: {
+          id: domainId,
+          teamId: teamId,
+        },
+        select: { id: true },
+      });
+
+      if (!domain) {
+        throw new Error("DOMAIN_NOT_FOUND");
+      }
+    }
+
+    return await db.apiKey.update({
+      where: { id, teamId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(domainId !== undefined && { domainId }),
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Error updating API key");
+    throw error;
+  }
+}
+
 export async function deleteApiKey(id: number) {
   try {
     await db.apiKey.delete({

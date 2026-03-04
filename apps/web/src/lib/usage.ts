@@ -54,9 +54,9 @@ export function getUsageDate(): string {
  * @param transactionUsage Number of transaction emails sent
  * @returns Total usage units rounded down to nearest integer
  */
-export function getUsageUinits(
+export function getUsageUnits(
   marketingUsage: number,
-  transactionUsage: number
+  transactionUsage: number,
 ) {
   return (
     marketingUsage +
