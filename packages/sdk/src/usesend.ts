@@ -4,6 +4,7 @@ import { ContactBooks } from "./contactBook";
 import { Emails } from "./email";
 import { Domains } from "./domain";
 import { Campaigns } from "./campaign";
+import { Analytics } from "./analytics";
 import { Webhooks } from "./webhooks";
 
 const defaultBaseUrl = "https://app.usesend.com";
@@ -26,6 +27,7 @@ export class UseSend {
   readonly contacts = new Contacts(this);
   readonly contactBooks = new ContactBooks(this);
   readonly campaigns = new Campaigns(this);
+  readonly analytics = new Analytics(this);
   url = baseUrl;
 
   constructor(

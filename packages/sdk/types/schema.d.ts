@@ -1715,6 +1715,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/email-time-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of days to retrieve data for (default: 30) */
+                    days?: "7" | "30";
+                    /** @description Filter by domain ID */
+                    domainId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve email time series data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            result: {
+                                date: string;
+                                sent: number;
+                                delivered: number;
+                                opened: number;
+                                clicked: number;
+                                bounced: number;
+                                complained: number;
+                            }[];
+                            totalCounts: {
+                                sent: number;
+                                delivered: number;
+                                opened: number;
+                                clicked: number;
+                                bounced: number;
+                                complained: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/reputation-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Filter by domain ID */
+                    domainId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve reputation metrics data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            delivered: number;
+                            hardBounced: number;
+                            complained: number;
+                            bounceRate: number;
+                            complaintRate: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {

@@ -28,8 +28,11 @@ import createContactBook from "./api/contacts/create-contact-book";
 import getContactBook from "./api/contacts/get-contact-book";
 import updateContactBook from "./api/contacts/update-contact-book";
 import deleteContactBook from "./api/contacts/delete-contact-book";
+import emailTimeSeries from "./api/analytics/email-time-series";
+import reputationMetricsData from "./api/analytics/reputation-metrics-data";
 import bulkAddContactsHandle from "./api/contacts/bulk-add-contacts";
 import bulkDeleteContacts from "./api/contacts/bulk-delete-contacts";
+
 
 export const app = getApp();
 
@@ -73,5 +76,9 @@ scheduleCampaign(app);
 pauseCampaignHandle(app);
 resumeCampaignHandle(app);
 deleteCampaignHandle(app);
+
+/**Analytics related APIs */
+emailTimeSeries(app);
+reputationMetricsData(app);
 
 export default app;
