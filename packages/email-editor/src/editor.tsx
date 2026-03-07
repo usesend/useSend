@@ -69,6 +69,7 @@ export type EditorProps = {
   initialContent?: Content;
   variables?: Array<string>;
   uploadImage?: UploadFn;
+  variableSuggestionsHelperText?: string;
 };
 
 export const Editor: React.FC<EditorProps> = ({
@@ -76,6 +77,7 @@ export const Editor: React.FC<EditorProps> = ({
   initialContent,
   variables,
   uploadImage,
+  variableSuggestionsHelperText,
 }) => {
   const menuContainerRef = useRef(null);
 
@@ -96,7 +98,11 @@ export const Editor: React.FC<EditorProps> = ({
         },
       },
     },
-    extensions: extensions({ variables, uploadImage }),
+    extensions: extensions({
+      variables,
+      uploadImage,
+      variableSuggestionsHelperText,
+    }),
     onUpdate: ({ editor }) => {
       onUpdate?.(editor);
     },

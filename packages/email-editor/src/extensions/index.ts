@@ -21,9 +21,11 @@ import { ResizableImageExtension, UploadFn } from "./ImageExtension";
 export function extensions({
   variables,
   uploadImage,
+  variableSuggestionsHelperText,
 }: {
   variables?: Array<string>;
   uploadImage?: UploadFn;
+  variableSuggestionsHelperText?: string;
 }) {
   const extensions = [
     StarterKit.configure({
@@ -79,7 +81,10 @@ export function extensions({
     ButtonExtension,
     GlobalDragHandle,
     VariableExtension.configure({
-      suggestion: getVariableSuggestions(variables),
+      suggestion: getVariableSuggestions(
+        variables,
+        variableSuggestionsHelperText,
+      ),
     }),
     UnsubscribeFooterExtension,
     ResizableImageExtension.configure({ uploadImage }),

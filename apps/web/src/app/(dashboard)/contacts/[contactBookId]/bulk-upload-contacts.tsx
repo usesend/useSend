@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { api } from "~/trpc/react";
 import { getCanonicalContactVariableName } from "~/lib/contact-properties";
 import {
@@ -30,6 +30,9 @@ import { toast } from "@usesend/ui/src/toaster";
 interface BulkUploadContactsProps {
   contactBookId: string;
   contactBookVariables?: string[];
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface ParsedContact {
@@ -44,12 +47,23 @@ interface ParsedContact {
 export default function BulkUploadContacts({
   contactBookId,
   contactBookVariables,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: BulkUploadContactsProps) {
   const [open, setOpen] = useState(false);
   const [inputText, setInputText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const dialogTrigger =
+    trigger ??
+    (controlledOpen === undefined ? (
+      <Button variant="outline">
+        <Upload className="h-4 w-4 mr-1" />
+        Upload Contacts
+      </Button>
+    ) : null);
 
   const utils = api.useUtils();
 
@@ -71,7 +85,11 @@ export default function BulkUploadContacts({
     setInputText("");
     setError(null);
     setProcessing(false);
-    setOpen(false);
+    if (controlledOpen === undefined) {
+      setOpen(false);
+    } else {
+      onOpenChange?.(false);
+    }
   };
 
   const validateEmail = (email: string): boolean => {
@@ -384,13 +402,20 @@ export default function BulkUploadContacts({
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <Upload className="h-4 w-4 mr-1" />
-          Upload Contacts
-        </Button>
-      </DialogTrigger>
+    <Dialog
+      open={controlledOpen ?? open}
+      onOpenChange={(nextOpen) => {
+        if (controlledOpen === undefined) {
+          setOpen(nextOpen);
+          return;
+        }
+
+        onOpenChange?.(nextOpen);
+      }}
+    >
+      {dialogTrigger ? (
+        <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Bulk Upload Contacts</DialogTitle>

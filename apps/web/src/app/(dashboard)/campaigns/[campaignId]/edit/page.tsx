@@ -173,6 +173,9 @@ function CampaignEditor({
 
     return Array.from(new Set([...baseVariables, ...registryVariables]));
   }, [contactBook]);
+  const variableSuggestionsHelperText = contactBookId
+    ? undefined
+    : "Select the contact book for related variable";
 
   return (
     <div className="p-4 container mx-auto ">
@@ -441,6 +444,7 @@ function CampaignEditor({
           <div className=" rounded-lg bg-gray-50 w-[700px] mx-auto p-10">
             <div className="w-[600px] mx-auto">
               <Editor
+                key={`campaign-editor-${contactBookId ?? "none"}-${editorVariables.join(",")}`}
                 initialContent={json}
                 onUpdate={(content) => {
                   setJson(content.getJSON());
@@ -448,6 +452,7 @@ function CampaignEditor({
                   deboucedUpdateCampaign();
                 }}
                 variables={editorVariables}
+                variableSuggestionsHelperText={variableSuggestionsHelperText}
                 uploadImage={
                   campaign.imageUploadSupported ? handleFileChange : undefined
                 }

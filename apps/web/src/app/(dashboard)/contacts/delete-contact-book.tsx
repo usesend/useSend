@@ -7,10 +7,14 @@ import { ContactBook } from "@prisma/client";
 import { toast } from "@usesend/ui/src/toaster";
 import { Trash2 } from "lucide-react";
 import { z } from "zod";
+import type { ReactNode } from "react";
 
 export const DeleteContactBook: React.FC<{
   contactBook: Partial<ContactBook> & { id: string };
-}> = ({ contactBook }) => {
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}> = ({ contactBook, trigger, open, onOpenChange }) => {
   const deleteContactBookMutation =
     api.contacts.deleteContactBook.useMutation();
   const utils = api.useUtils();
@@ -42,6 +46,14 @@ export const DeleteContactBook: React.FC<{
     );
   }
 
+  const dialogTrigger =
+    trigger ??
+    (open === undefined ? (
+      <Button variant="ghost" size="sm" className="p-0 hover:bg-transparent ">
+        <Trash2 className="h-[18px] w-[18px] text-red/80 hover:text-red/70" />
+      </Button>
+    ) : null);
+
   return (
     <DeleteResource
       title="Delete Contact Book"
@@ -49,11 +61,9 @@ export const DeleteContactBook: React.FC<{
       schema={contactBookSchema}
       isLoading={deleteContactBookMutation.isPending}
       onConfirm={onContactBookDelete}
-      trigger={
-        <Button variant="ghost" size="sm" className="p-0 hover:bg-transparent ">
-          <Trash2 className="h-[18px] w-[18px] text-red/80 hover:text-red/70" />
-        </Button>
-      }
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger={dialogTrigger}
       confirmLabel="Delete Contact Book"
     />
   );

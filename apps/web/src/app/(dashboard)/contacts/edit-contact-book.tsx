@@ -25,6 +25,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@usesend/ui/src/toaster";
+import type { ReactNode } from "react";
 
 const contactBookSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
@@ -33,12 +34,27 @@ const contactBookSchema = z.object({
 
 export const EditContactBook: React.FC<{
   contactBook: { id: string; name: string; variables?: string[] };
-}> = ({ contactBook }) => {
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}> = ({ contactBook, trigger, open: controlledOpen, onOpenChange }) => {
   const [open, setOpen] = useState(false);
   const updateContactBookMutation =
     api.contacts.updateContactBook.useMutation();
 
   const utils = api.useUtils();
+  const dialogTrigger =
+    trigger ??
+    (controlledOpen === undefined ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="p-0 hover:bg-transparent"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Edit className="h-4 w-4 text-foreground/80 hover:text-foreground/70" />
+      </Button>
+    ) : null);
 
   const contactBookForm = useForm<z.infer<typeof contactBookSchema>>({
     resolver: zodResolver(contactBookSchema),
@@ -63,7 +79,11 @@ export const EditContactBook: React.FC<{
       {
         onSuccess: async () => {
           utils.contacts.getContactBooks.invalidate();
-          setOpen(false);
+          if (controlledOpen === undefined) {
+            setOpen(false);
+          } else {
+            onOpenChange?.(false);
+          }
           toast.success("Contact book updated successfully");
         },
         onError: async (error) => {
@@ -75,19 +95,21 @@ export const EditContactBook: React.FC<{
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={(_open) => (_open !== open ? setOpen(_open) : null)}
+      open={controlledOpen ?? open}
+      onOpenChange={(nextOpen) => {
+        if (controlledOpen === undefined) {
+          if (nextOpen !== open) {
+            setOpen(nextOpen);
+          }
+          return;
+        }
+
+        onOpenChange?.(nextOpen);
+      }}
     >
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="p-0 hover:bg-transparent"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Edit className="h-4 w-4 text-foreground/80 hover:text-foreground/70" />
-        </Button>
-      </DialogTrigger>
+      {dialogTrigger ? (
+        <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Contact Book</DialogTitle>

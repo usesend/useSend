@@ -36,7 +36,7 @@ export const VariableList = forwardRef((props: any, ref) => {
     onKeyDown: ({ event }: { event: KeyboardEvent }) => {
       if (event.key === "ArrowUp") {
         setSelectedIndex(
-          (selectedIndex + props.items.length - 1) % props.items.length
+          (selectedIndex + props.items.length - 1) % props.items.length,
         );
         return true;
       }
@@ -64,7 +64,7 @@ export const VariableList = forwardRef((props: any, ref) => {
             onClick={() => selectItem(index)}
             className={cn(
               "flex w-full space-x-2 rounded-md px-2 py-1 text-left text-sm text-gray-900 hover:bg-gray-100",
-              index === selectedIndex ? "bg-gray-200" : "bg-white"
+              index === selectedIndex ? "bg-gray-200" : "bg-white",
             )}
           >
             {item}
@@ -75,6 +75,11 @@ export const VariableList = forwardRef((props: any, ref) => {
           No result
         </button>
       )}
+      {props.helperText ? (
+        <div className="px-2 pt-1 text-[11px] text-gray-400">
+          {props.helperText}
+        </div>
+      ) : null}
     </div>
   );
 });
@@ -82,14 +87,15 @@ export const VariableList = forwardRef((props: any, ref) => {
 VariableList.displayName = "VariableList";
 
 export function getVariableSuggestions(
-  variables: Array<string> = []
+  variables: Array<string> = [],
+  helperText?: string,
 ): Omit<SuggestionOptions, "editor"> {
   return {
     items: ({ query }) => {
       return variables
         .concat(query.length > 0 ? [query] : [])
         .filter((item) => item.toLowerCase().startsWith(query.toLowerCase()))
-        .slice(0, 5);
+        .slice(0, 10);
     },
 
     render: () => {
@@ -101,6 +107,10 @@ export function getVariableSuggestions(
           component = new ReactRenderer(VariableList, {
             props,
             editor: props.editor,
+          });
+          component.updateProps({
+            ...props,
+            helperText,
           });
 
           if (!props.clientRect) {
@@ -119,7 +129,10 @@ export function getVariableSuggestions(
         },
 
         onUpdate(props) {
-          component.updateProps(props);
+          component.updateProps({
+            ...props,
+            helperText,
+          });
 
           if (!props.clientRect) {
             return;
@@ -180,7 +193,7 @@ export function VariableComponent(props: NodeViewProps) {
           <button
             className={cn(
               "inline-flex items-center justify-center rounded-md text-sm gap-1 ring-offset-white transition-colors",
-              "px-2 border border-gray-300 shadow-sm  cursor-pointer text-foreground/80"
+              "px-2 border border-gray-300 shadow-sm  cursor-pointer text-foreground/80",
             )}
             onClick={(e) => {
               e.preventDefault();

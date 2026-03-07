@@ -23,7 +23,7 @@ import {
 import { Button } from "@usesend/ui/src/button";
 import { Switch } from "@usesend/ui/src/switch";
 import { useTheme } from "@usesend/ui";
-import { use } from "react";
+import { use, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
 import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import {
@@ -35,7 +35,129 @@ import {
   Megaphone,
   Shield,
   ChevronRight,
+  MoreVertical,
+  Plus,
+  Upload,
+  Edit,
+  Trash2,
 } from "lucide-react";
+import EditContactBook from "../edit-contact-book";
+import DeleteContactBook from "../delete-contact-book";
+
+function ContactBookDetailActions({
+  contactBookId,
+  contactBookName,
+  contactBookVariables,
+}: {
+  contactBookId: string;
+  contactBookName?: string;
+  contactBookVariables?: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="default" className="gap-1">
+            <MoreVertical className="h-4 -ml-2" />
+            Actions
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-52 rounded-xl p-1" align="end">
+          <div className="flex flex-col">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start rounded-lg hover:bg-accent"
+              onClick={() => {
+                setOpen(false);
+                setIsAddOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add contacts
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start rounded-lg hover:bg-accent"
+              onClick={() => {
+                setOpen(false);
+                setIsBulkUploadOpen(true);
+              }}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk upload
+            </Button>
+            {contactBookName ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start rounded-lg hover:bg-accent"
+                onClick={() => {
+                  setOpen(false);
+                  setIsEditOpen(true);
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            ) : null}
+            {contactBookName ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start rounded-lg text-red/80 hover:bg-accent hover:text-red"
+                onClick={() => {
+                  setOpen(false);
+                  setIsDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            ) : null}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <AddContact
+        contactBookId={contactBookId}
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+      />
+      <BulkUploadContacts
+        contactBookId={contactBookId}
+        contactBookVariables={contactBookVariables}
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+      />
+      {contactBookName ? (
+        <EditContactBook
+          contactBook={{
+            id: contactBookId,
+            name: contactBookName,
+            variables: contactBookVariables,
+          }}
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+        />
+      ) : null}
+      {contactBookName ? (
+        <DeleteContactBook
+          contactBook={{ id: contactBookId, name: contactBookName }}
+          open={isDeleteOpen}
+          onOpenChange={setIsDeleteOpen}
+        />
+      ) : null}
+    </>
+  );
+}
 
 export default function ContactsPage({
   params,
@@ -132,13 +254,11 @@ export default function ContactsPage({
             </BreadcrumbList>
           </Breadcrumb>
         </div>
-        <div className="flex gap-4">
-          <BulkUploadContacts
-            contactBookId={contactBookId}
-            contactBookVariables={contactBookDetailQuery.data?.variables}
-          />
-          <AddContact contactBookId={contactBookId} />
-        </div>
+        <ContactBookDetailActions
+          contactBookId={contactBookId}
+          contactBookName={contactBookDetailQuery.data?.name}
+          contactBookVariables={contactBookDetailQuery.data?.variables}
+        />
       </div>
 
       <div className="mt-10">
