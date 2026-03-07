@@ -728,300 +728,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/contactBooks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Retrieve contact books accessible by the API key */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /**
-                             * @description The ID of the contact book
-                             * @example clx1234567890
-                             */
-                            id: string;
-                            /**
-                             * @description The name of the contact book
-                             * @example Newsletter Subscribers
-                             */
-                            name: string;
-                            /**
-                             * @description The ID of the team
-                             * @example 1
-                             */
-                            teamId: number;
-                            /**
-                             * @description Custom properties for the contact book
-                             * @example {
-                             *       "customField1": "value1"
-                             *     }
-                             */
-                            properties: {
-                                [key: string]: string;
-                            };
-                            /**
-                             * @description The emoji associated with the contact book
-                             * @example 📙
-                             */
-                            emoji: string;
-                            /** @description The creation timestamp */
-                            createdAt: string;
-                            /** @description The last update timestamp */
-                            updatedAt: string;
-                            _count?: {
-                                /** @description The number of contacts in the contact book */
-                                contacts?: number;
-                            };
-                        }[];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        name: string;
-                        emoji?: string;
-                        properties?: {
-                            [key: string]: string;
-                        };
-                    };
-                };
-            };
-            responses: {
-                /** @description Create a new contact book */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            name: string;
-                            teamId: number;
-                            properties: {
-                                [key: string]: string;
-                            };
-                            emoji: string;
-                            createdAt: string;
-                            updatedAt: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/contactBooks/{contactBookId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contactBookId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Retrieve the contact book */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            name: string;
-                            teamId: number;
-                            properties: {
-                                [key: string]: string;
-                            };
-                            emoji: string;
-                            createdAt: string;
-                            updatedAt: string;
-                            _count?: {
-                                contacts?: number;
-                            };
-                        };
-                    };
-                };
-                /** @description Forbidden - API key doesn't have access */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Contact book not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contactBookId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Contact book deleted successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            success: boolean;
-                            message: string;
-                        };
-                    };
-                };
-                /** @description Forbidden - API key doesn't have access */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Contact book not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contactBookId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        name?: string;
-                        emoji?: string;
-                        properties?: {
-                            [key: string]: string;
-                        };
-                    };
-                };
-            };
-            responses: {
-                /** @description Update the contact book */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            name: string;
-                            teamId: number;
-                            properties: {
-                                [key: string]: string;
-                            };
-                            emoji: string;
-                            createdAt: string;
-                            updatedAt: string;
-                        };
-                    };
-                };
-                /** @description Forbidden - API key doesn't have access */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Contact book not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/v1/contactBooks/{contactBookId}/contacts": {
         parameters: {
             query?: never;
@@ -1112,88 +818,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/contactBooks/{contactBookId}/contacts/bulk": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contactBookId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        email: string;
-                        firstName?: string;
-                        lastName?: string;
-                        properties?: {
-                            [key: string]: string;
-                        };
-                        subscribed?: boolean;
-                    }[];
-                };
-            };
-            responses: {
-                /** @description Bulk add contacts to a contact book */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            message: string;
-                            count: number;
-                        };
-                    };
-                };
-            };
-        };
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contactBookId: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        contactIds: string[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Bulk delete contacts from a contact book */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            success: boolean;
-                            count: number;
-                        };
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/contactBooks/{contactBookId}/contacts/{contactId}": {
         parameters: {
             query?: never;
@@ -1243,7 +867,6 @@ export interface paths {
                 header?: never;
                 path: {
                     contactBookId: string;
-                    contactId: string;
                 };
                 cookie?: never;
             };
@@ -1340,6 +963,573 @@ export interface paths {
         };
         trace?: never;
     };
+    "/v1/contactBooks/{contactBookId}/contacts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        email: string;
+                        firstName?: string;
+                        lastName?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        subscribed?: boolean;
+                    }[];
+                };
+            };
+            responses: {
+                /** @description Bulk add contacts to a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        contactIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Bulk delete contacts from a contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contactBooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve contact books accessible by the API key */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The ID of the contact book
+                             * @example clx1234567890
+                             */
+                            id: string;
+                            /**
+                             * @description The name of the contact book
+                             * @example Newsletter Subscribers
+                             */
+                            name: string;
+                            /**
+                             * @description The ID of the team
+                             * @example 1
+                             */
+                            teamId: number;
+                            /**
+                             * @description Custom properties for the contact book
+                             * @example {
+                             *       "customField1": "value1"
+                             *     }
+                             */
+                            properties: {
+                                [key: string]: string;
+                            };
+                            /**
+                             * @description Allowed personalization variables for contacts in this book
+                             * @example [
+                             *       "registrationCode",
+                             *       "company"
+                             *     ]
+                             */
+                            variables: string[];
+                            /**
+                             * @description The emoji associated with the contact book
+                             * @example 📙
+                             */
+                            emoji: string;
+                            /**
+                             * @description Whether double opt-in is enabled for new contacts
+                             * @example true
+                             */
+                            doubleOptInEnabled?: boolean;
+                            /**
+                             * @description From address used for double opt-in emails (must use a verified domain)
+                             * @example Newsletter <hello@example.com>
+                             */
+                            doubleOptInFrom?: string | null;
+                            /**
+                             * @description Subject line used for double opt-in confirmation email
+                             * @example Please confirm your subscription
+                             */
+                            doubleOptInSubject?: string | null;
+                            /** @description Email editor JSON content used for double opt-in confirmation */
+                            doubleOptInContent?: string | null;
+                            /** @description The creation timestamp */
+                            createdAt: string;
+                            /** @description The last update timestamp */
+                            updatedAt: string;
+                            _count?: {
+                                /** @description The number of contacts in the contact book */
+                                contacts: number;
+                            };
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        emoji?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        doubleOptInEnabled?: boolean;
+                        doubleOptInFrom?: string | null;
+                        doubleOptInSubject?: string;
+                        doubleOptInContent?: string;
+                        variables?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Create a new contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The ID of the contact book
+                             * @example clx1234567890
+                             */
+                            id: string;
+                            /**
+                             * @description The name of the contact book
+                             * @example Newsletter Subscribers
+                             */
+                            name: string;
+                            /**
+                             * @description The ID of the team
+                             * @example 1
+                             */
+                            teamId: number;
+                            /**
+                             * @description Custom properties for the contact book
+                             * @example {
+                             *       "customField1": "value1"
+                             *     }
+                             */
+                            properties: {
+                                [key: string]: string;
+                            };
+                            /**
+                             * @description Allowed personalization variables for contacts in this book
+                             * @example [
+                             *       "registrationCode",
+                             *       "company"
+                             *     ]
+                             */
+                            variables: string[];
+                            /**
+                             * @description The emoji associated with the contact book
+                             * @example 📙
+                             */
+                            emoji: string;
+                            /**
+                             * @description Whether double opt-in is enabled for new contacts
+                             * @example true
+                             */
+                            doubleOptInEnabled?: boolean;
+                            /**
+                             * @description From address used for double opt-in emails (must use a verified domain)
+                             * @example Newsletter <hello@example.com>
+                             */
+                            doubleOptInFrom?: string | null;
+                            /**
+                             * @description Subject line used for double opt-in confirmation email
+                             * @example Please confirm your subscription
+                             */
+                            doubleOptInSubject?: string | null;
+                            /** @description Email editor JSON content used for double opt-in confirmation */
+                            doubleOptInContent?: string | null;
+                            /** @description The creation timestamp */
+                            createdAt: string;
+                            /** @description The last update timestamp */
+                            updatedAt: string;
+                            _count?: {
+                                /** @description The number of contacts in the contact book */
+                                contacts: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contactBooks/{contactBookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Retrieve the contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The ID of the contact book
+                             * @example clx1234567890
+                             */
+                            id: string;
+                            /**
+                             * @description The name of the contact book
+                             * @example Newsletter Subscribers
+                             */
+                            name: string;
+                            /**
+                             * @description The ID of the team
+                             * @example 1
+                             */
+                            teamId: number;
+                            /**
+                             * @description Custom properties for the contact book
+                             * @example {
+                             *       "customField1": "value1"
+                             *     }
+                             */
+                            properties: {
+                                [key: string]: string;
+                            };
+                            /**
+                             * @description Allowed personalization variables for contacts in this book
+                             * @example [
+                             *       "registrationCode",
+                             *       "company"
+                             *     ]
+                             */
+                            variables: string[];
+                            /**
+                             * @description The emoji associated with the contact book
+                             * @example 📙
+                             */
+                            emoji: string;
+                            /**
+                             * @description Whether double opt-in is enabled for new contacts
+                             * @example true
+                             */
+                            doubleOptInEnabled?: boolean;
+                            /**
+                             * @description From address used for double opt-in emails (must use a verified domain)
+                             * @example Newsletter <hello@example.com>
+                             */
+                            doubleOptInFrom?: string | null;
+                            /**
+                             * @description Subject line used for double opt-in confirmation email
+                             * @example Please confirm your subscription
+                             */
+                            doubleOptInSubject?: string | null;
+                            /** @description Email editor JSON content used for double opt-in confirmation */
+                            doubleOptInContent?: string | null;
+                            /** @description The creation timestamp */
+                            createdAt: string;
+                            /** @description The last update timestamp */
+                            updatedAt: string;
+                            _count?: {
+                                /** @description The number of contacts in the contact book */
+                                contacts: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access to this contact book */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contact book deleted successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            success: boolean;
+                            message: string;
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    contactBookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        emoji?: string;
+                        properties?: {
+                            [key: string]: string;
+                        };
+                        doubleOptInEnabled?: boolean;
+                        doubleOptInFrom?: string | null;
+                        doubleOptInSubject?: string;
+                        doubleOptInContent?: string;
+                        variables?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Update the contact book */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description The ID of the contact book
+                             * @example clx1234567890
+                             */
+                            id: string;
+                            /**
+                             * @description The name of the contact book
+                             * @example Newsletter Subscribers
+                             */
+                            name: string;
+                            /**
+                             * @description The ID of the team
+                             * @example 1
+                             */
+                            teamId: number;
+                            /**
+                             * @description Custom properties for the contact book
+                             * @example {
+                             *       "customField1": "value1"
+                             *     }
+                             */
+                            properties: {
+                                [key: string]: string;
+                            };
+                            /**
+                             * @description Allowed personalization variables for contacts in this book
+                             * @example [
+                             *       "registrationCode",
+                             *       "company"
+                             *     ]
+                             */
+                            variables: string[];
+                            /**
+                             * @description The emoji associated with the contact book
+                             * @example 📙
+                             */
+                            emoji: string;
+                            /**
+                             * @description Whether double opt-in is enabled for new contacts
+                             * @example true
+                             */
+                            doubleOptInEnabled?: boolean;
+                            /**
+                             * @description From address used for double opt-in emails (must use a verified domain)
+                             * @example Newsletter <hello@example.com>
+                             */
+                            doubleOptInFrom?: string | null;
+                            /**
+                             * @description Subject line used for double opt-in confirmation email
+                             * @example Please confirm your subscription
+                             */
+                            doubleOptInSubject?: string | null;
+                            /** @description Email editor JSON content used for double opt-in confirmation */
+                            doubleOptInContent?: string | null;
+                            /** @description The creation timestamp */
+                            createdAt: string;
+                            /** @description The last update timestamp */
+                            updatedAt: string;
+                            _count?: {
+                                /** @description The number of contacts in the contact book */
+                                contacts: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - API key doesn't have access to this contact book */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Contact book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/v1/campaigns": {
         parameters: {
             query?: never;
@@ -1350,11 +1540,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Page number for pagination (default: 1) */
                     page?: string;
-                    /** @description Filter campaigns by status */
                     status?: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
-                    /** @description Search campaigns by name or subject */
                     search?: string;
                 };
                 header?: never;
@@ -1379,8 +1566,7 @@ export interface paths {
                                 createdAt: string;
                                 /** Format: date-time */
                                 updatedAt: string;
-                                /** @enum {string} */
-                                status: "DRAFT" | "SCHEDULED" | "RUNNING" | "PAUSED" | "SENT";
+                                status: string;
                                 /** Format: date-time */
                                 scheduledAt: string | null;
                                 total: number;
@@ -1474,9 +1660,7 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                campaignId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         get: {
@@ -1725,9 +1909,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Number of days to retrieve data for (default: 30) */
                     days?: "7" | "30";
-                    /** @description Filter by domain ID */
                     domainId?: string;
                 };
                 header?: never;
@@ -1783,7 +1965,6 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Filter by domain ID */
                     domainId?: string;
                 };
                 header?: never;

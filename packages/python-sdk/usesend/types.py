@@ -271,6 +271,65 @@ class EmailCancelResponse(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 
 
+class ContactBookCounts(TypedDict, total=False):
+    contacts: int
+
+
+class ContactBook(TypedDict, total=False):
+    id: str
+    name: str
+    teamId: float
+    properties: Dict[str, str]
+    variables: List[str]
+    emoji: str
+    doubleOptInEnabled: Optional[bool]
+    doubleOptInFrom: Optional[str]
+    doubleOptInSubject: Optional[str]
+    doubleOptInContent: Optional[str]
+    createdAt: str
+    updatedAt: str
+    _count: ContactBookCounts
+
+
+ContactBookList = List[ContactBook]
+
+
+class ContactBookCreate(TypedDict, total=False):
+    name: str
+    emoji: Optional[str]
+    properties: Optional[Dict[str, str]]
+    doubleOptInEnabled: Optional[bool]
+    doubleOptInFrom: Optional[str]
+    doubleOptInSubject: Optional[str]
+    doubleOptInContent: Optional[str]
+    variables: Optional[List[str]]
+
+
+class ContactBookCreateResponse(ContactBook, total=False):
+    pass
+
+
+class ContactBookUpdate(TypedDict, total=False):
+    name: Optional[str]
+    emoji: Optional[str]
+    properties: Optional[Dict[str, str]]
+    doubleOptInEnabled: Optional[bool]
+    doubleOptInFrom: Optional[str]
+    doubleOptInSubject: Optional[str]
+    doubleOptInContent: Optional[str]
+    variables: Optional[List[str]]
+
+
+class ContactBookUpdateResponse(ContactBook, total=False):
+    pass
+
+
+class ContactBookDeleteResponse(TypedDict):
+    id: str
+    success: bool
+    message: str
+
+
 class ContactCreate(TypedDict, total=False):
     email: str
     firstName: Optional[str]
@@ -296,6 +355,23 @@ class ContactListItem(TypedDict, total=False):
 
 
 ContactList = List[ContactListItem]
+
+
+ContactBulkCreate = List[ContactCreate]
+
+
+class ContactBulkCreateResponse(TypedDict):
+    message: str
+    count: float
+
+
+class ContactBulkDelete(TypedDict):
+    contactIds: List[str]
+
+
+class ContactBulkDeleteResponse(TypedDict):
+    success: bool
+    count: float
 
 
 class ContactUpdate(TypedDict, total=False):

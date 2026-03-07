@@ -1,6 +1,8 @@
 """Python client for the UseSend API."""
 
 from .usesend import UseSend, UseSendHTTPError
+from .contacts import Contacts  # type: ignore
+from .contact_books import ContactBooks  # type: ignore
 from .domains import Domains  # type: ignore
 from .campaigns import Campaigns  # type: ignore
 from .webhooks import (
@@ -17,6 +19,8 @@ __all__ = [
     "UseSend",
     "UseSendHTTPError",
     "types",
+    "Contacts",
+    "ContactBooks",
     "Domains",
     "Campaigns",
     "Webhooks",
