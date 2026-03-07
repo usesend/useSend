@@ -362,7 +362,7 @@ export function AddWebhook() {
                               <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent className="h-[30vh] w-[--radix-dropdown-menu-trigger-width]">
+                          <DropdownMenuContent className="max-h-[30vh] w-[--radix-dropdown-menu-trigger-width] overflow-y-auto">
                             <div className="space-y-3">
                               <DropdownMenuCheckboxItem
                                 checked={selectedDomainIds.length === 0}

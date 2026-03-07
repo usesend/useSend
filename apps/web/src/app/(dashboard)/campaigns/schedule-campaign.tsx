@@ -35,10 +35,10 @@ export const ScheduleCampaign: React.FC<{
   const [scheduleInput, setScheduleInput] = useState<string>(
     initialScheduledAtDate
       ? format(initialScheduledAtDate, "yyyy-MM-dd HH:mm")
-      : ""
+      : "",
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(
-    initialScheduledAtDate ?? new Date()
+    initialScheduledAtDate ?? new Date(),
   );
   const [isConfirmNow, setIsConfirmNow] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export const ScheduleCampaign: React.FC<{
         onError: (error) => {
           setError(error.message || "Failed to schedule campaign");
         },
-      }
+      },
     );
   };
 
