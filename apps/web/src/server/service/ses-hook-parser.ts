@@ -128,16 +128,19 @@ export async function parseSesHook(data: SesEvent) {
 
     // Get the actual affected recipients from the event data
     let recipientEmails: string[] = [];
-    
+
     if (isHardBounced && data.bounce?.bouncedRecipients) {
       // For bounces, only add the recipients that actually bounced
       recipientEmails = data.bounce.bouncedRecipients.map(
-        (recipient) => recipient.emailAddress
+        (recipient) => recipient.emailAddress,
       );
-    } else if (mailStatus === EmailStatus.COMPLAINED && data.complaint?.complainedRecipients) {
+    } else if (
+      mailStatus === EmailStatus.COMPLAINED &&
+      data.complaint?.complainedRecipients
+    ) {
       // For complaints, only add the recipients that actually complained
       recipientEmails = data.complaint.complainedRecipients.map(
-        (recipient) => recipient.emailAddress
+        (recipient) => recipient.emailAddress,
       );
     }
 
@@ -318,6 +321,9 @@ export async function parseSesHook(data: SesEvent) {
         eventData: mailData,
         metadata,
       }),
+      {
+        domainId: email.domainId ?? null,
+      },
     );
   } catch (error) {
     logger.error(
