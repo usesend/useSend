@@ -1,0 +1,178 @@
+---
+title: Campaign Personalization
+description: "Use contact variables to personalize campaign content for each recipient"
+---
+
+## Overview
+
+Campaign personalization lets you pull values from your contacts into campaign emails. You can use built-in fields like `{{firstName}}` and `{{email}}`, plus custom variables such as `{{company}}`, `{{plan}}`, or `{{registrationCode}}`.
+
+## How it works
+
+<Steps>
+  <Step title="Register variables on the contact book">
+    Add the custom variable names you want to use, such as `company` or `plan`,
+    on the contact book.
+  </Step>
+  <Step title="Store values on each contact">
+    Save the matching values on each contact through the dashboard, CSV import,
+    or API.
+  </Step>
+  <Step title="Use variables in your campaign">
+    Select that contact book in your campaign and insert variables into the
+    subject or email content.
+  </Step>
+  <Step title="Send the campaign">
+    useSend replaces each variable with that contact's value when the campaign
+    is rendered.
+  </Step>
+</Steps>
+
+## Available variables
+
+These built-in variables are always available in campaigns:
+
+- `{{email}}`
+- `{{firstName}}`
+- `{{lastName}}`
+
+Custom variables come from the contact book's variable list.
+
+<Warning>
+  Custom variables must be added to the contact book before they can be used in
+  a campaign. Variable names can only contain letters, numbers, and underscores.
+</Warning>
+
+## Set up personalization in the dashboard
+
+### 1. Add variables to your contact book
+
+1. Go to [Contacts](https://app.usesend.com/contacts)
+2. Create a new contact book or open an existing one
+3. Add your variables as a comma-separated list, for example:
+
+```text
+company, plan, registrationCode
+```
+
+### 2. Add values to your contacts
+
+For each contact, save values for the variables you registered.
+
+For example, a contact might look like this:
+
+```json
+{
+  "email": "jane@example.com",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "properties": {
+    "company": "Acme",
+    "plan": "Pro",
+    "registrationCode": "WELCOME-2026"
+  }
+}
+```
+
+You can add these values:
+
+- manually from the contact editor
+- through CSV import using matching column names
+- through the Contacts API using `properties`
+
+### 3. Insert variables in your campaign
+
+1. Open or create a campaign
+2. Select the contact book that contains your variables
+3. Insert variables into the subject or email body
+
+Examples:
+
+```text
+Subject: Welcome to {{company}}
+
+Hi {{firstName}},
+
+You're currently on the {{plan}} plan.
+Your registration code is {{registrationCode}}.
+```
+
+If a contact book is selected, the campaign editor will suggest the available
+variables automatically.
+
+## Fallback values
+
+If a variable might be empty, you can provide a fallback value:
+
+```text
+Hi {{firstName,fallback=there}},
+```
+
+This renders `there` when `firstName` is empty.
+
+## Using the API
+
+### Create a contact book with variables
+
+```bash
+curl -X POST https://app.usesend.com/api/v1/contactBooks \
+  -H "Authorization: Bearer us_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Customers",
+    "variables": ["company", "plan", "registrationCode"]
+  }'
+```
+
+### Create a contact with variable values
+
+```bash
+curl -X POST https://app.usesend.com/api/v1/contactBooks/{contactBookId}/contacts \
+  -H "Authorization: Bearer us_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane@example.com",
+    "firstName": "Jane",
+    "properties": {
+      "company": "Acme",
+      "plan": "Pro",
+      "registrationCode": "WELCOME-2026"
+    }
+  }'
+```
+
+### Create a campaign that uses variables
+
+```bash
+curl -X POST https://app.usesend.com/api/v1/campaigns \
+  -H "Authorization: Bearer us_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Welcome campaign",
+    "from": "Acme <hello@acme.com>",
+    "subject": "Welcome to {{company}}",
+    "contactBookId": "{contactBookId}",
+    "html": "<p>Hi {{firstName,fallback=there}}, your plan is {{plan}}.</p>"
+  }'
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Register variables before importing contacts">
+    Add your variable list to the contact book first so imported CSV columns and
+    API properties stay consistent.
+  </Accordion>
+  <Accordion title="Keep variable names simple">
+    Use short names like `company`, `plan`, or `couponCode` instead of long or
+    ambiguous labels.
+  </Accordion>
+  <Accordion title="Use fallbacks for optional data">
+    If a value may be missing for some contacts, add a fallback so the final
+    email still reads naturally.
+  </Accordion>
+  <Accordion title="Test with a small segment first">
+    Send to a few contacts first to verify that variables render the way you
+    expect before sending a larger campaign.
+  </Accordion>
+</AccordionGroup>
