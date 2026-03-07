@@ -149,6 +149,7 @@ export async function updateContactBook(
     emoji?: string;
     variables?: string[];
     doubleOptInEnabled?: boolean;
+    doubleOptInFrom?: string | null;
     doubleOptInSubject?: string;
     doubleOptInContent?: string;
   } = {

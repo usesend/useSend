@@ -3,7 +3,7 @@ import { escapeHtml, toPlainHtml } from "~/server/utils/email-content";
 
 describe("email-content utils", () => {
   it("escapes unsafe HTML characters", () => {
-    const value = `<script>alert('x') & \"y\"</script>`;
+    const value = `<script>alert('x') & "y"</script>`;
     expect(escapeHtml(value)).toBe(
       "&lt;script&gt;alert(&#39;x&#39;) &amp; &quot;y&quot;&lt;/script&gt;",
     );

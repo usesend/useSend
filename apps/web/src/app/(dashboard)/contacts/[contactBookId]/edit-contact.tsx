@@ -92,6 +92,10 @@ export const EditContact: React.FC<{
   });
 
   async function onContactUpdate(values: z.infer<typeof contactSchema>) {
+    const properties: Record<string, string> = Object.fromEntries(
+      Object.entries(variableValues).filter(([, value]) => value.trim()),
+    );
+
     updateContactMutation.mutate(
       {
         contactId: contact.id,
@@ -100,11 +104,9 @@ export const EditContact: React.FC<{
         properties: replaceContactVariableValues(
           (contact.properties as Record<string, unknown> | null | undefined) ??
             {},
-          Object.fromEntries(
-            Object.entries(variableValues).filter(([, value]) => value.trim()),
-          ),
+          properties,
           contactBookVariables ?? [],
-        ),
+        ) as Record<string, string>,
       },
       {
         onSuccess: async () => {
@@ -155,7 +157,7 @@ export const EditContact: React.FC<{
               <FormField
                 control={contactForm.control}
                 name="firstName"
-                render={({ field, formState }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>First Name</FormLabel>
                     <FormControl>
@@ -167,7 +169,7 @@ export const EditContact: React.FC<{
               <FormField
                 control={contactForm.control}
                 name="lastName"
-                render={({ field, formState }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>Last Name</FormLabel>
                     <FormControl>

@@ -1,4 +1,4 @@
-import { type Contact, UnsubscribeReason } from "@prisma/client";
+import { Prisma, type Contact, UnsubscribeReason } from "@prisma/client";
 import {
   type ContactPayload,
   type ContactWebhookEventType,
@@ -106,7 +106,7 @@ export async function addOrUpdateContact(
       email: contact.email,
       firstName: contact.firstName,
       lastName: contact.lastName,
-      properties: normalizedProperties ?? {},
+      properties: (normalizedProperties ?? {}) as Prisma.InputJsonObject,
       subscribed: shouldCreatePendingContact
         ? false
         : (contact.subscribed ?? true),
@@ -120,7 +120,7 @@ export async function addOrUpdateContact(
       firstName: contact.firstName,
       lastName: contact.lastName,
       ...(mergedProperties !== undefined
-        ? { properties: mergedProperties }
+        ? { properties: mergedProperties as Prisma.InputJsonObject }
         : {}),
       ...(subscribedValue !== undefined
         ? {
@@ -210,7 +210,7 @@ export async function updateContactInContactBook(
     data: {
       ...contact,
       ...(mergedProperties !== undefined
-        ? { properties: mergedProperties }
+        ? { properties: mergedProperties as Prisma.InputJsonObject }
         : {}),
       ...(contact.subscribed !== undefined
         ? {
