@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "usesend"
-version = "0.2.9"
+version = "0.2.10"
 description = "Python SDK for the UseSend API"
 authors = ["UseSend"]
 license = "MIT"
@@ -14,6 +14,7 @@ requests = "^2.32.0"
 typing_extensions = ">=4.7"
 
 [tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
 
 [build-system]
 requires = ["poetry-core"]

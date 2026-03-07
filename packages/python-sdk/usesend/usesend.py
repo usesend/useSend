@@ -71,6 +71,8 @@ class UseSend:
         # Lazily initialise resource clients.
         self.emails = Emails(self)
         self.contacts = Contacts(self)
+        self.contact_books = ContactBooks(self)
+        self.contactBooks = self.contact_books
         self.domains = Domains(self)
         self.campaigns = Campaigns(self)
 
@@ -186,6 +188,7 @@ class UseSend:
 # Import here to avoid circular dependency during type checking
 from .emails import Emails  # noqa: E402  pylint: disable=wrong-import-position
 from .contacts import Contacts  # noqa: E402  pylint: disable=wrong-import-position
+from .contact_books import ContactBooks  # noqa: E402  pylint: disable=wrong-import-position
 from .domains import Domains  # type: ignore  # noqa: E402
 from .campaigns import Campaigns  # type: ignore  # noqa: E402
 from .webhooks import Webhooks  # noqa: E402  pylint: disable=wrong-import-position
