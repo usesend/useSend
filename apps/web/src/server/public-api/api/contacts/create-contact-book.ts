@@ -23,6 +23,7 @@ const route = createRoute({
             doubleOptInFrom: z.string().nullable().optional(),
             doubleOptInSubject: z.string().optional(),
             doubleOptInContent: z.string().optional(),
+            variables: z.array(z.string()).optional(),
           }),
         },
       },
@@ -54,7 +55,12 @@ function createContactBook(app: PublicAPIApp) {
       body.doubleOptInContent !== undefined;
 
     const contactBook = await db.$transaction(async (tx) => {
-      const created = await createContactBookService(team.id, body.name, tx);
+      const created = await createContactBookService(
+        team.id,
+        body.name,
+        body.variables,
+        tx,
+      );
 
       if (!hasOptionalFields) {
         return created;
@@ -77,6 +83,7 @@ function createContactBook(app: PublicAPIApp) {
     return c.json({
       ...contactBook,
       properties: contactBook.properties as Record<string, string>,
+      variables: contactBook.variables,
     });
   });
 }

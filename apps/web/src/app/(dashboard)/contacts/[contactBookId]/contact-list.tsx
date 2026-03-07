@@ -26,6 +26,7 @@ import EditContact from "./edit-contact";
 import { ResendDoubleOptInConfirmation } from "./resend-double-opt-in-confirmation";
 import { Input } from "@usesend/ui/src/input";
 import { useDebouncedCallback } from "use-debounce";
+import { getContactPropertyValue } from "~/lib/contact-properties";
 import {
   Tooltip,
   TooltipContent,
@@ -72,10 +73,12 @@ export default function ContactList({
   contactBookId,
   contactBookName,
   doubleOptInEnabled,
+  contactBookVariables,
 }: {
   contactBookId: string;
   contactBookName?: string;
   doubleOptInEnabled?: boolean;
+  contactBookVariables?: string[];
 }) {
   const [page, setPage] = useUrlState("page", "1");
   const [status, setStatus] = useUrlState("status");
@@ -141,6 +144,7 @@ export default function ContactList({
       "Subscribed",
       "Unsubscribe Reason",
       "Created At",
+      ...(contactBookVariables ?? []),
     ];
 
     // CSV Rows
@@ -151,6 +155,15 @@ export default function ContactList({
       escapeCell(contact.subscribed ? "Yes" : "No"),
       escapeCell(contact.unsubscribeReason ?? ""),
       escapeCell(contact.createdAt.toISOString()),
+      ...(contactBookVariables ?? []).map((variable) =>
+        escapeCell(
+          getContactPropertyValue(
+            (contact.properties as Record<string, unknown> | undefined) ?? {},
+            variable,
+            contactBookVariables ?? [],
+          ) ?? "",
+        ),
+      ),
     ]);
 
     // Build CSV with UTF-8 BOM
@@ -314,7 +327,10 @@ export default function ContactList({
                               email={contact.email}
                             />
                           ) : null}
-                          <EditContact contact={contact} />
+                          <EditContact
+                            contact={contact}
+                            contactBookVariables={contactBookVariables}
+                          />
                           <DeleteContact contact={contact} />
                         </div>
                       </TableCell>

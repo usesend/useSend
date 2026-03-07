@@ -14,6 +14,7 @@ const {
     contact: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
       upsert: vi.fn(),
     },
   },
@@ -53,6 +54,7 @@ vi.mock("~/server/logger/log", () => ({
 import {
   addOrUpdateContact,
   resendDoubleOptInConfirmationInContactBook,
+  updateContactInContactBook,
 } from "~/server/service/contact-service";
 
 const createdAt = new Date("2026-02-08T00:00:00.000Z");
@@ -62,6 +64,7 @@ describe("contact-service addOrUpdateContact", () => {
     mockDb.contactBook.findUnique.mockReset();
     mockDb.contact.findFirst.mockReset();
     mockDb.contact.findUnique.mockReset();
+    mockDb.contact.update.mockReset();
     mockDb.contact.upsert.mockReset();
     mockWebhookEmit.mockReset();
     mockSendDoubleOptInConfirmationEmail.mockReset();
@@ -233,6 +236,134 @@ describe("contact-service addOrUpdateContact", () => {
     );
   });
 
+  it("canonicalizes registered property keys when creating contacts", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+      variables: ["company"],
+    });
+    mockDb.contact.findUnique.mockResolvedValue(null);
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_8",
+      email: "frank@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: { company: "Acme", tier: "gold" },
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      {
+        email: "frank@example.com",
+        properties: {
+          Company: "Acme",
+          tier: "gold",
+        },
+      },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.create.properties).toEqual({
+      company: "Acme",
+      tier: "gold",
+    });
+    expect(upsertArgs.update.properties).toEqual({
+      company: "Acme",
+      tier: "gold",
+    });
+  });
+
+  it("preserves existing properties when upserting without properties", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+      variables: ["company"],
+    });
+    mockDb.contact.findUnique.mockResolvedValue({
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        company: "Acme",
+        tier: "gold",
+      },
+    });
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_10",
+      email: "preserve@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: {
+        company: "Acme",
+        tier: "gold",
+      },
+      firstName: "Updated",
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      { email: "preserve@example.com", firstName: "Updated" },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.update).not.toHaveProperty("properties");
+  });
+
+  it("merges existing properties when upserting with partial properties", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+      variables: ["company"],
+    });
+    mockDb.contact.findUnique.mockResolvedValue({
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        Company: "Old Co",
+        tier: "gold",
+      },
+    });
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_11",
+      email: "merge@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: {
+        company: "New Co",
+        tier: "gold",
+      },
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      {
+        email: "merge@example.com",
+        properties: {
+          company: "New Co",
+        },
+      },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.update.properties).toEqual({
+      company: "New Co",
+      tier: "gold",
+    });
+  });
+
   it("throws when contact book does not exist", async () => {
     mockDb.contactBook.findUnique.mockResolvedValue(null);
 
@@ -324,5 +455,60 @@ describe("contact-service addOrUpdateContact", () => {
       resendDoubleOptInConfirmationInContactBook("missing", "book_1", 7),
     ).resolves.toBeNull();
     expect(mockSendDoubleOptInConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it("merges contact properties on update and canonicalizes registry variables", async () => {
+    mockDb.contact.findFirst.mockResolvedValue({
+      id: "contact_9",
+      email: "grace@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        Company: "Old Co",
+        notes: "keep me",
+      },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      variables: ["company", "plan"],
+    });
+    mockDb.contact.update.mockResolvedValue({
+      id: "contact_9",
+      email: "grace@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        company: "New Co",
+        notes: "keep me",
+      },
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await updateContactInContactBook(
+      "contact_9",
+      "book_1",
+      {
+        properties: {
+          company: "New Co",
+        },
+      },
+      7,
+    );
+
+    expect(mockDb.contact.update).toHaveBeenCalledWith({
+      where: {
+        id: "contact_9",
+      },
+      data: {
+        properties: {
+          company: "New Co",
+          notes: "keep me",
+        },
+      },
+    });
   });
 });

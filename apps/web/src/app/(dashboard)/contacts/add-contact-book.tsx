@@ -33,6 +33,7 @@ const contactBookSchema = z.object({
   name: z.string({ required_error: "Name is required" }).min(1, {
     message: "Name is required",
   }),
+  variables: z.string().optional(),
 });
 
 export default function AddContactBook() {
@@ -51,6 +52,7 @@ export default function AddContactBook() {
     resolver: zodResolver(contactBookSchema),
     defaultValues: {
       name: "",
+      variables: "",
     },
   });
 
@@ -63,6 +65,10 @@ export default function AddContactBook() {
     createContactBookMutation.mutate(
       {
         name: values.name,
+        variables: values.variables
+          ?.split(",")
+          .map((variable) => variable.trim())
+          .filter(Boolean),
       },
       {
         onSuccess: () => {
@@ -70,6 +76,9 @@ export default function AddContactBook() {
           contactBookForm.reset();
           setOpen(false);
           toast.success("Contact book created successfully");
+        },
+        onError: (error) => {
+          toast.error(error.message);
         },
       },
     );
@@ -122,6 +131,25 @@ export default function AddContactBook() {
                         eg: product / website / newsletter name
                       </FormDescription>
                     )}
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactBookForm.control}
+                name="variables"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variables</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="registrationCode, company, plan"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Optional comma-separated variable names for campaign
+                      personalization.
+                    </FormDescription>
                   </FormItem>
                 )}
               />

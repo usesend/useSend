@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -24,63 +25,99 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@usesend/ui/src/toaster";
+import type { ReactNode } from "react";
 
 const contactBookSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
+  variables: z.string().optional(),
 });
 
 export const EditContactBook: React.FC<{
-  contactBook: { id: string; name: string };
-}> = ({ contactBook }) => {
+  contactBook: { id: string; name: string; variables?: string[] };
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: () => void | Promise<void>;
+}> = ({
+  contactBook,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  onSuccess,
+}) => {
   const [open, setOpen] = useState(false);
   const updateContactBookMutation =
     api.contacts.updateContactBook.useMutation();
 
   const utils = api.useUtils();
+  const dialogTrigger =
+    trigger ??
+    (controlledOpen === undefined ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="p-0 hover:bg-transparent"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Edit className="h-4 w-4 text-foreground/80 hover:text-foreground/70" />
+      </Button>
+    ) : null);
 
   const contactBookForm = useForm<z.infer<typeof contactBookSchema>>({
     resolver: zodResolver(contactBookSchema),
     defaultValues: {
       name: contactBook.name || "",
+      variables: (contactBook.variables ?? []).join(", "),
     },
   });
 
   async function onContactBookUpdate(
-    values: z.infer<typeof contactBookSchema>
+    values: z.infer<typeof contactBookSchema>,
   ) {
     updateContactBookMutation.mutate(
       {
         contactBookId: contactBook.id,
-        ...values,
+        name: values.name,
+        variables: values.variables
+          ?.split(",")
+          .map((variable) => variable.trim())
+          .filter(Boolean),
       },
       {
         onSuccess: async () => {
           utils.contacts.getContactBooks.invalidate();
-          setOpen(false);
+          await onSuccess?.();
+          if (controlledOpen === undefined) {
+            setOpen(false);
+          } else {
+            onOpenChange?.(false);
+          }
           toast.success("Contact book updated successfully");
         },
         onError: async (error) => {
           toast.error(error.message);
         },
-      }
+      },
     );
   }
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={(_open) => (_open !== open ? setOpen(_open) : null)}
+      open={controlledOpen ?? open}
+      onOpenChange={(nextOpen) => {
+        if (controlledOpen === undefined) {
+          if (nextOpen !== open) {
+            setOpen(nextOpen);
+          }
+          return;
+        }
+
+        onOpenChange?.(nextOpen);
+      }}
     >
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="p-0 hover:bg-transparent"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Edit className="h-4 w-4 text-foreground/80 hover:text-foreground/70" />
-        </Button>
-      </DialogTrigger>
+      {dialogTrigger ? (
+        <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Contact Book</DialogTitle>
@@ -101,6 +138,25 @@ export const EditContactBook: React.FC<{
                       <Input placeholder="Contact Book Name" {...field} />
                     </FormControl>
                     {formState.errors.name ? <FormMessage /> : null}
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactBookForm.control}
+                name="variables"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variables</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="registrationCode, company, plan"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Comma-separated variable names available in campaigns for
+                      this contact book.
+                    </FormDescription>
                   </FormItem>
                 )}
               />

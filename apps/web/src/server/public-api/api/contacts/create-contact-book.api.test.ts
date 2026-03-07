@@ -56,6 +56,7 @@ function buildContactBook(overrides?: Record<string, unknown>) {
     name: "Newsletter",
     teamId: 1,
     properties: {},
+    variables: [],
     emoji: "📙",
     doubleOptInEnabled: true,
     doubleOptInFrom: null,
@@ -116,6 +117,7 @@ describe("POST /v1/contactBooks", () => {
     expect(mockCreateContactBook).toHaveBeenCalledWith(
       1,
       "Newsletter",
+      undefined,
       mockTransactionClient,
     );
     expect(mockUpdateContactBook).not.toHaveBeenCalled();
@@ -169,6 +171,7 @@ describe("POST /v1/contactBooks", () => {
     expect(mockCreateContactBook).toHaveBeenCalledWith(
       1,
       "Product Updates",
+      undefined,
       mockTransactionClient,
     );
     expect(mockUpdateContactBook).toHaveBeenCalledWith(
@@ -222,6 +225,45 @@ describe("POST /v1/contactBooks", () => {
       }),
       mockTransactionClient,
     );
+  });
+
+  it("passes variables through createContactBook and returns them", async () => {
+    const created = buildContactBook({
+      id: "cb_4",
+      name: "Customers",
+      variables: ["company", "plan"],
+    });
+    mockCreateContactBook.mockResolvedValue(created);
+
+    const app = getApp();
+    createContactBookRoute(app);
+
+    const response = await app.request("http://localhost/api/v1/contactBooks", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Customers",
+        variables: ["company", "plan"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockCreateContactBook).toHaveBeenCalledWith(
+      1,
+      "Customers",
+      ["company", "plan"],
+      mockTransactionClient,
+    );
+
+    const body = await response.json();
+    expect(body).toMatchObject({
+      id: "cb_4",
+      name: "Customers",
+      variables: ["company", "plan"],
+    });
   });
 
   it("returns BAD_REQUEST when name is missing", async () => {

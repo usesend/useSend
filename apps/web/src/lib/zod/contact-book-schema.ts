@@ -14,6 +14,10 @@ export const ContactBookSchema = z.object({
     description: "Custom properties for the contact book",
     example: { customField1: "value1" },
   }),
+  variables: z.array(z.string()).openapi({
+    description: "Allowed personalization variables for contacts in this book",
+    example: ["registrationCode", "company"],
+  }),
   emoji: z.string().openapi({
     description: "The emoji associated with the contact book",
     example: "📙",
