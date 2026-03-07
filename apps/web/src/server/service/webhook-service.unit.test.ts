@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   capturedProcessWebhookCall,
   mockDb,
+  mockLimitService,
   mockLogger,
   mockQueueAdd,
   mockRedis,
@@ -14,6 +15,9 @@ const {
   },
   mockDb: {
     $transaction: vi.fn(),
+    domain: {
+      findMany: vi.fn(),
+    },
     webhook: {
       create: vi.fn(),
       delete: vi.fn(),
@@ -28,6 +32,9 @@ const {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+  },
+  mockLimitService: {
+    checkWebhookLimit: vi.fn(),
   },
   mockLogger: {
     debug: vi.fn(),
@@ -61,9 +68,7 @@ vi.mock("~/server/logger/log", () => ({
 }));
 
 vi.mock("~/server/service/limit-service", () => ({
-  LimitService: {
-    checkWebhookLimit: vi.fn(),
-  },
+  LimitService: mockLimitService,
 }));
 
 vi.mock("~/server/queue/bullmq-context", () => ({
@@ -119,6 +124,7 @@ async function invokeProcessWebhookCall(attemptsMade = 0) {
 
 describe("WebhookService documented behavior", () => {
   beforeEach(() => {
+    mockDb.domain.findMany.mockReset();
     mockDb.webhook.create.mockReset();
     mockDb.webhook.delete.mockReset();
     mockDb.webhook.findFirst.mockReset();
@@ -136,11 +142,16 @@ describe("WebhookService documented behavior", () => {
     mockLogger.error.mockReset();
     mockLogger.info.mockReset();
     mockLogger.warn.mockReset();
+    mockLimitService.checkWebhookLimit.mockReset();
     mockQueueAdd.mockReset();
     mockRedis.eval.mockReset();
     mockRedis.set.mockReset();
     mockTxWebhookUpdate.mockReset();
 
+    mockLimitService.checkWebhookLimit.mockResolvedValue({
+      isLimitReached: false,
+      reason: null,
+    });
     mockRedis.set.mockResolvedValue("OK");
     mockRedis.eval.mockResolvedValue(1);
     mockQueueAdd.mockResolvedValue(undefined);
@@ -376,6 +387,168 @@ describe("WebhookService documented behavior", () => {
       { jobId: "call_test_1" },
     );
   });
+
+  it("dedupes and validates domainIds on webhook creation", async () => {
+    mockDb.domain.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    mockDb.webhook.create.mockResolvedValue({
+      id: "wh_created",
+    });
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 42,
+        url: "https://example.com/webhook",
+        eventTypes: ["email.sent"],
+        domainIds: [1, 1, 2],
+        secret: "whsec_test_create",
+      }),
+    ).resolves.toMatchObject({ id: "wh_created" });
+
+    expect(mockDb.domain.findMany).toHaveBeenCalledWith({
+      where: {
+        id: {
+          in: [1, 2],
+        },
+        teamId: 77,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(mockDb.webhook.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        teamId: 77,
+        createdByUserId: 42,
+        url: "https://example.com/webhook",
+        eventTypes: ["email.sent"],
+        domainIds: [1, 2],
+        secret: "whsec_test_create",
+        status: WebhookStatus.ACTIVE,
+      }),
+    });
+  });
+
+  it("rejects webhook creation when one or more domainIds do not belong to the team", async () => {
+    mockDb.domain.findMany.mockResolvedValue([{ id: 1 }]);
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 42,
+        url: "https://example.com/webhook",
+        eventTypes: ["email.sent"],
+        domainIds: [1, 2],
+        secret: "whsec_test_create",
+      }),
+    ).rejects.toThrow("One or more domains were not found");
+
+    expect(mockDb.webhook.create).not.toHaveBeenCalled();
+  });
+
+  it("preserves existing domainIds on webhook update when domainIds are omitted", async () => {
+    mockDb.webhook.findFirst.mockResolvedValue({
+      id: "wh_123",
+      teamId: 77,
+      url: "https://old.example.com/webhook",
+      description: "Old webhook",
+      eventTypes: ["email.sent"],
+      domainIds: [7, 8],
+      secret: "whsec_existing",
+    });
+    mockDb.webhook.update.mockResolvedValue({
+      id: "wh_123",
+    });
+
+    await expect(
+      WebhookService.updateWebhook({
+        id: "wh_123",
+        teamId: 77,
+        url: "https://new.example.com/webhook",
+      }),
+    ).resolves.toMatchObject({ id: "wh_123" });
+
+    expect(mockDb.domain.findMany).not.toHaveBeenCalled();
+    expect(mockDb.webhook.update).toHaveBeenCalledWith({
+      where: { id: "wh_123" },
+      data: {
+        url: "https://new.example.com/webhook",
+        description: "Old webhook",
+        eventTypes: ["email.sent"],
+        domainIds: [7, 8],
+        secret: "whsec_existing",
+      },
+    });
+  });
+
+  it("dedupes and validates provided domainIds on webhook update", async () => {
+    mockDb.webhook.findFirst.mockResolvedValue({
+      id: "wh_123",
+      teamId: 77,
+      url: "https://old.example.com/webhook",
+      description: "Old webhook",
+      eventTypes: ["email.sent"],
+      domainIds: [7, 8],
+      secret: "whsec_existing",
+    });
+    mockDb.domain.findMany.mockResolvedValue([{ id: 5 }, { id: 6 }]);
+    mockDb.webhook.update.mockResolvedValue({
+      id: "wh_123",
+    });
+
+    await expect(
+      WebhookService.updateWebhook({
+        id: "wh_123",
+        teamId: 77,
+        domainIds: [5, 5, 6],
+      }),
+    ).resolves.toMatchObject({ id: "wh_123" });
+
+    expect(mockDb.domain.findMany).toHaveBeenCalledWith({
+      where: {
+        id: {
+          in: [5, 6],
+        },
+        teamId: 77,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(mockDb.webhook.update).toHaveBeenCalledWith({
+      where: { id: "wh_123" },
+      data: {
+        url: "https://old.example.com/webhook",
+        description: "Old webhook",
+        eventTypes: ["email.sent"],
+        domainIds: [5, 6],
+        secret: "whsec_existing",
+      },
+    });
+  });
+
+  it("rejects webhook update when one or more provided domainIds do not belong to the team", async () => {
+    mockDb.webhook.findFirst.mockResolvedValue({
+      id: "wh_123",
+      teamId: 77,
+      url: "https://old.example.com/webhook",
+      description: "Old webhook",
+      eventTypes: ["email.sent"],
+      domainIds: [7, 8],
+      secret: "whsec_existing",
+    });
+    mockDb.domain.findMany.mockResolvedValue([{ id: 5 }]);
+
+    await expect(
+      WebhookService.updateWebhook({
+        id: "wh_123",
+        teamId: 77,
+        domainIds: [5, 6],
+      }),
+    ).rejects.toThrow("One or more domains were not found");
+
+    expect(mockDb.webhook.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("WebhookService.emit domain filters", () => {
@@ -500,5 +673,53 @@ describe("WebhookService.emit domain filters", () => {
       },
       { jobId: "call_wh_global" },
     );
+  });
+
+  it("does not apply domain filtering when the domain context is explicitly null", async () => {
+    mockDb.webhook.findMany.mockResolvedValue([
+      { id: "wh_global", teamId: 10, status: WebhookStatus.ACTIVE },
+      { id: "wh_scoped", teamId: 10, status: WebhookStatus.ACTIVE },
+    ]);
+
+    await WebhookService.emit(
+      10,
+      "email.delivered",
+      {
+        id: "email_1",
+        status: "delivered",
+        from: "from@example.com",
+        to: ["to@example.com"],
+        occurredAt: new Date().toISOString(),
+        subject: "Hello",
+        metadata: {},
+        domainId: null,
+      } as never,
+      { domainId: null },
+    );
+
+    expect(mockDb.webhook.findMany).toHaveBeenCalledWith({
+      where: {
+        teamId: 10,
+        status: WebhookStatus.ACTIVE,
+        AND: [
+          {
+            OR: [
+              {
+                eventTypes: {
+                  has: "email.delivered",
+                },
+              },
+              {
+                eventTypes: {
+                  isEmpty: true,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(mockDb.webhookCall.create).toHaveBeenCalledTimes(2);
+    expect(mockQueueAdd).toHaveBeenCalledTimes(2);
   });
 });

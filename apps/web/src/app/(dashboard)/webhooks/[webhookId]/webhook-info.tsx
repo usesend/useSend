@@ -1,6 +1,6 @@
 "use client";
 
-import { Webhook, WebhookCallStatus } from "@prisma/client";
+import { WebhookCallStatus, type Webhook } from "@prisma/client";
 import { formatDistanceToNow } from "date-fns";
 import { Copy, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
@@ -10,9 +10,7 @@ import { api } from "~/trpc/react";
 import { Badge } from "@usesend/ui/src/badge";
 import { WebhookStatusBadge } from "../webhook-status-badge";
 
-type WebhookWithDomainIds = Webhook & { domainIds?: number[] };
-
-export function WebhookInfo({ webhook }: { webhook: WebhookWithDomainIds }) {
+export function WebhookInfo({ webhook }: { webhook: Webhook }) {
   const [showSecret, setShowSecret] = useState(false);
 
   const sevenDaysAgo = new Date();

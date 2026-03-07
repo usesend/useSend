@@ -52,7 +52,6 @@ const editWebhookSchema = z.object({
 });
 
 type EditWebhookFormValues = z.infer<typeof editWebhookSchema>;
-type WebhookWithDomainIds = Webhook & { domainIds?: number[] };
 
 const eventGroups: {
   label: string;
@@ -68,7 +67,7 @@ export function EditWebhookDialog({
   open,
   onOpenChange,
 }: {
-  webhook: WebhookWithDomainIds;
+  webhook: Webhook;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
