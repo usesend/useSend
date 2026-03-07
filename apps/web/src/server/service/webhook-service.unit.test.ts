@@ -377,3 +377,128 @@ describe("WebhookService documented behavior", () => {
     );
   });
 });
+
+describe("WebhookService.emit domain filters", () => {
+  beforeEach(() => {
+    mockDb.webhook.findMany.mockReset();
+    mockDb.webhookCall.create.mockReset();
+    mockQueueAdd.mockReset();
+
+    mockDb.webhookCall.create.mockImplementation(async ({ data }: any) => ({
+      id: `call_${data.webhookId}`,
+    }));
+    mockQueueAdd.mockResolvedValue(undefined);
+  });
+
+  it("does not apply domain filtering when the event has no domain context", async () => {
+    mockDb.webhook.findMany.mockResolvedValue([
+      { id: "wh_global", teamId: 10, status: WebhookStatus.ACTIVE },
+      { id: "wh_scoped", teamId: 10, status: WebhookStatus.ACTIVE },
+    ]);
+
+    await WebhookService.emit(10, "contact.created", {
+      id: "contact_1",
+      email: "test@example.com",
+      contactBookId: 1,
+      subscribed: true,
+      properties: {},
+      firstName: null,
+      lastName: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(mockDb.webhook.findMany).toHaveBeenCalledWith({
+      where: {
+        teamId: 10,
+        status: WebhookStatus.ACTIVE,
+        AND: [
+          {
+            OR: [
+              {
+                eventTypes: {
+                  has: "contact.created",
+                },
+              },
+              {
+                eventTypes: {
+                  isEmpty: true,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(mockDb.webhookCall.create).toHaveBeenCalledTimes(2);
+    expect(mockQueueAdd).toHaveBeenCalledTimes(2);
+  });
+
+  it("filters webhooks by domain when the event has a domain context", async () => {
+    mockDb.webhook.findMany.mockResolvedValue([
+      { id: "wh_global", teamId: 10, status: WebhookStatus.ACTIVE },
+    ]);
+
+    await WebhookService.emit(
+      10,
+      "email.delivered",
+      {
+        id: "email_1",
+        status: "delivered",
+        from: "from@example.com",
+        to: ["to@example.com"],
+        occurredAt: new Date().toISOString(),
+        subject: "Hello",
+        metadata: {},
+        domainId: 42,
+      } as never,
+      { domainId: 42 },
+    );
+
+    expect(mockDb.webhook.findMany).toHaveBeenCalledWith({
+      where: {
+        teamId: 10,
+        status: WebhookStatus.ACTIVE,
+        AND: [
+          {
+            OR: [
+              {
+                eventTypes: {
+                  has: "email.delivered",
+                },
+              },
+              {
+                eventTypes: {
+                  isEmpty: true,
+                },
+              },
+            ],
+          },
+          {
+            OR: [
+              {
+                domainIds: {
+                  isEmpty: true,
+                },
+              },
+              {
+                domainIds: {
+                  has: 42,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(mockDb.webhookCall.create).toHaveBeenCalledTimes(1);
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_wh_global",
+      {
+        callId: "call_wh_global",
+        teamId: 10,
+      },
+      { jobId: "call_wh_global" },
+    );
+  });
+});

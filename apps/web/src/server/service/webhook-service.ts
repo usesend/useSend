@@ -94,11 +94,7 @@ export class WebhookService {
   ) {
     const domainFilter =
       options?.domainId == null
-        ? {
-            domainIds: {
-              isEmpty: true,
-            },
-          }
+        ? undefined
         : {
             OR: [
               {
@@ -133,7 +129,7 @@ export class WebhookService {
               },
             ],
           },
-          domainFilter,
+          ...(domainFilter ? [domainFilter] : []),
         ],
       },
     });
