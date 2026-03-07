@@ -133,7 +133,10 @@ export default function ContactsPage({
           </Breadcrumb>
         </div>
         <div className="flex gap-4">
-          <BulkUploadContacts contactBookId={contactBookId} />
+          <BulkUploadContacts
+            contactBookId={contactBookId}
+            contactBookVariables={contactBookDetailQuery.data?.variables}
+          />
           <AddContact contactBookId={contactBookId} />
         </div>
       </div>

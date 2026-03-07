@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { api } from "~/trpc/react";
+import { getCanonicalContactVariableName } from "~/lib/contact-properties";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import { toast } from "@usesend/ui/src/toaster";
 
 interface BulkUploadContactsProps {
   contactBookId: string;
+  contactBookVariables?: string[];
 }
 
 interface ParsedContact {
@@ -41,6 +43,7 @@ interface ParsedContact {
 
 export default function BulkUploadContacts({
   contactBookId,
+  contactBookVariables,
 }: BulkUploadContactsProps) {
   const [open, setOpen] = useState(false);
   const [inputText, setInputText] = useState("");
@@ -180,7 +183,13 @@ export default function BulkUploadContacts({
         }
 
         if (parts[i]) {
-          properties[headers[i]!.trim()] = parts[i]!;
+          const propertyKey =
+            getCanonicalContactVariableName(
+              headers[i]!.trim(),
+              contactBookVariables ?? [],
+            ) ?? headers[i]!.trim();
+
+          properties[propertyKey] = parts[i]!;
         }
       }
 

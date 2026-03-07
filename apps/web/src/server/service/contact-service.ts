@@ -3,6 +3,10 @@ import {
   type ContactPayload,
   type ContactWebhookEventType,
 } from "@usesend/lib/src/webhook/webhook-events";
+import {
+  mergeContactProperties,
+  normalizeContactProperties,
+} from "~/lib/contact-properties";
 import { db } from "../db";
 import { ContactQueueService } from "./contact-queue-service";
 import { WebhookService } from "./webhook-service";
@@ -29,6 +33,7 @@ export async function addOrUpdateContact(
     select: {
       doubleOptInEnabled: true,
       teamId: true,
+      variables: true,
     },
   });
 
@@ -75,6 +80,11 @@ export async function addOrUpdateContact(
     existingContact === null &&
     !isExplicitUnsubscribeRequest;
 
+  const normalizedProperties = normalizeContactProperties(
+    contact.properties,
+    contactBook.variables,
+  );
+
   const savedContact = await db.contact.upsert({
     where: {
       contactBookId_email: {
@@ -87,7 +97,7 @@ export async function addOrUpdateContact(
       email: contact.email,
       firstName: contact.firstName,
       lastName: contact.lastName,
-      properties: contact.properties ?? {},
+      properties: normalizedProperties,
       subscribed: shouldCreatePendingContact
         ? false
         : (contact.subscribed ?? true),
@@ -100,7 +110,7 @@ export async function addOrUpdateContact(
     update: {
       firstName: contact.firstName,
       lastName: contact.lastName,
-      properties: contact.properties ?? {},
+      properties: normalizedProperties,
       ...(subscribedValue !== undefined
         ? {
             subscribed: subscribedValue,
@@ -168,12 +178,27 @@ export async function updateContactInContactBook(
     return null;
   }
 
+  const contactBook = await db.contactBook.findUnique({
+    where: { id: contactBookId },
+    select: { variables: true },
+  });
+
+  const mergedProperties =
+    contact.properties === undefined
+      ? undefined
+      : mergeContactProperties(
+          (existingContact.properties as Record<string, unknown> | null) ?? {},
+          contact.properties,
+          contactBook?.variables ?? [],
+        );
+
   const updatedContact = await db.contact.update({
     where: {
       id: contactId,
     },
     data: {
       ...contact,
+      ...(mergedProperties !== undefined ? { properties: mergedProperties } : {}),
       ...(contact.subscribed !== undefined
         ? {
             unsubscribeReason: contact.subscribed

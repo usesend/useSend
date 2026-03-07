@@ -27,6 +27,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@usesend/ui/src/toaster";
 import { Switch } from "@usesend/ui/src/switch";
 import { Contact } from "@prisma/client";
+import {
+  getContactPropertyValue,
+  replaceContactVariableValues,
+} from "~/lib/contact-properties";
 
 const contactSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -50,13 +54,12 @@ export const EditContact: React.FC<{
 
     return (contactBookVariables ?? []).reduce(
       (acc, variable) => {
-        const propertyValue = contactProperties[variable];
         acc[variable] =
-          typeof propertyValue === "string" ||
-          typeof propertyValue === "number" ||
-          typeof propertyValue === "boolean"
-            ? String(propertyValue)
-            : "";
+          getContactPropertyValue(
+            contactProperties,
+            variable,
+            contactBookVariables ?? [],
+          ) ?? "";
         return acc;
       },
       {} as Record<string, string>,
@@ -94,8 +97,13 @@ export const EditContact: React.FC<{
         contactId: contact.id,
         contactBookId: contact.contactBookId,
         ...values,
-        properties: Object.fromEntries(
-          Object.entries(variableValues).filter(([, value]) => value.trim()),
+        properties: replaceContactVariableValues(
+          (contact.properties as Record<string, unknown> | null | undefined) ??
+            {},
+          Object.fromEntries(
+            Object.entries(variableValues).filter(([, value]) => value.trim()),
+          ),
+          contactBookVariables ?? [],
         ),
       },
       {

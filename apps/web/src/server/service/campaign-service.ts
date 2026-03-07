@@ -2,6 +2,7 @@ import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
 import { env } from "~/env";
+import { getContactPropertyValue } from "~/lib/contact-properties";
 import {
   Campaign,
   Contact,
@@ -75,23 +76,11 @@ function getContactReplacementValue({
     return undefined;
   }
 
-  const contactProperties = contact.properties as Record<string, unknown>;
-  const propertyKey = Object.keys(contactProperties).find(
-    (candidate) => candidate.toLowerCase() === matchedVariable.toLowerCase(),
+  return getContactPropertyValue(
+    contact.properties as Record<string, unknown>,
+    matchedVariable,
+    allowedVariables,
   );
-  const propertyValue = propertyKey
-    ? contactProperties[propertyKey]
-    : undefined;
-
-  if (
-    typeof propertyValue === "string" ||
-    typeof propertyValue === "number" ||
-    typeof propertyValue === "boolean"
-  ) {
-    return String(propertyValue);
-  }
-
-  return undefined;
 }
 
 function createCaseInsensitiveVariableValues(

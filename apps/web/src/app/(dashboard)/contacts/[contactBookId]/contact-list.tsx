@@ -26,6 +26,7 @@ import EditContact from "./edit-contact";
 import { ResendDoubleOptInConfirmation } from "./resend-double-opt-in-confirmation";
 import { Input } from "@usesend/ui/src/input";
 import { useDebouncedCallback } from "use-debounce";
+import { getContactPropertyValue } from "~/lib/contact-properties";
 import {
   Tooltip,
   TooltipContent,
@@ -156,9 +157,11 @@ export default function ContactList({
       escapeCell(contact.createdAt.toISOString()),
       ...(contactBookVariables ?? []).map((variable) =>
         escapeCell(
-          (contact.properties as Record<string, string> | undefined)?.[
-            variable
-          ] ?? "",
+          getContactPropertyValue(
+            (contact.properties as Record<string, unknown> | undefined) ?? {},
+            variable,
+            contactBookVariables ?? [],
+          ) ?? "",
         ),
       ),
     ]);
