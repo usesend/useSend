@@ -24,6 +24,7 @@ import { Button } from "@usesend/ui/src/button";
 import { Switch } from "@usesend/ui/src/switch";
 import { useTheme } from "@usesend/ui";
 import { use, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
 import { TextWithCopyButton } from "@usesend/ui/src/text-with-copy";
 import {
@@ -58,6 +59,8 @@ function ContactBookDetailActions({
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const utils = api.useUtils();
+  const router = useRouter();
 
   return (
     <>
@@ -146,6 +149,9 @@ function ContactBookDetailActions({
           }}
           open={isEditOpen}
           onOpenChange={setIsEditOpen}
+          onSuccess={() =>
+            utils.contacts.getContactBookDetails.invalidate({ contactBookId })
+          }
         />
       ) : null}
       {contactBookName ? (
@@ -153,6 +159,12 @@ function ContactBookDetailActions({
           contactBook={{ id: contactBookId, name: contactBookName }}
           open={isDeleteOpen}
           onOpenChange={setIsDeleteOpen}
+          onSuccess={async () => {
+            await utils.contacts.getContactBookDetails.invalidate({
+              contactBookId,
+            });
+            router.push("/contacts");
+          }}
         />
       ) : null}
     </>

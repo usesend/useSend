@@ -52,6 +52,7 @@ export async function addOrUpdateContact(
     select: {
       subscribed: true,
       unsubscribeReason: true,
+      properties: true,
     },
   });
 
@@ -80,10 +81,18 @@ export async function addOrUpdateContact(
     existingContact === null &&
     !isExplicitUnsubscribeRequest;
 
-  const normalizedProperties = normalizeContactProperties(
-    contact.properties,
-    contactBook.variables,
-  );
+  const normalizedProperties =
+    contact.properties === undefined
+      ? undefined
+      : normalizeContactProperties(contact.properties, contactBook.variables);
+  const mergedProperties =
+    normalizedProperties === undefined
+      ? undefined
+      : mergeContactProperties(
+          (existingContact?.properties as Record<string, unknown> | null) ?? {},
+          normalizedProperties,
+          contactBook.variables,
+        );
 
   const savedContact = await db.contact.upsert({
     where: {
@@ -97,7 +106,7 @@ export async function addOrUpdateContact(
       email: contact.email,
       firstName: contact.firstName,
       lastName: contact.lastName,
-      properties: normalizedProperties,
+      properties: normalizedProperties ?? {},
       subscribed: shouldCreatePendingContact
         ? false
         : (contact.subscribed ?? true),
@@ -110,7 +119,9 @@ export async function addOrUpdateContact(
     update: {
       firstName: contact.firstName,
       lastName: contact.lastName,
-      properties: normalizedProperties,
+      ...(mergedProperties !== undefined
+        ? { properties: mergedProperties }
+        : {}),
       ...(subscribedValue !== undefined
         ? {
             subscribed: subscribedValue,
@@ -198,7 +209,9 @@ export async function updateContactInContactBook(
     },
     data: {
       ...contact,
-      ...(mergedProperties !== undefined ? { properties: mergedProperties } : {}),
+      ...(mergedProperties !== undefined
+        ? { properties: mergedProperties }
+        : {}),
       ...(contact.subscribed !== undefined
         ? {
             unsubscribeReason: contact.subscribed
@@ -268,7 +281,7 @@ export async function bulkDeleteContactsInContactBook(
     ),
   );
 
-	return contacts;
+  return contacts;
 }
 
 export async function resendDoubleOptInConfirmationInContactBook(

@@ -278,6 +278,92 @@ describe("contact-service addOrUpdateContact", () => {
     });
   });
 
+  it("preserves existing properties when upserting without properties", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+      variables: ["company"],
+    });
+    mockDb.contact.findUnique.mockResolvedValue({
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        company: "Acme",
+        tier: "gold",
+      },
+    });
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_10",
+      email: "preserve@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: {
+        company: "Acme",
+        tier: "gold",
+      },
+      firstName: "Updated",
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      { email: "preserve@example.com", firstName: "Updated" },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.update).not.toHaveProperty("properties");
+  });
+
+  it("merges existing properties when upserting with partial properties", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({
+      doubleOptInEnabled: false,
+      teamId: 7,
+      variables: ["company"],
+    });
+    mockDb.contact.findUnique.mockResolvedValue({
+      subscribed: true,
+      unsubscribeReason: null,
+      properties: {
+        Company: "Old Co",
+        tier: "gold",
+      },
+    });
+    mockDb.contact.upsert.mockResolvedValue({
+      id: "contact_11",
+      email: "merge@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: {
+        company: "New Co",
+        tier: "gold",
+      },
+      firstName: null,
+      lastName: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await addOrUpdateContact(
+      "book_1",
+      {
+        email: "merge@example.com",
+        properties: {
+          company: "New Co",
+        },
+      },
+      7,
+    );
+
+    const upsertArgs = mockDb.contact.upsert.mock.calls[0]?.[0];
+    expect(upsertArgs.update.properties).toEqual({
+      company: "New Co",
+      tier: "gold",
+    });
+  });
+
   it("throws when contact book does not exist", async () => {
     mockDb.contactBook.findUnique.mockResolvedValue(null);
 

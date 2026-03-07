@@ -14,7 +14,8 @@ export const DeleteContactBook: React.FC<{
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-}> = ({ contactBook, trigger, open, onOpenChange }) => {
+  onSuccess?: () => void | Promise<void>;
+}> = ({ contactBook, trigger, open, onOpenChange, onSuccess }) => {
   const deleteContactBookMutation =
     api.contacts.deleteContactBook.useMutation();
   const utils = api.useUtils();
@@ -38,8 +39,9 @@ export const DeleteContactBook: React.FC<{
         contactBookId: contactBook.id,
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           utils.contacts.getContactBooks.invalidate();
+          await onSuccess?.();
           toast.success(`Contact book deleted`);
         },
       },

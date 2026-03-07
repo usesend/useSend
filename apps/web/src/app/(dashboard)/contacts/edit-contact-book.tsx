@@ -37,7 +37,14 @@ export const EditContactBook: React.FC<{
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-}> = ({ contactBook, trigger, open: controlledOpen, onOpenChange }) => {
+  onSuccess?: () => void | Promise<void>;
+}> = ({
+  contactBook,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  onSuccess,
+}) => {
   const [open, setOpen] = useState(false);
   const updateContactBookMutation =
     api.contacts.updateContactBook.useMutation();
@@ -79,6 +86,7 @@ export const EditContactBook: React.FC<{
       {
         onSuccess: async () => {
           utils.contacts.getContactBooks.invalidate();
+          await onSuccess?.();
           if (controlledOpen === undefined) {
             setOpen(false);
           } else {
