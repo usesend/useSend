@@ -131,7 +131,7 @@ The following variables can be used in the confirmation email template:
 | `{{lastName}}`       | The contact's last name          |
 
 <Warning>
-  The `{{doubleOptInUrl}}` variable is **required** in the email template. The
+  The `{{ doubleOptInUrl }}` variable is **required** in the email template. The
   confirmation email cannot be saved without it. This ensures every confirmation
   email contains a working verification link.
 </Warning>
@@ -147,25 +147,9 @@ Each resend generates a new confirmation link with a fresh 7-day expiration wind
 
 ## Best practices
 
-<AccordionGroup>
-  <Accordion title="Set up a verified domain first">
-    Double opt-in requires at least one verified domain to send confirmation
-    emails. Make sure to [verify your domain](https://app.usesend.com/domains)
-    before enabling double opt-in.
-  </Accordion>
-  <Accordion title="Keep the confirmation email simple">
-    The confirmation email should be clear and concise. Include a prominent
-    confirmation button and a brief explanation of what the subscriber is
-    confirming.
-  </Accordion>
-  <Accordion title="Use a recognizable from address">
-    Use a from address that your subscribers will recognize, such as
-    `newsletter@yourdomain.com` or `hello@yourdomain.com`. This reduces the
-    chance of the confirmation email being marked as spam.
-  </Accordion>
-  <Accordion title="Monitor pending contacts">
-    Regularly check for contacts stuck in Pending status. If many contacts
-    aren't confirming, consider improving your confirmation email or resending
-    confirmations.
-  </Accordion>
-</AccordionGroup>
+| Best practice                      | Why it helps                                                                     |
+| ---------------------------------- | -------------------------------------------------------------------------------- |
+| Set up a verified domain first     | Double opt-in emails need a verified domain before they can be sent              |
+| Keep the confirmation email simple | Makes it easier for subscribers to understand and complete the confirmation step |
+| Use a recognizable from address    | Reduces the chance of the confirmation email being ignored or marked as spam     |
+| Monitor pending contacts           | Helps you spot low confirmation rates and improve your signup flow               |

@@ -158,21 +158,9 @@ curl -X POST https://app.usesend.com/api/v1/campaigns \
 
 ## Best practices
 
-<AccordionGroup>
-  <Accordion title="Register variables before importing contacts">
-    Add your variable list to the contact book first so imported CSV columns and
-    API properties stay consistent.
-  </Accordion>
-  <Accordion title="Keep variable names simple">
-    Use short names like `company`, `plan`, or `couponCode` instead of long or
-    ambiguous labels.
-  </Accordion>
-  <Accordion title="Use fallbacks for optional data">
-    If a value may be missing for some contacts, add a fallback so the final
-    email still reads naturally.
-  </Accordion>
-  <Accordion title="Test with a small segment first">
-    Send to a few contacts first to verify that variables render the way you
-    expect before sending a larger campaign.
-  </Accordion>
-</AccordionGroup>
+| Best practice                                | Why it helps                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| Register variables before importing contacts | Keeps CSV columns and API properties aligned with the contact book   |
+| Keep variable names simple                   | Makes templates easier to read and maintain                          |
+| Use fallbacks for optional data              | Prevents awkward empty spaces when a contact is missing a value      |
+| Test with a small segment first              | Helps you verify rendered output before sending to a larger audience |
