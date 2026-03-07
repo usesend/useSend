@@ -39,7 +39,12 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/webhooks", "guides/double-opt-in", "guides/use-with-react-email"]
+            "pages": [
+              "guides/webhooks",
+              "guides/double-opt-in",
+              "guides/campaign-personalization",
+              "guides/use-with-react-email"
+            ]
           }
         ]
       },
