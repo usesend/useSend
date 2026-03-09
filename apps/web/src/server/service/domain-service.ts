@@ -4,9 +4,12 @@ import * as tldts from "tldts";
 import * as ses from "~/server/aws/ses";
 import { db } from "~/server/db";
 import { env } from "~/env";
+import { renderDomainVerificationStatusEmail } from "~/server/email-templates";
+import { logger } from "~/server/logger/log";
+import { sendMail } from "~/server/mailer";
+import { getRedis, redisKey } from "~/server/redis";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
-import { logger } from "../logger/log";
 import { ApiKey, DomainStatus, type Domain } from "@prisma/client";
 import {
   type DomainPayload,
@@ -15,9 +18,6 @@ import {
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
 import { WebhookService } from "./webhook-service";
-import { getRedis, redisKey } from "../redis";
-import { sendMail } from "../mailer";
-import { renderDomainVerificationStatusEmail } from "../email-templates";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
 export const DOMAIN_UNVERIFIED_RECHECK_MS = 6 * 60 * 60 * 1000;
@@ -170,6 +170,21 @@ async function setLastNotifiedDomainStatus(
     getDomainVerificationKey("last-notified-status", domainId),
     status,
   );
+}
+
+async function reserveDomainStatusNotification(
+  domainId: number,
+  status: DomainStatus,
+) {
+  const result = await getRedis().set(
+    getDomainVerificationKey(`notification-lock:${status}`, domainId),
+    "1",
+    "EX",
+    300,
+    "NX",
+  );
+
+  return result === "OK";
 }
 
 async function clearDomainVerificationState(domainId: number) {
@@ -516,12 +531,26 @@ export async function refreshDomainVerification(
       lastNotifiedStatus: verificationState.lastNotifiedStatus,
     })
   ) {
-    await sendDomainStatusNotification({
-      domain: updatedDomain,
-      previousStatus,
-      verificationError,
-    });
-    await setLastNotifiedDomainStatus(domain.id, updatedDomain.status);
+    const reservedNotification = await reserveDomainStatusNotification(
+      domain.id,
+      updatedDomain.status,
+    );
+
+    if (reservedNotification) {
+      try {
+        await sendDomainStatusNotification({
+          domain: updatedDomain,
+          previousStatus,
+          verificationError,
+        });
+        await setLastNotifiedDomainStatus(domain.id, updatedDomain.status);
+      } catch (error) {
+        logger.error(
+          { err: error, domainId: domain.id, status: updatedDomain.status },
+          "[DomainService]: Failed to send domain status notification",
+        );
+      }
+    }
   }
 
   const normalizedDomain = {

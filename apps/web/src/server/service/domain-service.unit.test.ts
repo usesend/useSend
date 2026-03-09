@@ -31,6 +31,12 @@ const {
   mockResolveTxt: vi.fn(),
 }));
 
+function wasLastNotifiedStatusStored() {
+  return mockRedis.set.mock.calls.some(
+    (call) => call[0] === "domain:verification:last-notified-status:42",
+  );
+}
+
 vi.mock("dns", () => ({
   default: {
     resolveTxt: mockResolveTxt,
@@ -115,6 +121,7 @@ describe("domain-service", () => {
     mockRenderDomainVerificationStatusEmail.mockResolvedValue(
       "<p>domain status</p>",
     );
+    mockRedis.set.mockResolvedValue("OK");
     mockDb.teamUser.findMany.mockResolvedValue([
       { user: { email: "alice@example.com" } },
       { user: { email: "bob@example.com" } },
@@ -160,10 +167,7 @@ describe("domain-service", () => {
       }),
     );
     expect(mockSendMail).toHaveBeenCalledTimes(2);
-    expect(mockRedis.set).toHaveBeenCalledWith(
-      "domain:verification:last-notified-status:42",
-      DomainStatus.SUCCESS,
-    );
+    expect(wasLastNotifiedStatusStored()).toBe(true);
     expect(result.status).toBe(DomainStatus.SUCCESS);
     expect(result.hasEverVerified).toBe(true);
   });
@@ -237,6 +241,82 @@ describe("domain-service", () => {
     await refreshDomainVerification(domain);
 
     expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it("reserves the notification so concurrent refreshes do not double-send", async () => {
+    const domain = createDomain();
+    mockRedis.mget.mockResolvedValue([null, null, null]);
+    let reservedOnce = false;
+    mockRedis.set.mockImplementation(async (key: string) => {
+      if (key.includes("notification-lock")) {
+        if (reservedOnce) {
+          return null;
+        }
+
+        reservedOnce = true;
+        return "OK";
+      }
+
+      return "OK";
+    });
+    mockGetDomainIdentity.mockResolvedValue({
+      DkimAttributes: { Status: DomainStatus.SUCCESS },
+      MailFromAttributes: { MailFromDomainStatus: DomainStatus.SUCCESS },
+      VerificationInfo: {
+        ErrorType: null,
+        LastCheckedTimestamp: new Date("2026-03-09T12:00:00.000Z"),
+      },
+      VerificationStatus: DomainStatus.SUCCESS,
+    });
+    mockDb.domain.update.mockResolvedValue(
+      createDomain({
+        status: DomainStatus.SUCCESS,
+        dkimStatus: DomainStatus.SUCCESS,
+        spfDetails: DomainStatus.SUCCESS,
+        dmarcAdded: true,
+        isVerifying: false,
+      }),
+    );
+
+    await Promise.all([
+      refreshDomainVerification(domain),
+      refreshDomainVerification(domain),
+    ]);
+
+    expect(mockSendMail).toHaveBeenCalledTimes(2);
+    expect(mockDb.domain.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs and continues when sending the status email fails", async () => {
+    const domain = createDomain();
+    mockRedis.mget.mockResolvedValue([null, null, null]);
+    mockGetDomainIdentity.mockResolvedValue({
+      DkimAttributes: { Status: DomainStatus.SUCCESS },
+      MailFromAttributes: { MailFromDomainStatus: DomainStatus.SUCCESS },
+      VerificationInfo: {
+        ErrorType: null,
+        LastCheckedTimestamp: new Date("2026-03-09T12:00:00.000Z"),
+      },
+      VerificationStatus: DomainStatus.SUCCESS,
+    });
+    mockDb.domain.update.mockResolvedValue(
+      createDomain({
+        status: DomainStatus.SUCCESS,
+        dkimStatus: DomainStatus.SUCCESS,
+        spfDetails: DomainStatus.SUCCESS,
+        dmarcAdded: true,
+        isVerifying: false,
+      }),
+    );
+    mockSendMail
+      .mockRejectedValueOnce(new Error("mail failed"))
+      .mockResolvedValueOnce(undefined);
+
+    const result = await refreshDomainVerification(domain);
+
+    expect(result.status).toBe(DomainStatus.SUCCESS);
+    expect(mockDb.domain.update).toHaveBeenCalled();
+    expect(wasLastNotifiedStatusStored()).toBe(false);
   });
 
   it("uses a 6 hour cadence for domains that have never verified", async () => {

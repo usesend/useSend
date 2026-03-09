@@ -5,17 +5,21 @@ const {
   mockFindMany,
   mockIsDomainVerificationDue,
   mockRefreshDomainVerification,
+  mockUpsertJobScheduler,
+  mockWorkerOn,
   mockQueue,
   mockWorker,
 } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockIsDomainVerificationDue: vi.fn(),
   mockRefreshDomainVerification: vi.fn(),
+  mockUpsertJobScheduler: vi.fn(),
+  mockWorkerOn: vi.fn(),
   mockQueue: vi.fn().mockImplementation(() => ({
-    upsertJobScheduler: vi.fn(),
+    upsertJobScheduler: mockUpsertJobScheduler,
   })),
   mockWorker: vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
+    on: mockWorkerOn,
   })),
 }));
 
@@ -49,7 +53,10 @@ vi.mock("~/server/service/domain-service", () => ({
   refreshDomainVerification: mockRefreshDomainVerification,
 }));
 
-import { runDueDomainVerifications } from "~/server/jobs/domain-verification-job";
+import {
+  initDomainVerificationJob,
+  runDueDomainVerifications,
+} from "~/server/jobs/domain-verification-job";
 
 function createDomain(id: number, status: DomainStatus): Domain {
   return {
@@ -79,6 +86,16 @@ describe("domain-verification-job", () => {
     mockFindMany.mockReset();
     mockIsDomainVerificationDue.mockReset();
     mockRefreshDomainVerification.mockReset();
+    mockUpsertJobScheduler.mockReset();
+    mockWorkerOn.mockReset();
+    mockQueue.mockReset();
+    mockWorker.mockReset();
+    mockQueue.mockImplementation(() => ({
+      upsertJobScheduler: mockUpsertJobScheduler,
+    }));
+    mockWorker.mockImplementation(() => ({
+      on: mockWorkerOn,
+    }));
   });
 
   it("refreshes only domains that are due", async () => {
@@ -93,5 +110,14 @@ describe("domain-verification-job", () => {
 
     expect(mockRefreshDomainVerification).toHaveBeenCalledTimes(1);
     expect(mockRefreshDomainVerification).toHaveBeenCalledWith(firstDomain);
+  });
+
+  it("initializes the worker lazily", async () => {
+    await initDomainVerificationJob();
+
+    expect(mockQueue).toHaveBeenCalledTimes(1);
+    expect(mockWorker).toHaveBeenCalledTimes(1);
+    expect(mockUpsertJobScheduler).toHaveBeenCalledTimes(1);
+    expect(mockWorkerOn).toHaveBeenCalledTimes(2);
   });
 });

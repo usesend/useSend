@@ -2,10 +2,10 @@ import React from "react";
 import { Container, Text } from "jsx-email";
 import { render } from "jsx-email";
 import { DomainStatus } from "@prisma/client";
-import { EmailLayout } from "./components/EmailLayout";
-import { EmailHeader } from "./components/EmailHeader";
-import { EmailFooter } from "./components/EmailFooter";
-import { EmailButton } from "./components/EmailButton";
+import { EmailButton } from "~/server/email-templates/components/EmailButton";
+import { EmailFooter } from "~/server/email-templates/components/EmailFooter";
+import { EmailHeader } from "~/server/email-templates/components/EmailHeader";
+import { EmailLayout } from "~/server/email-templates/components/EmailLayout";
 
 interface DomainVerificationStatusEmailProps {
   domainName: string;
