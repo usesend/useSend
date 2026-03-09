@@ -8,6 +8,10 @@ export {
   UsageLimitReachedEmail,
   renderUsageLimitReachedEmail,
 } from "./UsageLimitReachedEmail";
+export {
+  DomainVerificationStatusEmail,
+  renderDomainVerificationStatusEmail,
+} from "./DomainVerificationStatusEmail";
 
 export * from "./components/EmailLayout";
 export * from "./components/EmailHeader";

@@ -1,5 +1,5 @@
 import { env } from "./env";
-import { isCloud , isEmailCleanupEnabled } from "./utils/common";
+import { isCloud, isEmailCleanupEnabled } from "./utils/common";
 
 let initialized = false;
 
@@ -24,6 +24,8 @@ export async function register() {
     if (isCloud()) {
       await import("~/server/jobs/usage-job");
     }
+
+    await import("~/server/jobs/domain-verification-job");
 
     if (isEmailCleanupEnabled()) {
       await import("~/server/jobs/cleanup-email-bodies");

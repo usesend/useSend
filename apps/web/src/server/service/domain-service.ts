@@ -3,6 +3,7 @@ import util from "util";
 import * as tldts from "tldts";
 import * as ses from "~/server/aws/ses";
 import { db } from "~/server/db";
+import { env } from "~/env";
 import { SesSettingsService } from "./ses-settings-service";
 import { UnsendApiError } from "../public-api/api-error";
 import { logger } from "../logger/log";
@@ -14,8 +15,30 @@ import {
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
 import { WebhookService } from "./webhook-service";
+import { getRedis, redisKey } from "../redis";
+import { sendMail } from "../mailer";
+import { renderDomainVerificationStatusEmail } from "../email-templates";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
+export const DOMAIN_UNVERIFIED_RECHECK_MS = 6 * 60 * 60 * 1000;
+export const DOMAIN_VERIFIED_RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
+const VERIFIED_DOMAIN_STATUSES = new Set<DomainStatus>([DomainStatus.SUCCESS]);
+
+type DomainVerificationState = {
+  hasEverVerified: boolean;
+  lastCheckedAt: Date | null;
+  lastNotifiedStatus: DomainStatus | null;
+};
+
+type DomainWithDnsRecords = Domain & { dnsRecords: DomainDnsRecord[] };
+
+type DomainVerificationRefreshResult = DomainWithDnsRecords & {
+  verificationError: string | null;
+  lastCheckedTime: string | null;
+  previousStatus: DomainStatus;
+  statusChanged: boolean;
+  hasEverVerified: boolean;
+};
 
 function parseDomainStatus(status?: string | null): DomainStatus {
   if (!status) {
@@ -86,6 +109,177 @@ function withDnsRecords<T extends Domain>(
 }
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
+
+function getDomainVerificationKey(kind: string, domainId: number) {
+  return redisKey(`domain:verification:${kind}:${domainId}`);
+}
+
+function normalizeDate(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function getDomainVerificationState(
+  domainId: number,
+): Promise<DomainVerificationState> {
+  const redis = getRedis();
+  const [lastCheckedValue, lastNotifiedStatusValue, hasEverVerifiedValue] =
+    await redis.mget([
+      getDomainVerificationKey("last-check", domainId),
+      getDomainVerificationKey("last-notified-status", domainId),
+      getDomainVerificationKey("has-ever-verified", domainId),
+    ]);
+
+  return {
+    hasEverVerified: hasEverVerifiedValue === "1",
+    lastCheckedAt: normalizeDate(lastCheckedValue),
+    lastNotifiedStatus: DOMAIN_STATUS_VALUES.has(
+      (lastNotifiedStatusValue ?? "") as DomainStatus,
+    )
+      ? (lastNotifiedStatusValue as DomainStatus)
+      : null,
+  };
+}
+
+async function setDomainVerificationCheckedAt(
+  domainId: number,
+  checkedAt: Date,
+) {
+  await getRedis().set(
+    getDomainVerificationKey("last-check", domainId),
+    checkedAt.toISOString(),
+  );
+}
+
+async function markDomainEverVerified(domainId: number) {
+  await getRedis().set(
+    getDomainVerificationKey("has-ever-verified", domainId),
+    "1",
+  );
+}
+
+async function setLastNotifiedDomainStatus(
+  domainId: number,
+  status: DomainStatus,
+) {
+  await getRedis().set(
+    getDomainVerificationKey("last-notified-status", domainId),
+    status,
+  );
+}
+
+async function clearDomainVerificationState(domainId: number) {
+  await getRedis().del(
+    getDomainVerificationKey("last-check", domainId),
+    getDomainVerificationKey("last-notified-status", domainId),
+    getDomainVerificationKey("has-ever-verified", domainId),
+  );
+}
+
+function shouldContinueVerifying(
+  verificationStatus: DomainStatus,
+  dkimStatus: string | undefined,
+  spfDetails: string | undefined,
+) {
+  if (
+    verificationStatus === DomainStatus.SUCCESS &&
+    dkimStatus === DomainStatus.SUCCESS &&
+    spfDetails === DomainStatus.SUCCESS
+  ) {
+    return false;
+  }
+
+  return verificationStatus !== DomainStatus.FAILED;
+}
+
+function shouldSendDomainStatusNotification({
+  currentStatus,
+  hasEverVerified,
+  lastNotifiedStatus,
+}: {
+  currentStatus: DomainStatus;
+  hasEverVerified: boolean;
+  lastNotifiedStatus: DomainStatus | null;
+}) {
+  if (hasEverVerified) {
+    return currentStatus !== lastNotifiedStatus;
+  }
+
+  if (
+    currentStatus !== DomainStatus.SUCCESS &&
+    currentStatus !== DomainStatus.FAILED
+  ) {
+    return false;
+  }
+
+  return currentStatus !== lastNotifiedStatus;
+}
+
+async function sendDomainStatusNotification({
+  domain,
+  previousStatus,
+  verificationError,
+}: {
+  domain: Domain;
+  previousStatus: DomainStatus;
+  verificationError: string | null;
+}) {
+  const recipients = (
+    await db.teamUser.findMany({
+      where: {
+        teamId: domain.teamId,
+      },
+      include: {
+        user: true,
+      },
+    })
+  )
+    .map((teamUser) => teamUser.user?.email)
+    .filter((email): email is string => Boolean(email));
+
+  if (recipients.length === 0) {
+    logger.info(
+      { domainId: domain.id, teamId: domain.teamId },
+      "[DomainService]: Skipping domain status email because team has no recipients",
+    );
+    return;
+  }
+
+  const subject =
+    domain.status === DomainStatus.SUCCESS
+      ? `useSend: ${domain.name} is verified`
+      : previousStatus === DomainStatus.SUCCESS
+        ? `useSend: ${domain.name} verification status changed`
+        : `useSend: ${domain.name} verification failed`;
+
+  const domainUrl = `${env.NEXTAUTH_URL}/domains/${domain.id}`;
+  const html = await renderDomainVerificationStatusEmail({
+    domainName: domain.name,
+    currentStatus: domain.status,
+    previousStatus,
+    verificationError,
+    domainUrl,
+  });
+  const textLines = [
+    `Domain: ${domain.name}`,
+    `Current status: ${domain.status}`,
+    previousStatus !== domain.status
+      ? `Previous status: ${previousStatus}`
+      : null,
+    verificationError ? `Verification error: ${verificationError}` : null,
+    `Manage domain: ${domainUrl}`,
+  ].filter((value): value is string => Boolean(value));
+
+  await Promise.all(
+    recipients.map((email) =>
+      sendMail(email, subject, textLines.join("\n"), html, "hey@usesend.com"),
+    ),
+  );
+}
 
 function buildDomainPayload(domain: Domain): DomainPayload {
   return {
@@ -248,73 +442,124 @@ export async function getDomain(id: number, teamId: number) {
   }
 
   if (domain.isVerifying) {
-    const previousStatus = domain.status;
-    const domainIdentity = await ses.getDomainIdentity(
-      domain.name,
-      domain.region,
-    );
-
-    const dkimStatus = domainIdentity.DkimAttributes?.Status;
-    const spfDetails = domainIdentity.MailFromAttributes?.MailFromDomainStatus;
-    const verificationError = domainIdentity.VerificationInfo?.ErrorType;
-    const verificationStatus = domainIdentity.VerificationStatus;
-    const lastCheckedTime =
-      domainIdentity.VerificationInfo?.LastCheckedTimestamp;
-    const _dmarcRecord = await getDmarcRecord(tldts.getDomain(domain.name)!);
-    const dmarcRecord = _dmarcRecord?.[0]?.[0];
-
-    domain = await db.domain.update({
-      where: {
-        id,
-      },
-      data: {
-        dkimStatus,
-        spfDetails,
-        status: verificationStatus ?? "NOT_STARTED",
-        dmarcAdded: dmarcRecord ? true : false,
-        isVerifying:
-          verificationStatus === "SUCCESS" &&
-          dkimStatus === "SUCCESS" &&
-          spfDetails === "SUCCESS"
-            ? false
-            : true,
-      },
-    });
-
-    const normalizedDomain = {
-      ...domain,
-      dkimStatus: dkimStatus?.toString() ?? null,
-      spfDetails: spfDetails?.toString() ?? null,
-      dmarcAdded: dmarcRecord ? true : false,
-    } satisfies Domain;
-
-    const domainWithDns = withDnsRecords(normalizedDomain);
-    const normalizedLastCheckedTime =
-      lastCheckedTime instanceof Date
-        ? lastCheckedTime.toISOString()
-        : (lastCheckedTime ?? null);
-
-    const response = {
-      ...domainWithDns,
-      dkimStatus: normalizedDomain.dkimStatus,
-      spfDetails: normalizedDomain.spfDetails,
-      verificationError: verificationError?.toString() ?? null,
-      lastCheckedTime: normalizedLastCheckedTime,
-      dmarcAdded: normalizedDomain.dmarcAdded,
-    };
-
-    if (previousStatus !== domainWithDns.status) {
-      const eventType: DomainWebhookEventType =
-        domainWithDns.status === DomainStatus.SUCCESS
-          ? "domain.verified"
-          : "domain.updated";
-      await emitDomainEvent(domainWithDns, eventType);
-    }
-
-    return response;
+    return refreshDomainVerification(domain);
   }
 
   return withDnsRecords(domain);
+}
+
+export async function refreshDomainVerification(
+  domainOrId: number | Domain,
+): Promise<DomainVerificationRefreshResult> {
+  const domain =
+    typeof domainOrId === "number"
+      ? await db.domain.findUnique({ where: { id: domainOrId } })
+      : domainOrId;
+
+  if (!domain) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Domain not found",
+    });
+  }
+
+  const verificationState = await getDomainVerificationState(domain.id);
+  const previousStatus = domain.status;
+  const domainIdentity = await ses.getDomainIdentity(
+    domain.name,
+    domain.region,
+  );
+  const dkimStatus = domainIdentity.DkimAttributes?.Status?.toString();
+  const spfDetails =
+    domainIdentity.MailFromAttributes?.MailFromDomainStatus?.toString();
+  const verificationError =
+    domainIdentity.VerificationInfo?.ErrorType?.toString() ?? null;
+  const verificationStatus = parseDomainStatus(
+    domainIdentity.VerificationStatus?.toString(),
+  );
+  const lastCheckedTime = domainIdentity.VerificationInfo?.LastCheckedTimestamp;
+  const baseDomain = tldts.getDomain(domain.name);
+  const _dmarcRecord = baseDomain ? await getDmarcRecord(baseDomain) : null;
+  const dmarcRecord = _dmarcRecord?.[0]?.[0];
+  const checkedAt = new Date();
+
+  const updatedDomain = await db.domain.update({
+    where: {
+      id: domain.id,
+    },
+    data: {
+      dkimStatus: dkimStatus ?? null,
+      spfDetails: spfDetails ?? null,
+      status: verificationStatus,
+      errorMessage: verificationError,
+      dmarcAdded: Boolean(dmarcRecord),
+      isVerifying: shouldContinueVerifying(
+        verificationStatus,
+        dkimStatus,
+        spfDetails,
+      ),
+    },
+  });
+
+  await setDomainVerificationCheckedAt(domain.id, checkedAt);
+
+  if (updatedDomain.status === DomainStatus.SUCCESS) {
+    await markDomainEverVerified(domain.id);
+  }
+
+  if (
+    shouldSendDomainStatusNotification({
+      currentStatus: updatedDomain.status,
+      hasEverVerified:
+        verificationState.hasEverVerified ||
+        updatedDomain.status === DomainStatus.SUCCESS,
+      lastNotifiedStatus: verificationState.lastNotifiedStatus,
+    })
+  ) {
+    await sendDomainStatusNotification({
+      domain: updatedDomain,
+      previousStatus,
+      verificationError,
+    });
+    await setLastNotifiedDomainStatus(domain.id, updatedDomain.status);
+  }
+
+  const normalizedDomain = {
+    ...updatedDomain,
+    dkimStatus: dkimStatus ?? null,
+    spfDetails: spfDetails ?? null,
+    dmarcAdded: Boolean(dmarcRecord),
+  } satisfies Domain;
+
+  const domainWithDns = withDnsRecords(normalizedDomain);
+  const normalizedLastCheckedTime =
+    lastCheckedTime instanceof Date
+      ? lastCheckedTime.toISOString()
+      : lastCheckedTime != null
+        ? String(lastCheckedTime)
+        : null;
+
+  if (previousStatus !== domainWithDns.status) {
+    const eventType: DomainWebhookEventType =
+      domainWithDns.status === DomainStatus.SUCCESS
+        ? "domain.verified"
+        : "domain.updated";
+    await emitDomainEvent(domainWithDns, eventType);
+  }
+
+  return {
+    ...domainWithDns,
+    dkimStatus: normalizedDomain.dkimStatus,
+    spfDetails: normalizedDomain.spfDetails,
+    verificationError,
+    lastCheckedTime: normalizedLastCheckedTime,
+    dmarcAdded: normalizedDomain.dmarcAdded,
+    previousStatus,
+    statusChanged: previousStatus !== domainWithDns.status,
+    hasEverVerified:
+      verificationState.hasEverVerified ||
+      domainWithDns.status === DomainStatus.SUCCESS,
+  };
 }
 
 export async function updateDomain(
@@ -351,6 +596,7 @@ export async function deleteDomain(id: number) {
   }
 
   const deletedRecord = await db.domain.delete({ where: { id } });
+  await clearDomainVerificationState(id);
 
   await emitDomainEvent(domain, "domain.deleted");
 
@@ -395,4 +641,30 @@ async function emitDomainEvent(domain: Domain, type: DomainWebhookEventType) {
       "[DomainService]: Failed to emit domain webhook event",
     );
   }
+}
+
+export async function isDomainVerificationDue(domain: Domain) {
+  const verificationState = await getDomainVerificationState(domain.id);
+
+  if (
+    !verificationState.hasEverVerified &&
+    domain.status === DomainStatus.FAILED &&
+    !domain.isVerifying
+  ) {
+    return false;
+  }
+
+  const now = Date.now();
+  const lastCheckedAt = verificationState.lastCheckedAt?.getTime() ?? 0;
+  const intervalMs =
+    verificationState.hasEverVerified ||
+    VERIFIED_DOMAIN_STATUSES.has(domain.status)
+      ? DOMAIN_VERIFIED_RECHECK_MS
+      : DOMAIN_UNVERIFIED_RECHECK_MS;
+
+  if (!verificationState.lastCheckedAt) {
+    return true;
+  }
+
+  return now - lastCheckedAt >= intervalMs;
 }
