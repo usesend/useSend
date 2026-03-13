@@ -40,6 +40,7 @@ export function DomainVerificationStatusEmail({
   verificationError,
   domainUrl,
 }: DomainVerificationStatusEmailProps) {
+  const isSuccess = currentStatus === DomainStatus.SUCCESS;
   const preview = `${domainName} is now ${formatDomainStatus(currentStatus)}`;
 
   return (
@@ -56,11 +57,10 @@ export function DomainVerificationStatusEmail({
             textAlign: "left" as const,
           }}
         >
-          {domainName} is currently{" "}
-          <strong>{formatDomainStatus(currentStatus)}</strong>.
+          Hey,
         </Text>
 
-        {previousStatus !== currentStatus ? (
+        {isSuccess ? (
           <Text
             style={{
               fontSize: "15px",
@@ -70,10 +70,24 @@ export function DomainVerificationStatusEmail({
               textAlign: "left" as const,
             }}
           >
-            Previous status:{" "}
-            <strong>{formatDomainStatus(previousStatus)}</strong>
+            Your domain <strong>{domainName}</strong> is now verified, and you
+            can start sending emails.
           </Text>
-        ) : null}
+        ) : (
+          <Text
+            style={{
+              fontSize: "15px",
+              color: "#4b5563",
+              margin: "0 0 16px 0",
+              lineHeight: "1.6",
+              textAlign: "left" as const,
+            }}
+          >
+            Your domain <strong>{domainName}</strong> could not be verified
+            because the DNS records are not set up correctly yet. Please review
+            your DNS settings and try again.
+          </Text>
+        )}
 
         {verificationError ? (
           <Container
@@ -107,13 +121,26 @@ export function DomainVerificationStatusEmail({
             textAlign: "left" as const,
           }}
         >
-          Review the DNS records in useSend to make sure the domain stays ready
-          to send.
+          Open your domain settings to review records and verification details.
         </Text>
 
         <Container style={{ margin: "0 0 32px 0", textAlign: "left" as const }}>
           <EmailButton href={domainUrl}>Open domain settings</EmailButton>
         </Container>
+
+        <Text
+          style={{
+            fontSize: "14px",
+            color: "#6b7280",
+            margin: "0",
+            lineHeight: "1.6",
+            textAlign: "left" as const,
+          }}
+        >
+          Thanks,
+          <br />
+          useSend Team
+        </Text>
       </Container>
 
       <EmailFooter />

@@ -133,7 +133,7 @@ describe("domain-service", () => {
     );
   });
 
-  it("sends one success email when a new domain becomes verified", async () => {
+  it("sends success status emails to all team members when a new domain becomes verified", async () => {
     const domain = createDomain();
     mockRedis.mget.mockResolvedValue([null, null, null]);
     mockGetDomainIdentity.mockResolvedValue({

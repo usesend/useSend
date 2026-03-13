@@ -285,14 +285,20 @@ async function sendDomainStatusNotification({
     verificationError,
     domainUrl,
   });
+  const statusMessage =
+    domain.status === DomainStatus.SUCCESS
+      ? `Your domain ${domain.name} is now verified, and you can start sending emails.`
+      : `Your domain ${domain.name} could not be verified because the DNS records are not set up correctly yet. Please review your DNS settings and try again.`;
   const textLines = [
-    `Domain: ${domain.name}`,
-    `Current status: ${domain.status}`,
-    previousStatus !== domain.status
-      ? `Previous status: ${previousStatus}`
-      : null,
+    "Hey,",
+    null,
+    statusMessage,
     verificationError ? `Verification error: ${verificationError}` : null,
-    `Manage domain: ${domainUrl}`,
+    null,
+    `Open domain settings: ${domainUrl}`,
+    null,
+    "Thanks,",
+    "useSend Team",
   ].filter((value): value is string => Boolean(value));
 
   await Promise.all(
