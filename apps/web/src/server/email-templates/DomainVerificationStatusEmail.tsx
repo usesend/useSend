@@ -11,7 +11,6 @@ interface DomainVerificationStatusEmailProps {
   domainName: string;
   currentStatus: DomainStatus;
   previousStatus: DomainStatus;
-  verificationError?: string | null;
   domainUrl: string;
 }
 
@@ -37,7 +36,6 @@ export function DomainVerificationStatusEmail({
   domainName,
   currentStatus,
   previousStatus,
-  verificationError,
   domainUrl,
 }: DomainVerificationStatusEmailProps) {
   const isSuccess = currentStatus === DomainStatus.SUCCESS;
@@ -88,29 +86,6 @@ export function DomainVerificationStatusEmail({
             your DNS settings and try again.
           </Text>
         )}
-
-        {verificationError ? (
-          <Container
-            style={{
-              backgroundColor: "#fef2f2",
-              border: "1px solid #fecaca",
-              padding: "12px 16px",
-              margin: "0 0 24px 0",
-              borderRadius: "4px",
-            }}
-          >
-            <Text
-              style={{
-                margin: 0,
-                color: "#991b1b",
-                fontSize: 14,
-                textAlign: "left" as const,
-              }}
-            >
-              Verification error: {verificationError}
-            </Text>
-          </Container>
-        ) : null}
 
         <Text
           style={{

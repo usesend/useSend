@@ -243,11 +243,9 @@ function shouldSendDomainStatusNotification({
 async function sendDomainStatusNotification({
   domain,
   previousStatus,
-  verificationError,
 }: {
   domain: Domain;
   previousStatus: DomainStatus;
-  verificationError: string | null;
 }) {
   const recipients = (
     await db.teamUser.findMany({
@@ -282,7 +280,6 @@ async function sendDomainStatusNotification({
     domainName: domain.name,
     currentStatus: domain.status,
     previousStatus,
-    verificationError,
     domainUrl,
   });
   const statusMessage =
@@ -293,7 +290,6 @@ async function sendDomainStatusNotification({
     "Hey,",
     null,
     statusMessage,
-    verificationError ? `Verification error: ${verificationError}` : null,
     null,
     `Open domain settings: ${domainUrl}`,
     null,
@@ -554,7 +550,6 @@ export async function refreshDomainVerification(
         await sendDomainStatusNotification({
           domain: updatedDomain,
           previousStatus,
-          verificationError,
         });
         await setLastNotifiedDomainStatus(domain.id, updatedDomain.status);
       } catch (error) {
