@@ -15,6 +15,10 @@ interface DomainVerificationStatusEmailProps {
   domainUrl: string;
 }
 
+function formatDomainStatus(status: DomainStatus) {
+  return status.toLowerCase().replaceAll("_", " ");
+}
+
 function getTitle(currentStatus: DomainStatus, previousStatus: DomainStatus) {
   if (currentStatus === DomainStatus.SUCCESS) {
     return previousStatus === DomainStatus.SUCCESS
@@ -36,7 +40,7 @@ export function DomainVerificationStatusEmail({
   verificationError,
   domainUrl,
 }: DomainVerificationStatusEmailProps) {
-  const preview = `${domainName} is now ${currentStatus.toLowerCase().replaceAll("_", " ")}`;
+  const preview = `${domainName} is now ${formatDomainStatus(currentStatus)}`;
 
   return (
     <EmailLayout preview={preview}>
@@ -52,7 +56,8 @@ export function DomainVerificationStatusEmail({
             textAlign: "left" as const,
           }}
         >
-          {domainName} is currently <strong>{currentStatus}</strong>.
+          {domainName} is currently{" "}
+          <strong>{formatDomainStatus(currentStatus)}</strong>.
         </Text>
 
         {previousStatus !== currentStatus ? (
@@ -65,7 +70,8 @@ export function DomainVerificationStatusEmail({
               textAlign: "left" as const,
             }}
           >
-            Previous status: <strong>{previousStatus}</strong>
+            Previous status:{" "}
+            <strong>{formatDomainStatus(previousStatus)}</strong>
           </Text>
         ) : null}
 

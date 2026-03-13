@@ -632,7 +632,14 @@ export async function deleteDomain(id: number) {
   }
 
   const deletedRecord = await db.domain.delete({ where: { id } });
-  await clearDomainVerificationState(id);
+  try {
+    await clearDomainVerificationState(id);
+  } catch (error) {
+    logger.error(
+      { err: error, domainId: id },
+      "[DomainService]: Failed to clear domain verification state",
+    );
+  }
 
   await emitDomainEvent(domain, "domain.deleted");
 
