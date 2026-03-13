@@ -212,14 +212,20 @@ function shouldContinueVerifying(
 }
 
 function shouldSendDomainStatusNotification({
+  previousStatus,
   currentStatus,
   hasEverVerified,
   lastNotifiedStatus,
 }: {
+  previousStatus: DomainStatus;
   currentStatus: DomainStatus;
   hasEverVerified: boolean;
   lastNotifiedStatus: DomainStatus | null;
 }) {
+  if (lastNotifiedStatus === null && currentStatus === previousStatus) {
+    return false;
+  }
+
   if (hasEverVerified) {
     return currentStatus !== lastNotifiedStatus;
   }
@@ -524,6 +530,7 @@ export async function refreshDomainVerification(
 
   if (
     shouldSendDomainStatusNotification({
+      previousStatus,
       currentStatus: updatedDomain.status,
       hasEverVerified:
         verificationState.hasEverVerified ||

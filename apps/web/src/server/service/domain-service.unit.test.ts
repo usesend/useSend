@@ -243,6 +243,39 @@ describe("domain-service", () => {
     expect(mockSendMail).not.toHaveBeenCalled();
   });
 
+  it("does not send status email on first refresh when status is unchanged", async () => {
+    const domain = createDomain({
+      status: DomainStatus.SUCCESS,
+      dkimStatus: DomainStatus.SUCCESS,
+      spfDetails: DomainStatus.SUCCESS,
+      isVerifying: false,
+    });
+    mockRedis.mget.mockResolvedValue([null, null, null]);
+    mockGetDomainIdentity.mockResolvedValue({
+      DkimAttributes: { Status: DomainStatus.SUCCESS },
+      MailFromAttributes: { MailFromDomainStatus: DomainStatus.SUCCESS },
+      VerificationInfo: {
+        ErrorType: null,
+        LastCheckedTimestamp: new Date("2026-03-09T12:00:00.000Z"),
+      },
+      VerificationStatus: DomainStatus.SUCCESS,
+    });
+    mockDb.domain.update.mockResolvedValue(
+      createDomain({
+        status: DomainStatus.SUCCESS,
+        dkimStatus: DomainStatus.SUCCESS,
+        spfDetails: DomainStatus.SUCCESS,
+        dmarcAdded: true,
+        isVerifying: false,
+      }),
+    );
+
+    await refreshDomainVerification(domain);
+
+    expect(mockSendMail).not.toHaveBeenCalled();
+    expect(wasLastNotifiedStatusStored()).toBe(false);
+  });
+
   it("reserves the notification so concurrent refreshes do not double-send", async () => {
     const domain = createDomain();
     mockRedis.mget.mockResolvedValue([null, null, null]);
