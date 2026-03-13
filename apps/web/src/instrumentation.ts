@@ -1,5 +1,5 @@
-import { env } from "./env";
-import { isCloud , isEmailCleanupEnabled } from "./utils/common";
+import { initDomainVerificationJob } from "~/server/jobs/domain-verification-job";
+import { isCloud, isEmailCleanupEnabled } from "~/utils/common";
 
 let initialized = false;
 
@@ -23,6 +23,10 @@ export async function register() {
      */
     if (isCloud()) {
       await import("~/server/jobs/usage-job");
+    }
+
+    if (process.env.REDIS_URL) {
+      await initDomainVerificationJob();
     }
 
     if (isEmailCleanupEnabled()) {
