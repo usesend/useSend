@@ -1,9 +1,0 @@
-{
-  "extends": "@usesend/typescript-config/base.json",
-  "compilerOptions": {
-    "allowJs": true,
-    "noEmit": true
-  },
-  "include": ["tailwind.config.ts"],
-  "exclude": ["node_modules", "dist"]
-}

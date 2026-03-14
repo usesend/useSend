@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@source "../**/*.{js,jsx,ts,tsx,mdx}";
+@source "../../../../packages/ui/src/**/*.{js,jsx,ts,tsx,mdx}";
+@source "../../../../packages/email-editor/src/**/*.{js,jsx,ts,tsx,mdx}";
+
+@import "@usesend/ui/styles/globals.css";
