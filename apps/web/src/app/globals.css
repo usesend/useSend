@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@usesend/ui/styles/globals.css";
+
+@config "../../tailwind.config.ts";

@@ -10,4 +10,3 @@ export default {
     `${path.join(require.resolve("@usesend/email-editor"), "..")}/**/*.{ts,tsx}`,
   ],
 } satisfies Config;
-

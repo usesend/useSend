@@ -1,3 +1,5 @@
+@reference "tailwindcss";
+
 .unsend-editor .unsend-prose p:where([class~="text-sm"]) {
   font-size: 16px;
 }

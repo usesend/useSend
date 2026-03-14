@@ -89,6 +89,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.3.1",
+    "@tailwindcss/postcss": "^4.1.0",
     "@types/eslint": "^9.6.1",
     "@types/html-to-text": "^9.0.4",
     "@types/mime-types": "^2.1.4",
@@ -107,7 +108,7 @@
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^4.1.0",
     "typescript": "^5.8.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4",
