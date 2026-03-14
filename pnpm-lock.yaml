@@ -91,9 +91,6 @@ importers:
       '@usesend/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@usesend/tailwind-config':
-        specifier: workspace:*
-        version: link:../../packages/tailwind-config
       '@usesend/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -357,9 +354,6 @@ importers:
       '@usesend/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@usesend/tailwind-config':
-        specifier: workspace:*
-        version: link:../../packages/tailwind-config
       '@usesend/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -481,9 +475,6 @@ importers:
       '@usesend/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@usesend/tailwind-config':
-        specifier: workspace:*
-        version: link:../tailwind-config
       '@usesend/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
@@ -593,25 +584,6 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
-
-  packages/tailwind-config:
-    dependencies:
-      tailwindcss-animate:
-        specifier: ^1.0.7
-        version: 1.0.7(tailwindcss@4.2.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.2
-        version: 22.15.2
-      autoprefixer:
-        specifier: ^10.4.21
-        version: 10.4.21(postcss@8.5.3)
-      postcss:
-        specifier: ^8.5.3
-        version: 8.5.3
-      tailwindcss:
-        specifier: ^4.1.0
-        version: 4.2.1
 
   packages/typescript-config: {}
 
@@ -732,9 +704,6 @@ importers:
       '@usesend/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@usesend/tailwind-config':
-        specifier: workspace:*
-        version: link:../tailwind-config
       '@usesend/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
@@ -9666,6 +9635,7 @@ packages:
       picocolors: 1.1.1
       postcss: 8.5.3
       postcss-value-parser: 4.2.0
+    dev: false
 
   /available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
@@ -12146,6 +12116,7 @@ packages:
 
   /fraction.js@4.3.7:
     resolution: {integrity: sha512-ZsDfxO51wGAXREY55a7la9LScWpwv9RxIrYABrlvOFBlH/ShPnrtsXeuUIfXKKOVicNxQ+o8JTbJvjS4M89yew==}
+    dev: false
 
   /framer-motion@11.12.0(react-dom@19.1.0)(react@19.1.0):
     resolution: {integrity: sha512-gZaZeqFM6pX9kMVti60hYAa75jGpSsGYWAHbBfIkuHN7DkVHVkxSxeNYnrGmHuM0zPkWTzQx10ZT+fDjn7N4SA==}
@@ -15168,6 +15139,7 @@ packages:
   /normalize-range@0.1.2:
     resolution: {integrity: sha512-bdok/XvKII3nUpklnV6P2hxtMNrCboOjAcyBuQnWEhO665FwrSNRxU+AqpsyvO6LgGYPspN+lu5CLtw4jPRKNA==}
     engines: {node: '>=0.10.0'}
+    dev: false
 
   /normalize-url@8.0.1:
     resolution: {integrity: sha512-IO9QvjUMWxPQQhs60oOu10CRkWCiZzSUkzbXGGV9pviYl1fXYcvkzQ5jV9z8Y6un8ARoVRl4EtC6v6jNqbaJ/w==}

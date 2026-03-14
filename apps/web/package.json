@@ -101,7 +101,6 @@
     "@typescript-eslint/eslint-plugin": "^8.31.0",
     "@typescript-eslint/parser": "^8.31.0",
     "@usesend/eslint-config": "workspace:*",
-    "@usesend/tailwind-config": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.3.1",

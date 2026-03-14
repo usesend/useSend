@@ -22,7 +22,6 @@
     "@types/eslint": "^9.6.1",
     "@types/react": "^19.1.2",
     "@usesend/eslint-config": "workspace:*",
-    "@usesend/tailwind-config": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
     "@usesend/ui": "workspace:*",
     "postcss": "^8.5.3",
