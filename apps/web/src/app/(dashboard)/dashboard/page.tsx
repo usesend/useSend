@@ -7,7 +7,7 @@ import { useUrlState } from "~/hooks/useUrlState";
 import { ReputationMetrics } from "./reputation-metrics";
 
 export default function Dashboard() {
-  const [days, setDays] = useUrlState("days", "7");
+  const [days, setDays] = useUrlState("days", "30");
   const [domain, setDomain] = useUrlState("domain");
 
   return (
@@ -16,16 +16,16 @@ export default function Dashboard() {
         <div className="flex justify-between items-center mb-10">
           <H1>Analytics</H1>
           <DashboardFilters
-            days={days ?? "7"}
+            days={days ?? "30"}
             setDays={setDays}
             domain={domain}
             setDomain={setDomain}
           />
         </div>
         <div className=" space-y-12">
-          <EmailChart days={Number(days ?? "7")} domain={domain} />
+          <EmailChart days={Number(days ?? "30")} domain={domain} />
 
-          <ReputationMetrics days={Number(days ?? "7")} domain={domain} />
+          <ReputationMetrics days={Number(days ?? "30")} domain={domain} />
         </div>
       </div>
     </div>

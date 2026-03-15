@@ -32,16 +32,18 @@ const STACK_ORDER: string[] = [
 ] as const;
 
 type StackKey = (typeof STACK_ORDER)[number];
-
-function createRoundedTopShape(currentKey: StackKey) {
-  const currentIndex = STACK_ORDER.indexOf(currentKey);
+function createRoundedTopShape(
+  currentKey: StackKey,
+  visibleStackOrder: StackKey[],
+) {
+  const currentIndex = visibleStackOrder.indexOf(currentKey);
   return (props: any) => {
     const payload = props.payload as
       | Partial<Record<StackKey, number>>
       | undefined;
     let hasAbove = false;
-    for (let i = currentIndex + 1; i < STACK_ORDER.length; i++) {
-      const key = STACK_ORDER[i];
+    for (let i = currentIndex + 1; i < visibleStackOrder.length; i++) {
+      const key = visibleStackOrder[i];
       const val = key ? (payload?.[key] ?? 0) : 0;
       if (val > 0) {
         hasAbove = true;
@@ -55,6 +57,7 @@ function createRoundedTopShape(currentKey: StackKey) {
 }
 
 export default function EmailChart({ days, domain }: EmailChartProps) {
+  const [selectedMetrics, setSelectedMetrics] = React.useState<StackKey[]>([]);
   const domainId = domain ? Number(domain) : undefined;
   const statusQuery = api.dashboard.emailTimeSeries.useQuery({
     days: days,
@@ -62,6 +65,32 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
   });
 
   const currentColors = useColors();
+
+  const metricMeta: Record<StackKey, { label: string; color: string }> = {
+    delivered: { label: "Delivered", color: currentColors.delivered },
+    bounced: { label: "Bounced", color: currentColors.bounced },
+    complained: { label: "Complained", color: currentColors.complained },
+    opened: { label: "Opened", color: currentColors.opened },
+    clicked: { label: "Clicked", color: currentColors.clicked },
+  };
+
+  const visibleMetrics =
+    selectedMetrics.length === 0
+      ? STACK_ORDER
+      : STACK_ORDER.filter((key) => selectedMetrics.includes(key));
+
+  const toggleMetric = (metric: StackKey) => {
+    setSelectedMetrics((prev) => {
+      const exists = prev.includes(metric);
+
+      if (exists) {
+        return prev.filter((key) => key !== metric);
+      }
+
+      const nextSet = new Set([...prev, metric]);
+      return STACK_ORDER.filter((key) => nextSet.has(key));
+    });
+  };
 
   return (
     <div className="flex flex-col gap-16">
@@ -75,6 +104,8 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                 status={"total"}
                 count={statusQuery.data.totalCounts.sent}
                 percentage={100}
+                isActive={selectedMetrics.length === 0}
+                isClickable={false}
               />
               <EmailChartItem
                 status={EmailStatus.DELIVERED}
@@ -83,6 +114,11 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   statusQuery.data.totalCounts.delivered /
                   statusQuery.data.totalCounts.sent
                 }
+                isActive={
+                  selectedMetrics.length === 0 ||
+                  selectedMetrics.includes("delivered")
+                }
+                onClick={() => toggleMetric("delivered")}
               />
               <EmailChartItem
                 status={EmailStatus.BOUNCED}
@@ -91,6 +127,11 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   statusQuery.data.totalCounts.bounced /
                   statusQuery.data.totalCounts.sent
                 }
+                isActive={
+                  selectedMetrics.length === 0 ||
+                  selectedMetrics.includes("bounced")
+                }
+                onClick={() => toggleMetric("bounced")}
               />
               <EmailChartItem
                 status={EmailStatus.COMPLAINED}
@@ -99,6 +140,11 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   statusQuery.data.totalCounts.complained /
                   statusQuery.data.totalCounts.sent
                 }
+                isActive={
+                  selectedMetrics.length === 0 ||
+                  selectedMetrics.includes("complained")
+                }
+                onClick={() => toggleMetric("complained")}
               />
               <EmailChartItem
                 status={EmailStatus.CLICKED}
@@ -107,6 +153,11 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   statusQuery.data.totalCounts.clicked /
                   statusQuery.data.totalCounts.sent
                 }
+                isActive={
+                  selectedMetrics.length === 0 ||
+                  selectedMetrics.includes("clicked")
+                }
+                onClick={() => toggleMetric("clicked")}
               />
               <EmailChartItem
                 status={EmailStatus.OPENED}
@@ -115,6 +166,11 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   statusQuery.data.totalCounts.opened /
                   statusQuery.data.totalCounts.sent
                 }
+                isActive={
+                  selectedMetrics.length === 0 ||
+                  selectedMetrics.includes("opened")
+                }
+                onClick={() => toggleMetric("opened")}
               />
             </div>
           </div>
@@ -135,6 +191,9 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                 fontSize={12}
                 className="font-mono"
                 stroke={currentColors.xaxis}
+                tick={{ fill: currentColors.xaxis, fillOpacity: 0.65 }}
+                axisLine={false}
+                tickLine={false}
               />
               {/* <YAxis fontSize={12} className="font-mono" /> */}
               <Tooltip
@@ -154,11 +213,10 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                   if (!data) return null;
 
                   const hasAnyData =
-                    (data.delivered || 0) > 0 ||
-                    (data.bounced || 0) > 0 ||
-                    (data.complained || 0) > 0 ||
-                    (data.opened || 0) > 0 ||
-                    (data.clicked || 0) > 0;
+                    visibleMetrics.reduce(
+                      (sum, key) => sum + (data[key] || 0),
+                      0,
+                    ) > 0;
 
                   if (!hasAnyData) return null;
 
@@ -167,105 +225,43 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                       <p className="text-sm text-muted-foreground">
                         {data.date}
                       </p>
-                      {data.delivered ? (
-                        <div className="flex gap-2 items-center">
+                      {visibleMetrics.map((metricKey) => {
+                        const metricValue = data[metricKey] || 0;
+                        if (!metricValue) return null;
+
+                        return (
                           <div
-                            className="w-2.5 h-2.5 rounded-[2px]"
-                            style={{ backgroundColor: currentColors.delivered }}
-                          ></div>
-                          <p className="text-xs text-muted-foreground w-[70px]">
-                            Delivered
-                          </p>
-                          <p className="text-xs font-mono">{data.delivered}</p>
-                        </div>
-                      ) : null}
-                      {data.bounced ? (
-                        <div className="flex gap-2 items-center">
-                          <div
-                            className="w-2.5 h-2.5 rounded-[2px]"
-                            style={{ backgroundColor: currentColors.bounced }}
-                          ></div>
-                          <p className="text-xs text-muted-foreground w-[70px]">
-                            Bounced
-                          </p>
-                          <p className="text-xs font-mono">{data.bounced}</p>
-                        </div>
-                      ) : null}
-                      {data.complained ? (
-                        <div className="flex gap-2 items-center">
-                          <div
-                            className="w-2.5 h-2.5 rounded-[2px]"
-                            style={{
-                              backgroundColor: currentColors.complained,
-                            }}
-                          ></div>
-                          <p className="text-xs text-muted-foreground w-[70px]">
-                            Complained
-                          </p>
-                          <p className="text-xs font-mono">{data.complained}</p>
-                        </div>
-                      ) : null}
-                      {data.opened ? (
-                        <div className="flex gap-2 items-center">
-                          <div
-                            className="w-2.5 h-2.5 rounded-[2px]"
-                            style={{ backgroundColor: currentColors.opened }}
-                          ></div>
-                          <p className="text-xs text-muted-foreground w-[70px]">
-                            Opened
-                          </p>
-                          <p className="text-xs font-mono">{data.opened}</p>
-                        </div>
-                      ) : null}
-                      {data.clicked ? (
-                        <div className="flex gap-2 items-center">
-                          <div
-                            className="w-2.5 h-2.5 rounded-[2px]"
-                            style={{ backgroundColor: currentColors.clicked }}
-                          ></div>
-                          <p className="text-xs text-muted-foreground w-[70px]">
-                            Clicked
-                          </p>
-                          <p className="text-xs font-mono">{data.clicked}</p>
-                        </div>
-                      ) : null}
+                            key={metricKey}
+                            className="flex gap-2 items-center"
+                          >
+                            <div
+                              className="w-2.5 h-2.5 rounded-[2px]"
+                              style={{
+                                backgroundColor: metricMeta[metricKey].color,
+                              }}
+                            ></div>
+                            <p className="text-xs text-muted-foreground w-[70px]">
+                              {metricMeta[metricKey].label}
+                            </p>
+                            <p className="text-xs font-mono">{metricValue}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 }}
                 cursor={false}
               />
-              {/* <Legend /> */}
-              <Bar
-                barSize={8}
-                dataKey="delivered"
-                stackId="a"
-                fill={currentColors.delivered}
-                shape={createRoundedTopShape("delivered")}
-              />
-              <Bar
-                dataKey="bounced"
-                stackId="a"
-                fill={currentColors.bounced}
-                shape={createRoundedTopShape("bounced")}
-              />
-              <Bar
-                dataKey="complained"
-                stackId="a"
-                fill={currentColors.complained}
-                shape={createRoundedTopShape("complained")}
-              />
-              <Bar
-                dataKey="opened"
-                stackId="a"
-                fill={currentColors.opened}
-                shape={createRoundedTopShape("opened")}
-              />
-              <Bar
-                dataKey="clicked"
-                stackId="a"
-                fill={currentColors.clicked}
-                shape={createRoundedTopShape("clicked")}
-              />
+              {visibleMetrics.map((metricKey) => (
+                <Bar
+                  key={metricKey}
+                  barSize={20}
+                  dataKey={metricKey}
+                  stackId="a"
+                  fill={metricMeta[metricKey].color}
+                  shape={createRoundedTopShape(metricKey, visibleMetrics)}
+                />
+              ))}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -280,6 +276,9 @@ type DashboardItemCardProps = {
   status: EmailStatus | "total";
   count: number;
   percentage: number;
+  onClick?: () => void;
+  isActive?: boolean;
+  isClickable?: boolean;
 };
 
 const DashboardItemCard: React.FC<DashboardItemCardProps> = ({
@@ -311,6 +310,9 @@ const EmailChartItem: React.FC<DashboardItemCardProps> = ({
   status,
   count,
   percentage,
+  onClick,
+  isActive = false,
+  isClickable = true,
 }) => {
   const currentColors = useColors();
 
@@ -333,7 +335,17 @@ const EmailChartItem: React.FC<DashboardItemCardProps> = ({
   };
 
   return (
-    <div className="flex gap-3 items-stretch font-mono">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!isClickable}
+      aria-pressed={isClickable ? isActive : undefined}
+      className={`flex gap-3 items-stretch font-mono transition-opacity ${
+        isClickable ? "cursor-pointer" : "cursor-default"
+      } ${isActive ? "opacity-100" : "opacity-45 hover:opacity-100"} ${
+        isClickable ? "" : "pointer-events-none"
+      }`}
+    >
       <div>
         <div className=" flex  items-center gap-2">
           <div
@@ -354,6 +366,6 @@ const EmailChartItem: React.FC<DashboardItemCardProps> = ({
           </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 };
