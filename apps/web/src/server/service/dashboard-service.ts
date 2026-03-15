@@ -3,15 +3,15 @@ import { format, subDays } from "date-fns";
 import { Prisma, Team } from "@prisma/client";
 
 type EmailTimeSeries = {
-	days?: number;
-	domain?: number
-	team: Team
+  days?: number;
+  domain?: number;
+  team: Team;
 };
 
 export async function emailTimeSeries(input: EmailTimeSeries) {
-	const days = input.days !== 7 ? 30 : 7;
-	const { domain, team } = input
-	const startDate = new Date();
+  const days = input.days !== 7 ? 30 : 7;
+  const { domain, team } = input;
+  const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   const isoStartDate = startDate.toISOString().split("T")[0];
 
@@ -87,22 +87,21 @@ export async function emailTimeSeries(input: EmailTimeSeries) {
       clicked: 0,
       bounced: 0,
       complained: 0,
-    }
+    },
   );
 
   return { result: filledResult, totalCounts };
 }
 
-
 type ReputationMetricsData = {
-	domain?: number
-	team: Team
+  domain?: number;
+  team: Team;
 };
 
 export async function reputationMetricsData(input: ReputationMetricsData) {
-	const { domain, team } = input
+  const { domain, team } = input;
 
-	const reputations = await db.cumulatedMetrics.findMany({
+  const reputations = await db.cumulatedMetrics.findMany({
     where: {
       teamId: team.id,
       ...(domain ? { domainId: domain } : {}),
@@ -116,7 +115,7 @@ export async function reputationMetricsData(input: ReputationMetricsData) {
       acc.complained += Number(curr.complained);
       return acc;
     },
-    { delivered: 0, hardBounced: 0, complained: 0 }
+    { delivered: 0, hardBounced: 0, complained: 0 },
   );
 
   const resultWithRates = {

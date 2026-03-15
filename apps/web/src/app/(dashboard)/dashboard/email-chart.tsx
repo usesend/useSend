@@ -135,6 +135,9 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
                 fontSize={12}
                 className="font-mono"
                 stroke={currentColors.xaxis}
+                tick={{ fill: currentColors.xaxis, fillOpacity: 0.65 }}
+                axisLine={false}
+                tickLine={false}
               />
               {/* <YAxis fontSize={12} className="font-mono" /> */}
               <Tooltip
@@ -236,7 +239,7 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
               />
               {/* <Legend /> */}
               <Bar
-                barSize={8}
+                barSize={20}
                 dataKey="delivered"
                 stackId="a"
                 fill={currentColors.delivered}
