@@ -23,7 +23,7 @@ interface EmailChartProps {
   domain: string | null;
 }
 
-const STACK_ORDER: string[] = [
+const STACK_ORDER = [
   "delivered",
   "bounced",
   "complained",
@@ -74,9 +74,9 @@ export default function EmailChart({ days, domain }: EmailChartProps) {
     clicked: { label: "Clicked", color: currentColors.clicked },
   };
 
-  const visibleMetrics =
+  const visibleMetrics: StackKey[] =
     selectedMetrics.length === 0
-      ? STACK_ORDER
+      ? [...STACK_ORDER]
       : STACK_ORDER.filter((key) => selectedMetrics.includes(key));
 
   const toggleMetric = (metric: StackKey) => {
