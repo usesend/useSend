@@ -136,3 +136,7 @@ We are grateful for the support of our sponsors.
 <a href="https://github.com/miguilimzero" target="_blank">
   <img src="https://avatars.githubusercontent.com/u/35383529?v=4" alt="miguilimzero" style="width:60px;height:60px;">
 </a>
+
+<a href="https://x.com/tebayoso" target="_blank">
+  <img src="https://pbs.twimg.com/profile_images/1931051879007391744/5KhqgxUp_400x400.jpg" alt="tebayoso" style="width:60px;height:60px;">
+</a>
