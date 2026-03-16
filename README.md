@@ -41,7 +41,8 @@ We are currently in beta!
 - [x] Marketing email
 - [x] SMTP support
 - [x] Schedule API
-- [ ] Webhook support
+- [x] Webhook support
+- [ ] Inbound email
 - [ ] BYO AWS credentials
 
 ## Community and Next Steps 🎯
