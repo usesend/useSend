@@ -128,8 +128,8 @@ We are grateful for the support of our sponsors.
 <a href="https://sayr.io/?utm_source=useSend.com" target="_blank">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://cdn.doras.to/Sayr/Sayr%20white.png" />
-    <source media="(prefers-color-scheme: light)" srcset="https://cdn.doras.to/Sayr/Sayr%20black.png" />
-    <img src="https://cdn.doras.to/Sayr/Sayr%20black.png" alt="Sayr" style="width:180px;height:auto;">
+    <source media="(prefers-color-scheme: light)" srcset="https://cdn.doras.to/Sayr/sayr%20black.png" />
+    <img src="https://cdn.doras.to/Sayr/sayr%20black.png" alt="Sayr" style="width:180px;height:auto;">
   </picture>
 </a>
 

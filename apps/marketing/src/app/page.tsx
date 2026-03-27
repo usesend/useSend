@@ -95,7 +95,7 @@ function Hero() {
               rel="noopener noreferrer"
             >
               <Image
-                src="https://cdn.doras.to/Sayr/Sayr%20black.png"
+                src="https://cdn.doras.to/Sayr/sayr%20black.png"
                 alt="Sayr"
                 width={144}
                 height={40}
