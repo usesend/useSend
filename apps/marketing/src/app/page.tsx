@@ -85,7 +85,7 @@ function Hero() {
             </a>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 mt-4">
             <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground/80">
               Bronze sponsor
             </p>
@@ -97,16 +97,16 @@ function Hero() {
               <Image
                 src="https://cdn.doras.to/Sayr/sayr%20black.png"
                 alt="Sayr"
-                width={144}
-                height={40}
-                className="h-10 w-auto dark:hidden"
+                width={80}
+                height={32}
+                className="h-8 w-auto dark:hidden"
               />
               <Image
                 src="https://cdn.doras.to/Sayr/Sayr%20white.png"
                 alt="Sayr"
-                width={144}
-                height={40}
-                className="hidden h-10 w-auto dark:block"
+                width={80}
+                height={32}
+                className="hidden h-8 w-auto dark:block"
               />
             </a>
           </div>
@@ -210,7 +210,9 @@ function TrustedBy() {
               <div className="mt-5 flex items-center gap-3">
                 <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
                   <AvatarImage src={t.image} alt={`${t.author} avatar`} />
-                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg text-xs">
+                    {t.author.charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>
@@ -241,7 +243,9 @@ function TrustedBy() {
               <div className="mt-5 flex items-center gap-3">
                 <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
                   <AvatarImage src={t.image} alt={`${t.author} avatar`} />
-                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg text-xs">
+                    {t.author.charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>
