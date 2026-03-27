@@ -60,34 +60,56 @@ function Hero() {
           Open source • Self-host in minutes • Free tier
         </p>
 
-        <div className="mt-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+        <div className="mt-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-4">
           <p className="text-xs">Proudly sponsored by</p>
-          <a
-            href="https://coderabbit.ai/?utm_source=useSend.com"
-            target="_blank"
-          >
-            <Image
-              src="/code-rabbit-usesend-dark.svg"
-              alt="Code Rabbit"
-              width={200}
-              height={100}
-              className="dark:hidden"
+          <div className="flex flex-col items-center gap-2">
+            <a
+              href="https://coderabbit.ai/?utm_source=useSend.com"
+              target="_blank"
               rel="noopener noreferrer"
-            />
-          </a>
-          <a
-            href="https://coderabbit.ai/?utm_source=useSend.com"
-            target="_blank"
-          >
-            <Image
-              src="/code-rabbit-usesend-light.svg"
-              alt="Code Rabbit"
-              width={200}
-              height={100}
-              className="hidden dark:block"
+            >
+              <Image
+                src="/code-rabbit-usesend-dark.svg"
+                alt="Code Rabbit"
+                width={200}
+                height={100}
+                className="dark:hidden"
+              />
+              <Image
+                src="/code-rabbit-usesend-light.svg"
+                alt="Code Rabbit"
+                width={200}
+                height={100}
+                className="hidden dark:block"
+              />
+            </a>
+          </div>
+
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground/80">
+              Bronze sponsor
+            </p>
+            <a
+              href="https://sayr.io/?utm_source=useSend.com"
+              target="_blank"
               rel="noopener noreferrer"
-            />
-          </a>
+            >
+              <Image
+                src="https://cdn.doras.to/Sayr/sayr%20black.png"
+                alt="Sayr"
+                width={80}
+                height={32}
+                className="h-8 w-auto dark:hidden"
+              />
+              <Image
+                src="https://cdn.doras.to/Sayr/Sayr%20white.png"
+                alt="Sayr"
+                width={80}
+                height={32}
+                className="hidden h-8 w-auto dark:block"
+              />
+            </a>
+          </div>
         </div>
 
         <div className=" mt-32 mx-auto max-w-5xl">
@@ -188,8 +210,10 @@ function TrustedBy() {
               <div className="mt-5 flex items-center gap-3">
                 <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
                   <AvatarImage src={t.image} alt={`${t.author} avatar`} />
-                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar> 
+                  <AvatarFallback className="rounded-lg text-xs">
+                    {t.author.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>
                   <a
@@ -219,7 +243,9 @@ function TrustedBy() {
               <div className="mt-5 flex items-center gap-3">
                 <Avatar className="rounded-lg border-2 border-primary/50 h-8 w-8">
                   <AvatarImage src={t.image} alt={`${t.author} avatar`} />
-                  <AvatarFallback className="rounded-lg text-xs">{t.author.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg text-xs">
+                    {t.author.charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <figcaption className="text-sm">
                   <span className="font-medium">{t.author}</span>

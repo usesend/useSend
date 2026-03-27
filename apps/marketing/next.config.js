@@ -7,6 +7,13 @@ const config = {
   images: {
     // Required for static export if using images
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.doras.to",
+        pathname: "/Sayr/**",
+      },
+    ],
   },
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
 };

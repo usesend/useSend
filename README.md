@@ -123,6 +123,16 @@ We are grateful for the support of our sponsors.
   <img src="https://usesend.com/coderabbit-wordmark.png" alt="coderabbit.ai" style="width:200px;height:100px;">
 </a>
 
+### Bronze Sponsors
+
+<a href="https://sayr.io/?utm_source=useSend.com" target="_blank">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.doras.to/Sayr/Sayr%20white.png" />
+    <source media="(prefers-color-scheme: light)" srcset="https://cdn.doras.to/Sayr/sayr%20black.png" />
+    <img src="https://cdn.doras.to/Sayr/sayr%20black.png" alt="Sayr" style="width:180px;height:auto;">
+  </picture>
+</a>
+
 ### Other Sponsors
 
 <a href="https://doras.to/?utm_source=useSend.com" target="_blank">
