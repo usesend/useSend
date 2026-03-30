@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@usesend/ui/src/dialog";
 import { Input } from "@usesend/ui/src/input";
+import { Label } from "@usesend/ui/src/label";
 import {
   Select,
   SelectContent,
@@ -122,6 +123,13 @@ export default function ContactSegmentsManager({
   });
 
   const saveSegment = () => {
+    if (contactBookVariables.length === 0 && !editorState.id) {
+      toast.error(
+        "Add custom variables on this contact book before creating segments.",
+      );
+      return;
+    }
+
     const definition: ContactSegmentDefinition = {
       conditions: editorState.conditions.map(({ field, operator, value }) => ({
         field,
@@ -165,22 +173,6 @@ export default function ContactSegmentsManager({
     }));
   };
 
-  if (contactBookVariables.length === 0) {
-    return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users2 className="h-4 w-4" />
-            Segments
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Add custom variables on this contact book before creating segments.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <>
       <Card className="mt-6">
@@ -191,6 +183,7 @@ export default function ContactSegmentsManager({
           </CardTitle>
           <Button
             size="sm"
+            disabled={contactBookVariables.length === 0}
             onClick={() => {
               setEditorState(createEmptyState(contactBookVariables));
               setOpen(true);
@@ -201,6 +194,12 @@ export default function ContactSegmentsManager({
           </Button>
         </CardHeader>
         <CardContent>
+          {contactBookVariables.length === 0 ? (
+            <div className="mb-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Add custom variables on this contact book before creating new
+              segments.
+            </div>
+          ) : null}
           {segmentsQuery.isLoading ? (
             <div className="flex justify-center py-6">
               <Spinner className="h-5 w-5" />
@@ -228,6 +227,7 @@ export default function ContactSegmentsManager({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Edit segment ${segment.name}`}
                         onClick={() => {
                           setEditorState({
                             id: segment.id,
@@ -247,6 +247,7 @@ export default function ContactSegmentsManager({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Delete segment ${segment.name}`}
                         disabled={deleteSegmentMutation.isPending}
                         onClick={() => {
                           deleteSegmentMutation.mutate({
@@ -281,8 +282,9 @@ export default function ContactSegmentsManager({
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="text-sm font-medium">Name</div>
+              <Label htmlFor="segment-name">Name</Label>
               <Input
+                id="segment-name"
                 value={editorState.name}
                 onChange={(event) => {
                   setEditorState((current) => ({
@@ -320,13 +322,23 @@ export default function ContactSegmentsManager({
                   key={condition.id}
                   className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1.3fr_1fr_1.2fr_auto]"
                 >
+                  <Label
+                    id={`segment-condition-field-label-${condition.id}`}
+                    htmlFor={`segment-condition-field-${condition.id}`}
+                    className="sr-only"
+                  >
+                    Field for rule {index + 1}
+                  </Label>
                   <Select
                     value={condition.field}
                     onValueChange={(value) => {
                       upsertCondition(condition.id, { field: value });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      id={`segment-condition-field-${condition.id}`}
+                      aria-labelledby={`segment-condition-field-label-${condition.id}`}
+                    >
                       {condition.field || "Select field"}
                     </SelectTrigger>
                     <SelectContent>
@@ -338,6 +350,13 @@ export default function ContactSegmentsManager({
                     </SelectContent>
                   </Select>
 
+                  <Label
+                    id={`segment-condition-operator-label-${condition.id}`}
+                    htmlFor={`segment-condition-operator-${condition.id}`}
+                    className="sr-only"
+                  >
+                    Operator for rule {index + 1}
+                  </Label>
                   <Select
                     value={condition.operator}
                     onValueChange={(value) => {
@@ -350,7 +369,12 @@ export default function ContactSegmentsManager({
                       });
                     }}
                   >
-                    <SelectTrigger>{condition.operator}</SelectTrigger>
+                    <SelectTrigger
+                      id={`segment-condition-operator-${condition.id}`}
+                      aria-labelledby={`segment-condition-operator-label-${condition.id}`}
+                    >
+                      {condition.operator}
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="equals">equals</SelectItem>
                       <SelectItem value="contains">contains</SelectItem>
@@ -360,15 +384,24 @@ export default function ContactSegmentsManager({
                   </Select>
 
                   {contactSegmentOperatorRequiresValue(condition.operator) ? (
-                    <Input
-                      value={condition.value ?? ""}
-                      onChange={(event) => {
-                        upsertCondition(condition.id, {
-                          value: event.target.value,
-                        });
-                      }}
-                      placeholder="Value"
-                    />
+                    <>
+                      <Label
+                        htmlFor={`segment-condition-value-${condition.id}`}
+                        className="sr-only"
+                      >
+                        Value for rule {index + 1}
+                      </Label>
+                      <Input
+                        id={`segment-condition-value-${condition.id}`}
+                        value={condition.value ?? ""}
+                        onChange={(event) => {
+                          upsertCondition(condition.id, {
+                            value: event.target.value,
+                          });
+                        }}
+                        placeholder="Value"
+                      />
+                    </>
                   ) : (
                     <div className="flex items-center text-sm text-muted-foreground">
                       No value needed
@@ -378,6 +411,7 @@ export default function ContactSegmentsManager({
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={`Remove rule ${index + 1}`}
                     disabled={editorState.conditions.length === 1}
                     onClick={() => {
                       setEditorState((current) => ({

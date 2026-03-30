@@ -46,7 +46,7 @@ function buildContactSegmentConditionWhere(
         NOT: {
           properties: {
             path,
-            equals: Prisma.JsonNull,
+            equals: Prisma.DbNull,
           },
         },
       };
@@ -54,7 +54,7 @@ function buildContactSegmentConditionWhere(
       return {
         properties: {
           path,
-          equals: Prisma.JsonNull,
+          equals: Prisma.DbNull,
         },
       };
   }

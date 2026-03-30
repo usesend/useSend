@@ -35,6 +35,7 @@ import {
 } from "@usesend/ui/src/tooltip";
 import { UnsubscribeReason } from "@prisma/client";
 import { Download } from "lucide-react";
+import { useEffect } from "react";
 
 function sanitizeFilename(
   name: string | undefined,
@@ -87,6 +88,20 @@ export default function ContactList({
 
   const pageNumber = Number(page);
   const segmentsQuery = api.contacts.listSegments.useQuery({ contactBookId });
+
+  useEffect(() => {
+    if (!segmentId || !segmentsQuery.data) {
+      return;
+    }
+
+    const segmentExists = segmentsQuery.data.some(
+      (segment) => segment.id === segmentId,
+    );
+
+    if (!segmentExists) {
+      setSegmentId(null);
+    }
+  }, [segmentId, segmentsQuery.data, setSegmentId]);
 
   const contactsQuery = api.contacts.contacts.useQuery({
     contactBookId,
