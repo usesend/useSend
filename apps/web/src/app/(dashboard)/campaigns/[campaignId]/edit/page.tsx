@@ -2,7 +2,6 @@
 
 import { api } from "~/trpc/react";
 import { Spinner } from "@usesend/ui/src/spinner";
-import { Button } from "@usesend/ui/src/button";
 import { Input } from "@usesend/ui/src/input";
 import { Editor } from "@usesend/email-editor";
 import { use, useMemo, useState } from "react";
@@ -13,25 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@usesend/ui/src/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@usesend/ui/src/dialog";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@usesend/ui/src/form";
 import { toast } from "@usesend/ui/src/toaster";
 import { useDebouncedCallback } from "use-debounce";
 import { formatDistanceToNow } from "date-fns";
@@ -41,6 +22,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@usesend/ui/src/accordion";
+import { Badge } from "@usesend/ui/src/badge";
 import ScheduleCampaign from "../../schedule-campaign";
 import { useRouter } from "next/navigation";
 
@@ -109,6 +91,9 @@ function CampaignEditor({
   const [subject, setSubject] = useState(campaign.subject);
   const [from, setFrom] = useState(campaign.from);
   const [contactBookId, setContactBookId] = useState(campaign.contactBookId);
+  const [contactSegmentId, setContactSegmentId] = useState(
+    campaign.contactSegmentId,
+  );
   const [replyTo, setReplyTo] = useState<string | undefined>(
     campaign.replyTo[0],
   );
@@ -119,6 +104,7 @@ function CampaignEditor({
   const updateCampaignMutation = api.campaign.updateCampaign.useMutation({
     onSuccess: () => {
       utils.campaign.getCampaign.invalidate();
+      utils.campaign.getCampaignAudience.invalidate({ campaignId: campaign.id });
       setIsSaving(false);
     },
   });
@@ -167,6 +153,13 @@ function CampaignEditor({
   const contactBook = contactBooksQuery.data?.find(
     (book) => book.id === contactBookId,
   );
+  const segmentsQuery = api.contacts.listSegments.useQuery(
+    { contactBookId: contactBookId ?? "" },
+    { enabled: !!contactBookId },
+  );
+  const audienceQuery = api.campaign.getCampaignAudience.useQuery({
+    campaignId: campaign.id,
+  });
   const editorVariables = useMemo(() => {
     const baseVariables = ["email", "firstName", "lastName"];
     const registryVariables = contactBook?.variables ?? [];
@@ -401,14 +394,17 @@ function CampaignEditor({
                           {
                             campaignId: campaign.id,
                             contactBookId: val,
+                            contactSegmentId: null,
                           },
                           {
                             onError: () => {
                               setContactBookId(campaign.contactBookId);
+                              setContactSegmentId(campaign.contactSegmentId);
                             },
                           },
                         );
                         setContactBookId(val);
+                        setContactSegmentId(null);
                       }}
                     >
                       <SelectTrigger className="w-[300px]">
@@ -429,6 +425,56 @@ function CampaignEditor({
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+                <div className=" flex items-center gap-2">
+                  <label className="block text-sm  w-[80px] text-muted-foreground">
+                    Segment
+                  </label>
+                  <Select
+                    value={contactSegmentId ?? "all"}
+                    disabled={isApiCampaign || !contactBookId}
+                    onValueChange={(val) => {
+                      if (isApiCampaign) {
+                        return;
+                      }
+
+                      const nextSegmentId = val === "all" ? null : val;
+
+                      updateCampaignMutation.mutate(
+                        {
+                          campaignId: campaign.id,
+                          contactSegmentId: nextSegmentId,
+                        },
+                        {
+                          onError: () => {
+                            setContactSegmentId(campaign.contactSegmentId);
+                          },
+                        },
+                      );
+                      setContactSegmentId(nextSegmentId);
+                    }}
+                  >
+                    <SelectTrigger className="w-[300px]">
+                      {contactSegmentId
+                        ? segmentsQuery.data?.find(
+                            (segment) => segment.id === contactSegmentId,
+                          )?.name ?? "Select a segment"
+                        : "All contacts"}
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All contacts</SelectItem>
+                      {segmentsQuery.data?.map((segment) => (
+                        <SelectItem key={segment.id} value={segment.id}>
+                          {segment.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {audienceQuery.data ? (
+                    <Badge variant="outline">
+                      {audienceQuery.data.count.toLocaleString()} recipients
+                    </Badge>
+                  ) : null}
                 </div>
               </AccordionContent>
             </div>
