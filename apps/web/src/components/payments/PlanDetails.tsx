@@ -1,5 +1,6 @@
 import { Plan } from "@prisma/client";
 import { PLAN_PERKS } from "~/lib/constants/payments";
+import { isEntitledSubscriptionStatus } from "~/lib/subscription-status";
 import { CheckCircle2 } from "lucide-react";
 import { api } from "~/trpc/react";
 import Spinner from "@usesend/ui/src/spinner";
@@ -17,13 +18,14 @@ export const PlanDetails = () => {
 
   const planKey = currentTeam.plan as keyof typeof PLAN_PERKS;
   const perks = PLAN_PERKS[planKey] || [];
+  const isEntitled = isEntitledSubscriptionStatus(
+    subscriptionQuery.data?.status,
+  );
 
   return (
     <div>
       <div className="capitalize text-lg">
-        {subscriptionQuery.data?.status === "active"
-          ? planKey.toLowerCase()
-          : "free"}
+        {isEntitled ? planKey.toLowerCase() : "free"}
       </div>
       <div className="flex items-center gap-2">
         <div className="text-muted-foreground text-sm">Current plan</div>
