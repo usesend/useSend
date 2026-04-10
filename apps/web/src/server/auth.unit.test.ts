@@ -1,23 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { githubProviderMock } = vi.hoisted(() => ({
-  githubProviderMock: vi.fn((options: Record<string, unknown>) => ({
-    id: "github",
-    type: "oauth",
-    options,
-  })),
-}));
-
 vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
 }));
 
 vi.mock("@auth/prisma-adapter", () => ({
   PrismaAdapter: vi.fn(() => ({})),
-}));
-
-vi.mock("next-auth/providers/github", () => ({
-  default: githubProviderMock,
 }));
 
 vi.mock("next-auth/providers/google", () => ({
@@ -44,16 +32,21 @@ vi.mock("~/env", () => ({
   },
 }));
 
-import "~/server/auth";
+import { authOptions } from "~/server/auth";
 
 describe("authOptions", () => {
   it("configures the GitHub provider with an explicit issuer", () => {
-    expect(githubProviderMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+    const githubProvider = authOptions.providers.find(
+      (provider) => provider.id === "github",
+    );
+
+    expect(githubProvider).toMatchObject({
+      id: "github",
+      options: {
         clientId: "github-client-id",
         clientSecret: "github-client-secret",
         issuer: "https://github.com/login/oauth",
-      }),
-    );
+      },
+    });
   });
 });
