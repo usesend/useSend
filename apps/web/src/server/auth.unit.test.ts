@@ -40,6 +40,7 @@ vi.mock("~/env", () => ({
   env: {
     GITHUB_ID: "github-client-id",
     GITHUB_SECRET: "github-client-secret",
+    NEXT_PUBLIC_IS_CLOUD: true,
   },
 }));
 
