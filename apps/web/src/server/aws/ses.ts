@@ -189,7 +189,14 @@ export async function deleteDomain(
       EmailIdentity: domain,
     });
     const response = await sesClient.send(command);
-    return response.$metadata.httpStatusCode === 200;
+    if (response.$metadata.httpStatusCode !== 200) {
+      logger.error(
+        { domain, region, response },
+        "[ses.deleteDomain] non-200 from DeleteEmailIdentity"
+      );
+      return false;
+    }
+    return true;
   } catch (error: any) {
     if (error?.name === "NotFoundException") {
       logger.warn(
