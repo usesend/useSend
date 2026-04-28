@@ -9,6 +9,7 @@ import React from "react";
 import { StatusIndicator } from "./status-indicator";
 import { DomainStatusBadge } from "./domain-badge";
 import Spinner from "@usesend/ui/src/spinner";
+import { DeleteDomain } from "./[domainId]/delete-domain";
 
 export default function DomainsList() {
   const domainsQuery = api.domain.domains.useQuery();
@@ -115,6 +116,9 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
                 className="data-[state=checked]:bg-success"
               />
             </div>
+          </div>
+          <div className="flex items-center">
+            <DeleteDomain domain={domain} />
           </div>
         </div>
       </div>
