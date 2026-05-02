@@ -10,10 +10,9 @@ function getSnsClient(region: string) {
   return new SNSClient({
     endpoint: env.AWS_SNS_ENDPOINT,
     region: region,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
+      ? { credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY } }
+      : {}),
   });
 }
 

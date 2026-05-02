@@ -30,10 +30,9 @@ async function getAccountId(region: string) {
 
   const stsClient = new STSClient({
     region: region,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
+      ? { credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY } }
+      : {}),
   });
   const command = new GetCallerIdentityCommand({});
   const response = await stsClient.send(command);
@@ -50,10 +49,9 @@ function getSesClient(region: string) {
   return new SESv2Client({
     region: region,
     endpoint: env.AWS_SES_ENDPOINT,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
+      ? { credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY } }
+      : {}),
   });
 }
 
