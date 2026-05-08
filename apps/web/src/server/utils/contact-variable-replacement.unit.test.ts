@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BUILT_IN_CONTACT_VARIABLES,
   replaceContactVariables,
-} from "./contact-variable-replacement";
+} from "~/server/utils/contact-variable-replacement";
 
 const baseContact = {
   id: "contact_1",
@@ -47,6 +47,34 @@ describe("replaceContactVariables", () => {
         [...BUILT_IN_CONTACT_VARIABLES, "missing_variable"],
       ),
     ).toBe("Welcome, you!");
+  });
+
+  it("uses fallback values for nullable built-in variables", () => {
+    const contact = {
+      ...baseContact,
+      firstName: null,
+    } satisfies Contact;
+
+    expect(
+      replaceContactVariables("Hello {{firstName,fallback=you}}", contact, [
+        ...BUILT_IN_CONTACT_VARIABLES,
+      ]),
+    ).toBe("Hello you");
+  });
+
+  it("uses fallback values for prefixed nullable built-in variables", () => {
+    const contact = {
+      ...baseContact,
+      firstName: null,
+    } satisfies Contact;
+
+    expect(
+      replaceContactVariables(
+        "Hello {{contact.firstName,fallback=you}}",
+        contact,
+        [...BUILT_IN_CONTACT_VARIABLES],
+      ),
+    ).toBe("Hello you");
   });
 
   it("keeps unknown variables unchanged", () => {
