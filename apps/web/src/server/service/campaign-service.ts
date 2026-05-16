@@ -2,7 +2,6 @@ import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
 import { env } from "~/env";
-import { getContactPropertyValue } from "~/lib/contact-properties";
 import {
   Campaign,
   Contact,
@@ -24,6 +23,12 @@ import {
   validateApiKeyDomainAccess,
   validateDomainFromEmail,
 } from "./domain-service";
+import {
+  BUILT_IN_CONTACT_VARIABLES,
+  createCaseInsensitiveVariableValues,
+  getContactReplacementValue,
+  replaceContactVariables,
+} from "../utils/contact-variable-replacement";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -35,84 +40,6 @@ const CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES =
     const inner = placeholder.replace(/[{}]/g, "").trim();
     return new RegExp(`\\{\\{\\s*${inner}\\s*\\}}`, "i");
   });
-
-const CONTACT_VARIABLE_REGEX =
-  /\{\{\s*(?:contact\.)?([a-zA-Z0-9_]+)(?:,fallback=([^}]+))?\s*\}\}/gi;
-
-const BUILT_IN_CONTACT_VARIABLES = ["email", "firstName", "lastName"] as const;
-
-function getContactReplacementValue({
-  contact,
-  key,
-  allowedVariables,
-}: {
-  contact: Contact;
-  key: string;
-  allowedVariables: string[];
-}) {
-  const normalizedKey = key.toLowerCase();
-
-  if (normalizedKey === "email") {
-    return contact.email;
-  }
-
-  if (normalizedKey === "firstname") {
-    return contact.firstName;
-  }
-
-  if (normalizedKey === "lastname") {
-    return contact.lastName;
-  }
-
-  const variableMap = new Map(
-    allowedVariables.map((variable) => [variable.toLowerCase(), variable]),
-  );
-  const matchedVariable = variableMap.get(normalizedKey);
-  if (!matchedVariable) {
-    return undefined;
-  }
-
-  if (!contact.properties || typeof contact.properties !== "object") {
-    return undefined;
-  }
-
-  return getContactPropertyValue(
-    contact.properties as Record<string, unknown>,
-    matchedVariable,
-    allowedVariables,
-  );
-}
-
-function createCaseInsensitiveVariableValues(
-  values: Record<string, string | null | undefined>,
-) {
-  const normalizedValues = Object.entries(values).reduce(
-    (acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = value;
-        acc[key.toLowerCase()] = value;
-      }
-
-      return acc;
-    },
-    {} as Record<string, string | null>,
-  );
-
-  return new Proxy(normalizedValues, {
-    get(target, prop, receiver) {
-      if (typeof prop === "string") {
-        const exact = Reflect.get(target, prop, receiver);
-        if (exact !== undefined) {
-          return exact;
-        }
-
-        return Reflect.get(target, prop.toLowerCase(), receiver);
-      }
-
-      return Reflect.get(target, prop, receiver);
-    },
-  }) as Record<string, string | null>;
-}
 
 function campaignHasUnsubscribePlaceholder(
   ...sources: Array<string | null | undefined>
@@ -126,41 +53,6 @@ function replaceUnsubscribePlaceholders(html: string, url: string) {
   return CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES.reduce((acc, regex) => {
     return acc.replace(new RegExp(regex.source, "gi"), url);
   }, html);
-}
-
-function replaceContactVariables(
-  html: string,
-  contact: Contact,
-  allowedVariables: string[],
-) {
-  return html.replace(
-    CONTACT_VARIABLE_REGEX,
-    (match: string, key: string, fallback?: string) => {
-      const normalizedKey = key.toLowerCase();
-      const isBuiltIn = BUILT_IN_CONTACT_VARIABLES.some(
-        (variable) => variable.toLowerCase() === normalizedKey,
-      );
-      const isAllowedRegistryVariable = allowedVariables.some(
-        (variable) => variable.toLowerCase() === normalizedKey,
-      );
-
-      if (!isBuiltIn && !isAllowedRegistryVariable) {
-        return match;
-      }
-
-      const contactValue = getContactReplacementValue({
-        contact,
-        key,
-        allowedVariables,
-      });
-
-      if (contactValue && contactValue.length > 0) {
-        return contactValue;
-      }
-
-      return fallback ?? "";
-    },
-  );
 }
 
 function sanitizeAddressList(addresses?: string | string[]) {
@@ -867,6 +759,11 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     unsubscribeUrl,
     allowedVariables,
   });
+  const subject = replaceContactVariables(
+    emailConfig.subject,
+    contact,
+    allowedVariables,
+  );
 
   if (isContactSuppressed) {
     // Create suppressed email record
@@ -886,7 +783,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
         cc: ccEmails.length > 0 ? ccEmails : undefined,
         bcc: bccEmails.length > 0 ? bccEmails : undefined,
         from: emailConfig.from,
-        subject: emailConfig.subject,
+        subject,
         html,
         text: emailConfig.previewText,
         teamId: emailConfig.teamId,
@@ -956,7 +853,7 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
       bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
       from: emailConfig.from,
-      subject: emailConfig.subject,
+      subject,
       html,
       text: emailConfig.previewText,
       teamId: emailConfig.teamId,
