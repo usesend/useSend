@@ -1,5 +1,6 @@
 import dns from "dns";
 import util from "util";
+import { EventType } from "@aws-sdk/client-sesv2";
 import * as tldts from "tldts";
 import * as ses from "~/server/aws/ses";
 import { db } from "~/server/db";
@@ -20,6 +21,17 @@ import type { DomainDnsRecord } from "~/types/domain";
 import { WebhookService } from "./webhook-service";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
+
+const SES_GENERAL_EVENTS: EventType[] = [
+  "BOUNCE",
+  "COMPLAINT",
+  "DELIVERY",
+  "DELIVERY_DELAY",
+  "REJECT",
+  "RENDERING_FAILURE",
+  "SEND",
+  "SUBSCRIPTION",
+];
 export const DOMAIN_UNVERIFIED_RECHECK_MS = 6 * 60 * 60 * 1000;
 export const DOMAIN_VERIFIED_RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
 const VERIFIED_DOMAIN_STATUSES = new Set<DomainStatus>([DomainStatus.SUCCESS]);
@@ -52,6 +64,49 @@ function parseDomainStatus(status?: string | null): DomainStatus {
   }
 
   return DomainStatus.NOT_STARTED;
+}
+
+/**
+ * Regional SES open/click tracking origin (HTTP). Required CNAME target for custom tracking
+ * hostnames. See "Tracking domains for open/click links" in AWS General Reference (SES).
+ */
+function sesRegionalTrackingRedirectHost(region: string): string {
+  return `r.${region}.awstrack.me`;
+}
+
+function buildTrackingDnsRecords(domain: Domain): DomainDnsRecord[] {
+  if (!domain.customTrackingHostname || !domain.customTrackingPublicKey) {
+    return [];
+  }
+  const selector = domain.customTrackingDkimSelector ?? "utrack";
+  const parsed = tldts.parse(domain.customTrackingHostname);
+  const sub = parsed.subdomain;
+  const suffix = sub ? `.${sub}` : "";
+  const dkimStatus = parseDomainStatus(domain.customTrackingDkimStatus);
+  const routingStatus = parseDomainStatus(domain.customTrackingStatus);
+
+  const rows: DomainDnsRecord[] = [
+    {
+      type: "TXT",
+      name: `${selector}._domainkey${suffix}`,
+      value: `p=${domain.customTrackingPublicKey}`,
+      ttl: "Auto",
+      status: dkimStatus,
+    },
+  ];
+
+  if (sub) {
+    rows.push({
+      type: "CNAME",
+      name: sub,
+      value: sesRegionalTrackingRedirectHost(domain.region),
+      ttl: "Auto",
+      status: routingStatus,
+      recommended: true,
+    });
+  }
+
+  return rows;
 }
 
 function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
@@ -104,8 +159,360 @@ function withDnsRecords<T extends Domain>(
 ): T & { dnsRecords: DomainDnsRecord[] } {
   return {
     ...domain,
-    dnsRecords: buildDnsRecords(domain),
+    dnsRecords: [...buildDnsRecords(domain), ...buildTrackingDnsRecords(domain)],
   };
+}
+
+function isCustomTrackingProvisioningComplete(domain: Domain): boolean {
+  return !!(
+    domain.trackingConfigGeneral &&
+    domain.trackingConfigClick &&
+    domain.trackingConfigOpen &&
+    domain.trackingConfigFull
+  );
+}
+
+function shouldPollCustomTrackingVerification(domain: Domain): boolean {
+  if (env.NEXT_PUBLIC_IS_CLOUD) {
+    return false;
+  }
+  if (!domain.customTrackingHostname || !domain.customTrackingPublicKey) {
+    return false;
+  }
+  if (domain.customTrackingStatus === DomainStatus.FAILED) {
+    return false;
+  }
+  if (domain.customTrackingStatus === DomainStatus.SUCCESS) {
+    return !isCustomTrackingProvisioningComplete(domain);
+  }
+  return true;
+}
+
+function assertTrackingHostnameAllowed(
+  sendingDomainName: string,
+  trackingHost: string,
+) {
+  const sendReg = tldts.getDomain(sendingDomainName);
+  const trackReg = tldts.getDomain(trackingHost);
+  if (!sendReg || !trackReg || sendReg !== trackReg) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Custom tracking hostname must use the same registrable domain as this sending domain.",
+    });
+  }
+}
+
+async function removeCustomTrackingResources(domain: Domain) {
+  const region = domain.region;
+  for (const name of [
+    domain.trackingConfigGeneral,
+    domain.trackingConfigClick,
+    domain.trackingConfigOpen,
+    domain.trackingConfigFull,
+  ]) {
+    if (name) {
+      try {
+        await ses.deleteConfigurationSet(name, region);
+      } catch (error) {
+        logger.error(
+          { err: error, configurationSetName: name },
+          "[DomainService]: Failed to delete tracking configuration set",
+        );
+      }
+    }
+  }
+  if (domain.customTrackingHostname) {
+    try {
+      await ses.deleteDomain(
+        domain.customTrackingHostname,
+        region,
+        domain.sesTenantId ?? undefined,
+      );
+    } catch (error) {
+      logger.error(
+        { err: error, hostname: domain.customTrackingHostname },
+        "[DomainService]: Failed to delete tracking email identity",
+      );
+    }
+  }
+}
+
+async function reapplyCustomTrackingSesPolicy(domain: Domain) {
+  if (
+    !domain.customTrackingHostname ||
+    !domain.trackingConfigClick ||
+    !domain.trackingConfigOpen ||
+    !domain.trackingConfigFull
+  ) {
+    return;
+  }
+  const host = domain.customTrackingHostname;
+  const region = domain.region;
+  const httpsPolicy = ses.trackingHttpsRequiredToSesPolicy(
+    domain.trackingHttpsRequired,
+  );
+  await ses.putConfigurationSetHttpsTracking(
+    domain.trackingConfigClick,
+    host,
+    region,
+    httpsPolicy,
+  );
+  await ses.putConfigurationSetHttpsTracking(
+    domain.trackingConfigOpen,
+    host,
+    region,
+    httpsPolicy,
+  );
+  await ses.putConfigurationSetHttpsTracking(
+    domain.trackingConfigFull,
+    host,
+    region,
+    httpsPolicy,
+  );
+}
+
+async function ensureCustomTrackingProvisioned(domainId: number) {
+  const domain = await db.domain.findUnique({ where: { id: domainId } });
+  if (!domain?.customTrackingHostname) {
+    return;
+  }
+  if (
+    domain.trackingConfigGeneral &&
+    domain.trackingConfigClick &&
+    domain.trackingConfigOpen &&
+    domain.trackingConfigFull
+  ) {
+    try {
+      await reapplyCustomTrackingSesPolicy(domain);
+    } catch (error) {
+      logger.error(
+        { err: error, domainId },
+        "[DomainService]: Failed to reapply custom tracking HTTPS policy",
+      );
+    }
+    return;
+  }
+  if (domain.customTrackingStatus !== DomainStatus.SUCCESS) {
+    return;
+  }
+
+  const setting = await SesSettingsService.getSetting(domain.region);
+  if (!setting?.topicArn) {
+    logger.error(
+      { region: domain.region },
+      "[DomainService]: No SES setting for custom tracking provision",
+    );
+    return;
+  }
+
+  const base = `${setting.idPrefix}-dom${domain.id}-${domain.region}-unsend`;
+  const configGeneral = `${base}-general`;
+  const configClick = `${base}-click`;
+  const configOpen = `${base}-open`;
+  const configFull = `${base}-full`;
+  const region = domain.region;
+  const topicArn = setting.topicArn;
+  const host = domain.customTrackingHostname;
+
+  try {
+    await ses.addWebhookConfiguration(
+      configGeneral,
+      topicArn,
+      SES_GENERAL_EVENTS,
+      region,
+    );
+    await ses.addWebhookConfiguration(
+      configClick,
+      topicArn,
+      [...SES_GENERAL_EVENTS, "CLICK"],
+      region,
+    );
+    await ses.addWebhookConfiguration(
+      configOpen,
+      topicArn,
+      [...SES_GENERAL_EVENTS, "OPEN"],
+      region,
+    );
+    await ses.addWebhookConfiguration(
+      configFull,
+      topicArn,
+      [...SES_GENERAL_EVENTS, "CLICK", "OPEN"],
+      region,
+    );
+
+    const httpsPolicy = ses.trackingHttpsRequiredToSesPolicy(
+      domain.trackingHttpsRequired,
+    );
+    await ses.putConfigurationSetHttpsTracking(
+      configClick,
+      host,
+      region,
+      httpsPolicy,
+    );
+    await ses.putConfigurationSetHttpsTracking(
+      configOpen,
+      host,
+      region,
+      httpsPolicy,
+    );
+    await ses.putConfigurationSetHttpsTracking(
+      configFull,
+      host,
+      region,
+      httpsPolicy,
+    );
+
+    await db.domain.update({
+      where: { id: domainId },
+      data: {
+        trackingConfigGeneral: configGeneral,
+        trackingConfigClick: configClick,
+        trackingConfigOpen: configOpen,
+        trackingConfigFull: configFull,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      { err: error, domainId },
+      "[DomainService]: Failed to provision custom tracking configuration sets",
+    );
+    throw error;
+  }
+}
+
+export async function setCustomTrackingHostname(
+  domainId: number,
+  teamId: number,
+  hostname: string | null,
+  trackingHttpsRequired?: boolean,
+) {
+  if (env.NEXT_PUBLIC_IS_CLOUD) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message:
+        "Custom tracking domains are only available for self-hosted useSend.",
+    });
+  }
+
+  const domain = await db.domain.findFirst({
+    where: { id: domainId, teamId },
+  });
+
+  if (!domain) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Domain not found",
+    });
+  }
+
+  const trimmed =
+    hostname === null || hostname === undefined ? "" : hostname.trim();
+
+  if (!trimmed) {
+    await removeCustomTrackingResources(domain);
+    const cleared = await db.domain.update({
+      where: { id: domainId },
+      data: {
+        customTrackingHostname: null,
+        customTrackingPublicKey: null,
+        customTrackingDkimSelector: "utrack",
+        customTrackingDkimStatus: null,
+        customTrackingStatus: DomainStatus.NOT_STARTED,
+        trackingConfigGeneral: null,
+        trackingConfigClick: null,
+        trackingConfigOpen: null,
+        trackingConfigFull: null,
+        trackingHttpsRequired: false,
+      },
+    });
+    await emitDomainEvent(cleared, "domain.updated");
+    return cleared;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (
+    !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(
+      normalized,
+    )
+  ) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Invalid tracking hostname",
+    });
+  }
+
+  assertTrackingHostnameAllowed(domain.name, normalized);
+
+  const parsedHost = tldts.parse(normalized);
+  if (!parsedHost.subdomain) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Tracking hostname must be a subdomain (for example track.example.com), not the zone apex.",
+    });
+  }
+
+  if (
+    domain.customTrackingHostname === normalized &&
+    domain.customTrackingPublicKey
+  ) {
+    if (
+      trackingHttpsRequired !== undefined &&
+      trackingHttpsRequired !== domain.trackingHttpsRequired
+    ) {
+      const domainForSes: Domain = {
+        ...domain,
+        trackingHttpsRequired,
+      };
+      await reapplyCustomTrackingSesPolicy(domainForSes);
+      const updated = await db.domain.update({
+        where: { id: domainId },
+        data: { trackingHttpsRequired },
+      });
+      await emitDomainEvent(updated, "domain.updated");
+      return updated;
+    }
+    return domain;
+  }
+
+  const previousForCleanup =
+    domain.customTrackingHostname &&
+    domain.customTrackingHostname !== normalized
+      ? domain
+      : null;
+
+  const selector = domain.customTrackingDkimSelector ?? "utrack";
+  const publicKey = await ses.addTrackingEmailIdentity(
+    normalized,
+    domain.region,
+    domain.sesTenantId ?? undefined,
+    selector,
+  );
+
+  const updated = await db.domain.update({
+    where: { id: domainId },
+    data: {
+      customTrackingHostname: normalized,
+      customTrackingPublicKey: publicKey,
+      customTrackingDkimSelector: selector,
+      customTrackingDkimStatus: null,
+      customTrackingStatus: DomainStatus.PENDING,
+      trackingConfigGeneral: null,
+      trackingConfigClick: null,
+      trackingConfigOpen: null,
+      trackingConfigFull: null,
+      trackingHttpsRequired:
+        trackingHttpsRequired ?? domain.trackingHttpsRequired ?? false,
+    },
+  });
+
+  if (previousForCleanup) {
+    await removeCustomTrackingResources(previousForCleanup);
+  }
+
+  await emitDomainEvent(updated, "domain.updated");
+  return updated;
 }
 
 const dnsResolveTxt = util.promisify(dns.resolveTxt);
@@ -464,7 +871,7 @@ export async function getDomain(id: number, teamId: number) {
     });
   }
 
-  if (domain.isVerifying) {
+  if (domain.isVerifying || shouldPollCustomTrackingVerification(domain)) {
     return refreshDomainVerification(domain);
   }
 
@@ -506,6 +913,28 @@ export async function refreshDomainVerification(
   const dmarcRecord = _dmarcRecord?.[0]?.[0];
   const checkedAt = new Date();
 
+  let trackingDkimStatus: string | null = null;
+  let trackingVerificationStatus: DomainStatus | undefined;
+
+  if (domain.customTrackingHostname) {
+    try {
+      const trackingIdentity = await ses.getDomainIdentity(
+        domain.customTrackingHostname,
+        domain.region,
+      );
+      trackingDkimStatus =
+        trackingIdentity.DkimAttributes?.Status?.toString() ?? null;
+      trackingVerificationStatus = parseDomainStatus(
+        trackingIdentity.VerificationStatus?.toString(),
+      );
+    } catch (error) {
+      logger.error(
+        { err: error, domainId: domain.id },
+        "[DomainService]: Failed to refresh custom tracking identity status",
+      );
+    }
+  }
+
   const updatedDomain = await db.domain.update({
     where: {
       id: domain.id,
@@ -521,6 +950,13 @@ export async function refreshDomainVerification(
         dkimStatus,
         spfDetails,
       ),
+      ...(domain.customTrackingHostname &&
+      trackingVerificationStatus !== undefined
+        ? {
+            customTrackingDkimStatus: trackingDkimStatus,
+            customTrackingStatus: trackingVerificationStatus,
+          }
+        : {}),
     },
   });
 
@@ -561,8 +997,28 @@ export async function refreshDomainVerification(
     }
   }
 
+  let provisionedDomain = updatedDomain;
+
+  if (
+    domain.customTrackingHostname &&
+    trackingVerificationStatus === DomainStatus.SUCCESS
+  ) {
+    try {
+      await ensureCustomTrackingProvisioned(domain.id);
+      const reloaded = await db.domain.findUnique({ where: { id: domain.id } });
+      if (reloaded) {
+        provisionedDomain = reloaded;
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, domainId: domain.id },
+        "[DomainService]: ensureCustomTrackingProvisioned failed after refresh",
+      );
+    }
+  }
+
   const normalizedDomain = {
-    ...updatedDomain,
+    ...provisionedDomain,
     dkimStatus: dkimStatus ?? null,
     spfDetails: spfDetails ?? null,
     dmarcAdded: Boolean(dmarcRecord),
@@ -621,6 +1077,8 @@ export async function deleteDomain(id: number) {
   if (!domain) {
     throw new Error("Domain not found");
   }
+
+  await removeCustomTrackingResources(domain);
 
   const deleted = await ses.deleteDomain(
     domain.name,
@@ -696,6 +1154,15 @@ export async function isDomainVerificationDue(domain: Domain) {
     !domain.isVerifying
   ) {
     return false;
+  }
+
+  if (shouldPollCustomTrackingVerification(domain)) {
+    const now = Date.now();
+    const lastCheckedAt = verificationState.lastCheckedAt?.getTime() ?? 0;
+    if (!verificationState.lastCheckedAt) {
+      return true;
+    }
+    return now - lastCheckedAt >= DOMAIN_UNVERIFIED_RECHECK_MS;
   }
 
   const now = Date.now();

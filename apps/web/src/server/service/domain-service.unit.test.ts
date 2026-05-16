@@ -4,6 +4,9 @@ import { DomainStatus, type Domain } from "@prisma/client";
 const {
   mockDb,
   mockGetDomainIdentity,
+  mockAddTrackingEmailIdentity,
+  mockDeleteConfigurationSet,
+  mockDeleteDomain,
   mockWebhookEmit,
   mockRedis,
   mockSendMail,
@@ -14,12 +17,16 @@ const {
     domain: {
       update: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     teamUser: {
       findMany: vi.fn(),
     },
   },
   mockGetDomainIdentity: vi.fn(),
+  mockAddTrackingEmailIdentity: vi.fn(),
+  mockDeleteConfigurationSet: vi.fn(),
+  mockDeleteDomain: vi.fn(),
   mockWebhookEmit: vi.fn(),
   mockRedis: {
     mget: vi.fn(),
@@ -49,6 +56,9 @@ vi.mock("~/server/db", () => ({
 
 vi.mock("~/server/aws/ses", () => ({
   getDomainIdentity: mockGetDomainIdentity,
+  addTrackingEmailIdentity: mockAddTrackingEmailIdentity,
+  deleteConfigurationSet: mockDeleteConfigurationSet,
+  deleteDomain: mockDeleteDomain,
 }));
 
 vi.mock("~/server/service/webhook-service", () => ({
@@ -70,11 +80,19 @@ vi.mock("~/server/email-templates", () => ({
   renderDomainVerificationStatusEmail: mockRenderDomainVerificationStatusEmail,
 }));
 
+vi.mock("~/env", () => ({
+  env: {
+    NEXT_PUBLIC_IS_CLOUD: false,
+    NEXTAUTH_URL: "http://localhost:3000",
+  },
+}));
+
 import {
   DOMAIN_UNVERIFIED_RECHECK_MS,
   DOMAIN_VERIFIED_RECHECK_MS,
   isDomainVerificationDue,
   refreshDomainVerification,
+  setCustomTrackingHostname,
 } from "~/server/service/domain-service";
 
 function createDomain(overrides: Partial<Domain> = {}): Domain {
@@ -95,6 +113,16 @@ function createDomain(overrides: Partial<Domain> = {}): Domain {
     subdomain: null,
     sesTenantId: null,
     isVerifying: true,
+    customTrackingHostname: null,
+    customTrackingPublicKey: null,
+    customTrackingDkimSelector: "utrack",
+    customTrackingDkimStatus: null,
+    customTrackingStatus: DomainStatus.NOT_STARTED,
+    trackingConfigGeneral: null,
+    trackingConfigClick: null,
+    trackingConfigOpen: null,
+    trackingConfigFull: null,
+    trackingHttpsRequired: false,
     createdAt: new Date("2026-03-01T00:00:00.000Z"),
     updatedAt: new Date("2026-03-01T00:00:00.000Z"),
     ...overrides,
@@ -108,6 +136,10 @@ describe("domain-service", () => {
 
     mockDb.domain.update.mockReset();
     mockDb.domain.findUnique.mockReset();
+    mockDb.domain.findFirst.mockReset();
+    mockAddTrackingEmailIdentity.mockReset();
+    mockDeleteConfigurationSet.mockReset();
+    mockDeleteDomain.mockReset();
     mockDb.teamUser.findMany.mockReset();
     mockGetDomainIdentity.mockReset();
     mockWebhookEmit.mockReset();
@@ -126,11 +158,9 @@ describe("domain-service", () => {
       { user: { email: "alice@example.com" } },
       { user: { email: "bob@example.com" } },
     ]);
-    mockResolveTxt.mockImplementation(
-      (_name: string, cb: (err: Error | null, value?: string[][]) => void) => {
-        cb(null, [["v=DMARC1; p=none;"]]);
-      },
-    );
+    mockResolveTxt.mockImplementation((_name, cb) => {
+      cb(null, [["v=DMARC1; p=none;"]]);
+    });
   });
 
   it("sends success status emails to all team members when a new domain becomes verified", async () => {
@@ -410,5 +440,92 @@ describe("domain-service", () => {
     ]);
 
     await expect(isDomainVerificationDue(domain)).resolves.toBe(false);
+  });
+
+  it("uses unverified cadence when custom tracking is still pending even if the sending domain is verified", async () => {
+    const domain = createDomain({
+      status: DomainStatus.SUCCESS,
+      customTrackingHostname: "track.example.com",
+      customTrackingPublicKey: "pk",
+      customTrackingStatus: DomainStatus.PENDING,
+    });
+    mockRedis.mget.mockResolvedValue([
+      new Date(
+        Date.now() - DOMAIN_UNVERIFIED_RECHECK_MS + 5 * 60 * 1000,
+      ).toISOString(),
+      DomainStatus.SUCCESS,
+      "1",
+    ]);
+
+    await expect(isDomainVerificationDue(domain)).resolves.toBe(false);
+
+    mockRedis.mget.mockResolvedValue([
+      new Date(
+        Date.now() - DOMAIN_UNVERIFIED_RECHECK_MS - 5 * 60 * 1000,
+      ).toISOString(),
+      DomainStatus.SUCCESS,
+      "1",
+    ]);
+
+    await expect(isDomainVerificationDue(domain)).resolves.toBe(true);
+  });
+
+  it("uses unverified cadence when custom tracking identity is SUCCESS but configuration sets are not provisioned", async () => {
+    const domain = createDomain({
+      status: DomainStatus.SUCCESS,
+      customTrackingHostname: "track.example.com",
+      customTrackingPublicKey: "pk",
+      customTrackingStatus: DomainStatus.SUCCESS,
+      trackingConfigGeneral: null,
+      trackingConfigClick: null,
+      trackingConfigOpen: null,
+      trackingConfigFull: null,
+    });
+    mockRedis.mget.mockResolvedValue([
+      new Date(
+        Date.now() - DOMAIN_UNVERIFIED_RECHECK_MS + 5 * 60 * 1000,
+      ).toISOString(),
+      DomainStatus.SUCCESS,
+      "1",
+    ]);
+
+    await expect(isDomainVerificationDue(domain)).resolves.toBe(false);
+
+    mockRedis.mget.mockResolvedValue([
+      new Date(
+        Date.now() - DOMAIN_UNVERIFIED_RECHECK_MS - 5 * 60 * 1000,
+      ).toISOString(),
+      DomainStatus.SUCCESS,
+      "1",
+    ]);
+
+    await expect(isDomainVerificationDue(domain)).resolves.toBe(true);
+  });
+
+  it("preserves trackingHttpsRequired when changing hostname if omitted", async () => {
+    const existing = createDomain({
+      status: DomainStatus.SUCCESS,
+      customTrackingHostname: "track.old.example.com",
+      customTrackingPublicKey: "oldpk",
+      customTrackingStatus: DomainStatus.SUCCESS,
+      trackingHttpsRequired: true,
+    });
+    mockDb.domain.findFirst.mockResolvedValue(existing);
+    mockAddTrackingEmailIdentity.mockResolvedValue("newpk");
+    mockDb.domain.update.mockImplementation(async ({ data }) =>
+      createDomain({ ...existing, ...data }),
+    );
+    mockDeleteConfigurationSet.mockResolvedValue(undefined);
+    mockDeleteDomain.mockResolvedValue(undefined);
+
+    await setCustomTrackingHostname(42, 7, "track.new.example.com");
+
+    expect(mockDb.domain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          trackingHttpsRequired: true,
+        }),
+      }),
+    );
   });
 });

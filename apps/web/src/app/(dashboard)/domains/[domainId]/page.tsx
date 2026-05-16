@@ -25,10 +25,12 @@ import { Switch } from "@usesend/ui/src/switch";
 import DeleteDomain from "./delete-domain";
 import SendTestMail from "./send-test-mail";
 import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import Link from "next/link";
 import { toast } from "@usesend/ui/src/toaster";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "~/server/api/root";
+import { env } from "~/env";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type DomainResponse = NonNullable<RouterOutputs["domain"]["getDomain"]>;
@@ -45,7 +47,21 @@ export default function DomainItemPage({
       id: Number(domainId),
     },
     {
-      refetchInterval: (q) => (q?.state.data?.isVerifying ? 10000 : false),
+      refetchInterval: (q) => {
+        const d = q?.state.data;
+        if (!d) return false;
+        if (d.isVerifying) return 10000;
+        if (
+          !env.NEXT_PUBLIC_IS_CLOUD &&
+          d.customTrackingHostname &&
+          d.customTrackingPublicKey &&
+          d.customTrackingStatus !== DomainStatus.SUCCESS &&
+          d.customTrackingStatus !== DomainStatus.FAILED
+        ) {
+          return 10000;
+        }
+        return false;
+      },
       refetchIntervalInBackground: true,
     },
   );
@@ -128,8 +144,8 @@ export default function DomainItemPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(domainQuery.data?.dnsRecords ?? []).map((record) => {
-                  const key = `${record.type}-${record.name}`;
+                {(domainQuery.data?.dnsRecords ?? []).map((record, idx) => {
+                  const key = `${record.type}-${record.name}-${idx}`;
                   const valueClassName = record.name.includes("_domainkey")
                     ? "w-[200px] overflow-hidden text-ellipsis"
                     : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
@@ -175,12 +191,27 @@ export default function DomainItemPage({
 
 const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
   const updateDomain = api.domain.updateDomain.useMutation();
+  const setTrackingHost = api.domain.setCustomTrackingHostname.useMutation();
   const utils = api.useUtils();
 
   const [clickTracking, setClickTracking] = React.useState(
     domain.clickTracking,
   );
   const [openTracking, setOpenTracking] = React.useState(domain.openTracking);
+  const [trackingHostDraft, setTrackingHostDraft] = React.useState(
+    domain.customTrackingHostname ?? "",
+  );
+  const [trackingHttpsDraft, setTrackingHttpsDraft] = React.useState(
+    domain.trackingHttpsRequired,
+  );
+
+  React.useEffect(() => {
+    setTrackingHostDraft(domain.customTrackingHostname ?? "");
+  }, [domain.customTrackingHostname]);
+
+  React.useEffect(() => {
+    setTrackingHttpsDraft(domain.trackingHttpsRequired);
+  }, [domain.trackingHttpsRequired]);
 
   function handleClickTrackingChange() {
     setClickTracking(!clickTracking);
@@ -235,6 +266,114 @@ const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
           className="data-[state=checked]:bg-success"
         />
       </div>
+
+      {!env.NEXT_PUBLIC_IS_CLOUD ? (
+        <div className="flex flex-col gap-3 border-t border-border pt-6">
+          <div className="font-semibold">Custom tracking domain</div>
+          <p className="text-muted-foreground text-sm">
+            Use your own hostname for click and open tracking instead of the
+            default SES tracking URLs. It must be on the same registrable domain
+            as this sending domain (for example{" "}
+            <span className="font-mono text-xs">track.example.com</span> for{" "}
+            <span className="font-mono text-xs">example.com</span>). You need{" "}
+            <strong>both</strong> records in the DNS table: the DKIM TXT proves
+            ownership to SES; the CNAME points your hostname at Amazon&apos;s
+            regional tracking servers so links and pixels resolve.
+          </p>
+          <p className="text-muted-foreground text-sm">
+            <strong>HTTPS for tracking links</strong> is off by default (HTTP is
+            allowed; fine with a CNAME-only setup). Turn it on only if valid TLS
+            exists for this hostname — the easiest option is often{" "}
+            <strong>Cloudflare proxy</strong> (orange cloud) on the tracking
+            name so visitors get HTTPS without running CloudFront. Advanced
+            setups can use CloudFront + ACM or another TLS terminator instead.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+            <div className="flex flex-col gap-1 flex-1">
+              <span className="text-xs text-muted-foreground">Hostname</span>
+              <Input
+                placeholder="track.yourdomain.com"
+                value={trackingHostDraft}
+                onChange={(e) => setTrackingHostDraft(e.target.value)}
+                disabled={setTrackingHost.isPending}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={setTrackingHost.isPending}
+              onClick={() => {
+                const trimmed = trackingHostDraft.trim();
+                setTrackingHost.mutate(
+                  {
+                    id: domain.id,
+                    hostname: trimmed === "" ? null : trimmed.toLowerCase(),
+                    trackingHttpsRequired: trackingHttpsDraft,
+                  },
+                  {
+                    onSuccess: () => {
+                      utils.domain.invalidate();
+                      toast.success(
+                        trimmed === ""
+                          ? "Custom tracking domain removed"
+                          : "Saved — add the DKIM TXT and CNAME (to AWS tracking host) from DNS records, then verify",
+                      );
+                    },
+                    onError: (err) => {
+                      toast.error(err.message);
+                    },
+                  },
+                );
+              }}
+            >
+              {domain.customTrackingHostname ? "Update" : "Save"}
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="font-semibold text-sm">
+              Require HTTPS for tracking links
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Tells SES to use HTTPS in tracking URLs. Only enable if this
+              hostname already serves a valid certificate (e.g. Cloudflare
+              proxy).
+            </p>
+            <Switch
+              checked={trackingHttpsDraft}
+              onCheckedChange={(checked) => {
+                setTrackingHttpsDraft(checked);
+                if (domain.customTrackingHostname) {
+                  setTrackingHost.mutate(
+                    {
+                      id: domain.id,
+                      hostname: domain.customTrackingHostname,
+                      trackingHttpsRequired: checked,
+                    },
+                    {
+                      onSuccess: () => {
+                        utils.domain.invalidate();
+                        toast.success("Tracking HTTPS preference updated");
+                      },
+                      onError: (err) => {
+                        toast.error(err.message);
+                        setTrackingHttpsDraft(domain.trackingHttpsRequired);
+                      },
+                    },
+                  );
+                }
+              }}
+              disabled={setTrackingHost.isPending}
+              className="data-[state=checked]:bg-success"
+            />
+          </div>
+          {domain.customTrackingHostname ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Tracking identity:</span>
+              <DnsVerificationStatus status={domain.customTrackingStatus} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <p className="font-semibold text-lg text-destructive">Danger</p>

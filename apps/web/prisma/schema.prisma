@@ -196,6 +196,18 @@ model Domain {
   subdomain     String?
   sesTenantId   String?
   isVerifying   Boolean      @default(false)
+  /// Self-hosted: custom hostname for SES click/open tracking (e.g. track.example.com). Requires DNS + verification in SES.
+  customTrackingHostname     String?      @unique
+  customTrackingPublicKey    String?
+  customTrackingDkimSelector String?      @default("utrack")
+  customTrackingDkimStatus   String?
+  customTrackingStatus       DomainStatus @default(NOT_STARTED)
+  trackingConfigGeneral      String?
+  trackingConfigClick        String?
+  trackingConfigOpen         String?
+  trackingConfigFull         String?
+  /// Self-hosted: when true, SES uses HTTPS for tracking links (REQUIRE). Needs valid TLS on the tracking hostname (e.g. Cloudflare proxy). When false, OPTIONAL (HTTP allowed; CNAME-only to awstrack).
+  trackingHttpsRequired      Boolean      @default(false)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)

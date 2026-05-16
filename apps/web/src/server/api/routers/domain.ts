@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 
 import {
   createTRPCRouter,
@@ -13,6 +14,7 @@ import {
   getDomain,
   getDomains,
   updateDomain,
+  setCustomTrackingHostname,
 } from "~/server/service/domain-service";
 import { sendEmail } from "~/server/service/email-service";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
@@ -61,6 +63,33 @@ export const domainRouter = createTRPCRouter({
         clickTracking: input.clickTracking,
         openTracking: input.openTracking,
       });
+    }),
+
+  setCustomTrackingHostname: teamProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        hostname: z.string().max(253).nullable(),
+        /** When set, persisted and applied to SES tracking config sets for this domain. */
+        trackingHttpsRequired: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const domain = await db.domain.findFirst({
+        where: { id: input.id, teamId: ctx.team.id },
+      });
+      if (!domain) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Domain not found",
+        });
+      }
+      return setCustomTrackingHostname(
+        input.id,
+        ctx.team.id,
+        input.hostname,
+        input.trackingHttpsRequired,
+      );
     }),
 
   deleteDomain: domainProcedure.mutation(async ({ input }) => {

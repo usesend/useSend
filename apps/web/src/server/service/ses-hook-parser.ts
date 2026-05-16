@@ -20,7 +20,7 @@ import {
   unsubscribeContact,
   updateCampaignAnalytics,
 } from "./campaign-service";
-import { env } from "~/env";
+import { isUnsubscribeEngagementExemptLink } from "./unsubscribe-engagement-exempt";
 import { getRedis, BULL_PREFIX } from "../redis";
 import { Queue, Worker } from "bullmq";
 import {
@@ -264,7 +264,7 @@ export async function parseSesHook(data: SesEvent) {
   if (email.campaignId) {
     if (
       mailStatus !== "CLICKED" ||
-      !(mailData as SesClick).link.startsWith(`${env.NEXTAUTH_URL}/unsubscribe`)
+      !isUnsubscribeEngagementExemptLink((mailData as SesClick).link)
     ) {
       await checkUnsubscribe({
         contactId: email.contactId!,

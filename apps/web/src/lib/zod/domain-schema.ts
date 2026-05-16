@@ -4,7 +4,7 @@ import { z } from "zod";
 export const DomainStatusSchema = z.nativeEnum(DomainStatus);
 
 export const DomainDnsRecordSchema = z.object({
-  type: z.enum(["MX", "TXT"]).openapi({
+  type: z.enum(["MX", "TXT", "CNAME"]).openapi({
     description: "DNS record type",
     example: "TXT",
   }),

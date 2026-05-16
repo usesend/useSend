@@ -345,9 +345,18 @@ async function executeEmail(job: QueueEmailJob) {
   logger.info({ domain }, `Domain`);
 
   const configurationSetName = await getConfigurationSetName(
-    domain?.clickTracking ?? false,
-    domain?.openTracking ?? false,
-    domain?.region ?? env.AWS_DEFAULT_REGION
+    domain
+      ? {
+          clickTracking: domain.clickTracking,
+          openTracking: domain.openTracking,
+          region: domain.region,
+          trackingConfigGeneral: domain.trackingConfigGeneral,
+          trackingConfigClick: domain.trackingConfigClick,
+          trackingConfigOpen: domain.trackingConfigOpen,
+          trackingConfigFull: domain.trackingConfigFull,
+        }
+      : null,
+    env.AWS_DEFAULT_REGION,
   );
 
   if (!configurationSetName) {
