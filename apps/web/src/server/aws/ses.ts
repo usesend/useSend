@@ -17,7 +17,7 @@ import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { generateKeyPairSync } from "crypto";
 import nodemailer from "nodemailer";
 import { env } from "~/env";
-import { getAwsCredentialOptions } from "./credentials";
+import { getAwsCredentialOptions } from "~/server/aws/credentials";
 import { EmailContent } from "~/types";
 import { logger } from "../logger/log";
 import { buildHeaders } from "~/server/utils/email-headers";
