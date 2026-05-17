@@ -82,8 +82,8 @@ GITHUB_SECRET=your_client_secret
 If you want to send real emails, add:
 
 ```env
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
 ```
 
 > You can skip this by using the `local-sen-sns` image for local-only email development.

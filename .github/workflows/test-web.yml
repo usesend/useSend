@@ -19,8 +19,8 @@ jobs:
       NEXTAUTH_SECRET: test-secret
       DATABASE_URL: postgresql://usesend:password@127.0.0.1:5432/usesend_test
       REDIS_URL: redis://127.0.0.1:6379/15
-      AWS_ACCESS_KEY: test-access-key
-      AWS_SECRET_KEY: test-secret-key
+      AWS_ACCESS_KEY_ID: test-access-key
+      AWS_SECRET_ACCESS_KEY: test-secret-key
       AWS_DEFAULT_REGION: us-east-1
       NEXT_PUBLIC_IS_CLOUD: "true"
       API_RATE_LIMIT: "2"
