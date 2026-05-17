@@ -25,6 +25,7 @@ import { Switch } from "@usesend/ui/src/switch";
 import DeleteDomain from "./delete-domain";
 import SendTestMail from "./send-test-mail";
 import { Button } from "@usesend/ui/src/button";
+import { Input } from "@usesend/ui/src/input";
 import Link from "next/link";
 import { toast } from "@usesend/ui/src/toaster";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -94,7 +95,11 @@ export default function DomainItemPage({
 
               <div className="">
                 <DomainStatusBadge
-                  status={domainQuery.data?.status || DomainStatus.NOT_STARTED}
+                  status={
+                    domainQuery.data?.aggregateStatus ??
+                    domainQuery.data?.status ??
+                    DomainStatus.NOT_STARTED
+                  }
                 />
               </div>
             </div>
@@ -103,7 +108,8 @@ export default function DomainItemPage({
                 <Button variant="outline" onClick={handleVerify}>
                   {domainQuery.data?.isVerifying
                     ? "Verifying..."
-                    : domainQuery.data?.status === DomainStatus.SUCCESS
+                    : (domainQuery.data?.aggregateStatus ??
+                        domainQuery.data?.status) === DomainStatus.SUCCESS
                       ? "Verify again"
                       : "Verify domain"}
                 </Button>
@@ -175,12 +181,23 @@ export default function DomainItemPage({
 
 const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
   const updateDomain = api.domain.updateDomain.useMutation();
+  const setMailFromLabelMutation = api.domain.setMailFromLabel.useMutation();
   const utils = api.useUtils();
 
   const [clickTracking, setClickTracking] = React.useState(
     domain.clickTracking,
   );
   const [openTracking, setOpenTracking] = React.useState(domain.openTracking);
+  const [mailFromDraft, setMailFromDraft] = React.useState(
+    domain.mailFromLabel ?? "",
+  );
+
+  const effectiveMailFromLabel =
+    domain.mailFromLabel?.trim() || domain.region;
+
+  React.useEffect(() => {
+    setMailFromDraft(domain.mailFromLabel ?? "");
+  }, [domain.mailFromLabel]);
 
   function handleClickTrackingChange() {
     setClickTracking(!clickTracking);
@@ -210,6 +227,97 @@ const DomainSettings: React.FC<{ domain: DomainResponse }> = ({ domain }) => {
   return (
     <div className="rounded-lg shadow p-4 border flex flex-col gap-6">
       <p className="font-semibold text-xl">Settings</p>
+
+      <div className="flex flex-col gap-3 border-b border-border pb-6">
+        <div className="font-semibold">MAIL FROM label</div>
+        <p className="text-muted-foreground text-sm">
+          The MX and SPF rows in the DNS table use this hostname label. By
+          default it matches your SES region (
+          <span className="font-mono text-xs">{domain.region}</span>). You can
+          set a custom label (for example{" "}
+          <span className="font-mono text-xs">bounce</span>) — a single DNS
+          label, letters, digits, and hyphens only. Saving updates Amazon SES;
+          then update DNS and run Verify.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          Tip: add the new MX and SPF records at your DNS provider{" "}
+          <strong>before</strong> you save a new label here. That way SES can
+          verify as soon as you save, and you avoid a temporary “not verified”
+          state.
+        </p>
+        <p className="text-sm">
+          <span className="text-muted-foreground">Effective label:</span>{" "}
+          <span className="font-mono text-xs">{effectiveMailFromLabel}</span>
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <span className="text-xs text-muted-foreground">
+              Custom label (optional)
+            </span>
+            <Input
+              placeholder={domain.region}
+              value={mailFromDraft}
+              onChange={(e) => setMailFromDraft(e.target.value)}
+              disabled={setMailFromLabelMutation.isPending}
+              autoComplete="off"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={setMailFromLabelMutation.isPending}
+            onClick={() => {
+              const trimmed = mailFromDraft.trim();
+              setMailFromLabelMutation.mutate(
+                {
+                  id: domain.id,
+                  mailFromLabel:
+                    trimmed === "" ? null : trimmed.toLowerCase(),
+                },
+                {
+                  onSuccess: () => {
+                    utils.domain.invalidate();
+                    toast.success(
+                      trimmed === ""
+                        ? "MAIL FROM reset to region default"
+                        : "MAIL FROM label updated — update DNS and verify",
+                    );
+                  },
+                  onError: (err) => {
+                    toast.error(err.message);
+                  },
+                },
+              );
+            }}
+          >
+            Save
+          </Button>
+          {domain.mailFromLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={setMailFromLabelMutation.isPending}
+              onClick={() => {
+                setMailFromLabelMutation.mutate(
+                  { id: domain.id, mailFromLabel: null },
+                  {
+                    onSuccess: () => {
+                      utils.domain.invalidate();
+                      toast.success("MAIL FROM reset to region default");
+                    },
+                    onError: (err) => {
+                      toast.error(err.message);
+                    },
+                  },
+                );
+              }}
+            >
+              Reset to default
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1">
         <div className="font-semibold">Click tracking</div>
         <p className=" text-muted-foreground text-sm">

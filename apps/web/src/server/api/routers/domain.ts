@@ -13,6 +13,7 @@ import {
   getDomain,
   getDomains,
   updateDomain,
+  setMailFromLabel,
 } from "~/server/service/domain-service";
 import { sendEmail } from "~/server/service/email-service";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
@@ -61,6 +62,17 @@ export const domainRouter = createTRPCRouter({
         clickTracking: input.clickTracking,
         openTracking: input.openTracking,
       });
+    }),
+
+  setMailFromLabel: domainProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        mailFromLabel: z.string().max(63).nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return setMailFromLabel(input.id, ctx.team.id, input.mailFromLabel);
     }),
 
   deleteDomain: domainProcedure.mutation(async ({ input }) => {

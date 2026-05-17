@@ -194,6 +194,8 @@ model Domain {
   dmarcAdded    Boolean      @default(false)
   errorMessage  String?
   subdomain     String?
+  /// Optional first label for custom MAIL FROM (e.g. "bounce"); full host is `{label}.{name}`. Null means use `region` as the label (e.g. us-east-1.example.com).
+  mailFromLabel String?
   sesTenantId   String?
   isVerifying   Boolean      @default(false)
   createdAt     DateTime     @default(now())

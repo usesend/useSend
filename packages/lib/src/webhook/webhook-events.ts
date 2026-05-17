@@ -102,6 +102,8 @@ export type DomainPayload = {
   dkimStatus?: string | null;
   spfDetails?: string | null;
   dmarcAdded?: boolean | null;
+  /** Custom MAIL FROM label (first DNS label); null means the SES region is used. */
+  mailFromLabel?: string | null;
 };
 
 export type EmailBouncedPayload = EmailBasePayload & {

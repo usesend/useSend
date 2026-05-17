@@ -16,7 +16,11 @@ import {
   type DomainWebhookEventType,
 } from "@usesend/lib/src/webhook/webhook-events";
 import { LimitService } from "./limit-service";
-import type { DomainDnsRecord } from "~/types/domain";
+import type {
+  DomainDnsRecord,
+  DomainWithDnsRecords as DomainWithDnsRecordsEnriched,
+} from "~/types/domain";
+import { aggregateDomainStatus } from "~/lib/domain-aggregate-status";
 import { WebhookService } from "./webhook-service";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
@@ -30,9 +34,7 @@ type DomainVerificationState = {
   lastNotifiedStatus: DomainStatus | null;
 };
 
-type DomainWithDnsRecords = Domain & { dnsRecords: DomainDnsRecord[] };
-
-type DomainVerificationRefreshResult = DomainWithDnsRecords & {
+type DomainVerificationRefreshResult = DomainWithDnsRecordsEnriched & {
   verificationError: string | null;
   lastCheckedTime: string | null;
   previousStatus: DomainStatus;
@@ -54,9 +56,29 @@ function parseDomainStatus(status?: string | null): DomainStatus {
   return DomainStatus.NOT_STARTED;
 }
 
+const MAIL_FROM_LABEL_MAX_LEN = 63;
+
+function isValidMailFromLabel(label: string): boolean {
+  if (label.length < 1 || label.length > MAIL_FROM_LABEL_MAX_LEN) {
+    return false;
+  }
+  if (label.startsWith("-") || label.endsWith("-")) {
+    return false;
+  }
+  return /^[a-zA-Z0-9-]+$/.test(label);
+}
+
+function effectiveMailFromFirstLabel(domain: Domain): string {
+  const custom = domain.mailFromLabel?.trim().toLowerCase();
+  if (custom) {
+    return custom;
+  }
+  return domain.region;
+}
+
 function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
   const subdomainSuffix = domain.subdomain ? `.${domain.subdomain}` : "";
-  const mailDomain = `mail${subdomainSuffix}`;
+  const mailFromSubdomain = `${effectiveMailFromFirstLabel(domain)}${subdomainSuffix}`;
   const dkimSelector = domain.dkimSelector ?? "usesend";
 
   const spfStatus = parseDomainStatus(domain.spfDetails);
@@ -68,7 +90,7 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
   return [
     {
       type: "MX",
-      name: mailDomain,
+      name: mailFromSubdomain,
       value: `feedback-smtp.${domain.region}.amazonses.com`,
       ttl: "Auto",
       priority: "10",
@@ -83,7 +105,7 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
     },
     {
       type: "TXT",
-      name: mailDomain,
+      name: mailFromSubdomain,
       value: "v=spf1 include:amazonses.com ~all",
       ttl: "Auto",
       status: spfStatus,
@@ -101,9 +123,10 @@ function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
 
 function withDnsRecords<T extends Domain>(
   domain: T,
-): T & { dnsRecords: DomainDnsRecord[] } {
+): T & { dnsRecords: DomainDnsRecord[]; aggregateStatus: DomainStatus } {
   return {
     ...domain,
+    aggregateStatus: aggregateDomainStatus(domain),
     dnsRecords: buildDnsRecords(domain),
   };
 }
@@ -268,8 +291,9 @@ async function sendDomainStatusNotification({
     return;
   }
 
+  const aggregate = aggregateDomainStatus(domain);
   const subject =
-    domain.status === DomainStatus.SUCCESS
+    aggregate === DomainStatus.SUCCESS
       ? `useSend: ${domain.name} is verified`
       : previousStatus === DomainStatus.SUCCESS
         ? `useSend: ${domain.name} verification status changed`
@@ -278,12 +302,12 @@ async function sendDomainStatusNotification({
   const domainUrl = `${env.NEXTAUTH_URL}/domains/${domain.id}`;
   const html = await renderDomainVerificationStatusEmail({
     domainName: domain.name,
-    currentStatus: domain.status,
+    currentStatus: aggregate,
     previousStatus,
     domainUrl,
   });
   const statusMessage =
-    domain.status === DomainStatus.SUCCESS
+    aggregate === DomainStatus.SUCCESS
       ? `Your domain ${domain.name} is now verified, and you can start sending emails.`
       : `Your domain ${domain.name} could not be verified because the DNS records are not set up correctly yet. Please review your DNS settings and try again.`;
   const textLines = [
@@ -308,7 +332,7 @@ function buildDomainPayload(domain: Domain): DomainPayload {
   return {
     id: domain.id,
     name: domain.name,
-    status: domain.status,
+    status: aggregateDomainStatus(domain),
     region: domain.region,
     createdAt: domain.createdAt.toISOString(),
     updatedAt: domain.updatedAt.toISOString(),
@@ -319,6 +343,7 @@ function buildDomainPayload(domain: Domain): DomainPayload {
     dkimStatus: domain.dkimStatus,
     spfDetails: domain.spfDetails,
     dmarcAdded: domain.dmarcAdded,
+    mailFromLabel: domain.mailFromLabel,
   };
 }
 
@@ -357,7 +382,7 @@ export async function validateDomainFromEmail(email: string, teamId: number) {
     });
   }
 
-  if (domain.status !== "SUCCESS") {
+  if (aggregateDomainStatus(domain) !== DomainStatus.SUCCESS) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
       message: `Domain: ${fromDomain} is not verified`,
@@ -576,9 +601,16 @@ export async function refreshDomainVerification(
         ? String(lastCheckedTime)
         : null;
 
-  if (previousStatus !== domainWithDns.status) {
+  const previousAggregate = aggregateDomainStatus(domain);
+  const nextAggregate = aggregateDomainStatus(normalizedDomain);
+
+  if (
+    previousStatus !== domainWithDns.status ||
+    previousAggregate !== nextAggregate
+  ) {
     const eventType: DomainWebhookEventType =
-      domainWithDns.status === DomainStatus.SUCCESS
+      nextAggregate === DomainStatus.SUCCESS &&
+      previousAggregate !== DomainStatus.SUCCESS
         ? "domain.verified"
         : "domain.updated";
     await emitDomainEvent(domainWithDns, eventType);
@@ -592,11 +624,74 @@ export async function refreshDomainVerification(
     lastCheckedTime: normalizedLastCheckedTime,
     dmarcAdded: normalizedDomain.dmarcAdded,
     previousStatus,
-    statusChanged: previousStatus !== domainWithDns.status,
+    statusChanged:
+      previousStatus !== domainWithDns.status ||
+      previousAggregate !== nextAggregate,
     hasEverVerified:
       verificationState.hasEverVerified ||
-      domainWithDns.status === DomainStatus.SUCCESS,
+      nextAggregate === DomainStatus.SUCCESS,
   };
+}
+
+export async function setMailFromLabel(
+  domainId: number,
+  teamId: number,
+  label: string | null,
+) {
+  const domain = await db.domain.findFirst({
+    where: { id: domainId, teamId },
+  });
+
+  if (!domain) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Domain not found",
+    });
+  }
+
+  const trimmed =
+    label === null || label === undefined ? "" : label.trim().toLowerCase();
+
+  let stored: string | null = trimmed === "" ? null : trimmed;
+
+  if (stored && !isValidMailFromLabel(stored)) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Invalid MAIL FROM label. Use 1–63 letters, digits, or hyphens; do not start or end with a hyphen.",
+    });
+  }
+
+  if (stored === domain.region.toLowerCase()) {
+    stored = null;
+  }
+
+  const previousStored = domain.mailFromLabel?.trim().toLowerCase() ?? null;
+  if (previousStored === stored) {
+    return withDnsRecords(domain);
+  }
+
+  const firstLabel = stored ?? domain.region;
+  const mailFromFqdn = `${firstLabel}.${domain.name}`;
+
+  await ses.putEmailIdentityMailFromDomain(
+    domain.name,
+    domain.region,
+    mailFromFqdn,
+  );
+
+  const updated = await db.domain.update({
+    where: { id: domainId },
+    data: {
+      mailFromLabel: stored,
+      spfDetails: DomainStatus.PENDING,
+      isVerifying: true,
+      errorMessage: null,
+    },
+  });
+
+  await emitDomainEvent(updated, "domain.updated");
+  return withDnsRecords(updated);
 }
 
 export async function updateDomain(

@@ -11,6 +11,8 @@ export type DomainDnsRecord = {
 };
 
 export type DomainWithDnsRecords = Domain & {
+  /** Worst of identity verification, DKIM, and MAIL FROM (SPF); use for UI badges. */
+  aggregateStatus: DomainStatus;
   dnsRecords: DomainDnsRecord[];
   verificationError?: string | null;
   lastCheckedTime?: Date | string | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Domain } from "@prisma/client";
+import type { DomainWithDnsRecords } from "~/types/domain";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { Switch } from "@usesend/ui/src/switch";
@@ -35,7 +35,7 @@ export default function DomainsList() {
   );
 }
 
-const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
+const DomainItem: React.FC<{ domain: DomainWithDnsRecords }> = ({ domain }) => {
   const updateDomain = api.domain.updateDomain.useMutation();
   const utils = api.useUtils();
 
@@ -71,7 +71,9 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
   return (
     <div key={domain.id}>
       <div className=" pr-8 border rounded-lg flex items-stretch shadow">
-        <StatusIndicator status={domain.status} />
+        <StatusIndicator
+          status={domain.aggregateStatus ?? domain.status}
+        />
         <div className="flex justify-between w-full pl-8 py-4">
           <div className="flex flex-col gap-4 w-1/5">
             <Link
@@ -80,7 +82,9 @@ const DomainItem: React.FC<{ domain: Domain }> = ({ domain }) => {
             >
               {domain.name}
             </Link>
-            <DomainStatusBadge status={domain.status} />
+            <DomainStatusBadge
+              status={domain.aggregateStatus ?? domain.status}
+            />
           </div>
 
           <div className="flex flex-col gap-4">

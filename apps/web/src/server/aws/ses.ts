@@ -98,7 +98,7 @@ export async function addDomain(
 
   const emailIdentityCommand = new PutEmailIdentityMailFromAttributesCommand({
     EmailIdentity: domain,
-    MailFromDomain: `mail.${domain}`,
+    MailFromDomain: `${region}.${domain}`,
   });
 
   const emailIdentityResponse = await sesClient.send(emailIdentityCommand);
@@ -135,6 +135,23 @@ export async function addDomain(
   }
 
   return publicKey;
+}
+
+export async function putEmailIdentityMailFromDomain(
+  emailIdentity: string,
+  region: string,
+  mailFromDomain: string,
+) {
+  const sesClient = getSesClient(region);
+  const command = new PutEmailIdentityMailFromAttributesCommand({
+    EmailIdentity: emailIdentity,
+    MailFromDomain: mailFromDomain,
+  });
+  const response = await sesClient.send(command);
+  if (response.$metadata.httpStatusCode !== 200) {
+    logger.error({ response, emailIdentity, mailFromDomain }, "Failed to set MAIL FROM domain");
+    throw new Error("Failed to set MAIL FROM domain");
+  }
 }
 
 export async function deleteDomain(

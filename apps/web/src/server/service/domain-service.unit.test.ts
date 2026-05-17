@@ -4,6 +4,7 @@ import { DomainStatus, type Domain } from "@prisma/client";
 const {
   mockDb,
   mockGetDomainIdentity,
+  mockPutEmailIdentityMailFromDomain,
   mockWebhookEmit,
   mockRedis,
   mockSendMail,
@@ -14,12 +15,14 @@ const {
     domain: {
       update: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     teamUser: {
       findMany: vi.fn(),
     },
   },
   mockGetDomainIdentity: vi.fn(),
+  mockPutEmailIdentityMailFromDomain: vi.fn(),
   mockWebhookEmit: vi.fn(),
   mockRedis: {
     mget: vi.fn(),
@@ -49,6 +52,7 @@ vi.mock("~/server/db", () => ({
 
 vi.mock("~/server/aws/ses", () => ({
   getDomainIdentity: mockGetDomainIdentity,
+  putEmailIdentityMailFromDomain: mockPutEmailIdentityMailFromDomain,
 }));
 
 vi.mock("~/server/service/webhook-service", () => ({
@@ -75,6 +79,7 @@ import {
   DOMAIN_VERIFIED_RECHECK_MS,
   isDomainVerificationDue,
   refreshDomainVerification,
+  setMailFromLabel,
 } from "~/server/service/domain-service";
 
 function createDomain(overrides: Partial<Domain> = {}): Domain {
@@ -93,6 +98,7 @@ function createDomain(overrides: Partial<Domain> = {}): Domain {
     dmarcAdded: false,
     errorMessage: null,
     subdomain: null,
+    mailFromLabel: null,
     sesTenantId: null,
     isVerifying: true,
     createdAt: new Date("2026-03-01T00:00:00.000Z"),
@@ -108,6 +114,8 @@ describe("domain-service", () => {
 
     mockDb.domain.update.mockReset();
     mockDb.domain.findUnique.mockReset();
+    mockDb.domain.findFirst.mockReset();
+    mockPutEmailIdentityMailFromDomain.mockReset();
     mockDb.teamUser.findMany.mockReset();
     mockGetDomainIdentity.mockReset();
     mockWebhookEmit.mockReset();
@@ -410,5 +418,41 @@ describe("domain-service", () => {
     ]);
 
     await expect(isDomainVerificationDue(domain)).resolves.toBe(false);
+  });
+
+  it("marks MAIL FROM verification pending when the label changes", async () => {
+    const existing = createDomain({
+      status: DomainStatus.SUCCESS,
+      spfDetails: DomainStatus.SUCCESS,
+      isVerifying: false,
+      mailFromLabel: null,
+    });
+    mockDb.domain.findFirst.mockResolvedValue(existing);
+    mockPutEmailIdentityMailFromDomain.mockResolvedValue(undefined);
+    mockDb.domain.update.mockImplementation(async ({ data }) =>
+      createDomain({ ...existing, ...data }),
+    );
+
+    const result = await setMailFromLabel(42, 7, "bounce");
+
+    expect(mockPutEmailIdentityMailFromDomain).toHaveBeenCalledWith(
+      "example.com",
+      "us-east-1",
+      "bounce.example.com",
+    );
+    expect(mockDb.domain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 42 },
+        data: expect.objectContaining({
+          mailFromLabel: "bounce",
+          spfDetails: DomainStatus.PENDING,
+          isVerifying: true,
+          errorMessage: null,
+        }),
+      }),
+    );
+    expect(result.spfDetails).toBe(DomainStatus.PENDING);
+    expect(result.aggregateStatus).toBe(DomainStatus.PENDING);
+    expect(result.dnsRecords[0]?.status).toBe(DomainStatus.PENDING);
   });
 });

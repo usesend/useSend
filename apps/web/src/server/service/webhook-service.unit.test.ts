@@ -572,7 +572,7 @@ describe("WebhookService.emit domain filters", () => {
     await WebhookService.emit(10, "contact.created", {
       id: "contact_1",
       email: "test@example.com",
-      contactBookId: 1,
+      contactBookId: "1",
       subscribed: true,
       properties: {},
       firstName: null,

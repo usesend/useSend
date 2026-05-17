@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@usesend/ui/src/select";
 import { formatDistanceToNow } from "date-fns";
+import { aggregateDomainStatus } from "~/lib/domain-aggregate-status";
 
 import { api } from "~/trpc/react";
 import type { AppRouter } from "~/server/api/root";
@@ -223,19 +224,22 @@ export default function AdminTeamsPage() {
               <h3 className="text-sm font-medium text-muted-foreground">Domains</h3>
               <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                 {team.domains.length ? (
-                  team.domains.map((domain) => (
+                  team.domains.map((domain) => {
+                    const agg = aggregateDomainStatus(domain);
+                    return (
                     <div
                       key={domain.id}
                       className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm"
                     >
                       <span>{domain.name}</span>
-                      <Badge variant={domain.status === "SUCCESS" ? "outline" : "secondary"}>
-                        {domain.status === "SUCCESS"
+                      <Badge variant={agg === "SUCCESS" ? "outline" : "secondary"}>
+                        {agg === "SUCCESS"
                           ? "Verified"
-                          : domain.status.toLowerCase()}
+                          : agg.toLowerCase()}
                       </Badge>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-muted-foreground">No domains connected.</p>
                 )}

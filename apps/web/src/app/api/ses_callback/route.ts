@@ -1,9 +1,9 @@
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { parseSesHook, SesHookParser } from "~/server/service/ses-hook-parser";
+import { SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
-import { SnsNotificationMessage } from "~/types/aws-types";
+import { SesEvent, SnsNotificationMessage } from "~/types/aws-types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +14,11 @@ export async function GET() {
 export async function POST(req: Request) {
   const data = await req.json();
 
-  console.log(data, data.Message);
+  logger.info({ type: data?.Type, messageId: data?.MessageId }, "Received SNS callback");
 
   const isEventValid = await checkEventValidity(data);
 
-  console.log("Is event valid: ", isEventValid);
+  logger.info({ isEventValid, topicArn: data?.TopicArn }, "SNS callback validation result");
 
   if (!isEventValid) {
     return Response.json({ data: "Event is not valid" });
@@ -28,10 +28,32 @@ export async function POST(req: Request) {
     return handleSubscription(data);
   }
 
-  let message = null;
-
   try {
-    message = JSON.parse(data.Message || "{}");
+    const rawMessage = data?.Message;
+    if (typeof rawMessage !== "string" || rawMessage.trim() === "") {
+      logger.warn({ messageId: data?.MessageId }, "SNS callback without message payload");
+      return Response.json({ data: "Ignored non-SES callback message" });
+    }
+
+    let message: unknown;
+    try {
+      message = JSON.parse(rawMessage);
+    } catch {
+      logger.info(
+        { messageId: data?.MessageId, rawMessage },
+        "Ignoring SNS notification with non-JSON payload",
+      );
+      return Response.json({ data: "Ignored non-SES callback message" });
+    }
+
+    if (!isSesEventPayload(message)) {
+      logger.info(
+        { messageId: data?.MessageId },
+        "Ignoring SNS notification that is not an SES event payload",
+      );
+      return Response.json({ data: "Ignored non-SES callback message" });
+    }
+
     const status = await SesHookParser.queue({
       event: message,
       messageId: data.MessageId,
@@ -42,9 +64,17 @@ export async function POST(req: Request) {
 
     return Response.json({ data: "Success" });
   } catch (e) {
-    console.error(e);
+    logger.error({ err: e, messageId: data?.MessageId }, "Failed to process SES callback");
     return Response.json({ data: "Error is parsing hook" });
   }
+}
+
+function isSesEventPayload(value: unknown): value is SesEvent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const event = value as Partial<SesEvent>;
+  return typeof event.eventType === "string" && !!event.mail;
 }
 
 /**

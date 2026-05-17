@@ -8,9 +8,10 @@ export const DomainDnsRecordSchema = z.object({
     description: "DNS record type",
     example: "TXT",
   }),
-  name: z
-    .string()
-    .openapi({ description: "DNS record name", example: "mail" }),
+  name: z.string().openapi({
+    description:
+      "DNS record name (hostname label). For custom MAIL FROM MX and SPF TXT records, this is the first label of the MAIL FROM host: the domain `mailFromLabel` if set, otherwise the SES `region` value.",
+  }),
   value: z
     .string()
     .openapi({
@@ -39,6 +40,18 @@ export const DomainSchema = z.object({
   teamId: z.number().openapi({ description: "The ID of the team", example: 1 }),
   status: DomainStatusSchema,
   region: z.string().default("us-east-1"),
+  aggregateStatus: DomainStatusSchema.openapi({
+    description:
+      "Combined verification: SES identity, DKIM, and MAIL FROM (SPF) must all succeed for SUCCESS.",
+  }),
+  mailFromLabel: z
+    .string()
+    .optional()
+    .nullish()
+    .openapi({
+      description:
+        "Optional MAIL FROM subdomain label (e.g. bounce). Null means use `region` as the label.",
+    }),
   clickTracking: z.boolean().default(false),
   openTracking: z.boolean().default(false),
   publicKey: z.string(),
