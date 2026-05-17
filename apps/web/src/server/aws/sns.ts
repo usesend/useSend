@@ -5,15 +5,13 @@ import {
   DeleteTopicCommand,
 } from "@aws-sdk/client-sns";
 import { env } from "~/env";
+import { getAwsCredentialOptions } from "~/server/aws/credentials";
 
 function getSnsClient(region: string) {
   return new SNSClient({
     endpoint: env.AWS_SNS_ENDPOINT,
     region: region,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...getAwsCredentialOptions(),
   });
 }
 

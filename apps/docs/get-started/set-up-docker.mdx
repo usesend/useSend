@@ -48,19 +48,19 @@ docker pull ghcr.io/usesend/usesend
 ```
 docker run -d \
   -p 3000:3000 \
-  -e NEXTAUTH_URL="<your-nextauth-url>"
-  -e NEXTAUTH_SECRET="<your-nextauth-secret>"
-  -e DATABASE_URL="<your-next-private-database-url>"
-  -e REDIS_URL="<your-next-private-redis-url>"
-  -e AWS_ACCESS_KEY="<your-next-private-aws-access-key-id>"
-  -e AWS_SECRET_KEY="<your-next-private-aws-secret-access-key>"
-  -e AWS_DEFAULT_REGION="<your-next-private-aws-region>"
-  -e GITHUB_ID="<your-next-private-github-id>"
-  -e GITHUB_SECRET="<your-next-private-github-secret>"
+  -e NEXTAUTH_URL="<your-nextauth-url>" \
+  -e NEXTAUTH_SECRET="<your-nextauth-secret>" \
+  -e DATABASE_URL="<your-next-private-database-url>" \
+  -e REDIS_URL="<your-next-private-redis-url>" \
+  -e AWS_ACCESS_KEY_ID="<your-next-private-aws-access-key-id>" \
+  -e AWS_SECRET_ACCESS_KEY="<your-next-private-aws-secret-access-key>" \
+  -e AWS_DEFAULT_REGION="<your-next-private-aws-region>" \
+  -e GITHUB_ID="<your-next-private-github-id>" \
+  -e GITHUB_SECRET="<your-next-private-github-secret>" \
   usesend/usesend
 ```
 
-Replace the placeholders with your actual database and aws details.
+Replace the placeholders with your actual database and AWS details.
 
 1. Access the useSend application by visiting the URL you provided in the `NEXTAUTH_URL` environment variable in your web browser.
 
