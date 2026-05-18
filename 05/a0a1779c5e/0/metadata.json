@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "05a0a1779c5e",
+  "session_id": "ses_1c683d6c6ffeY5Q2P1Hj23ineX",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-18T06:04:21.644347Z",
+  "branch": "fix/smtp-forward-attachments",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "apps/smtp-server/src/server.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "gpt-5.5-fast",
+  "turn_id": "42280928a789",
+  "checkpoint_transcript_start": 42,
+  "transcript_lines_at_start": 42,
+  "token_usage": {
+    "input_tokens": 67068,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 237056,
+    "output_tokens": 980,
+    "api_call_count": 6
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-18T06:04:21.638681Z",
+    "agent_lines": 11,
+    "agent_removed": 8,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 11,
+    "total_lines_changed": 19,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
