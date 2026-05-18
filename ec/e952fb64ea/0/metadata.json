@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "ece952fb64ea",
+  "session_id": "ses_1c76f6dacffeLfhRNATLFmjk5R",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-18T00:55:14.35885Z",
+  "branch": "fix/claude-workflows",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/claude.yml",
+    ".github/workflows/claude-code-review.yml"
+  ],
+  "agent": "OpenCode",
+  "model": "",
+  "turn_id": "99b616e1bb8d",
+  "token_usage": {
+    "input_tokens": 70894,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 479232,
+    "output_tokens": 3406,
+    "api_call_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-18T00:55:14.355017Z",
+    "agent_lines": 28,
+    "agent_removed": 26,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 28,
+    "total_lines_changed": 54,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
