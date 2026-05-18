@@ -35,22 +35,19 @@ async function sendEmailToUseSend(emailData: any, apiKey: string) {
 
     if (!response.ok) {
       const errorData = await response.text();
-      const emailDataForLog = {
-        ...emailData,
-        to: emailData.to ? "[REDACTED]" : undefined,
-        from: emailData.from ? "[REDACTED]" : undefined,
-        replyTo: emailData.replyTo ? "[REDACTED]" : undefined,
-        attachments: Array.isArray(emailData.attachments)
-          ? emailData.attachments.map((attachment: any) => ({
+      const emailDataForLog = Array.isArray(emailData.attachments)
+        ? {
+            ...emailData,
+            attachments: emailData.attachments.map((attachment: any) => ({
               filename: attachment.filename,
               contentType: attachment.contentType,
               size:
                 typeof attachment.content === "string"
                   ? Buffer.byteLength(attachment.content, "base64")
                   : undefined,
-            }))
-          : undefined,
-      };
+            })),
+          }
+        : emailData;
 
       console.error(
         "useSend API error response: error:",
@@ -127,7 +124,7 @@ const serverOptions: SMTPServerOptions = {
 
       sendEmailToUseSend(emailObject, session.user)
         .then(() => callback())
-        .then(() => console.log("Email sent successfully"))
+        .then(() => console.log("Email sent successfully to: ", emailObject.to))
         .catch((error) => {
           console.error("Failed to send email:", error.message);
           callback(error);
