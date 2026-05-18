@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "3b66c252f834",
+  "session_id": "ses_1c76f6dacffeLfhRNATLFmjk5R",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-18T01:06:35.349733Z",
+  "branch": "fix/claude-workflows",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/claude.yml",
+    ".github/workflows/claude-code-review.yml"
+  ],
+  "agent": "OpenCode",
+  "model": "gpt-5.5-fast",
+  "turn_id": "9b44bf7d2f69",
+  "checkpoint_transcript_start": 24,
+  "transcript_lines_at_start": 24,
+  "token_usage": {
+    "input_tokens": 38823,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 295936,
+    "output_tokens": 885,
+    "api_call_count": 8
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-18T01:06:35.345043Z",
+    "agent_lines": 0,
+    "agent_removed": 103,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 0,
+    "total_lines_changed": 103,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
