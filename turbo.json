@@ -35,6 +35,7 @@
         "PORT",
         "UNSEND_API_KEY",
         "USESEND_API_KEY",
+        "REDIS_URL",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "NEXT_PUBLIC_IS_CLOUD",
