@@ -35,10 +35,24 @@ async function sendEmailToUseSend(emailData: any, apiKey: string) {
 
     if (!response.ok) {
       const errorData = await response.text();
+      const emailDataForLog = Array.isArray(emailData.attachments)
+        ? {
+            ...emailData,
+            attachments: emailData.attachments.map((attachment: any) => ({
+              filename: attachment.filename,
+              contentType: attachment.contentType,
+              size:
+                typeof attachment.content === "string"
+                  ? Buffer.byteLength(attachment.content, "base64")
+                  : undefined,
+            })),
+          }
+        : emailData;
+
       console.error(
         "useSend API error response: error:",
         JSON.stringify(errorData, null, 4),
-        `\nemail data: ${emailDataText}`,
+        `\nemail data: ${JSON.stringify(emailDataForLog)}`,
       );
       throw new Error(
         `Failed to send email: ${errorData || "Unknown error from server"}`,
