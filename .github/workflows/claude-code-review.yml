@@ -1,4 +1,4 @@
-name: Claude Experimental Review Mode
+name: Claude Code Review
 
 on:
   issue_comment:
@@ -11,6 +11,7 @@ jobs:
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '@claude review')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
@@ -21,20 +22,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for better diff analysis
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          fetch-depth: 1
 
-      - name: Code Review with Claude (Experimental)
-        uses: anthropics/claude-code-action@beta
+      - name: Code Review with Claude
+        uses: anthropics/claude-code-action@v1
         with:
-          mode: experimental-review
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "30"
-          custom_instructions: |
-            Focus on:
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+
+            Please review this pull request with a focus on:
             - Code quality and maintainability
             - Security vulnerabilities
             - Performance issues
             - Best practices and design patterns
 
+            Follow the repository guidance in AGENTS.md.
             Be constructive and provide specific suggestions for improvements.
             Use GitHub's suggestion format when proposing code changes.
+            Use inline comments for specific code issues and a top-level PR comment for summary feedback.
+            Only post GitHub comments - do not submit the review text as a workflow message.
+          claude_args: |
+            --allowedTools "Read,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
