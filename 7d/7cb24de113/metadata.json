@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "7d7cb24de113",
+  "strategy": "manual-commit",
+  "branch": "fix/smtp-forward-attachments",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "apps/smtp-server/src/server.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7d/7cb24de113/0/metadata.json",
+      "transcript": "/7d/7cb24de113/0/full.jsonl",
+      "content_hash": "/7d/7cb24de113/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29260,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 297984,
+    "output_tokens": 1814,
+    "api_call_count": 18
+  }
+}
