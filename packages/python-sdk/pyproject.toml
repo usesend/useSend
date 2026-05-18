@@ -9,9 +9,10 @@ packages = [{ include = "usesend" }]
 include = ["usesend/py.typed"]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4.0"
-requests = "^2.32.0"
+python = ">=3.10,<4.0"
+requests = "^2.33.0"
 typing_extensions = ">=4.7"
+urllib3 = "^2.7.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
