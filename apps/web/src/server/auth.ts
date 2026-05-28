@@ -14,6 +14,8 @@ import { sendSignUpEmail } from "~/server/mailer";
 import { env } from "~/env";
 import { db } from "~/server/db";
 
+const GITHUB_OAUTH_ISSUER = "https://github.com/login/oauth";
+
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
  * object and keep type safety.
@@ -54,6 +56,8 @@ function getProviders() {
       GitHubProvider({
         clientId: env.GITHUB_ID,
         clientSecret: env.GITHUB_SECRET,
+        // GitHub now includes `iss` on OAuth callbacks, so NextAuth needs the expected issuer.
+        issuer: GITHUB_OAUTH_ISSUER,
         allowDangerousEmailAccountLinking: true,
         authorization: {
           params: {

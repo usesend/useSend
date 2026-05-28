@@ -52,15 +52,15 @@ docker run -d \
   -e NEXTAUTH_SECRET="<your-nextauth-secret>" \
   -e DATABASE_URL="<your-database-url>" \
   -e REDIS_URL="<your-redis-url>" \
-  -e AWS_ACCESS_KEY="<your-aws-access-key-id>" \
-  -e AWS_SECRET_KEY="<your-aws-secret-access-key>" \
+  -e AWS_ACCESS_KEY_ID="<your-aws-access-key-id>" \
+  -e AWS_SECRET_ACCESS_KEY="<your-aws-secret-access-key>" \
   -e AWS_DEFAULT_REGION="<your-aws-region>" \
   -e GITHUB_ID="<your-github-client-id>" \
   -e GITHUB_SECRET="<your-github-client-secret>" \
   usesend/usesend
 ```
 
-Replace the placeholders with your actual database and aws details.
+Replace the placeholders with your actual database and AWS details.
 
 1. Access the useSend application by visiting the URL you provided in the `NEXTAUTH_URL` environment variable in your web browser.
 

@@ -17,6 +17,7 @@ import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { generateKeyPairSync } from "crypto";
 import nodemailer from "nodemailer";
 import { env } from "~/env";
+import { getAwsCredentialOptions } from "~/server/aws/credentials";
 import { EmailContent } from "~/types";
 import { logger } from "../logger/log";
 import { buildHeaders } from "~/server/utils/email-headers";
@@ -30,10 +31,7 @@ async function getAccountId(region: string) {
 
   const stsClient = new STSClient({
     region: region,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...getAwsCredentialOptions(),
   });
   const command = new GetCallerIdentityCommand({});
   const response = await stsClient.send(command);
@@ -50,10 +48,7 @@ function getSesClient(region: string) {
   return new SESv2Client({
     region: region,
     endpoint: env.AWS_SES_ENDPOINT,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY,
-      secretAccessKey: env.AWS_SECRET_KEY,
-    },
+    ...getAwsCredentialOptions(),
   });
 }
 

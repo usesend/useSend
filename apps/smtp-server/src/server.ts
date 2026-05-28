@@ -99,6 +99,13 @@ const serverOptions: SMTPServerOptions = {
         text: parsed.text,
         html: parsed.html,
         replyTo: parsed.replyTo?.text,
+        attachments:
+          parsed.attachments.length > 0
+            ? parsed.attachments.map((attachment, index) => ({
+                filename: attachment.filename || `attachment-${index + 1}`,
+                content: attachment.content.toString("base64"),
+              }))
+            : undefined,
       };
 
       sendEmailToUseSend(emailObject, session.user)

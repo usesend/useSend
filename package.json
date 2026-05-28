@@ -41,7 +41,7 @@
     "@usesend/eslint-config": "workspace:*",
     "@usesend/typescript-config": "workspace:*",
     "dotenv-cli": "^8.0.0",
-    "mintlify": "latest",
+    "mintlify": "^4.2.566",
     "prettier": "^3.5.3"
   },
   "packageManager": "pnpm@8.9.0",
@@ -50,10 +50,5 @@
   },
   "dependencies": {
     "turbo": "^2.5.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "shiki": "3.3.0"
-    }
   }
 }

@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { env } from "~/env";
+import { isEntitledSubscriptionStatus } from "~/lib/subscription-status";
 import { db } from "../db";
 import { sendSubscriptionConfirmationEmail } from "../mailer";
 import { TeamService } from "../service/team-service";
@@ -149,6 +150,7 @@ export async function syncStripeData(customerId: string) {
     .filter((id): id is string => Boolean(id));
 
   const nextPlan = getPlanFromPriceIds(priceIds);
+  const isEntitled = isEntitledSubscriptionStatus(subscription.status);
   const isNowPaid = subscription.status === "active" && nextPlan !== "FREE";
   const shouldSendSubscriptionConfirmation = !wasPaid && isNowPaid;
 
@@ -159,10 +161,10 @@ export async function syncStripeData(customerId: string) {
       priceId: subscription.items.data[0]?.price?.id || "",
       priceIds: priceIds,
       currentPeriodEnd: new Date(
-        subscription.items.data[0]?.current_period_end * 1000
+        subscription.items.data[0]?.current_period_end * 1000,
       ),
       currentPeriodStart: new Date(
-        subscription.items.data[0]?.current_period_start * 1000
+        subscription.items.data[0]?.current_period_start * 1000,
       ),
       cancelAtPeriodEnd: subscription.cancel_at
         ? new Date(subscription.cancel_at * 1000)
@@ -176,10 +178,10 @@ export async function syncStripeData(customerId: string) {
       priceId: subscription.items.data[0]?.price?.id || "",
       priceIds: priceIds,
       currentPeriodEnd: new Date(
-        subscription.items.data[0]?.current_period_end * 1000
+        subscription.items.data[0]?.current_period_end * 1000,
       ),
       currentPeriodStart: new Date(
-        subscription.items.data[0]?.current_period_start * 1000
+        subscription.items.data[0]?.current_period_start * 1000,
       ),
       cancelAtPeriodEnd: subscription.cancel_at
         ? new Date(subscription.cancel_at * 1000)
@@ -191,7 +193,7 @@ export async function syncStripeData(customerId: string) {
 
   await TeamService.updateTeam(team.id, {
     plan: subscription.status === "canceled" ? "FREE" : nextPlan,
-    isActive: subscription.status === "active",
+    isActive: isEntitled,
   });
 
   if (shouldSendSubscriptionConfirmation) {
@@ -201,12 +203,12 @@ export async function syncStripeData(customerId: string) {
         teamUsers
           .map((tu) => tu.user?.email)
           .filter((email): email is string => Boolean(email))
-          .map((email) => sendSubscriptionConfirmationEmail(email))
+          .map((email) => sendSubscriptionConfirmationEmail(email)),
       );
     } catch (err) {
       logger.error(
         { err, teamId: team.id },
-        "[Billing]: Failed sending subscription confirmation email"
+        "[Billing]: Failed sending subscription confirmation email",
       );
     }
   }
