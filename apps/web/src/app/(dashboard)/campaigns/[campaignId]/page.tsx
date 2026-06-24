@@ -273,8 +273,13 @@ export default function CampaignDetailsPage({
                 </Link>
               </div>
             </div>
-            <div className=" dark:bg-slate-50 overflow-auto text-black rounded py-8 border-t">
-              <div dangerouslySetInnerHTML={{ __html: campaign.html ?? "" }} />
+            <div className=" dark:bg-slate-50 overflow-auto text-black rounded border-t">
+              <iframe
+                className="w-full min-h-[600px]"
+                srcDoc={campaign.html ?? ""}
+                sandbox="allow-same-origin"
+                title="Campaign email preview"
+              />
             </div>
           </div>
         </div>
