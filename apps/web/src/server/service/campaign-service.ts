@@ -1034,23 +1034,30 @@ export class CampaignBatchService {
       for (const contact of contacts) {
         if (existingSet.has(contact.id)) continue;
 
-        await processContactEmail({
-          contact,
-          campaign,
-          allowedVariables,
-          emailConfig: {
-            from: campaign.from,
-            subject: campaign.subject,
-            replyTo: Array.isArray(campaign.replyTo) ? campaign.replyTo : [],
-            cc: Array.isArray(campaign.cc) ? campaign.cc : [],
-            bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
-            teamId: campaign.teamId,
-            campaignId: campaign.id,
-            previewText: campaign.previewText ?? undefined,
-            domainId: domain.id,
-            region: domain.region,
-          },
-        });
+        try {
+          await processContactEmail({
+            contact,
+            campaign,
+            allowedVariables,
+            emailConfig: {
+              from: campaign.from,
+              subject: campaign.subject,
+              replyTo: Array.isArray(campaign.replyTo) ? campaign.replyTo : [],
+              cc: Array.isArray(campaign.cc) ? campaign.cc : [],
+              bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
+              teamId: campaign.teamId,
+              campaignId: campaign.id,
+              previewText: campaign.previewText ?? undefined,
+              domainId: domain.id,
+              region: domain.region,
+            },
+          });
+        } catch (err) {
+          logger.error(
+            { err, contactId: contact.id, campaignId },
+            "Failed to process contact; skipping to next",
+          );
+        }
       }
 
       // Advance cursor and timestamp
