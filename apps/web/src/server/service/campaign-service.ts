@@ -554,7 +554,7 @@ export function createOneClickUnsubUrl(contactId: string, campaignId: string) {
   return `${env.NEXTAUTH_URL}/api/unsubscribe-oneclick?id=${unsubId}&hash=${unsubHash}`;
 }
 
-export async function unsubscribeContactFromLink(id: string, hash: string) {
+function verifyUnsubscribeLink(id: string, hash: string) {
   const [contactId, campaignId] = id.split("-");
 
   if (!contactId || !campaignId) {
@@ -569,6 +569,26 @@ export async function unsubscribeContactFromLink(id: string, hash: string) {
   if (hash !== expectedHash) {
     throw new Error("Invalid unsubscribe link");
   }
+
+  return { contactId, campaignId };
+}
+
+export async function getContactFromUnsubscribeLink(id: string, hash: string) {
+  const { contactId } = verifyUnsubscribeLink(id, hash);
+
+  const contact = await db.contact.findUnique({
+    where: { id: contactId },
+  });
+
+  if (!contact) {
+    throw new Error("Contact not found");
+  }
+
+  return contact;
+}
+
+export async function unsubscribeContactFromLink(id: string, hash: string) {
+  const { contactId, campaignId } = verifyUnsubscribeLink(id, hash);
 
   return await unsubscribeContact({
     contactId,
