@@ -29,6 +29,7 @@ import {
   getContactReplacementValue,
   replaceContactVariables,
 } from "../utils/contact-variable-replacement";
+import { recordCampaignContactFailure } from "./campaign-contact-failure-service";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -805,17 +806,13 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       },
     });
 
-    try {
-      await db.campaignEmail.create({
-        data: {
-          campaignId: emailConfig.campaignId,
-          contactId: contact.id,
-          emailId: email.id,
-        },
-      });
-    } catch (error) {
-      logger.error({ err: error }, "Failed to create campaign email record");
-    }
+    await db.campaignEmail.create({
+      data: {
+        campaignId: emailConfig.campaignId,
+        contactId: contact.id,
+        emailId: email.id,
+      },
+    });
 
     return;
   }
@@ -863,21 +860,13 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     },
   });
 
-  try {
-    await db.campaignEmail.create({
-      data: {
-        campaignId: emailConfig.campaignId,
-        contactId: contact.id,
-        emailId: email.id,
-      },
-    });
-  } catch (error) {
-    logger.error(
-      { err: error },
-      "Failed to create campaign email record so skipping email sending",
-    );
-    return;
-  }
+  await db.campaignEmail.create({
+    data: {
+      campaignId: emailConfig.campaignId,
+      contactId: contact.id,
+      emailId: email.id,
+    },
+  });
 
   // Queue email for sending
   await EmailQueueService.queueEmail(
@@ -1057,6 +1046,18 @@ export class CampaignBatchService {
             { err, contactId: contact.id, campaignId },
             "Failed to process contact; skipping to next",
           );
+          await recordCampaignContactFailure({
+            contact,
+            campaign,
+            emailConfig: {
+              replyTo: Array.isArray(campaign.replyTo) ? campaign.replyTo : [],
+              cc: Array.isArray(campaign.cc) ? campaign.cc : [],
+              bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
+              teamId: campaign.teamId,
+              domainId: domain.id,
+            },
+            error: err,
+          });
         }
       }
 
