@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "crypto";
+import { UnsubscribeReason } from "@prisma/client";
 
-const { mockDb, mockTx } = vi.hoisted(() => {
+const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   const mockTx = {
     campaignEmail: {
       findUnique: vi.fn(),
@@ -22,7 +24,14 @@ const { mockDb, mockTx } = vi.hoisted(() => {
       $transaction: vi.fn(async (callback: ReturnType<typeof vi.fn>) =>
         callback(mockTx),
       ),
+      contact: {
+        findUnique: vi.fn(),
+      },
+      campaign: {
+        update: vi.fn(),
+      },
     },
+    mockUpdateContactSubscription: vi.fn(),
   };
 });
 
@@ -35,7 +44,13 @@ vi.mock("@usesend/email-editor/src/renderer", () => ({
 }));
 
 vi.mock("~/env", () => ({
-  env: {},
+  env: {
+    NEXTAUTH_SECRET: "test-secret",
+  },
+}));
+
+vi.mock("~/server/service/contact-service", () => ({
+  updateContactSubscription: mockUpdateContactSubscription,
 }));
 
 vi.mock("bullmq", () => ({
@@ -76,7 +91,11 @@ vi.mock("~/server/logger/log", () => ({
   },
 }));
 
-import { recordCampaignContactFailure } from "~/server/service/campaign-service";
+import {
+  recordCampaignContactFailure,
+  subscribeContact,
+  unsubscribeContact,
+} from "~/server/service/campaign-service";
 
 const input = {
   contact: {
@@ -173,6 +192,64 @@ describe("recordCampaignContactFailure", () => {
     expect(mockTx.email.update).toHaveBeenCalledWith({
       where: { id: "email_3" },
       data: { latestStatus: "FAILED" },
+    });
+  });
+});
+
+describe("campaign contact subscription changes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates the contact through the webhook-emitting service on unsubscribe", async () => {
+    const contact = {
+      id: "contact_1",
+      contactBookId: "book_1",
+      email: "alice@example.com",
+      subscribed: true,
+    };
+    const updatedContact = { ...contact, subscribed: false };
+    mockDb.contact.findUnique.mockResolvedValue(contact);
+    mockUpdateContactSubscription.mockResolvedValue(updatedContact);
+
+    const result = await unsubscribeContact({
+      contactId: "contact_1",
+      campaignId: "campaign_1",
+      reason: UnsubscribeReason.UNSUBSCRIBED,
+    });
+
+    expect(mockUpdateContactSubscription).toHaveBeenCalledWith({
+      contactId: "contact_1",
+      subscribed: false,
+      unsubscribeReason: UnsubscribeReason.UNSUBSCRIBED,
+    });
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { unsubscribed: { increment: 1 } },
+    });
+    expect(result).toBe(updatedContact);
+  });
+
+  it("updates the contact through the webhook-emitting service on re-subscribe", async () => {
+    mockDb.contact.findUnique.mockResolvedValue({
+      id: "contact_1",
+      contactBookId: "book_1",
+      email: "alice@example.com",
+      subscribed: false,
+    });
+    const id = "contact_1-campaign_1";
+    const hash = createHash("sha256").update(`${id}-test-secret`).digest("hex");
+
+    await subscribeContact(id, hash);
+
+    expect(mockUpdateContactSubscription).toHaveBeenCalledWith({
+      contactId: "contact_1",
+      subscribed: true,
+      unsubscribeReason: null,
+    });
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { unsubscribed: { decrement: 1 } },
     });
   });
 });
