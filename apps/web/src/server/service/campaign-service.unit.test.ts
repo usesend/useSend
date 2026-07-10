@@ -30,7 +30,53 @@ vi.mock("~/server/db", () => ({
   db: mockDb,
 }));
 
-import { recordCampaignContactFailure } from "~/server/service/campaign-contact-failure-service";
+vi.mock("@usesend/email-editor/src/renderer", () => ({
+  EmailRenderer: vi.fn(),
+}));
+
+vi.mock("~/env", () => ({
+  env: {},
+}));
+
+vi.mock("bullmq", () => ({
+  Queue: class {
+    add = vi.fn();
+  },
+  Worker: class {},
+}));
+
+vi.mock("~/server/redis", () => ({
+  getRedis: vi.fn(() => ({})),
+  BULL_PREFIX: "test",
+}));
+
+vi.mock("~/server/service/email-queue-service", () => ({
+  EmailQueueService: {},
+}));
+
+vi.mock("~/server/queue/bullmq-context", () => ({
+  createWorkerHandler: vi.fn((handler) => handler),
+}));
+
+vi.mock("~/server/service/suppression-service", () => ({
+  SuppressionService: {},
+}));
+
+vi.mock("~/server/service/domain-service", () => ({
+  validateApiKeyDomainAccess: vi.fn(),
+  validateDomainFromEmail: vi.fn(),
+}));
+
+vi.mock("~/server/logger/log", () => ({
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+import { recordCampaignContactFailure } from "~/server/service/campaign-service";
 
 const input = {
   contact: {
