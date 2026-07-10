@@ -44,17 +44,11 @@
     "mintlify": "^4.2.566",
     "prettier": "^3.5.3"
   },
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@11.11.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "dependencies": {
     "turbo": "^2.5.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "linkify-it@<=5.0.0": "5.0.1",
-      "pnpm@<10.34.4": "10.34.4"
-    }
   }
 }

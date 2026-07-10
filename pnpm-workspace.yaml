@@ -1,3 +1,20 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@scarf/scarf": false
+  esbuild: true
+  keytar: true
+  msgpackr-extract: true
+  prisma: true
+  puppeteer: true
+  sharp: true
+  unrs-resolver: true
+
+overrides:
+  "linkify-it@<=5.0.0": "5.0.1"
+  "pnpm@<11.11.0": "11.11.0"
