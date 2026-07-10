@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "6ca49fe34a6f",
+  "session_id": "019f4de1-c5c6-7942-8aca-354e38f633a8",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T21:34:41.328116Z",
+  "branch": "agent/secure-self-hosted-registration",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/prisma/migrations/20260711000000_secure_self_hosted_registration/migration.sql",
+    "apps/web/prisma/schema.prisma",
+    "apps/web/src/components/AppSideBar.tsx",
+    "apps/web/src/providers/dashboard-provider.tsx",
+    "apps/web/src/server/api/routers/invitation-security.trpc.test.ts",
+    "apps/web/src/server/api/routers/invitiation.ts",
+    "apps/web/src/server/api/trpc.trpc.test.ts",
+    "apps/web/src/server/api/trpc.ts",
+    "apps/web/src/server/auth.ts",
+    "apps/web/src/server/auth/registration-policy.ts",
+    "apps/web/src/server/auth/registration-policy.unit.test.ts",
+    "apps/web/src/server/service/team-service.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "08121f87401c",
+  "token_usage": {
+    "input_tokens": 108955,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2664960,
+    "output_tokens": 21589,
+    "api_call_count": 42
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T21:34:41.307458Z",
+    "agent_lines": 402,
+    "agent_removed": 59,
+    "human_added": 0,
+    "human_modified": 1,
+    "human_removed": 1,
+    "total_committed": 403,
+    "total_lines_changed": 463,
+    "agent_percentage": 99.56803455723542,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "6ca49fe34a6f",
+  "strategy": "manual-commit",
+  "branch": "agent/secure-self-hosted-registration",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/prisma/migrations/20260711000000_secure_self_hosted_registration/migration.sql",
+    "apps/web/prisma/schema.prisma",
+    "apps/web/src/components/AppSideBar.tsx",
+    "apps/web/src/providers/dashboard-provider.tsx",
+    "apps/web/src/server/api/routers/invitation-security.trpc.test.ts",
+    "apps/web/src/server/api/routers/invitiation.ts",
+    "apps/web/src/server/api/trpc.trpc.test.ts",
+    "apps/web/src/server/api/trpc.ts",
+    "apps/web/src/server/auth.ts",
+    "apps/web/src/server/auth/registration-policy.ts",
+    "apps/web/src/server/auth/registration-policy.unit.test.ts",
+    "apps/web/src/server/service/team-service.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6c/a49fe34a6f/0/metadata.json",
+      "transcript": "/6c/a49fe34a6f/0/full.jsonl",
+      "content_hash": "/6c/a49fe34a6f/0/content_hash.txt",
+      "prompt": "/6c/a49fe34a6f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 108955,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2664960,
+    "output_tokens": 21589,
+    "api_call_count": 42
+  }
+}
