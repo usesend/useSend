@@ -10,6 +10,7 @@ import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
 import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
 import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
+import { getTeamInviteExpiry } from "../auth/registration-policy";
 
 // Cache stores exactly Prisma Team shape (no counts)
 
@@ -162,6 +163,8 @@ export class TeamService {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const { isLimitReached } = await LimitService.checkTeamMemberLimit(teamId);
     if (isLimitReached) {
       throw new UnsendApiError({
@@ -170,9 +173,9 @@ export class TeamService {
       });
     }
 
-    const user = await db.user.findUnique({
+    const user = await db.user.findFirst({
       where: {
-        email,
+        email: { equals: normalizedEmail, mode: "insensitive" },
       },
       include: {
         teamUsers: true,
@@ -189,15 +192,16 @@ export class TeamService {
     const teamInvite = await db.teamInvite.create({
       data: {
         teamId,
-        email,
+        email: normalizedEmail,
         role,
+        expiresAt: getTeamInviteExpiry(),
       },
     });
 
     const teamUrl = `${env.NEXTAUTH_URL}/join-team?inviteId=${teamInvite.id}`;
 
     if (sendEmail) {
-      await sendTeamInviteEmail(email, teamUrl, teamName);
+      await sendTeamInviteEmail(normalizedEmail, teamUrl, teamName);
     }
 
     return teamInvite;
@@ -327,6 +331,11 @@ export class TeamService {
         message: "Invite not found",
       });
     }
+
+    await db.teamInvite.update({
+      where: { id: invite.id },
+      data: { expiresAt: getTeamInviteExpiry() },
+    });
 
     const teamUrl = `${env.NEXTAUTH_URL}/join-team?inviteId=${invite.id}`;
 

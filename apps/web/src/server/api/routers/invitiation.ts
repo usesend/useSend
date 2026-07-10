@@ -17,9 +17,9 @@ export const invitationRouter = createTRPCRouter({
 
       const invites = await ctx.db.teamInvite.findMany({
         where: {
-          ...(input.inviteId
-            ? { id: input.inviteId }
-            : { email: ctx.session.user.email }),
+          ...(input.inviteId ? { id: input.inviteId } : {}),
+          email: { equals: ctx.session.user.email, mode: "insensitive" },
+          expiresAt: { gt: new Date() },
         },
         include: {
           team: true,
@@ -32,9 +32,13 @@ export const invitationRouter = createTRPCRouter({
   getInvite: protectedProcedure
     .input(z.object({ inviteId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const invite = await ctx.db.teamInvite.findUnique({
+      if (!ctx.session.user.email) return null;
+
+      const invite = await ctx.db.teamInvite.findFirst({
         where: {
           id: input.inviteId,
+          email: { equals: ctx.session.user.email, mode: "insensitive" },
+          expiresAt: { gt: new Date() },
         },
       });
 
@@ -44,33 +48,42 @@ export const invitationRouter = createTRPCRouter({
   acceptTeamInvite: protectedProcedure
     .input(z.object({ inviteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const invite = await ctx.db.teamInvite.findUnique({
-        where: {
-          id: input.inviteId,
-        },
-      });
-
-      if (!invite) {
+      if (!ctx.session.user.email) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Invite not found",
         });
       }
 
-      await ctx.db.teamUser.create({
-        data: {
-          teamId: invite.teamId,
-          userId: ctx.session.user.id,
-          role: invite.role,
-        },
-      });
+      await ctx.db.$transaction(async (tx) => {
+        const invite = await tx.teamInvite.findFirst({
+          where: {
+            id: input.inviteId,
+            email: {
+              equals: ctx.session.user.email!,
+              mode: "insensitive",
+            },
+            expiresAt: { gt: new Date() },
+          },
+        });
 
-      await ctx.db.teamInvite.delete({
-        where: {
-          id: input.inviteId,
-        },
+        if (!invite) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Invite not found",
+          });
+        }
+
+        await tx.teamUser.create({
+          data: {
+            teamId: invite.teamId,
+            userId: ctx.session.user.id,
+            role: invite.role,
+          },
+        });
+
+        await tx.teamInvite.delete({ where: { id: invite.id } });
       });
-      // No need to invalidate cache here again
 
       return true;
     }),

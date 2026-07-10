@@ -19,6 +19,7 @@ vi.mock("~/server/auth", () => ({
 
 import {
   authedProcedure,
+  adminProcedure,
   createCallerFactory,
   createTRPCRouter,
   protectedProcedure,
@@ -31,6 +32,9 @@ const testRouter = createTRPCRouter({
     userId: ctx.session.user.id,
   })),
   protectedPing: protectedProcedure.query(({ ctx }) => ({
+    userId: ctx.session.user.id,
+  })),
+  adminPing: adminProcedure.query(({ ctx }) => ({
     userId: ctx.session.user.id,
   })),
   teamPing: teamProcedure.query(({ ctx }) => ({ teamId: ctx.team.id })),
@@ -80,6 +84,22 @@ describe("tRPC middleware procedures", () => {
     await expect(caller.protectedPing()).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
+  });
+
+  it("blocks instance administration for ordinary authenticated users", async () => {
+    const caller = createCaller(getContext({ user: baseUser }));
+
+    await expect(caller.adminPing()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("allows persisted instance administrators", async () => {
+    const caller = createCaller(
+      getContext({ user: { ...baseUser, isAdmin: true } }),
+    );
+
+    await expect(caller.adminPing()).resolves.toEqual({ userId: 1 });
   });
 
   it("loads team context for team procedure", async () => {

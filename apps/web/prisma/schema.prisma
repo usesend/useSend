@@ -86,6 +86,7 @@ model User {
   image            String?
   isBetaUser       Boolean    @default(false)
   isWaitlisted     Boolean    @default(false)
+  isInstanceAdmin  Boolean    @default(false)
   createdAt        DateTime   @default(now())
   accounts         Account[]
   sessions         Session[]
@@ -132,6 +133,7 @@ model TeamInvite {
   teamId    Int
   email     String
   role      Role
+  expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

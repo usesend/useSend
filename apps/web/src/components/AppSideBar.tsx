@@ -114,13 +114,11 @@ const settingsItems = [
     url: "/settings",
     icon: Cog,
   },
-  // Admin item shows if user is admin OR if it's self-hosted
   {
     title: "Admin",
     url: "/admin",
     icon: Server,
     isAdmin: true,
-    isSelfHosted: true,
   },
 ];
 
@@ -205,20 +203,8 @@ export function AppSidebar() {
               {settingsItems.map((item) => {
                 const isActive = pathname?.startsWith(item.url);
 
-                // Special case for Admin item: show if user is admin OR if it's self-hosted
-                if (item.isAdmin && item.isSelfHosted) {
-                  if (!session?.user.isAdmin && !isSelfHosted()) {
-                    return null;
-                  }
-                } else {
-                  // Regular admin-only items
-                  if (item.isAdmin && !session?.user.isAdmin) {
-                    return null;
-                  }
-                  // Regular self-hosted-only items
-                  if (item.isSelfHosted && !isSelfHosted()) {
-                    return null;
-                  }
+                if (item.isAdmin && !session?.user.isAdmin) {
+                  return null;
                 }
                 return (
                   <SidebarMenuItem key={item.title}>
