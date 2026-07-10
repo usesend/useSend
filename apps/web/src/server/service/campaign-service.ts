@@ -29,6 +29,7 @@ import {
   getContactReplacementValue,
   replaceContactVariables,
 } from "../utils/contact-variable-replacement";
+import { updateContactSubscription } from "./contact-service";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -597,9 +598,10 @@ export async function unsubscribeContact({
     }
 
     if (contact.subscribed) {
-      await db.contact.update({
-        where: { id: contactId },
-        data: { subscribed: false, unsubscribeReason: reason },
+      const updatedContact = await updateContactSubscription({
+        contactId,
+        subscribed: false,
+        unsubscribeReason: reason,
       });
 
       if (campaignId) {
@@ -612,6 +614,8 @@ export async function unsubscribeContact({
           },
         });
       }
+
+      return updatedContact;
     }
 
     return contact;
@@ -648,9 +652,10 @@ export async function subscribeContact(id: string, hash: string) {
     }
 
     if (!contact.subscribed) {
-      await db.contact.update({
-        where: { id: contactId },
-        data: { subscribed: true },
+      await updateContactSubscription({
+        contactId,
+        subscribed: true,
+        unsubscribeReason: null,
       });
 
       await db.campaign.update({

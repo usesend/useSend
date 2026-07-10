@@ -55,6 +55,7 @@ import {
   addOrUpdateContact,
   resendDoubleOptInConfirmationInContactBook,
   updateContactInContactBook,
+  updateContactSubscription,
 } from "~/server/service/contact-service";
 
 const createdAt = new Date("2026-02-08T00:00:00.000Z");
@@ -71,6 +72,58 @@ describe("contact-service addOrUpdateContact", () => {
     mockLogger.warn.mockReset();
     mockLogger.error.mockReset();
   });
+
+  it.each([
+    {
+      subscribed: false,
+      unsubscribeReason: "UNSUBSCRIBED" as const,
+    },
+    {
+      subscribed: true,
+      unsubscribeReason: null,
+    },
+  ])(
+    "emits contact.updated after setting subscribed to $subscribed",
+    async ({ subscribed, unsubscribeReason }) => {
+      const updatedAt = new Date("2026-02-09T00:00:00.000Z");
+      mockDb.contact.update.mockResolvedValue({
+        id: "contact_subscription",
+        email: "alice@example.com",
+        contactBookId: "book_1",
+        subscribed,
+        unsubscribeReason,
+        properties: {},
+        firstName: "Alice",
+        lastName: "Smith",
+        createdAt,
+        updatedAt,
+      });
+      mockDb.contactBook.findUnique.mockResolvedValue({ teamId: 7 });
+
+      const result = await updateContactSubscription({
+        contactId: "contact_subscription",
+        subscribed,
+        unsubscribeReason,
+      });
+
+      expect(mockDb.contact.update).toHaveBeenCalledWith({
+        where: { id: "contact_subscription" },
+        data: { subscribed, unsubscribeReason },
+      });
+      expect(mockWebhookEmit).toHaveBeenCalledWith(7, "contact.updated", {
+        id: "contact_subscription",
+        email: "alice@example.com",
+        contactBookId: "book_1",
+        subscribed,
+        properties: {},
+        firstName: "Alice",
+        lastName: "Smith",
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      });
+      expect(result.subscribed).toBe(subscribed);
+    },
+  );
 
   it("creates pending contacts and sends double opt-in confirmation", async () => {
     mockDb.contactBook.findUnique.mockResolvedValue({
