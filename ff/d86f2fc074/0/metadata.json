@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "ffd86f2fc074",
+  "session_id": "019f4dd0-8867-7912-b056-94c2787b5619",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T21:09:18.609537Z",
+  "branch": "codex/fix-dependabot-security-alerts",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/test-web.yml",
+    "apps/web/package.json",
+    "package.json",
+    "packages/ui/package.json",
+    "pnpm-lock.yaml"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5f2b10fed4ae",
+  "token_usage": {
+    "input_tokens": 77361,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1597184,
+    "output_tokens": 13525,
+    "api_call_count": 39
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T21:09:18.599931Z",
+    "agent_lines": 13008,
+    "agent_removed": 11473,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 13008,
+    "total_lines_changed": 24481,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
