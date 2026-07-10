@@ -1146,18 +1146,27 @@ export class CampaignBatchService {
             { err, contactId: contact.id, campaignId },
             "Failed to process contact; skipping to next",
           );
-          await recordCampaignContactFailure({
-            contact,
-            campaign,
-            emailConfig: {
-              replyTo: Array.isArray(campaign.replyTo) ? campaign.replyTo : [],
-              cc: Array.isArray(campaign.cc) ? campaign.cc : [],
-              bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
-              teamId: campaign.teamId,
-              domainId: domain.id,
-            },
-            error: err,
-          });
+          try {
+            await recordCampaignContactFailure({
+              contact,
+              campaign,
+              emailConfig: {
+                replyTo: Array.isArray(campaign.replyTo)
+                  ? campaign.replyTo
+                  : [],
+                cc: Array.isArray(campaign.cc) ? campaign.cc : [],
+                bcc: Array.isArray(campaign.bcc) ? campaign.bcc : [],
+                teamId: campaign.teamId,
+                domainId: domain.id,
+              },
+              error: err,
+            });
+          } catch (recordErr) {
+            logger.error(
+              { err: recordErr, contactId: contact.id, campaignId },
+              "Failed to record campaign contact failure; skipping to next",
+            );
+          }
         }
       }
 
