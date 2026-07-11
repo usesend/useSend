@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "9b7fcac4a1b5",
+  "strategy": "manual-commit",
+  "branch": "agent/better-auth-poc",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/BETTER_AUTH_POC.md",
+    "apps/web/prisma/schema.prisma",
+    "apps/web/src/app/(dashboard)/layout.tsx",
+    "apps/web/src/app/(dashboard)/settings/team/team-members-list.tsx",
+    "apps/web/src/app/api/auth/[...all]/route.ts",
+    "apps/web/src/app/api/auth/[...nextauth]/route.ts",
+    "apps/web/src/app/login/login-page.tsx",
+    "apps/web/src/app/login/page.tsx",
+    "apps/web/src/app/signup/page.tsx",
+    "apps/web/src/app/wait-list/waitlist-form.tsx",
+    "apps/web/src/components/AppSideBar.tsx",
+    "apps/web/src/env.js",
+    "apps/web/src/lib/auth-client.ts",
+    "apps/web/src/providers/auth-provider.tsx",
+    "apps/web/src/providers/dashboard-provider.tsx",
+    "apps/web/src/providers/next-auth.tsx",
+    "apps/web/src/server/api/trpc.ts",
+    "apps/web/src/server/auth.e2e.test.ts",
+    "apps/web/src/server/auth.ts",
+    "apps/web/src/server/auth.unit.test.ts",
+    "apps/web/src/server/mailer.ts",
+    "apps/web/src/test/setup/setup-env.ts",
+    "apps/web/vitest.default.config.ts",
+    "apps/web/vitest.e2e.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/7fcac4a1b5/0/metadata.json",
+      "transcript": "/9b/7fcac4a1b5/0/full.jsonl",
+      "content_hash": "/9b/7fcac4a1b5/0/content_hash.txt",
+      "prompt": "/9b/7fcac4a1b5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 264410,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 12750336,
+    "output_tokens": 35151,
+    "api_call_count": 94
+  }
+}
