@@ -19,7 +19,6 @@ import {
   UserRoundX,
   Webhook,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
 
 import {
   Sidebar,
@@ -35,13 +34,11 @@ import {
   useSidebar,
 } from "@usesend/ui/src/sidebar";
 import Link from "next/link";
-import { MiniThemeSwitcher, ThemeSwitcher } from "./theme/ThemeSwitcher";
-import { useSession } from "next-auth/react";
+import { ThemeSwitcher } from "./theme/ThemeSwitcher";
 import { isCloud, isSelfHosted } from "~/utils/common";
 import { usePathname } from "next/navigation";
 import { Badge } from "@usesend/ui/src/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@usesend/ui/src/avatar";
-import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +50,7 @@ import {
 } from "@usesend/ui/src/dropdown-menu";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { env } from "~/env";
+import { authClient } from "~/lib/auth-client";
 
 // General items
 const generalItems = [
@@ -125,7 +123,7 @@ const settingsItems = [
 ];
 
 export function AppSidebar() {
-  const { data: session } = useSession();
+  const { data: session } = authClient.useSession();
   const showFeedback = isCloud();
 
   const pathname = usePathname();
@@ -369,7 +367,15 @@ export function NavUser({
               </div>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut()}>
+            <DropdownMenuItem
+              onClick={() =>
+                authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => window.location.assign("/login"),
+                  },
+                })
+              }
+            >
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

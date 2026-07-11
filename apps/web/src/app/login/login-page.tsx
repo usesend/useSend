@@ -4,9 +4,9 @@ import { Button } from "@usesend/ui/src/button";
 import Image from "next/image";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { useState } from "react";
-import { ClientSafeProvider, LiteralUnion, signIn } from "next-auth/react";
+import type { AuthProvider } from "~/server/auth";
 import {
   Form,
   FormControl,
@@ -19,14 +19,13 @@ import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-  REGEXP_ONLY_DIGITS_AND_CHARS,
 } from "@usesend/ui/src/input-otp";
 import { Input } from "@usesend/ui/src/input";
-import { BuiltInProviderType } from "next-auth/providers/index";
 import Spinner from "@usesend/ui/src/spinner";
 import Link from "next/link";
-import { useTheme } from "@usesend/ui";
 import { useSearchParams as useNextSearchParams } from "next/navigation";
+import { authClient } from "~/lib/auth-client";
+import { toast } from "@usesend/ui/src/toaster";
 
 const emailSchema = z.object({
   email: z
@@ -37,8 +36,11 @@ const emailSchema = z.object({
 const otpSchema = z.object({
   otp: z
     .string({ required_error: "OTP is required" })
-    .length(5, { message: "Invalid OTP" }),
+    .length(6, { message: "Invalid OTP" }),
 });
+
+type EmailFormValues = z.infer<typeof emailSchema>;
+type OtpFormValues = z.infer<typeof otpSchema>;
 
 const providerSvgs = {
   github: (
@@ -65,62 +67,85 @@ export default function LoginPage({
   providers,
   isSignup = false,
 }: {
-  providers?: ClientSafeProvider[];
+  providers?: AuthProvider[];
   isSignup?: boolean;
 }) {
   const [emailStatus, setEmailStatus] = useState<
     "idle" | "sending" | "success"
   >("idle");
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const emailForm = useForm<z.infer<typeof emailSchema>>({
+  const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
   });
 
-  const otpForm = useForm<z.infer<typeof otpSchema>>({
+  const otpForm = useForm<OtpFormValues>({
     resolver: zodResolver(otpSchema),
   });
 
-  async function onEmailSubmit(values: z.infer<typeof emailSchema>) {
+  async function onEmailSubmit(values: EmailFormValues) {
     setEmailStatus("sending");
-    await signIn("email", {
+    const { error } = await authClient.emailOtp.sendVerificationOtp({
       email: values.email.toLowerCase(),
-      redirect: false,
+      type: "sign-in",
     });
+
+    if (error) {
+      setEmailStatus("idle");
+      toast.error(error.message ?? "Unable to send a sign-in code");
+      return;
+    }
+
     setEmailStatus("success");
   }
 
-  async function onOTPSubmit(values: z.infer<typeof otpSchema>) {
-    const { origin: callbackUrl } = window.location;
+  async function onOTPSubmit(values: OtpFormValues) {
+    setIsVerifying(true);
     const email = emailForm.getValues().email;
-    console.log("email", email);
-
-    const finalCallbackUrl = inviteId
+    const callbackUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`
-      : `${callbackUrl}/dashboard`;
-    window.location.href = `/api/auth/callback/email?email=${encodeURIComponent(
-      email.toLowerCase()
-    )}&token=${values.otp.toLowerCase()}&callbackUrl=${encodeURIComponent(finalCallbackUrl)}`;
+      : "/dashboard";
+    const { error } = await authClient.signIn.emailOtp({
+      email: email.toLowerCase(),
+      otp: values.otp,
+    });
+
+    if (error) {
+      setIsVerifying(false);
+      otpForm.setError("otp", {
+        message: error.message ?? "Invalid or expired code",
+      });
+      return;
+    }
+
+    window.location.assign(callbackUrl);
   }
 
   const emailProvider = providers?.find(
-    (provider) => provider.type === "email"
+    (provider) => provider.type === "email",
   );
 
-  const [submittedProvider, setSubmittedProvider] =
-    useState<LiteralUnion<BuiltInProviderType> | null>(null);
+  const [submittedProvider, setSubmittedProvider] = useState<string | null>(
+    null,
+  );
 
   const searchParams = useNextSearchParams();
   const inviteId = searchParams.get("inviteId");
 
-  const handleSubmit = (provider: LiteralUnion<BuiltInProviderType>) => {
+  const handleSubmit = async (provider: "github" | "google") => {
     setSubmittedProvider(provider);
     const callbackUrl = inviteId
       ? `/join-team?inviteId=${inviteId}`
       : "/dashboard";
-    signIn(provider, { callbackUrl });
+    const { error } = await authClient.signIn.social({
+      provider,
+      callbackURL: callbackUrl,
+    });
+    if (error) {
+      setSubmittedProvider(null);
+      toast.error(error.message ?? `Unable to sign in with ${provider}`);
+    }
   };
-
-  const { resolvedTheme } = useTheme();
 
   return (
     <main className="h-screen flex justify-center items-center">
@@ -156,7 +181,10 @@ export default function LoginPage({
                   key={provider.id}
                   className="w-[350px]"
                   size="lg"
-                  onClick={() => handleSubmit(provider.id)}
+                  disabled={submittedProvider !== null}
+                  onClick={() =>
+                    handleSubmit(provider.id as "github" | "google")
+                  }
                 >
                   {submittedProvider === provider.id ? (
                     <Spinner className="w-5 h-5" />
@@ -191,36 +219,45 @@ export default function LoginPage({
                       <FormField
                         control={otpForm.control}
                         name="otp"
-                        render={({ field }) => (
+                        render={({
+                          field,
+                        }: {
+                          field: ControllerRenderProps<OtpFormValues, "otp">;
+                        }) => (
                           <FormItem>
                             <FormControl>
                               <InputOTP
                                 className="w-[350px]"
-                                maxLength={5}
-                                pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
-                                inputMode="text"
+                                maxLength={6}
+                                pattern="^[0-9]+$"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
                                 {...field}
                               >
                                 <InputOTPGroup>
                                   <InputOTPSlot
-                                    className="w-[70px]"
+                                    className="h-12 w-[58px] text-base"
                                     index={0}
                                   />
                                   <InputOTPSlot
-                                    className="w-[70px]"
+                                    className="h-12 w-[58px] text-base"
                                     index={1}
                                   />
                                   <InputOTPSlot
-                                    className="w-[70px]"
+                                    className="h-12 w-[58px] text-base"
                                     index={2}
                                   />
                                   <InputOTPSlot
-                                    className="w-[70px]"
+                                    className="h-12 w-[58px] text-base"
                                     index={3}
                                   />
                                   <InputOTPSlot
-                                    className="w-[70px]"
+                                    className="h-12 w-[58px] text-base"
                                     index={4}
+                                  />
+                                  <InputOTPSlot
+                                    className="h-12 w-[58px] text-base"
+                                    index={5}
                                   />
                                 </InputOTPGroup>
                               </InputOTP>
@@ -231,8 +268,12 @@ export default function LoginPage({
                         )}
                       />
 
-                      <Button size="lg" className=" mt-9 w-[350px]">
-                        Submit
+                      <Button
+                        size="lg"
+                        className=" mt-9 w-[350px]"
+                        disabled={isVerifying}
+                      >
+                        {isVerifying ? "Signing in..." : "Submit"}
                       </Button>
                     </form>
                   </Form>
@@ -247,13 +288,22 @@ export default function LoginPage({
                       <FormField
                         control={emailForm.control}
                         name="email"
-                        render={({ field }) => (
+                        render={({
+                          field,
+                        }: {
+                          field: ControllerRenderProps<
+                            EmailFormValues,
+                            "email"
+                          >;
+                        }) => (
                           <FormItem>
                             <FormControl>
                               <Input
                                 placeholder="Enter your email"
                                 className=" w-[350px]"
                                 type="email"
+                                autoComplete="email"
+                                spellCheck={false}
                                 {...field}
                               />
                             </FormControl>

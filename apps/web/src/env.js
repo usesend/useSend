@@ -29,6 +29,8 @@ export const env = createEnv({
       // VERCEL_URL doesn't include `https` so it cant be validated as a URL
       process.env.VERCEL ? z.string() : z.string().url(),
     ),
+    BETTER_AUTH_SECRET: z.string().min(32).optional(),
+    BETTER_AUTH_URL: z.string().url().optional(),
     GITHUB_ID: z.string().optional(),
     GITHUB_SECRET: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),
@@ -68,9 +70,9 @@ export const env = createEnv({
     SMTP_USER: z.string().default("usesend"),
     CONTACT_BOOK_ID: z.string().optional(),
     EMAIL_CLEANUP_DAYS: z
-        .string()
-        .optional()
-        .transform((str) => (str ? parseInt(str, 10) : undefined)),
+      .string()
+      .optional()
+      .transform((str) => (str ? parseInt(str, 10) : undefined)),
   },
 
   /**
@@ -97,10 +99,14 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     GITHUB_ID: process.env.GITHUB_ID,
     GITHUB_SECRET: process.env.GITHUB_SECRET,
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
+    AWS_ACCESS_KEY_ID:
+      process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
+    AWS_SECRET_ACCESS_KEY:
+      process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
     USESEND_API_KEY: process.env.USESEND_API_KEY,
     UNSEND_API_KEY: process.env.UNSEND_API_KEY,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,

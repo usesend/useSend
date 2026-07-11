@@ -5,11 +5,13 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
-      include: ["src/**/*.test.{ts,tsx}", "src/**/*.spec.{ts,tsx}"],
-      exclude: [
-        "src/**/*.e2e.test.{ts,tsx}",
-        "src/**/*.integration.test.{ts,tsx}",
-      ],
+      include: ["src/**/*.e2e.test.ts"],
+      pool: "forks",
+      poolOptions: {
+        forks: {
+          singleFork: true,
+        },
+      },
     },
   }),
 );

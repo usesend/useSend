@@ -10,7 +10,7 @@ datasource db {
   provider = "postgresql"
   // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
   // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+  // https://www.better-auth.com/docs/adapters/prisma
   // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
   url      = env("DATABASE_URL")
 }
@@ -42,7 +42,7 @@ model SesSetting {
   updatedAt            DateTime @updatedAt
 }
 
-// Necessary for Next auth
+// Authentication models shared with Better Auth
 model Account {
   id                       String  @id @default(cuid())
   userId                   Int
@@ -57,6 +57,11 @@ model Account {
   scope                    String?
   id_token                 String? // @db.Text
   session_state            String?
+  accessTokenExpiresAt     DateTime?
+  refreshTokenExpiresAt    DateTime?
+  password                 String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
   user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
@@ -67,30 +72,39 @@ model Session {
   sessionToken String   @unique
   userId       Int
   expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
+  id         String   @id @default(cuid())
   identifier String
   token      String   @unique
   expires    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([identifier, token])
 }
 
 model User {
-  id               Int        @id @default(autoincrement())
-  name             String?
-  email            String?    @unique
-  emailVerified    DateTime?
-  image            String?
-  isBetaUser       Boolean    @default(false)
-  isWaitlisted     Boolean    @default(false)
-  createdAt        DateTime   @default(now())
-  accounts         Account[]
-  sessions         Session[]
-  teamUsers        TeamUser[]
-  webhookEndpoints Webhook[]
+  id                      Int        @id @default(autoincrement())
+  name                    String?
+  email                   String?    @unique
+  emailVerified           DateTime?
+  betterAuthEmailVerified Boolean @default(false)
+  image                   String?
+  isBetaUser              Boolean    @default(false)
+  isWaitlisted            Boolean    @default(false)
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  accounts                Account[]
+  sessions                Session[]
+  teamUsers               TeamUser[]
+  webhookEndpoints        Webhook[]
 }
 
 enum Plan {

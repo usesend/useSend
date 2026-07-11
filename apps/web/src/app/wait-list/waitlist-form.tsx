@@ -23,16 +23,17 @@ import {
   type WaitlistSubmissionInput,
 } from "./schema";
 import { api } from "~/trpc/react";
-import { signOut } from "next-auth/react";
+import { authClient } from "~/lib/auth-client";
 
 type WaitListFormProps = {
   userEmail: string;
 };
 
-const EMAIL_TYPE_LABEL: Record<(typeof WAITLIST_EMAIL_TYPES)[number], string> = {
-  transactional: "Transactional",
-  marketing: "Marketing",
-};
+const EMAIL_TYPE_LABEL: Record<(typeof WAITLIST_EMAIL_TYPES)[number], string> =
+  {
+    transactional: "Transactional",
+    marketing: "Marketing",
+  };
 
 export function WaitListForm({ userEmail }: WaitListFormProps) {
   const form = useForm<WaitlistSubmissionInput>({
@@ -61,12 +62,15 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
     submitRequest.mutate(values);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLoggingOut(true);
-    signOut({ callbackUrl: "/login" }).catch(() => {
+    const { error } = await authClient.signOut();
+    if (error) {
       setIsLoggingOut(false);
       toast.error("Unable to log out. Please try again.");
-    });
+      return;
+    }
+    window.location.assign("/login");
   };
 
   return (
@@ -108,7 +112,7 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
           render={({ field }) => {
             const selected = field.value ?? [];
             const handleToggle = (
-              option: (typeof WAITLIST_EMAIL_TYPES)[number]
+              option: (typeof WAITLIST_EMAIL_TYPES)[number],
             ) => {
               if (selected.includes(option)) {
                 field.onChange(selected.filter((value) => value !== option));

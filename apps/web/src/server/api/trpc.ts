@@ -14,7 +14,7 @@ import { env } from "~/env";
 
 import { getServerAuthSession } from "~/server/auth";
 import { db } from "~/server/db";
-import { getChildLogger, logger, withLogger } from "../logger/log";
+import { getChildLogger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 
 /**
@@ -30,7 +30,7 @@ import { randomUUID } from "crypto";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await getServerAuthSession();
+  const session = await getServerAuthSession(opts.headers);
 
   return {
     db,
@@ -147,7 +147,7 @@ export const teamProcedure = protectedProcedure.use(async ({ ctx, next }) => {
           session: { ...ctx.session, user: ctx.session.user },
         },
       });
-    }
+    },
   );
 });
 
@@ -205,7 +205,7 @@ export const contactBookProcedure = teamProcedure
   .input(
     z.object({
       contactBookId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const contactBook = await db.contactBook.findUnique({
@@ -225,7 +225,7 @@ export const campaignProcedure = teamProcedure
   .input(
     z.object({
       campaignId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const campaign = await db.campaign.findUnique({
@@ -245,7 +245,7 @@ export const templateProcedure = teamProcedure
   .input(
     z.object({
       templateId: z.string(),
-    })
+    }),
   )
   .use(async ({ ctx, next, input }) => {
     const template = await db.template.findUnique({

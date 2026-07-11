@@ -16,29 +16,26 @@ const getClient = () => {
   return usesend;
 };
 
-export async function sendSignUpEmail(
+export async function sendSignInOtpEmail(
   email: string,
-  token: string,
-  url: string
+  otp: string,
+  baseUrl: string,
 ) {
-  const { host } = new URL(url);
+  const loginUrl = new URL("/login", baseUrl).toString();
+  const { host } = new URL(baseUrl);
 
   if (env.NODE_ENV === "development") {
-    logger.info({ email, url, token }, "Sending sign in email");
+    logger.info({ email, otp }, "Sending sign in OTP");
     return;
   }
 
   const subject = "Sign in to useSend";
-
-  // Use jsx-email template for beautiful HTML
   const html = await renderOtpEmail({
-    otpCode: token.toUpperCase(),
-    loginUrl: url,
+    otpCode: otp,
+    loginUrl,
     hostName: host,
   });
-
-  // Fallback text version
-  const text = `Hey,\n\nYou can sign in to useSend by clicking the below URL:\n${url}\n\nYou can also use this OTP: ${token}\n\nThanks,\nuseSend Team`;
+  const text = `Hey,\n\nYour useSend sign-in code is: ${otp}\n\nThis code expires in 5 minutes.\n\nThanks,\nuseSend Team`;
 
   await sendMail(email, subject, text, html);
 }
@@ -46,10 +43,8 @@ export async function sendSignUpEmail(
 export async function sendTeamInviteEmail(
   email: string,
   url: string,
-  teamName: string
+  teamName: string,
 ) {
-  const { host } = new URL(url);
-
   if (env.NODE_ENV === "development") {
     logger.info({ email, url, teamName }, "Sending team invite email");
     return;
@@ -88,7 +83,7 @@ export async function sendMail(
   text: string,
   html: string,
   replyTo?: string,
-  fromOverride?: string
+  fromOverride?: string,
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -113,9 +108,11 @@ export async function sendMail(
     const availableDomains = domains.map((d) => d.name);
     const domain = domains[0];
 
-    const candidateFroms = [fromOverride, env.FROM_EMAIL, `hello@${domain.name}`].filter(
-      (value): value is string => Boolean(value)
-    );
+    const candidateFroms = [
+      fromOverride,
+      env.FROM_EMAIL,
+      `hello@${domain.name}`,
+    ].filter((value): value is string => Boolean(value));
 
     const selectedFrom =
       candidateFroms.find((address) => {
@@ -149,7 +146,7 @@ export async function sendMail(
     } else {
       logger.error(
         { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend"
+        "Error sending email using usesend",
       );
     }
   } else {

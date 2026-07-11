@@ -1,5 +1,5 @@
 import { DashboardProvider } from "~/providers/dashboard-provider";
-import { NextAuthProvider } from "~/providers/next-auth";
+import { AuthProvider } from "~/providers/auth-provider";
 import { DashboardLayout } from "./dasboard-layout";
 
 export const dynamic = "force-static";
@@ -10,10 +10,10 @@ export default function AuthenticatedDashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <NextAuthProvider>
+    <AuthProvider>
       <DashboardProvider>
         <DashboardLayout>{children}</DashboardLayout>
       </DashboardProvider>
-    </NextAuthProvider>
+    </AuthProvider>
   );
 }

@@ -16,6 +16,7 @@
     "test:web:unit": "pnpm --filter=web test:unit",
     "test:web:trpc": "pnpm --filter=web test:trpc",
     "test:web:api": "pnpm --filter=web test:api",
+    "test:web:e2e": "pnpm --filter=web test:e2e",
     "test:web:integration": "pnpm --filter=web test:integration",
     "test:web:integration:full": "pnpm test:infra:up && (pnpm --filter=web test:integration:full; code=$?; pnpm test:infra:down; exit $code)",
     "test:infra:up": "docker compose -f docker/testing/compose.yml up -d --wait",
