@@ -3,17 +3,17 @@ packages:
   - "apps/*"
 
 allowBuilds:
-  "@parcel/watcher@2.5.6": true
-  "@prisma/client@6.19.3": true
-  "@prisma/engines@6.19.3": true
+  "@parcel/watcher": true
+  "@prisma/client": true
+  "@prisma/engines": true
   "@scarf/scarf": false
-  "esbuild@0.24.2 || 0.27.7 || 0.28.1": true
-  "keytar@7.9.0": true
-  "msgpackr-extract@3.0.4": true
-  "prisma@6.19.3": true
-  "puppeteer@24.3.1": true
-  "sharp@0.33.5 || 0.34.5": true
-  "unrs-resolver@1.12.2": true
+  esbuild: true
+  keytar: true
+  msgpackr-extract: true
+  prisma: true
+  puppeteer: true
+  sharp: true
+  unrs-resolver: true
 
 overrides:
   "linkify-it@<=5.0.0": "5.0.1"
