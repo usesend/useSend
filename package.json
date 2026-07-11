@@ -44,9 +44,9 @@
     "mintlify": "^4.2.566",
     "prettier": "^3.5.3"
   },
-  "packageManager": "pnpm@8.9.0",
+  "packageManager": "pnpm@11.11.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "dependencies": {
     "turbo": "^2.5.2"
