@@ -3,67 +3,30 @@
   "checkpoint_id": "9b7fcac4a1b5",
   "session_id": "019f4de5-68d3-71a3-982a-5b7eec8ff63a",
   "strategy": "manual-commit",
-  "created_at": "2026-07-11T23:10:59.532095Z",
+  "created_at": "2026-07-11T23:13:39.605564Z",
   "branch": "agent/better-auth-poc",
   "checkpoints_count": 1,
   "files_touched": [
-    "apps/web/BETTER_AUTH_POC.md",
-    "apps/web/prisma/schema.prisma",
-    "apps/web/src/app/(dashboard)/layout.tsx",
-    "apps/web/src/app/(dashboard)/settings/team/team-members-list.tsx",
-    "apps/web/src/app/api/auth/[...all]/route.ts",
-    "apps/web/src/app/api/auth/[...nextauth]/route.ts",
-    "apps/web/src/app/login/login-page.tsx",
-    "apps/web/src/app/login/page.tsx",
-    "apps/web/src/app/signup/page.tsx",
-    "apps/web/src/app/wait-list/waitlist-form.tsx",
-    "apps/web/src/components/AppSideBar.tsx",
-    "apps/web/src/env.js",
-    "apps/web/src/lib/auth-client.ts",
-    "apps/web/src/providers/auth-provider.tsx",
-    "apps/web/src/providers/dashboard-provider.tsx",
-    "apps/web/src/providers/next-auth.tsx",
-    "apps/web/src/server/api/trpc.ts",
-    "apps/web/src/server/auth.e2e.test.ts",
-    "apps/web/src/server/auth.ts",
-    "apps/web/src/server/auth.unit.test.ts",
-    "apps/web/src/server/mailer.ts",
-    "apps/web/src/test/setup/setup-env.ts",
-    "apps/web/vitest.default.config.ts",
-    "apps/web/vitest.e2e.config.ts"
+    "apps/web/package.json",
+    "package.json",
+    "pnpm-lock.yaml"
   ],
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "6750d95b32a3",
-  "token_usage": {
-    "input_tokens": 264410,
-    "cache_creation_tokens": 0,
-    "cache_read_tokens": 12750336,
-    "output_tokens": 35151,
-    "api_call_count": 94
-  },
   "session_metrics": {
     "turn_count": 1
   },
   "initial_attribution": {
-    "calculated_at": "2026-07-11T23:10:59.503433Z",
-    "agent_lines": 762,
-    "agent_removed": 410,
-    "human_added": 0,
-    "human_modified": 0,
+    "calculated_at": "2026-07-11T23:13:39.603429Z",
+    "agent_lines": 1139,
+    "agent_removed": 566,
+    "human_added": 727,
+    "human_modified": 61,
     "human_removed": 0,
-    "total_committed": 762,
-    "total_lines_changed": 1172,
-    "agent_percentage": 100,
+    "total_committed": 1927,
+    "total_lines_changed": 2924,
+    "agent_percentage": 58.310533515731876,
     "metric_version": 2
-  },
-  "prompt_attributions": [
-    {
-      "checkpoint_number": 1,
-      "user_lines_added": 0,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0
-    }
-  ]
+  }
 }
