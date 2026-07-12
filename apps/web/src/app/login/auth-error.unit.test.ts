@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getAuthErrorMessage, INVITATION_REQUIRED_MESSAGE } from "./auth-error";
+import {
+  GENERIC_AUTH_ERROR_MESSAGE,
+  getAuthErrorMessage,
+  INVITATION_REQUIRED_MESSAGE,
+} from "./auth-error";
 
 describe("getAuthErrorMessage", () => {
   it("returns the invitation message for denied sign-ins", () => {
@@ -11,7 +15,7 @@ describe("getAuthErrorMessage", () => {
 
   it("returns a generic message for other authentication failures", () => {
     expect(getAuthErrorMessage("Verification")).toBe(
-      "Unable to sign in. Please try again.",
+      GENERIC_AUTH_ERROR_MESSAGE,
     );
   });
 

@@ -15,6 +15,16 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 
 const GITHUB_OAUTH_ISSUER = "https://github.com/login/oauth";
+
+/**
+ * PostgreSQL advisory-lock namespace for self-hosted user creation.
+ *
+ * The lock serializes only transactions that request this same key; it does not
+ * lock the User table or any rows. Because pg_advisory_xact_lock is scoped to
+ * the current transaction, PostgreSQL releases it automatically on commit,
+ * rollback, or connection loss. A concurrent registration may wait briefly for
+ * the active registration transaction to finish.
+ */
 const SELF_HOSTED_REGISTRATION_LOCK_ID = 1431520590;
 
 export class SelfHostedRegistrationError extends Error {
@@ -179,6 +189,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         return db.$transaction(async (tx) => {
+          // Acquire the lock before checking for the first user. Without this,
+          // two concurrent callbacks could both observe an empty User table and
+          // both create an account without an invitation.
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(${SELF_HOSTED_REGISTRATION_LOCK_ID})`;
 
           const firstUser = await tx.user.findFirst({

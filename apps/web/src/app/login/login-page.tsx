@@ -26,7 +26,7 @@ import { BuiltInProviderType } from "next-auth/providers/index";
 import Spinner from "@usesend/ui/src/spinner";
 import Link from "next/link";
 import { useSearchParams as useNextSearchParams } from "next/navigation";
-import { getAuthErrorMessage } from "./auth-error";
+import { GENERIC_AUTH_ERROR_MESSAGE, getAuthErrorMessage } from "./auth-error";
 
 const emailSchema = z.object({
   email: z
@@ -97,8 +97,7 @@ export default function LoginPage({
           {
             type: "server",
             message:
-              getAuthErrorMessage(result?.error ?? "SignInFailed") ??
-              "Unable to sign in. Please try again.",
+              getAuthErrorMessage(result?.error) ?? GENERIC_AUTH_ERROR_MESSAGE,
           },
           { shouldFocus: true },
         );
@@ -112,7 +111,7 @@ export default function LoginPage({
         "email",
         {
           type: "server",
-          message: "Unable to sign in. Please try again.",
+          message: GENERIC_AUTH_ERROR_MESSAGE,
         },
         { shouldFocus: true },
       );

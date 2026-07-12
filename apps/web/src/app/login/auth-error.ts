@@ -1,5 +1,7 @@
 export const INVITATION_REQUIRED_MESSAGE =
   "You need a team invitation to create an account on this instance.";
+export const GENERIC_AUTH_ERROR_MESSAGE =
+  "Unable to sign in. Please try again.";
 
 export function getAuthErrorMessage(error?: string | null) {
   if (!error) {
@@ -10,5 +12,5 @@ export function getAuthErrorMessage(error?: string | null) {
     return INVITATION_REQUIRED_MESSAGE;
   }
 
-  return "Unable to sign in. Please try again.";
+  return GENERIC_AUTH_ERROR_MESSAGE;
 }
