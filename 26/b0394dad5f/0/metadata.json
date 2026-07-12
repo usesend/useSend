@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "26b0394dad5f",
+  "session_id": "019f5888-2aef-7970-8ddb-ad3054d3a9ab",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-12T23:26:24.083101Z",
+  "branch": "codex/find-simple-github-issues",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "apps/web/src/components/settings/AddSesSettings.tsx",
+    "apps/web/src/env.js",
+    "apps/web/src/lib/zod/ses-setting-schema.ts",
+    "apps/web/src/lib/zod/ses-setting-schema.unit.test.ts",
+    "apps/web/src/server/api/routers/admin.ts",
+    "apps/web/src/server/api/routers/domain.ts",
+    "apps/web/src/server/service/ses-settings-service.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "76b48f371b71",
+  "token_usage": {
+    "input_tokens": 355781,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9681408,
+    "output_tokens": 25415,
+    "api_call_count": 74
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-12T23:26:24.043244Z",
+    "agent_lines": 94,
+    "agent_removed": 12,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 94,
+    "total_lines_changed": 106,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

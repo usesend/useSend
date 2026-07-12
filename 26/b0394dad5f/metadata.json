@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "26b0394dad5f",
+  "strategy": "manual-commit",
+  "branch": "codex/find-simple-github-issues",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "apps/web/src/components/settings/AddSesSettings.tsx",
+    "apps/web/src/env.js",
+    "apps/web/src/lib/zod/ses-setting-schema.ts",
+    "apps/web/src/lib/zod/ses-setting-schema.unit.test.ts",
+    "apps/web/src/server/api/routers/admin.ts",
+    "apps/web/src/server/api/routers/domain.ts",
+    "apps/web/src/server/service/ses-settings-service.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/26/b0394dad5f/0/metadata.json",
+      "transcript": "/26/b0394dad5f/0/full.jsonl",
+      "content_hash": "/26/b0394dad5f/0/content_hash.txt",
+      "prompt": "/26/b0394dad5f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 355781,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9681408,
+    "output_tokens": 25415,
+    "api_call_count": 74
+  }
+}
