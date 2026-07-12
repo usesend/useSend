@@ -25,8 +25,8 @@ import { Input } from "@usesend/ui/src/input";
 import { BuiltInProviderType } from "next-auth/providers/index";
 import Spinner from "@usesend/ui/src/spinner";
 import Link from "next/link";
-import { useTheme } from "@usesend/ui";
 import { useSearchParams as useNextSearchParams } from "next/navigation";
+import { getAuthErrorMessage } from "./auth-error";
 
 const emailSchema = z.object({
   email: z
@@ -82,11 +82,41 @@ export default function LoginPage({
 
   async function onEmailSubmit(values: z.infer<typeof emailSchema>) {
     setEmailStatus("sending");
-    await signIn("email", {
-      email: values.email.toLowerCase(),
-      redirect: false,
-    });
-    setEmailStatus("success");
+    emailForm.clearErrors("email");
+
+    try {
+      const result = await signIn("email", {
+        email: values.email.toLowerCase(),
+        redirect: false,
+      });
+
+      if (!result || result.error) {
+        setEmailStatus("idle");
+        emailForm.setError(
+          "email",
+          {
+            type: "server",
+            message:
+              getAuthErrorMessage(result?.error ?? "SignInFailed") ??
+              "Unable to sign in. Please try again.",
+          },
+          { shouldFocus: true },
+        );
+        return;
+      }
+
+      setEmailStatus("success");
+    } catch {
+      setEmailStatus("idle");
+      emailForm.setError(
+        "email",
+        {
+          type: "server",
+          message: "Unable to sign in. Please try again.",
+        },
+        { shouldFocus: true },
+      );
+    }
   }
 
   async function onOTPSubmit(values: z.infer<typeof otpSchema>) {
@@ -98,12 +128,12 @@ export default function LoginPage({
       ? `/join-team?inviteId=${inviteId}`
       : `${callbackUrl}/dashboard`;
     window.location.href = `/api/auth/callback/email?email=${encodeURIComponent(
-      email.toLowerCase()
+      email.toLowerCase(),
     )}&token=${values.otp.toLowerCase()}&callbackUrl=${encodeURIComponent(finalCallbackUrl)}`;
   }
 
   const emailProvider = providers?.find(
-    (provider) => provider.type === "email"
+    (provider) => provider.type === "email",
   );
 
   const [submittedProvider, setSubmittedProvider] =
@@ -111,6 +141,7 @@ export default function LoginPage({
 
   const searchParams = useNextSearchParams();
   const inviteId = searchParams.get("inviteId");
+  const authErrorMessage = getAuthErrorMessage(searchParams.get("error"));
 
   const handleSubmit = (provider: LiteralUnion<BuiltInProviderType>) => {
     setSubmittedProvider(provider);
@@ -119,8 +150,6 @@ export default function LoginPage({
       : "/dashboard";
     signIn(provider, { callbackUrl });
   };
-
-  const { resolvedTheme } = useTheme();
 
   return (
     <main className="h-screen flex justify-center items-center">
@@ -148,6 +177,14 @@ export default function LoginPage({
         </div>
 
         <div className="flex flex-col gap-8 mt-8 border p-8 rounded-lg shadow">
+          {authErrorMessage ? (
+            <p
+              role="alert"
+              className="w-[350px] text-center text-sm text-destructive"
+            >
+              {authErrorMessage}
+            </p>
+          ) : null}
           {providers &&
             Object.values(providers).map((provider) => {
               if (provider.type === "email") return null;
