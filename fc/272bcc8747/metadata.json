@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "fc272bcc8747",
+  "strategy": "manual-commit",
+  "branch": "codex/self-hosted-invite-only-signup",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/server/auth.ts",
+    "apps/web/src/server/auth.unit.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fc/272bcc8747/0/metadata.json",
+      "transcript": "/fc/272bcc8747/0/full.jsonl",
+      "content_hash": "/fc/272bcc8747/0/content_hash.txt",
+      "prompt": "/fc/272bcc8747/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 132407,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2317568,
+    "output_tokens": 20586,
+    "api_call_count": 43
+  }
+}
