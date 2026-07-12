@@ -142,10 +142,19 @@ const SesSettingsForm: React.FC<
     const region = sesRegionSchema.safeParse(form.getValues("region"));
 
     if (region.success) {
-      const quota = await utils.admin.getQuotaForRegion.fetch({
-        region: region.data,
-      });
-      form.setValue("sendRate", quota ?? 1);
+      form.clearErrors("region");
+
+      try {
+        const quota = await utils.admin.getQuotaForRegion.fetch({
+          region: region.data,
+        });
+        form.setValue("sendRate", quota ?? 1);
+      } catch {
+        form.setValue("sendRate", 1);
+        form.setError("region", {
+          message: "Unable to load the SES quota for this region",
+        });
+      }
     }
   };
 

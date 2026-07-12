@@ -28,10 +28,12 @@ export class SesSettingsService {
   public static async getSetting(
     region = env.AWS_DEFAULT_REGION
   ): Promise<SesSetting | null> {
+    const normalizedRegion = sesRegionSchema.parse(region);
+
     await this.checkInitialized();
 
-    if (this.cache[region]) {
-      return this.cache[region] as SesSetting;
+    if (this.cache[normalizedRegion]) {
+      return this.cache[normalizedRegion] as SesSetting;
     }
     return null;
   }
