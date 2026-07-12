@@ -7,6 +7,7 @@ import { EventType } from "@aws-sdk/client-sesv2";
 import { EmailQueueService } from "./email-queue-service";
 import { smallNanoid } from "../nanoid";
 import { logger } from "../logger/log";
+import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 
 const GENERAL_EVENTS: EventType[] = [
   "BOUNCE",
@@ -62,6 +63,8 @@ export class SesSettingsService {
     sendingRateLimit: number;
     transactionalQuota: number;
   }) {
+    region = sesRegionSchema.parse(region);
+
     await this.checkInitialized();
     if (this.cache[region]) {
       throw new Error(`SesSetting for region ${region} already exists`);
