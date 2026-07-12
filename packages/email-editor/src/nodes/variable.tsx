@@ -9,6 +9,7 @@ import { Input } from "@usesend/ui/src/input";
 import { Button } from "@usesend/ui/src/button";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { SuggestionOptions } from "@tiptap/suggestion";
+import { NodeSelection } from "@tiptap/pm/state";
 import tippy, { GetReferenceClientRect } from "tippy.js";
 import { CheckIcon, TriangleAlert } from "lucide-react";
 
@@ -170,8 +171,26 @@ export function VariableComponent(props: NodeViewProps) {
   const { name, fallback } = props.node.attrs as VariableOptions;
   const [fallbackValue, setFallbackValue] = useState(fallback);
   const { getPos, editor } = props;
+  // `props.selected` is true whenever the node falls inside any selection
+  // range, so it can't drive the popover: dragging over text would open the
+  // fallback input on every variable in the range. Only a NodeSelection
+  // pointing at this node (a direct click on the chip) should open it.
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
-  console.log(props.selected);
+  useEffect(() => {
+    const updatePopoverState = () => {
+      const { selection } = editor.state;
+      setPopoverOpen(
+        selection instanceof NodeSelection && selection.from === getPos(),
+      );
+    };
+
+    updatePopoverState();
+    editor.on("selectionUpdate", updatePopoverState);
+    return () => {
+      editor.off("selectionUpdate", updatePopoverState);
+    };
+  }, [editor, getPos]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +207,7 @@ export function VariableComponent(props: NodeViewProps) {
       draggable="false"
       data-drag-handle=""
     >
-      <Popover open={props.selected}>
+      <Popover open={popoverOpen}>
         <PopoverTrigger asChild>
           <button
             className={cn(
