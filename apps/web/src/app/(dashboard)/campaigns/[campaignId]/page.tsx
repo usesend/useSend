@@ -55,6 +55,9 @@ export default function CampaignDetailsPage({
         refetchInterval: 5000,
       }
     );
+  const { data: audience } = api.campaign.getCampaignAudience.useQuery({
+    campaignId,
+  });
 
   if (isLoading) {
     return (
@@ -259,6 +262,13 @@ export default function CampaignDetailsPage({
               <div className="flex  text-sm">
                 <div className="w-[70px] text-muted-foreground">From</div>
                 <div> {campaign.from}</div>
+              </div>
+              <div className="flex  text-sm">
+                <div className="w-[70px] text-muted-foreground">Audience</div>
+                <div>
+                  {campaign.contactSegment?.name ?? "All contacts"}
+                  {audience ? ` (${audience.count.toLocaleString()})` : ""}
+                </div>
               </div>
               <div className="flex  text-sm items-center">
                 <div className="w-[70px] text-muted-foreground">Contact</div>
