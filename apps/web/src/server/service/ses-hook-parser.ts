@@ -101,9 +101,8 @@ export async function parseSesHook(data: SesEvent) {
     return true;
   }
 
-  const isEngagementEvent = [EmailStatus.OPENED, EmailStatus.CLICKED].includes(
-    mailStatus,
-  );
+  const isEngagementEvent =
+    mailStatus === EmailStatus.OPENED || mailStatus === EmailStatus.CLICKED;
   const existingMailEvent =
     email.campaignId || isEngagementEvent
       ? await db.emailEvent.findFirst({
