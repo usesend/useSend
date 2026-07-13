@@ -145,30 +145,67 @@ export async function deleteDomain(
   const sesClient = getSesClient(region);
 
   if (sesTenantId) {
-    const tenantResourceAssociationCommand =
-      new DeleteTenantResourceAssociationCommand({
-        TenantName: sesTenantId,
-        ResourceArn: await getIdentityArn(domain, region),
-      });
+    try {
+      const tenantResourceAssociationCommand =
+        new DeleteTenantResourceAssociationCommand({
+          TenantName: sesTenantId,
+          ResourceArn: await getIdentityArn(domain, region),
+        });
 
-    const tenantResourceAssociationResponse = await sesClient.send(
-      tenantResourceAssociationCommand
-    );
-
-    if (tenantResourceAssociationResponse.$metadata.httpStatusCode !== 200) {
-      logger.error(
-        { tenantResourceAssociationResponse },
-        "Failed to delete tenant resource association"
+      const tenantResourceAssociationResponse = await sesClient.send(
+        tenantResourceAssociationCommand
       );
-      throw new Error("Failed to delete tenant resource association");
+
+      if (tenantResourceAssociationResponse.$metadata.httpStatusCode !== 200) {
+        logger.error(
+          { domain, region, sesTenantId, tenantResourceAssociationResponse },
+          "[ses.deleteDomain] non-200 from DeleteTenantResourceAssociation"
+        );
+        throw new Error("Failed to delete tenant resource association");
+      }
+    } catch (error: any) {
+      if (error?.name === "NotFoundException") {
+        logger.warn(
+          { domain, region, sesTenantId, errorName: error.name },
+          "[ses.deleteDomain] tenant association already gone, continuing"
+        );
+      } else {
+        logger.error(
+          { err: error, domain, region, sesTenantId },
+          "[ses.deleteDomain] DeleteTenantResourceAssociation failed"
+        );
+        throw error;
+      }
     }
   }
 
-  const command = new DeleteEmailIdentityCommand({
-    EmailIdentity: domain,
-  });
-  const response = await sesClient.send(command);
-  return response.$metadata.httpStatusCode === 200;
+  try {
+    const command = new DeleteEmailIdentityCommand({
+      EmailIdentity: domain,
+    });
+    const response = await sesClient.send(command);
+    if (response.$metadata.httpStatusCode !== 200) {
+      logger.error(
+        { domain, region, response },
+        "[ses.deleteDomain] non-200 from DeleteEmailIdentity"
+      );
+      return false;
+    }
+    return true;
+  } catch (error: any) {
+    if (error?.name === "NotFoundException") {
+      logger.warn(
+        { domain, region, errorName: error.name },
+        "[ses.deleteDomain] identity already gone on SES, continuing"
+      );
+      return true;
+    }
+    logger.error(
+      { err: error, domain, region },
+      "[ses.deleteDomain] DeleteEmailIdentity failed"
+    );
+    throw error;
+  }
 }
 
 export async function getDomainIdentity(domain: string, region: string) {
