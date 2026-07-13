@@ -39,7 +39,11 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     AWS_SES_ENDPOINT: z.string().optional(),
     AWS_SNS_ENDPOINT: z.string().optional(),
-    AWS_DEFAULT_REGION: z.string().default("us-east-1"),
+    AWS_DEFAULT_REGION: z
+      .string()
+      .trim()
+      .min(1, "Region is required")
+      .default("us-east-1"),
     API_RATE_LIMIT: z
       .string()
       .default("1")
