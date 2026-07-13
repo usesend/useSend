@@ -1,7 +1,6 @@
 import { EmailStatus } from "@prisma/client";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
-import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 
 export const env = createEnv({
   /**
@@ -40,7 +39,11 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     AWS_SES_ENDPOINT: z.string().optional(),
     AWS_SNS_ENDPOINT: z.string().optional(),
-    AWS_DEFAULT_REGION: sesRegionSchema.default("us-east-1"),
+    AWS_DEFAULT_REGION: z
+      .string()
+      .trim()
+      .min(1, "Region is required")
+      .default("us-east-1"),
     API_RATE_LIMIT: z
       .string()
       .default("1")
