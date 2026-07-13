@@ -19,6 +19,7 @@
     "test:integration": "RUN_INTEGRATION=true vitest run -c vitest.integration.config.ts",
     "test:integration:full": "pnpm test:integration:prepare:local && pnpm test:integration",
     "test:coverage": "vitest run -c vitest.default.config.ts --coverage",
+    "typecheck": "tsc --noEmit --pretty false",
     "db:post-install": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push --skip-generate",

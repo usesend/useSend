@@ -70,6 +70,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter=web db:generate
 
+      - name: Type check
+        run: pnpm --filter=web typecheck
+
       - name: Prepare test database schema
         run: pnpm --filter=web test:integration:prepare
 
