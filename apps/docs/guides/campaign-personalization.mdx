@@ -35,8 +35,19 @@ These built-in variables are always available in campaigns:
 - `{{email}}`
 - `{{firstName}}`
 - `{{lastName}}`
+- `{{usesend_unsubscribe_url}}`
 
 Custom variables come from the contact book's variable list.
+
+Every campaign must include an unsubscribe link. Use the recipient-specific
+`{{usesend_unsubscribe_url}}` variable as the link destination:
+
+```html
+<a href="{{usesend_unsubscribe_url}}">Unsubscribe</a>
+```
+
+The legacy `{{unsend_unsubscribe_url}}` variable remains supported for existing
+campaigns. Use `{{usesend_unsubscribe_url}}` for new campaigns.
 
 <Warning>
   Custom variables must be added to the contact book before they can be used in
@@ -152,7 +163,7 @@ curl -X POST https://app.usesend.com/api/v1/campaigns \
     "from": "Acme <hello@acme.com>",
     "subject": "Welcome to {{company}}",
     "contactBookId": "{contactBookId}",
-    "html": "<p>Hi {{firstName,fallback=there}}, your plan is {{plan}}.</p>"
+    "html": "<p>Hi {{firstName,fallback=there}}, your plan is {{plan}}.</p><p><a href=\"{{usesend_unsubscribe_url}}\">Unsubscribe</a></p>"
   }'
 ```
 
