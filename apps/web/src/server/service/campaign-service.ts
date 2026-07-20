@@ -30,13 +30,15 @@ import {
   replaceContactVariables,
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
-import {
-  CAMPAIGN_UNSUBSCRIBE_PLACEHOLDER_TOKENS,
-  getCampaignUnsubscribeVariableValues,
-} from "~/lib/constants/campaign";
+import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
+
+const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
+  "{{unsend_unsubscribe_url}}",
+  "{{usesend_unsubscribe_url}}",
+] as const;
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_REGEXES =
-  CAMPAIGN_UNSUBSCRIBE_PLACEHOLDER_TOKENS.map((placeholder) => {
+  CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS.map((placeholder) => {
     const inner = placeholder.replace(/[{}]/g, "").trim();
     return new RegExp(`\\{\\{\\s*${inner}\\s*\\}}`, "i");
   });
@@ -114,7 +116,7 @@ async function renderCampaignHtmlForContact({
       const renderer = new EmailRenderer(jsonContent);
       const linkValues: Record<string, string> = {};
 
-      for (const token of CAMPAIGN_UNSUBSCRIBE_PLACEHOLDER_TOKENS) {
+      for (const token of CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS) {
         linkValues[token] = unsubscribeUrl;
       }
 
