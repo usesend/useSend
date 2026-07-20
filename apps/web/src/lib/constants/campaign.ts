@@ -1,4 +1,5 @@
 export const CAMPAIGN_UNSUBSCRIBE_VARIABLE = "usesend_unsubscribe_url";
+const LEGACY_CAMPAIGN_UNSUBSCRIBE_VARIABLE = "unsend_unsubscribe_url";
 
 const CAMPAIGN_EDITOR_BASE_VARIABLES = [
   "email",
@@ -16,5 +17,8 @@ export function getCampaignEditorVariables(
 }
 
 export function getCampaignUnsubscribeVariableValues(unsubscribeUrl: string) {
-  return { [CAMPAIGN_UNSUBSCRIBE_VARIABLE]: unsubscribeUrl };
+  return {
+    [CAMPAIGN_UNSUBSCRIBE_VARIABLE]: unsubscribeUrl,
+    [LEGACY_CAMPAIGN_UNSUBSCRIBE_VARIABLE]: unsubscribeUrl,
+  };
 }

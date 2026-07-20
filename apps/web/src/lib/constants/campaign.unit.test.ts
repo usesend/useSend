@@ -8,9 +8,10 @@ import {
 
 describe("campaign editor variables", () => {
   it("includes the canonical unsubscribe variable", () => {
-    expect(getCampaignEditorVariables()).toContain(
-      CAMPAIGN_UNSUBSCRIBE_VARIABLE,
-    );
+    const variables = getCampaignEditorVariables();
+
+    expect(variables).toContain(CAMPAIGN_UNSUBSCRIBE_VARIABLE);
+    expect(variables).not.toContain("unsend_unsubscribe_url");
   });
 
   it("combines built-in and contact book variables without duplicates", () => {
@@ -53,5 +54,36 @@ describe("campaign editor variables", () => {
 
     expect(html).toContain(unsubscribeUrl);
     expect(html).not.toContain(`{{${CAMPAIGN_UNSUBSCRIBE_VARIABLE}}}`);
+  });
+
+  it("renders a legacy structured unsubscribe variable with the recipient URL", async () => {
+    const legacyVariable = "unsend_unsubscribe_url";
+    const renderer = new EmailRenderer({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "variable",
+              attrs: {
+                id: legacyVariable,
+                name: legacyVariable,
+                fallback: "",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const unsubscribeUrl = "https://example.com/unsubscribe/recipient";
+
+    const html = await renderer.render({
+      shouldReplaceVariableValues: true,
+      variableValues: getCampaignUnsubscribeVariableValues(unsubscribeUrl),
+    });
+
+    expect(html).toContain(unsubscribeUrl);
+    expect(html).not.toContain(`{{${legacyVariable}}}`);
   });
 });
