@@ -30,6 +30,7 @@ import {
   replaceContactVariables,
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
+import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -139,6 +140,7 @@ async function renderCampaignHtmlForContact({
           },
           {} as Record<string, string | null | undefined>,
         ),
+        ...getCampaignUnsubscribeVariableValues(unsubscribeUrl),
       });
 
       return renderer.render({
