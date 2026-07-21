@@ -31,6 +31,22 @@ import {
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
 import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
+import {
+  calculateGradualDelivery,
+  GRADUAL_DELIVERY_INTERVAL_MINUTES,
+} from "~/lib/campaign-delivery";
+import type { GradualDeliveryInterval } from "~/lib/campaign-delivery";
+
+const CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE = 5_000;
+const GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE = 500;
+
+export type CampaignDeliveryInput =
+  | { strategy: "ALL_AT_ONCE" }
+  | {
+      strategy: "GRADUAL";
+      batchPercentage: number;
+      interval: GradualDeliveryInterval;
+    };
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -67,6 +83,40 @@ function sanitizeAddressList(addresses?: string | string[]) {
   return list
     .map((address) => address.trim())
     .filter((address) => address.length > 0);
+}
+
+function getCampaignDeliveryData({
+  delivery,
+  audienceSize,
+  startsAt,
+}: {
+  delivery?: CampaignDeliveryInput;
+  audienceSize: number;
+  startsAt: Date;
+}) {
+  if (!delivery || delivery.strategy === "ALL_AT_ONCE") {
+    return {
+      deliveryMode: "ALL_AT_ONCE" as const,
+      deliveryBatchPercentage: null,
+      deliveryIntervalMinutes: null,
+      deliveryBatchSize: null,
+    };
+  }
+
+  const intervalMinutes = GRADUAL_DELIVERY_INTERVAL_MINUTES[delivery.interval];
+  const estimate = calculateGradualDelivery({
+    audienceSize,
+    batchPercentage: delivery.batchPercentage,
+    intervalMinutes,
+    startsAt,
+  });
+
+  return {
+    deliveryMode: "GRADUAL" as const,
+    deliveryBatchPercentage: delivery.batchPercentage,
+    deliveryIntervalMinutes: intervalMinutes,
+    deliveryBatchSize: estimate.batchSize,
+  };
 }
 
 async function prepareCampaignHtml(
@@ -305,6 +355,13 @@ export async function getCampaignForTeam({
       scheduledAt: true,
       batchSize: true,
       batchWindowMinutes: true,
+      deliveryMode: true,
+      deliveryBatchPercentage: true,
+      deliveryIntervalMinutes: true,
+      deliveryBatchSize: true,
+      currentDeliveryBatch: true,
+      deliveryBatchProcessed: true,
+      nextDeliveryAt: true,
       total: true,
       sent: true,
       delivered: true,
@@ -390,11 +447,13 @@ export async function scheduleCampaign({
   teamId,
   scheduledAt: scheduledAtInput,
   batchSize,
+  delivery,
 }: {
   campaignId: string;
   teamId: number;
   scheduledAt?: Date | string;
   batchSize?: number;
+  delivery?: CampaignDeliveryInput;
 }) {
   let campaign = await db.campaign.findUnique({
     where: { id: campaignId, teamId },
@@ -403,6 +462,14 @@ export async function scheduleCampaign({
     throw new UnsendApiError({
       code: "NOT_FOUND",
       message: "Campaign not found",
+    });
+  }
+
+  if (campaign.status !== "DRAFT" && campaign.status !== "SCHEDULED") {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Delivery settings cannot be changed after a campaign has started",
     });
   }
 
@@ -461,18 +528,36 @@ export async function scheduleCampaign({
       : new Date(scheduledAtInput)
     : new Date();
 
-  const shouldResetCursor =
-    campaign.status === "DRAFT" || campaign.status === "SENT";
+  const shouldResetCursor = campaign.status === "DRAFT";
 
-  await db.campaign.update({
-    where: { id: campaign.id },
-    data: {
-      status: "SCHEDULED",
-      scheduledAt,
-      total,
-      ...(batchSize ? { batchSize } : {}),
-      ...(shouldResetCursor ? { lastCursor: null } : {}),
-    },
+  const deliveryData = getCampaignDeliveryData({
+    delivery,
+    audienceSize: total,
+    startsAt: scheduledAt,
+  });
+
+  await db.$transaction(async (tx) => {
+    await tx.campaignEmail.deleteMany({
+      where: { campaignId: campaign.id },
+    });
+
+    await tx.campaign.update({
+      where: { id: campaign.id },
+      data: {
+        status: "SCHEDULED",
+        scheduledAt,
+        total,
+        ...deliveryData,
+        currentDeliveryBatch: 0,
+        deliveryBatchProcessed: 0,
+        nextDeliveryAt: null,
+        audienceCapturedAt: null,
+        audiencePreparedAt: null,
+        pausedAt: null,
+        ...(batchSize ? { batchSize } : {}),
+        ...(shouldResetCursor ? { lastCursor: null } : {}),
+      },
+    });
   });
 
   return { ok: true };
@@ -498,7 +583,7 @@ export async function pauseCampaign({
 
   await db.campaign.update({
     where: { id: campaignId },
-    data: { status: "PAUSED" },
+    data: { status: "PAUSED", pausedAt: new Date() },
   });
 
   return { ok: true };
@@ -522,15 +607,31 @@ export async function resumeCampaign({
     });
   }
 
-  if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
+  const now = new Date();
+  const pausedDurationMs = campaign.pausedAt
+    ? Math.max(0, now.getTime() - campaign.pausedAt.getTime())
+    : 0;
+  const shiftedNextDeliveryAt = campaign.nextDeliveryAt
+    ? new Date(campaign.nextDeliveryAt.getTime() + pausedDurationMs)
+    : null;
+
+  if (campaign.scheduledAt && campaign.scheduledAt.getTime() > now.getTime()) {
     await db.campaign.update({
       where: { id: campaignId },
-      data: { status: "SCHEDULED" },
+      data: {
+        status: "SCHEDULED",
+        pausedAt: null,
+        nextDeliveryAt: shiftedNextDeliveryAt,
+      },
     });
   } else {
     await db.campaign.update({
       where: { id: campaignId },
-      data: { status: "RUNNING" },
+      data: {
+        status: "RUNNING",
+        pausedAt: null,
+        nextDeliveryAt: shiftedNextDeliveryAt,
+      },
     });
   }
 
@@ -818,12 +919,37 @@ export async function recordCampaignContactFailure({
         emailId = failedEmail.id;
       }
 
-      await tx.campaignEmail.create({
-        data: {
+      await tx.campaignEmail.upsert({
+        where: {
+          campaignId_contactId: {
+            campaignId: campaign.id,
+            contactId: contact.id,
+          },
+        },
+        create: {
           campaignId: campaign.id,
           contactId: contact.id,
           emailId,
+          status: "FAILED",
+          processedAt: new Date(),
         },
+        update: {
+          emailId,
+          status: "FAILED",
+          processedAt: new Date(),
+        },
+      });
+    }
+
+    if (existingCampaignEmail?.emailId) {
+      await tx.campaignEmail.update({
+        where: {
+          campaignId_contactId: {
+            campaignId: campaign.id,
+            contactId: contact.id,
+          },
+        },
+        data: { status: "FAILED", processedAt: new Date() },
       });
     }
 
@@ -933,11 +1059,24 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       },
     });
 
-    await db.campaignEmail.create({
-      data: {
+    await db.campaignEmail.upsert({
+      where: {
+        campaignId_contactId: {
+          campaignId: emailConfig.campaignId,
+          contactId: contact.id,
+        },
+      },
+      create: {
         campaignId: emailConfig.campaignId,
         contactId: contact.id,
         emailId: email.id,
+        status: "SUPPRESSED",
+        processedAt: new Date(),
+      },
+      update: {
+        emailId: email.id,
+        status: "SUPPRESSED",
+        processedAt: new Date(),
       },
     });
 
@@ -987,11 +1126,24 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     },
   });
 
-  await db.campaignEmail.create({
-    data: {
+  await db.campaignEmail.upsert({
+    where: {
+      campaignId_contactId: {
+        campaignId: emailConfig.campaignId,
+        contactId: contact.id,
+      },
+    },
+    create: {
       campaignId: emailConfig.campaignId,
       contactId: contact.id,
       emailId: email.id,
+      status: "QUEUED",
+      processedAt: new Date(),
+    },
+    update: {
+      emailId: email.id,
+      status: "QUEUED",
+      processedAt: new Date(),
     },
   });
 
@@ -1056,6 +1208,169 @@ export async function updateCampaignAnalytics(
 // Simple campaign batch queue
 // ---------------------------
 
+async function prepareCampaignAudience(campaign: Campaign) {
+  if (campaign.audiencePreparedAt) {
+    return campaign;
+  }
+
+  if (!campaign.contactBookId) {
+    throw new Error("No contact book found for campaign");
+  }
+
+  const capturedAt = campaign.audienceCapturedAt ?? new Date();
+
+  if (!campaign.audienceCapturedAt) {
+    await db.campaign.update({
+      where: { id: campaign.id },
+      data: { audienceCapturedAt: capturedAt },
+    });
+  }
+
+  let cursor: string | undefined;
+
+  while (true) {
+    const contacts = await db.contact.findMany({
+      where: {
+        contactBookId: campaign.contactBookId,
+        subscribed: true,
+        createdAt: { lte: capturedAt },
+      },
+      select: { id: true },
+      orderBy: { id: "asc" },
+      take: CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    if (contacts.length === 0) {
+      break;
+    }
+
+    await db.campaignEmail.createMany({
+      data: contacts.map((contact) => ({
+        campaignId: campaign.id,
+        contactId: contact.id,
+        status: "PENDING" as const,
+      })),
+      skipDuplicates: true,
+    });
+
+    cursor = contacts[contacts.length - 1]?.id;
+
+    if (contacts.length < CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE) {
+      break;
+    }
+  }
+
+  const total = await db.campaignEmail.count({
+    where: { campaignId: campaign.id },
+  });
+
+  const deliveryBatchSize =
+    campaign.deliveryMode === "GRADUAL"
+      ? calculateGradualDelivery({
+          audienceSize: total,
+          batchPercentage: campaign.deliveryBatchPercentage ?? 0,
+          intervalMinutes: campaign.deliveryIntervalMinutes ?? 0,
+          startsAt: campaign.scheduledAt ?? new Date(),
+        }).batchSize
+      : null;
+
+  return db.campaign.update({
+    where: { id: campaign.id },
+    data: {
+      total,
+      audienceCapturedAt: capturedAt,
+      audiencePreparedAt: new Date(),
+      deliveryBatchSize,
+    },
+  });
+}
+
+function getGradualDeliveryWaveSize(campaign: Campaign) {
+  if (
+    campaign.deliveryMode !== "GRADUAL" ||
+    !campaign.deliveryBatchSize ||
+    campaign.currentDeliveryBatch <= 0
+  ) {
+    return 0;
+  }
+
+  const previouslyReleased =
+    (campaign.currentDeliveryBatch - 1) * campaign.deliveryBatchSize;
+
+  return Math.max(
+    0,
+    Math.min(campaign.deliveryBatchSize, campaign.total - previouslyReleased),
+  );
+}
+
+async function getCampaignProcessingLimit(campaign: Campaign) {
+  if (campaign.deliveryMode !== "GRADUAL") {
+    return { campaign, take: campaign.batchSize ?? 500 };
+  }
+
+  if (!campaign.deliveryBatchSize || !campaign.deliveryIntervalMinutes) {
+    throw new Error("Gradual delivery configuration is incomplete");
+  }
+
+  const deliveryBatchSize = campaign.deliveryBatchSize;
+  const deliveryIntervalMinutes = campaign.deliveryIntervalMinutes;
+
+  let currentCampaign = campaign;
+  let currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
+
+  if (currentCampaign.currentDeliveryBatch === 0) {
+    currentCampaign = await db.campaign.update({
+      where: { id: currentCampaign.id },
+      data: {
+        currentDeliveryBatch: 1,
+        deliveryBatchProcessed: 0,
+        nextDeliveryAt: new Date(
+          Date.now() + deliveryIntervalMinutes * 60 * 1000,
+        ),
+      },
+    });
+    currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
+  } else if (currentCampaign.deliveryBatchProcessed >= currentWaveSize) {
+    const allWavesReleased =
+      currentCampaign.currentDeliveryBatch * deliveryBatchSize >=
+      currentCampaign.total;
+
+    if (allWavesReleased) {
+      return { campaign: currentCampaign, take: 0 };
+    }
+
+    if (
+      currentCampaign.nextDeliveryAt &&
+      currentCampaign.nextDeliveryAt.getTime() > Date.now()
+    ) {
+      return { campaign: currentCampaign, take: 0 };
+    }
+
+    currentCampaign = await db.campaign.update({
+      where: { id: currentCampaign.id },
+      data: {
+        currentDeliveryBatch: { increment: 1 },
+        deliveryBatchProcessed: 0,
+        nextDeliveryAt: new Date(
+          Date.now() + deliveryIntervalMinutes * 60 * 1000,
+        ),
+      },
+    });
+    currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
+  }
+
+  const remainingInWave = Math.max(
+    0,
+    currentWaveSize - currentCampaign.deliveryBatchProcessed,
+  );
+
+  return {
+    campaign: currentCampaign,
+    take: Math.min(GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE, remainingInWave),
+  };
+}
+
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 
 export class CampaignBatchService {
@@ -1073,11 +1388,12 @@ export class CampaignBatchService {
     createWorkerHandler(async (job: CampaignBatchJob) => {
       const { campaignId } = job.data;
 
-      const campaign = await db.campaign.findUnique({
+      let campaign = await db.campaign.findUnique({
         where: { id: campaignId },
       });
       if (!campaign) return;
       if (!campaign.contactBookId) return;
+      const contactBookId = campaign.contactBookId;
 
       // Skip paused campaigns
       if (campaign.status === "PAUSED") return;
@@ -1088,31 +1404,65 @@ export class CampaignBatchService {
 
       // First touch moves SCHEDULED -> RUNNING
       if (campaign.status === "SCHEDULED") {
-        await db.campaign.update({
+        campaign = await db.campaign.update({
           where: { id: campaignId },
           data: { status: "RUNNING" },
         });
       }
 
-      const batchSize = campaign.batchSize ?? 500;
+      campaign = await prepareCampaignAudience(campaign);
 
-      const where = {
-        contactBookId: campaign.contactBookId,
-        subscribed: true,
-      } as const;
-      const pagination: any = {
-        take: batchSize,
-        orderBy: { id: "asc" as const },
-      };
-      if (campaign.lastCursor) {
-        pagination.cursor = { id: campaign.lastCursor };
-        pagination.skip = 1; // do not include the cursor row
+      if (campaign.total === 0) {
+        await db.campaign.update({
+          where: { id: campaignId },
+          data: { status: "SENT" },
+        });
+        return;
       }
 
-      const contacts = await db.contact.findMany({ where, ...pagination });
+      const processingLimit = await getCampaignProcessingLimit(campaign);
+      campaign = processingLimit.campaign;
+
+      if (processingLimit.take === 0) {
+        const pendingRecipients = await db.campaignEmail.count({
+          where: { campaignId, status: "PENDING" },
+        });
+
+        if (pendingRecipients === 0) {
+          await db.campaign.update({
+            where: { id: campaignId },
+            data: { status: "SENT", nextDeliveryAt: null },
+          });
+        }
+        return;
+      }
+
+      const recipients = await db.campaignEmail.findMany({
+        where: { campaignId, status: "PENDING" },
+        select: { contactId: true },
+        orderBy: { contactId: "asc" },
+        take: processingLimit.take,
+      });
+
+      if (recipients.length === 0) {
+        await db.campaign.update({
+          where: { id: campaignId },
+          data: { status: "SENT", nextDeliveryAt: null },
+        });
+        return;
+      }
+
+      const contacts = await db.contact.findMany({
+        where: {
+          id: { in: recipients.map((recipient) => recipient.contactId) },
+        },
+      });
+      const contactsById = new Map(
+        contacts.map((contact) => [contact.id, contact]),
+      );
 
       const contactBook = await db.contactBook.findUnique({
-        where: { id: campaign.contactBookId },
+        where: { id: contactBookId },
         select: { variables: true },
       });
 
@@ -1121,34 +1471,31 @@ export class CampaignBatchService {
         ...(contactBook?.variables ?? []),
       ];
 
-      if (contacts.length === 0) {
-        // No more contacts -> mark SENT
-        await db.campaign.update({
-          where: { id: campaignId },
-          data: { status: "SENT" },
-        });
-        return;
-      }
-
       // Fetch domain for region and id
       const domain = await db.domain.findUnique({
         where: { id: campaign.domainId },
       });
       if (!domain) return;
 
-      // Bulk existence check to avoid duplicates while unique is not enforced
-      const existing = await db.campaignEmail.findMany({
-        where: {
-          campaignId: campaign.id,
-          contactId: { in: contacts.map((c) => c.id) },
-        },
-        select: { contactId: true },
-      });
-      const existingSet = new Set(existing.map((e) => e.contactId));
-
       // Process each contact in this batch
-      for (const contact of contacts) {
-        if (existingSet.has(contact.id)) continue;
+      let processedRecipientCount = 0;
+
+      for (const recipient of recipients) {
+        const contact = contactsById.get(recipient.contactId);
+
+        if (!contact || !contact.subscribed) {
+          await db.campaignEmail.update({
+            where: {
+              campaignId_contactId: {
+                campaignId,
+                contactId: recipient.contactId,
+              },
+            },
+            data: { status: "SKIPPED", processedAt: new Date() },
+          });
+          processedRecipientCount += 1;
+          continue;
+        }
 
         try {
           await processContactEmail({
@@ -1188,21 +1535,43 @@ export class CampaignBatchService {
               },
               error: err,
             });
+            processedRecipientCount += 1;
           } catch (recordErr) {
             logger.error(
               { err: recordErr, contactId: contact.id, campaignId },
               "Failed to record campaign contact failure; skipping to next",
             );
           }
+          continue;
         }
+
+        processedRecipientCount += 1;
       }
 
-      // Advance cursor and timestamp
-      const newCursor = contacts[contacts.length - 1]?.id;
       await db.campaign.update({
         where: { id: campaignId },
-        data: { lastCursor: newCursor, lastSentAt: new Date() },
+        data: {
+          lastSentAt: new Date(),
+          ...(campaign.deliveryMode === "GRADUAL"
+            ? {
+                deliveryBatchProcessed: {
+                  increment: processedRecipientCount,
+                },
+              }
+            : {}),
+        },
       });
+
+      const pendingRecipients = await db.campaignEmail.count({
+        where: { campaignId, status: "PENDING" },
+      });
+
+      if (pendingRecipients === 0) {
+        await db.campaign.update({
+          where: { id: campaignId },
+          data: { status: "SENT", nextDeliveryAt: null },
+        });
+      }
     }),
     {
       connection: getRedis(),
@@ -1223,10 +1592,47 @@ export class CampaignBatchService {
     try {
       const campaign = await db.campaign.findUnique({
         where: { id: campaignId },
-        select: { lastSentAt: true, batchWindowMinutes: true, status: true },
+        select: {
+          lastSentAt: true,
+          batchWindowMinutes: true,
+          status: true,
+          total: true,
+          deliveryMode: true,
+          deliveryBatchSize: true,
+          currentDeliveryBatch: true,
+          deliveryBatchProcessed: true,
+          nextDeliveryAt: true,
+        },
       });
       if (!campaign) return;
       if (campaign.status === "PAUSED" || campaign.status === "SENT") return;
+
+      if (
+        campaign.deliveryMode === "GRADUAL" &&
+        campaign.deliveryBatchSize &&
+        campaign.currentDeliveryBatch > 0
+      ) {
+        const previouslyReleased =
+          (campaign.currentDeliveryBatch - 1) * campaign.deliveryBatchSize;
+        const currentWaveSize = Math.max(
+          0,
+          Math.min(
+            campaign.deliveryBatchSize,
+            campaign.total - previouslyReleased,
+          ),
+        );
+        const currentWaveComplete =
+          campaign.deliveryBatchProcessed >= currentWaveSize;
+
+        if (
+          currentWaveComplete &&
+          campaign.nextDeliveryAt &&
+          campaign.nextDeliveryAt.getTime() > Date.now()
+        ) {
+          return;
+        }
+      }
+
       const windowMin = campaign.batchWindowMinutes ?? 0;
       if (windowMin > 0 && campaign.lastSentAt) {
         const elapsedMs = Date.now() - new Date(campaign.lastSentAt).getTime();

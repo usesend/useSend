@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "crypto";
 import { UnsubscribeReason } from "@prisma/client";
 
@@ -6,7 +6,8 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   const mockTx = {
     campaignEmail: {
       findUnique: vi.fn(),
-      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
     },
     email: {
       findFirst: vi.fn(),
@@ -28,6 +29,7 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
         findUnique: vi.fn(),
       },
       campaign: {
+        findUnique: vi.fn(),
         update: vi.fn(),
       },
     },
@@ -93,6 +95,8 @@ vi.mock("~/server/logger/log", () => ({
 
 import {
   recordCampaignContactFailure,
+  resumeCampaign,
+  scheduleCampaign,
   subscribeContact,
   unsubscribeContact,
 } from "~/server/service/campaign-service";
@@ -142,6 +146,15 @@ describe("recordCampaignContactFailure", () => {
         teamId: 7,
       },
     });
+    expect(mockTx.campaignEmail.update).toHaveBeenCalledWith({
+      where: {
+        campaignId_contactId: {
+          campaignId: "campaign_1",
+          contactId: "contact_1",
+        },
+      },
+      data: { status: "FAILED", processedAt: expect.any(Date) },
+    });
   });
 
   it("creates a failed email and campaign link when processing failed before persistence", async () => {
@@ -160,11 +173,24 @@ describe("recordCampaignContactFailure", () => {
       }),
       select: { id: true },
     });
-    expect(mockTx.campaignEmail.create).toHaveBeenCalledWith({
-      data: {
+    expect(mockTx.campaignEmail.upsert).toHaveBeenCalledWith({
+      where: {
+        campaignId_contactId: {
+          campaignId: "campaign_1",
+          contactId: "contact_1",
+        },
+      },
+      create: {
         campaignId: "campaign_1",
         contactId: "contact_1",
         emailId: "email_2",
+        status: "FAILED",
+        processedAt: expect.any(Date),
+      },
+      update: {
+        emailId: "email_2",
+        status: "FAILED",
+        processedAt: expect.any(Date),
       },
     });
     expect(mockTx.emailEvent.create).toHaveBeenCalledWith({
@@ -182,16 +208,88 @@ describe("recordCampaignContactFailure", () => {
     await recordCampaignContactFailure(input);
 
     expect(mockTx.email.create).not.toHaveBeenCalled();
-    expect(mockTx.campaignEmail.create).toHaveBeenCalledWith({
-      data: {
+    expect(mockTx.campaignEmail.upsert).toHaveBeenCalledWith({
+      where: {
+        campaignId_contactId: {
+          campaignId: "campaign_1",
+          contactId: "contact_1",
+        },
+      },
+      create: {
         campaignId: "campaign_1",
         contactId: "contact_1",
         emailId: "email_3",
+        status: "FAILED",
+        processedAt: expect.any(Date),
+      },
+      update: {
+        emailId: "email_3",
+        status: "FAILED",
+        processedAt: expect.any(Date),
       },
     });
     expect(mockTx.email.update).toHaveBeenCalledWith({
       where: { id: "email_3" },
       data: { latestStatus: "FAILED" },
+    });
+  });
+});
+
+describe("campaign delivery lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not allow delivery settings to change after sending starts", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      status: "RUNNING",
+    });
+
+    await expect(
+      scheduleCampaign({
+        campaignId: "campaign_1",
+        teamId: 7,
+        delivery: {
+          strategy: "GRADUAL",
+          batchPercentage: 10,
+          interval: "hour",
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Delivery settings cannot be changed after a campaign has started",
+    });
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("moves the next wave by the paused duration when resuming", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-21T12:00:00.000Z"));
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      status: "PAUSED",
+      scheduledAt: new Date("2026-07-21T09:00:00.000Z"),
+      pausedAt: new Date("2026-07-21T10:00:00.000Z"),
+      nextDeliveryAt: new Date("2026-07-21T10:30:00.000Z"),
+    });
+
+    await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: {
+        status: "RUNNING",
+        pausedAt: null,
+        nextDeliveryAt: new Date("2026-07-21T12:30:00.000Z"),
+      },
     });
   });
 });
