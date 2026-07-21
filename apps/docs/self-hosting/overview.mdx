@@ -38,6 +38,10 @@ Use this link to [create an github app](https://docs.github.com/en/apps/creating
 
 Callback URL : `https://<your-usesend-instance>/api/auth/callback/github`
 
+Under **Permissions & events**, set **Account permissions → Email addresses**
+to **Read-only**. useSend needs the authenticated user's email address to match
+new accounts to team invitations.
+
 ![github app](/images/github-callback.png)
 
 Add the following environment variables.

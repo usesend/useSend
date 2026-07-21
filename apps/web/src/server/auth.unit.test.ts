@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AdapterUser } from "next-auth/adapters";
 
 const mocks = vi.hoisted(() => {
   const env = {
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => {
   };
 
   const baseCreateUser = vi.fn();
+  const accountFindUnique = vi.fn();
   const userFindUnique = vi.fn();
   const userFindFirst = vi.fn();
   const inviteFindFirst = vi.fn();
@@ -31,6 +33,7 @@ const mocks = vi.hoisted(() => {
   return {
     env,
     baseCreateUser,
+    accountFindUnique,
     userFindUnique,
     userFindFirst,
     inviteFindFirst,
@@ -64,6 +67,9 @@ vi.mock("next-auth/providers/email", () => ({
 
 vi.mock("~/server/db", () => ({
   db: {
+    account: {
+      findUnique: mocks.accountFindUnique,
+    },
     user: {
       findUnique: mocks.userFindUnique,
       findFirst: mocks.userFindFirst,
@@ -98,10 +104,16 @@ const newUser = {
   isAdmin: false,
 };
 
+const newUserWithoutEmail = {
+  ...newUser,
+  email: null,
+} as unknown as AdapterUser;
+
 describe("authOptions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.env.NEXT_PUBLIC_IS_CLOUD = true;
+    mocks.accountFindUnique.mockResolvedValue(null);
     mocks.userFindUnique.mockResolvedValue(null);
     mocks.userFindFirst.mockResolvedValue(null);
     mocks.inviteFindFirst.mockResolvedValue(null);
@@ -149,6 +161,29 @@ describe("authOptions", () => {
       expect(mocks.inviteFindFirst).not.toHaveBeenCalled();
     });
 
+    it("allows an existing OAuth account to sign in without an email", async () => {
+      mocks.accountFindUnique.mockResolvedValue({ id: "account_1" });
+
+      await expect(
+        canRegisterSelfHostedUser(null, {
+          provider: "github",
+          providerAccountId: "github-user-id",
+          type: "oauth",
+        }),
+      ).resolves.toBe(true);
+
+      expect(mocks.accountFindUnique).toHaveBeenCalledWith({
+        where: {
+          provider_providerAccountId: {
+            provider: "github",
+            providerAccountId: "github-user-id",
+          },
+        },
+        select: { id: true },
+      });
+      expect(mocks.userFindFirst).not.toHaveBeenCalled();
+    });
+
     it("allows a new user with a matching invite", async () => {
       mocks.userFindFirst.mockResolvedValue({ id: 1 });
       mocks.inviteFindFirst.mockResolvedValue({ id: "invite_1" });
@@ -171,9 +206,16 @@ describe("authOptions", () => {
       ).resolves.toBe(false);
     });
 
-    it("rejects a new account that has no email", async () => {
-      await expect(canRegisterSelfHostedUser(null)).resolves.toBe(false);
+    it("allows the first account when the provider returns no email", async () => {
+      await expect(canRegisterSelfHostedUser(null)).resolves.toBe(true);
       expect(mocks.userFindUnique).not.toHaveBeenCalled();
+    });
+
+    it("rejects a later account when the provider returns no email", async () => {
+      mocks.userFindFirst.mockResolvedValue({ id: 1 });
+
+      await expect(canRegisterSelfHostedUser(null)).resolves.toBe(false);
+      expect(mocks.inviteFindFirst).not.toHaveBeenCalled();
     });
   });
 
@@ -217,6 +259,29 @@ describe("authOptions", () => {
       });
     });
 
+    it("atomically creates the first self-hosted user without an email", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+      mocks.transactionUserCreate.mockResolvedValueOnce({
+        ...newUserWithoutEmail,
+        id: 1,
+      });
+
+      await expect(createUser(newUserWithoutEmail)).resolves.toMatchObject({
+        id: 1,
+        email: null,
+      });
+
+      expect(mocks.transactionInviteFindFirst).not.toHaveBeenCalled();
+      expect(mocks.transactionUserCreate).toHaveBeenCalledWith({
+        data: {
+          name: newUser.name,
+          email: null,
+          emailVerified: newUser.emailVerified,
+          image: newUser.image,
+        },
+      });
+    });
+
     it("atomically creates an invited self-hosted user", async () => {
       mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
       mocks.transactionUserFindFirst.mockResolvedValue({ id: 1 });
@@ -252,14 +317,16 @@ describe("authOptions", () => {
       expect(mocks.transactionUserCreate).not.toHaveBeenCalled();
     });
 
-    it("does not create a self-hosted user without an email", async () => {
+    it("does not create a later self-hosted user without an email", async () => {
       mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+      mocks.transactionUserFindFirst.mockResolvedValue({ id: 1 });
 
-      await expect(
-        createUser({ ...newUser, email: "" }),
-      ).rejects.toBeInstanceOf(SelfHostedRegistrationError);
+      await expect(createUser(newUserWithoutEmail)).rejects.toBeInstanceOf(
+        SelfHostedRegistrationError,
+      );
 
-      expect(mocks.transaction).not.toHaveBeenCalled();
+      expect(mocks.transaction).toHaveBeenCalledOnce();
+      expect(mocks.transactionUserCreate).not.toHaveBeenCalled();
     });
   });
 });

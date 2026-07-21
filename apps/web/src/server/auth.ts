@@ -1,6 +1,7 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import {
   getServerSession,
+  type Account,
   type DefaultSession,
   type NextAuthOptions,
 } from "next-auth";
@@ -34,30 +35,52 @@ export class SelfHostedRegistrationError extends Error {
   }
 }
 
-export async function canRegisterSelfHostedUser(email?: string | null) {
+export async function canRegisterSelfHostedUser(
+  email?: string | null,
+  account?: Pick<Account, "provider" | "providerAccountId" | "type"> | null,
+) {
   if (env.NEXT_PUBLIC_IS_CLOUD) {
+    return true;
+  }
+
+  if (account?.type === "oauth") {
+    const existingAccount = await db.account.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingAccount) {
+      return true;
+    }
+  }
+
+  if (email) {
+    const existingUser = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      return true;
+    }
+  }
+
+  const registeredUser = await db.user.findFirst({
+    select: { id: true },
+  });
+
+  // An empty installation always allows its bootstrap account.
+  if (!registeredUser) {
     return true;
   }
 
   if (!email) {
     return false;
-  }
-
-  const existingUser = await db.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-
-  if (existingUser) {
-    return true;
-  }
-
-  const firstUser = await db.user.findFirst({
-    select: { id: true },
-  });
-
-  if (!firstUser) {
-    return true;
   }
 
   const invite = await db.teamInvite.findFirst({
@@ -158,7 +181,8 @@ function getProviders() {
  */
 export const authOptions: NextAuthOptions = {
   callbacks: {
-    signIn: async ({ user }) => canRegisterSelfHostedUser(user.email),
+    signIn: async ({ user, account }) =>
+      canRegisterSelfHostedUser(user.email, account),
     session: ({ session, user }) => ({
       ...session,
       user: {
@@ -184,21 +208,21 @@ export const authOptions: NextAuthOptions = {
           return prismaAdapter.createUser(user);
         }
 
-        if (!user.email) {
-          throw new SelfHostedRegistrationError();
-        }
-
         return db.$transaction(async (tx) => {
           // Acquire the lock before checking for the first user. Without this,
           // two concurrent callbacks could both observe an empty User table and
           // both create an account without an invitation.
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(${SELF_HOSTED_REGISTRATION_LOCK_ID})`;
 
-          const firstUser = await tx.user.findFirst({
+          const registeredUser = await tx.user.findFirst({
             select: { id: true },
           });
 
-          if (firstUser) {
+          if (registeredUser) {
+            if (!user.email) {
+              throw new SelfHostedRegistrationError();
+            }
+
             const invite = await tx.teamInvite.findFirst({
               where: { email: user.email },
               select: { id: true },
