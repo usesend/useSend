@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from usesend import UseSend
+from usesend import UseSend, types
 
 
 class MockResponse:
@@ -136,3 +136,39 @@ def test_contacts_bulk_methods_use_expected_payloads() -> None:
     ]
     assert session.calls[1]["method"] == "DELETE"
     assert session.calls[1]["json"] == {"contactIds": ["ct_1", "ct_2"]}
+
+
+def test_campaigns_forward_gradual_delivery_payloads() -> None:
+    session = MockSession(
+        [
+            MockResponse({"id": "campaign_123"}),
+            MockResponse({"success": True}),
+        ]
+    )
+    client = UseSend("us_test", session=session)
+    delivery: types.CampaignDeliveryGradual = {
+        "strategy": "gradual",
+        "batchPercentage": 10,
+        "interval": "hour",
+    }
+
+    client.campaigns.create(
+        {
+            "name": "Launch",
+            "from": "hello@example.com",
+            "subject": "Hello",
+            "contactBookId": "book_123",
+            "html": "<p>Hello</p>",
+            "delivery": delivery,
+        }
+    )
+    client.campaigns.schedule(
+        "campaign_123",
+        {"delivery": delivery},
+    )
+
+    assert session.calls[0]["json"]["delivery"] == delivery
+    assert session.calls[1]["json"]["delivery"] == delivery
+    assert "deliveryMode" in types.Campaign.__annotations__
+    assert "delivery" in types.CampaignCreate.__annotations__
+    assert "delivery" in types.CampaignSchedule.__annotations__

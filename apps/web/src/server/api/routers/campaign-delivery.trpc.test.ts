@@ -79,6 +79,7 @@ describe("campaign delivery procedures", () => {
   it("returns delivery progress across recipient and email states", async () => {
     mockDb.campaignEmail.groupBy.mockResolvedValue([
       { status: "PENDING", _count: { _all: 40 } },
+      { status: "PROCESSING", _count: { _all: 4 } },
       { status: "QUEUED", _count: { _all: 30 } },
       { status: "SUPPRESSED", _count: { _all: 2 } },
       { status: "SKIPPED", _count: { _all: 3 } },
@@ -95,12 +96,21 @@ describe("campaign delivery procedures", () => {
     });
 
     expect(result).toEqual({
-      pending: 40,
+      pending: 44,
+      processing: 4,
       processed: 36,
       queued: 30,
       sent: 15,
       failed: 1,
       suppressed: 5,
+    });
+    expect(mockDb.email.groupBy).toHaveBeenCalledWith({
+      by: ["latestStatus"],
+      where: {
+        campaignId: "camp_1",
+        latestStatus: { in: ["SCHEDULED", "QUEUED", "FAILED"] },
+      },
+      _count: { _all: true },
     });
   });
 

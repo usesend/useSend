@@ -1,4 +1,4 @@
-import { createRoute, z } from "@hono/zod-openapi";
+import { createRoute } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import {
   campaignCreateSchema,

@@ -3,9 +3,11 @@ import { db } from "../db";
 import { createHash } from "crypto";
 import { env } from "~/env";
 import {
-  Campaign,
-  Contact,
+  type Campaign,
+  type Contact,
+  type Email,
   EmailStatus,
+  Prisma,
   UnsubscribeReason,
 } from "@prisma/client";
 import { EmailQueueService } from "./email-queue-service";
@@ -37,8 +39,14 @@ import {
 } from "~/lib/campaign-delivery";
 import type { GradualDeliveryInterval } from "~/lib/campaign-delivery";
 
-const CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE = 5_000;
 const GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE = 500;
+const CAMPAIGN_RECIPIENT_CLAIM_TIMEOUT_MS = 60 * 60 * 1000;
+const CAMPAIGN_AUDIENCE_PREPARATION_TIMEOUT_MS = 30 * 60 * 1000;
+
+type ClaimedCampaignRecipient = {
+  contactId: string;
+  claimProcessedAt: Date;
+};
 
 export type CampaignDeliveryInput =
   | { strategy: "ALL_AT_ONCE" }
@@ -47,6 +55,24 @@ export type CampaignDeliveryInput =
       batchPercentage: number;
       interval: GradualDeliveryInterval;
     };
+
+function assertCampaignCanBeScheduled(status: Campaign["status"]) {
+  if (status === "SENT") {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Completed campaigns cannot be scheduled again. Duplicate the campaign to send it again",
+    });
+  }
+
+  if (status !== "DRAFT" && status !== "SCHEDULED") {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message:
+        "Delivery settings cannot be changed after a campaign has started",
+    });
+  }
+}
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -510,13 +536,7 @@ export async function scheduleCampaign({
     });
   }
 
-  if (campaign.status !== "DRAFT" && campaign.status !== "SCHEDULED") {
-    throw new UnsendApiError({
-      code: "BAD_REQUEST",
-      message:
-        "Delivery settings cannot be changed after a campaign has started",
-    });
-  }
+  assertCampaignCanBeScheduled(campaign.status);
 
   let html: string;
   try {
@@ -582,6 +602,25 @@ export async function scheduleCampaign({
   });
 
   await db.$transaction(async (tx) => {
+    const lockedCampaign = await tx.$queryRaw<
+      Array<{ status: Campaign["status"] }>
+    >`
+      SELECT "status"
+      FROM "Campaign"
+      WHERE "id" = ${campaign.id}
+        AND "teamId" = ${teamId}
+      FOR UPDATE
+    `;
+
+    if (lockedCampaign.length === 0) {
+      throw new UnsendApiError({
+        code: "NOT_FOUND",
+        message: "Campaign not found",
+      });
+    }
+
+    assertCampaignCanBeScheduled(lockedCampaign[0]!.status);
+
     await tx.campaignEmail.deleteMany({
       where: { campaignId: campaign.id },
     });
@@ -626,8 +665,16 @@ export async function pauseCampaign({
     });
   }
 
-  await db.campaign.update({
-    where: { id: campaignId },
+  if (campaign.status === "PAUSED") {
+    return { ok: true };
+  }
+
+  await db.campaign.updateMany({
+    where: {
+      id: campaignId,
+      teamId,
+      status: campaign.status,
+    },
     data: { status: "PAUSED", pausedAt: new Date() },
   });
 
@@ -873,6 +920,7 @@ export async function deleteCampaign(id: string, teamId: number) {
 type CampaignEmailJob = {
   contact: Contact;
   campaign: Campaign;
+  claimProcessedAt: Date;
   allowedVariables: string[];
   emailConfig: {
     from: string;
@@ -891,6 +939,7 @@ type CampaignEmailJob = {
 type CampaignContactFailureInput = {
   contact: Pick<Contact, "id" | "email">;
   campaign: Pick<Campaign, "id" | "from" | "subject" | "html" | "previewText">;
+  claimProcessedAt?: Date;
   emailConfig: {
     replyTo?: string[];
     cc?: string[];
@@ -912,6 +961,7 @@ function getFailureMessage(error: unknown) {
 export async function recordCampaignContactFailure({
   contact,
   campaign,
+  claimProcessedAt,
   emailConfig,
   error,
 }: CampaignContactFailureInput) {
@@ -925,20 +975,31 @@ export async function recordCampaignContactFailure({
           contactId: contact.id,
         },
       },
-      select: { emailId: true },
+      select: { emailId: true, status: true, processedAt: true },
     });
+
+    if (
+      claimProcessedAt &&
+      (existingCampaignEmail?.status !== "PROCESSING" ||
+        existingCampaignEmail.processedAt?.getTime() !==
+          claimProcessedAt.getTime())
+    ) {
+      return;
+    }
 
     let emailId = existingCampaignEmail?.emailId;
 
     if (!emailId) {
-      const existingEmail = await tx.email.findFirst({
-        where: {
-          campaignId: campaign.id,
-          contactId: contact.id,
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      });
+      const existingEmail = claimProcessedAt
+        ? null
+        : await tx.email.findFirst({
+            where: {
+              campaignId: campaign.id,
+              contactId: contact.id,
+            },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          });
 
       if (existingEmail) {
         emailId = existingEmail.id;
@@ -964,38 +1025,70 @@ export async function recordCampaignContactFailure({
         emailId = failedEmail.id;
       }
 
-      await tx.campaignEmail.upsert({
-        where: {
-          campaignId_contactId: {
+      if (claimProcessedAt) {
+        const updatedRecipient = await tx.campaignEmail.updateMany({
+          where: {
             campaignId: campaign.id,
             contactId: contact.id,
+            status: "PROCESSING",
+            processedAt: claimProcessedAt,
           },
-        },
-        create: {
-          campaignId: campaign.id,
-          contactId: contact.id,
-          emailId,
-          status: "FAILED",
-          processedAt: new Date(),
-        },
-        update: {
-          emailId,
-          status: "FAILED",
-          processedAt: new Date(),
-        },
-      });
+          data: { emailId, status: "FAILED", processedAt: new Date() },
+        });
+
+        if (updatedRecipient.count !== 1) {
+          throw new Error("Campaign recipient claim was lost");
+        }
+      } else {
+        await tx.campaignEmail.upsert({
+          where: {
+            campaignId_contactId: {
+              campaignId: campaign.id,
+              contactId: contact.id,
+            },
+          },
+          create: {
+            campaignId: campaign.id,
+            contactId: contact.id,
+            emailId,
+            status: "FAILED",
+            processedAt: new Date(),
+          },
+          update: {
+            emailId,
+            status: "FAILED",
+            processedAt: new Date(),
+          },
+        });
+      }
     }
 
     if (existingCampaignEmail?.emailId) {
-      await tx.campaignEmail.update({
-        where: {
-          campaignId_contactId: {
+      if (claimProcessedAt) {
+        const updatedRecipient = await tx.campaignEmail.updateMany({
+          where: {
             campaignId: campaign.id,
             contactId: contact.id,
+            status: "PROCESSING",
+            processedAt: claimProcessedAt,
           },
-        },
-        data: { status: "FAILED", processedAt: new Date() },
-      });
+          data: { status: "FAILED", processedAt: new Date() },
+        });
+
+        if (updatedRecipient.count !== 1) {
+          return;
+        }
+      } else {
+        await tx.campaignEmail.update({
+          where: {
+            campaignId_contactId: {
+              campaignId: campaign.id,
+              contactId: contact.id,
+            },
+          },
+          data: { status: "FAILED", processedAt: new Date() },
+        });
+      }
     }
 
     await tx.email.update({
@@ -1014,8 +1107,76 @@ export async function recordCampaignContactFailure({
   });
 }
 
+export async function queueClaimedCampaignEmail({
+  email,
+  campaignId,
+  contactId,
+  claimProcessedAt,
+  teamId,
+  region,
+  oneClickUnsubUrl,
+}: {
+  email: Pick<Email, "id" | "latestStatus" | "sesEmailId">;
+  campaignId: string;
+  contactId: string;
+  claimProcessedAt: Date;
+  teamId: number;
+  region: string;
+  oneClickUnsubUrl: string;
+}) {
+  if (
+    !email.sesEmailId &&
+    (email.latestStatus === "QUEUED" || email.latestStatus === "SCHEDULED")
+  ) {
+    await EmailQueueService.queueEmail(
+      email.id,
+      teamId,
+      region,
+      false,
+      oneClickUnsubUrl,
+    );
+  }
+
+  try {
+    const updatedRecipient = await db.campaignEmail.updateMany({
+      where: {
+        campaignId,
+        contactId,
+        status: "PROCESSING",
+        processedAt: claimProcessedAt,
+        emailId: email.id,
+      },
+      data: {
+        status: email.latestStatus === "FAILED" ? "FAILED" : "QUEUED",
+        processedAt: new Date(),
+      },
+    });
+
+    if (updatedRecipient.count !== 1) {
+      logger.warn(
+        { campaignId, contactId, emailId: email.id },
+        "Campaign email was queued but recipient bookkeeping was deferred",
+      );
+      return { recoveryPending: true };
+    }
+  } catch (error) {
+    // Redis may already contain (or may already have completed) this email job.
+    // Leave the recipient claim recoverable instead of recording a false send
+    // failure. Recovery reuses the same BullMQ job ID and skips emails that
+    // already have an SES message ID.
+    logger.warn(
+      { err: error, campaignId, contactId, emailId: email.id },
+      "Campaign email was queued but recipient bookkeeping failed",
+    );
+    return { recoveryPending: true };
+  }
+
+  return { recoveryPending: false };
+}
+
 async function processContactEmail(jobData: CampaignEmailJob) {
-  const { contact, campaign, emailConfig, allowedVariables } = jobData;
+  const { contact, campaign, claimProcessedAt, emailConfig, allowedVariables } =
+    jobData;
 
   const unsubscribeUrl = createUnsubUrl(contact.id, emailConfig.campaignId);
   const oneClickUnsubUrl = createOneClickUnsubUrl(
@@ -1075,54 +1236,92 @@ async function processContactEmail(jobData: CampaignEmailJob) {
       "Contact email is suppressed. Creating suppressed email record.",
     );
 
-    const email = await db.email.create({
-      data: {
-        to: toEmails,
-        replyTo: emailConfig.replyTo,
-        cc: ccEmails.length > 0 ? ccEmails : undefined,
-        bcc: bccEmails.length > 0 ? bccEmails : undefined,
-        from: emailConfig.from,
-        subject,
-        html,
-        text: emailConfig.previewText,
-        teamId: emailConfig.teamId,
-        campaignId: emailConfig.campaignId,
-        contactId: contact.id,
-        domainId: emailConfig.domainId,
-        latestStatus: "SUPPRESSED",
-      },
-    });
-
-    await db.emailEvent.create({
-      data: {
-        emailId: email.id,
-        status: "SUPPRESSED",
-        data: {
-          error: "Contact email is suppressed. No email sent.",
+    await db.$transaction(async (tx) => {
+      const recipient = await tx.campaignEmail.findUnique({
+        where: {
+          campaignId_contactId: {
+            campaignId: emailConfig.campaignId,
+            contactId: contact.id,
+          },
         },
-        teamId: emailConfig.teamId,
-      },
-    });
+        select: { emailId: true, status: true, processedAt: true },
+      });
 
-    await db.campaignEmail.upsert({
-      where: {
-        campaignId_contactId: {
+      if (
+        recipient?.status !== "PROCESSING" ||
+        recipient.processedAt?.getTime() !== claimProcessedAt.getTime()
+      ) {
+        throw new Error("Campaign recipient claim was lost");
+      }
+
+      let email = recipient.emailId
+        ? await tx.email.findUnique({ where: { id: recipient.emailId } })
+        : null;
+
+      if (!email) {
+        email = await tx.email.create({
+          data: {
+            to: toEmails,
+            replyTo: emailConfig.replyTo,
+            cc: ccEmails.length > 0 ? ccEmails : undefined,
+            bcc: bccEmails.length > 0 ? bccEmails : undefined,
+            from: emailConfig.from,
+            subject,
+            html,
+            text: emailConfig.previewText,
+            teamId: emailConfig.teamId,
+            campaignId: emailConfig.campaignId,
+            contactId: contact.id,
+            domainId: emailConfig.domainId,
+            latestStatus: "SUPPRESSED",
+          },
+        });
+
+        await tx.emailEvent.create({
+          data: {
+            emailId: email.id,
+            status: "SUPPRESSED",
+            data: {
+              error: "Contact email is suppressed. No email sent.",
+            },
+            teamId: emailConfig.teamId,
+          },
+        });
+      } else if (email.latestStatus !== "SUPPRESSED") {
+        email = await tx.email.update({
+          where: { id: email.id },
+          data: { latestStatus: "SUPPRESSED" },
+        });
+
+        await tx.emailEvent.create({
+          data: {
+            emailId: email.id,
+            status: "SUPPRESSED",
+            data: {
+              error: "Contact email is suppressed. No email sent.",
+            },
+            teamId: emailConfig.teamId,
+          },
+        });
+      }
+
+      const updatedRecipient = await tx.campaignEmail.updateMany({
+        where: {
           campaignId: emailConfig.campaignId,
           contactId: contact.id,
+          status: "PROCESSING",
+          processedAt: claimProcessedAt,
         },
-      },
-      create: {
-        campaignId: emailConfig.campaignId,
-        contactId: contact.id,
-        emailId: email.id,
-        status: "SUPPRESSED",
-        processedAt: new Date(),
-      },
-      update: {
-        emailId: email.id,
-        status: "SUPPRESSED",
-        processedAt: new Date(),
-      },
+        data: {
+          emailId: email.id,
+          status: "SUPPRESSED",
+          processedAt: new Date(),
+        },
+      });
+
+      if (updatedRecipient.count !== 1) {
+        throw new Error("Campaign recipient claim was lost");
+      }
     });
 
     return;
@@ -1153,53 +1352,80 @@ async function processContactEmail(jobData: CampaignEmailJob) {
     );
   }
 
-  // Create email with filtered recipients
-  const email = await db.email.create({
-    data: {
-      to: filteredToEmails,
-      replyTo: emailConfig.replyTo,
-      cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
-      bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
-      from: emailConfig.from,
-      subject,
-      html,
-      text: emailConfig.previewText,
-      teamId: emailConfig.teamId,
-      campaignId: emailConfig.campaignId,
-      contactId: contact.id,
-      domainId: emailConfig.domainId,
-    },
-  });
+  const email = await db.$transaction(async (tx) => {
+    const recipient = await tx.campaignEmail.findUnique({
+      where: {
+        campaignId_contactId: {
+          campaignId: emailConfig.campaignId,
+          contactId: contact.id,
+        },
+      },
+      select: { emailId: true, status: true, processedAt: true },
+    });
 
-  await db.campaignEmail.upsert({
-    where: {
-      campaignId_contactId: {
+    if (
+      recipient?.status !== "PROCESSING" ||
+      recipient.processedAt?.getTime() !== claimProcessedAt.getTime()
+    ) {
+      throw new Error("Campaign recipient claim was lost");
+    }
+
+    if (recipient.emailId) {
+      const existingEmail = await tx.email.findUnique({
+        where: { id: recipient.emailId },
+      });
+
+      if (!existingEmail) {
+        throw new Error("Claimed campaign email was not found");
+      }
+
+      return existingEmail;
+    }
+
+    const createdEmail = await tx.email.create({
+      data: {
+        to: filteredToEmails,
+        replyTo: emailConfig.replyTo,
+        cc: filteredCcEmails.length > 0 ? filteredCcEmails : undefined,
+        bcc: filteredBccEmails.length > 0 ? filteredBccEmails : undefined,
+        from: emailConfig.from,
+        subject,
+        html,
+        text: emailConfig.previewText,
+        teamId: emailConfig.teamId,
         campaignId: emailConfig.campaignId,
         contactId: contact.id,
+        domainId: emailConfig.domainId,
       },
-    },
-    create: {
-      campaignId: emailConfig.campaignId,
-      contactId: contact.id,
-      emailId: email.id,
-      status: "QUEUED",
-      processedAt: new Date(),
-    },
-    update: {
-      emailId: email.id,
-      status: "QUEUED",
-      processedAt: new Date(),
-    },
+    });
+
+    const linkedRecipient = await tx.campaignEmail.updateMany({
+      where: {
+        campaignId: emailConfig.campaignId,
+        contactId: contact.id,
+        status: "PROCESSING",
+        processedAt: claimProcessedAt,
+        emailId: null,
+      },
+      data: { emailId: createdEmail.id },
+    });
+
+    if (linkedRecipient.count !== 1) {
+      throw new Error("Campaign recipient claim was lost");
+    }
+
+    return createdEmail;
   });
 
-  // Queue email for sending
-  await EmailQueueService.queueEmail(
-    email.id,
-    emailConfig.teamId,
-    emailConfig.region,
-    false,
+  await queueClaimedCampaignEmail({
+    email,
+    campaignId: emailConfig.campaignId,
+    contactId: contact.id,
+    claimProcessedAt,
+    teamId: emailConfig.teamId,
+    region: emailConfig.region,
     oneClickUnsubUrl,
-  );
+  });
 }
 
 export async function updateCampaignAnalytics(
@@ -1253,7 +1479,7 @@ export async function updateCampaignAnalytics(
 // Simple campaign batch queue
 // ---------------------------
 
-async function prepareCampaignAudience(campaign: Campaign) {
+export async function prepareCampaignAudience(campaign: Campaign) {
   if (campaign.audiencePreparedAt) {
     return campaign;
   }
@@ -1262,73 +1488,72 @@ async function prepareCampaignAudience(campaign: Campaign) {
     throw new Error("No contact book found for campaign");
   }
 
-  const capturedAt = campaign.audienceCapturedAt ?? new Date();
+  return db.$transaction(
+    async (tx) => {
+      const storedCampaign = await tx.campaign.findUnique({
+        where: { id: campaign.id },
+      });
 
-  if (!campaign.audienceCapturedAt) {
-    await db.campaign.update({
-      where: { id: campaign.id },
-      data: { audienceCapturedAt: capturedAt },
-    });
-  }
+      if (!storedCampaign) {
+        throw new Error("Campaign not found");
+      }
 
-  let cursor: string | undefined;
+      if (storedCampaign.audiencePreparedAt) {
+        return storedCampaign;
+      }
 
-  while (true) {
-    const contacts = await db.contact.findMany({
-      where: {
-        contactBookId: campaign.contactBookId,
-        subscribed: true,
-        createdAt: { lte: capturedAt },
-      },
-      select: { id: true },
-      orderBy: { id: "asc" },
-      take: CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
+      if (!storedCampaign.contactBookId) {
+        throw new Error("No contact book found for campaign");
+      }
 
-    if (contacts.length === 0) {
-      break;
-    }
+      const capturedAt = storedCampaign.audienceCapturedAt ?? new Date();
 
-    await db.campaignEmail.createMany({
-      data: contacts.map((contact) => ({
-        campaignId: campaign.id,
-        contactId: contact.id,
-        status: "PENDING" as const,
-      })),
-      skipDuplicates: true,
-    });
+      if (!storedCampaign.audienceCapturedAt) {
+        await tx.campaign.update({
+          where: { id: storedCampaign.id },
+          data: { audienceCapturedAt: capturedAt },
+        });
+      }
 
-    cursor = contacts[contacts.length - 1]?.id;
+      await tx.$executeRaw`
+        INSERT INTO "CampaignEmail" ("campaignId", "contactId", "status")
+        SELECT ${storedCampaign.id}, "id", 'PENDING'::"CampaignRecipientStatus"
+        FROM "Contact"
+        WHERE "contactBookId" = ${storedCampaign.contactBookId}
+          AND "subscribed" = true
+          AND "createdAt" <= ${capturedAt}
+        ON CONFLICT ("campaignId", "contactId") DO NOTHING
+      `;
 
-    if (contacts.length < CAMPAIGN_AUDIENCE_SNAPSHOT_CHUNK_SIZE) {
-      break;
-    }
-  }
+      const total = await tx.campaignEmail.count({
+        where: { campaignId: storedCampaign.id },
+      });
 
-  const total = await db.campaignEmail.count({
-    where: { campaignId: campaign.id },
-  });
+      const deliveryBatchSize =
+        storedCampaign.deliveryMode === "GRADUAL"
+          ? calculateGradualDelivery({
+              audienceSize: total,
+              batchPercentage: storedCampaign.deliveryBatchPercentage ?? 0,
+              intervalMinutes: storedCampaign.deliveryIntervalMinutes ?? 0,
+              startsAt: storedCampaign.scheduledAt ?? new Date(),
+            }).batchSize
+          : null;
 
-  const deliveryBatchSize =
-    campaign.deliveryMode === "GRADUAL"
-      ? calculateGradualDelivery({
-          audienceSize: total,
-          batchPercentage: campaign.deliveryBatchPercentage ?? 0,
-          intervalMinutes: campaign.deliveryIntervalMinutes ?? 0,
-          startsAt: campaign.scheduledAt ?? new Date(),
-        }).batchSize
-      : null;
-
-  return db.campaign.update({
-    where: { id: campaign.id },
-    data: {
-      total,
-      audienceCapturedAt: capturedAt,
-      audiencePreparedAt: new Date(),
-      deliveryBatchSize,
+      return tx.campaign.update({
+        where: { id: storedCampaign.id },
+        data: {
+          total,
+          audienceCapturedAt: capturedAt,
+          audiencePreparedAt: new Date(),
+          deliveryBatchSize,
+        },
+      });
     },
-  });
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+      timeout: CAMPAIGN_AUDIENCE_PREPARATION_TIMEOUT_MS,
+    },
+  );
 }
 
 function getGradualDeliveryWaveSize(campaign: Campaign) {
@@ -1349,71 +1574,230 @@ function getGradualDeliveryWaveSize(campaign: Campaign) {
   );
 }
 
-async function getCampaignProcessingLimit(campaign: Campaign) {
-  if (campaign.deliveryMode !== "GRADUAL") {
-    return { campaign, take: campaign.batchSize ?? 500 };
-  }
+export async function claimCampaignRecipients(campaignId: string): Promise<{
+  campaign: Campaign | null;
+  recipients: ClaimedCampaignRecipient[];
+}> {
+  return db.$transaction(async (tx) => {
+    const lockedCampaign = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "Campaign"
+      WHERE "id" = ${campaignId}
+      FOR UPDATE
+    `;
 
-  if (!campaign.deliveryBatchSize || !campaign.deliveryIntervalMinutes) {
-    throw new Error("Gradual delivery configuration is incomplete");
-  }
-
-  const deliveryBatchSize = campaign.deliveryBatchSize;
-  const deliveryIntervalMinutes = campaign.deliveryIntervalMinutes;
-
-  let currentCampaign = campaign;
-  let currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
-
-  if (currentCampaign.currentDeliveryBatch === 0) {
-    currentCampaign = await db.campaign.update({
-      where: { id: currentCampaign.id },
-      data: {
-        currentDeliveryBatch: 1,
-        deliveryBatchProcessed: 0,
-        nextDeliveryAt: new Date(
-          Date.now() + deliveryIntervalMinutes * 60 * 1000,
-        ),
-      },
-    });
-    currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
-  } else if (currentCampaign.deliveryBatchProcessed >= currentWaveSize) {
-    const allWavesReleased =
-      currentCampaign.currentDeliveryBatch * deliveryBatchSize >=
-      currentCampaign.total;
-
-    if (allWavesReleased) {
-      return { campaign: currentCampaign, take: 0 };
+    if (lockedCampaign.length === 0) {
+      return { campaign: null, recipients: [] };
     }
 
-    if (
-      currentCampaign.nextDeliveryAt &&
-      currentCampaign.nextDeliveryAt.getTime() > Date.now()
-    ) {
-      return { campaign: currentCampaign, take: 0 };
+    let campaign = await tx.campaign.findUnique({
+      where: { id: campaignId },
+    });
+
+    if (!campaign || campaign.status !== "RUNNING") {
+      return { campaign, recipients: [] };
     }
 
-    currentCampaign = await db.campaign.update({
-      where: { id: currentCampaign.id },
-      data: {
-        currentDeliveryBatch: { increment: 1 },
-        deliveryBatchProcessed: 0,
-        nextDeliveryAt: new Date(
-          Date.now() + deliveryIntervalMinutes * 60 * 1000,
-        ),
+    const claimedAt = new Date();
+    const staleBefore = new Date(
+      claimedAt.getTime() - CAMPAIGN_RECIPIENT_CLAIM_TIMEOUT_MS,
+    );
+    const staleRecipients = await tx.campaignEmail.findMany({
+      where: {
+        campaignId,
+        status: "PROCESSING",
+        processedAt: { lte: staleBefore },
       },
+      select: { contactId: true },
+      orderBy: { contactId: "asc" },
+      take: GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE,
     });
-    currentWaveSize = getGradualDeliveryWaveSize(currentCampaign);
+
+    if (staleRecipients.length > 0) {
+      const staleContactIds = staleRecipients.map(
+        (recipient) => recipient.contactId,
+      );
+
+      await tx.campaignEmail.updateMany({
+        where: {
+          campaignId,
+          contactId: { in: staleContactIds },
+          status: "PROCESSING",
+          processedAt: { lte: staleBefore },
+        },
+        data: { processedAt: claimedAt },
+      });
+
+      const reclaimedRecipients = await tx.campaignEmail.findMany({
+        where: {
+          campaignId,
+          contactId: { in: staleContactIds },
+          status: "PROCESSING",
+          processedAt: claimedAt,
+        },
+        select: { contactId: true },
+        orderBy: { contactId: "asc" },
+      });
+
+      return {
+        campaign,
+        recipients: reclaimedRecipients.map((recipient) => ({
+          contactId: recipient.contactId,
+          claimProcessedAt: claimedAt,
+        })),
+      };
+    }
+
+    const activeClaims = await tx.campaignEmail.count({
+      where: { campaignId, status: "PROCESSING" },
+    });
+
+    if (activeClaims > 0) {
+      return { campaign, recipients: [] };
+    }
+
+    let take = campaign.batchSize ?? 500;
+    let currentWaveSize = 0;
+    let deliveryIntervalMinutes = 0;
+
+    if (campaign.deliveryMode === "GRADUAL") {
+      if (!campaign.deliveryBatchSize || !campaign.deliveryIntervalMinutes) {
+        throw new Error("Gradual delivery configuration is incomplete");
+      }
+
+      const deliveryBatchSize = campaign.deliveryBatchSize;
+      deliveryIntervalMinutes = campaign.deliveryIntervalMinutes;
+      currentWaveSize = getGradualDeliveryWaveSize(campaign);
+
+      if (campaign.currentDeliveryBatch === 0) {
+        campaign = await tx.campaign.update({
+          where: { id: campaign.id },
+          data: {
+            currentDeliveryBatch: 1,
+            deliveryBatchProcessed: 0,
+            nextDeliveryAt: null,
+          },
+        });
+        currentWaveSize = getGradualDeliveryWaveSize(campaign);
+      } else if (campaign.deliveryBatchProcessed >= currentWaveSize) {
+        const allWavesReleased =
+          campaign.currentDeliveryBatch * deliveryBatchSize >= campaign.total;
+
+        if (allWavesReleased) {
+          return { campaign, recipients: [] };
+        }
+
+        if (
+          campaign.nextDeliveryAt &&
+          campaign.nextDeliveryAt.getTime() > claimedAt.getTime()
+        ) {
+          return { campaign, recipients: [] };
+        }
+
+        campaign = await tx.campaign.update({
+          where: { id: campaign.id },
+          data: {
+            currentDeliveryBatch: { increment: 1 },
+            deliveryBatchProcessed: 0,
+            nextDeliveryAt: null,
+          },
+        });
+        currentWaveSize = getGradualDeliveryWaveSize(campaign);
+      }
+
+      const remainingInWave = Math.max(
+        0,
+        currentWaveSize - campaign.deliveryBatchProcessed,
+      );
+      take = Math.min(GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE, remainingInWave);
+    }
+
+    if (take === 0) {
+      return { campaign, recipients: [] };
+    }
+
+    const pendingRecipients = await tx.campaignEmail.findMany({
+      where: { campaignId, status: "PENDING" },
+      select: { contactId: true },
+      orderBy: { contactId: "asc" },
+      take,
+    });
+
+    if (pendingRecipients.length === 0) {
+      return { campaign, recipients: [] };
+    }
+
+    const pendingContactIds = pendingRecipients.map(
+      (recipient) => recipient.contactId,
+    );
+
+    await tx.campaignEmail.updateMany({
+      where: {
+        campaignId,
+        contactId: { in: pendingContactIds },
+        status: "PENDING",
+      },
+      data: { status: "PROCESSING", processedAt: claimedAt },
+    });
+
+    const claimedRecipients = await tx.campaignEmail.findMany({
+      where: {
+        campaignId,
+        contactId: { in: pendingContactIds },
+        status: "PROCESSING",
+        processedAt: claimedAt,
+      },
+      select: { contactId: true },
+      orderBy: { contactId: "asc" },
+    });
+
+    if (campaign.deliveryMode === "GRADUAL" && claimedRecipients.length > 0) {
+      const updatedDeliveryBatchProcessed =
+        campaign.deliveryBatchProcessed + claimedRecipients.length;
+
+      campaign = await tx.campaign.update({
+        where: { id: campaign.id },
+        data: {
+          deliveryBatchProcessed: { increment: claimedRecipients.length },
+          ...(updatedDeliveryBatchProcessed >= currentWaveSize
+            ? {
+                nextDeliveryAt: new Date(
+                  claimedAt.getTime() + deliveryIntervalMinutes * 60 * 1000,
+                ),
+              }
+            : {}),
+        },
+      });
+    }
+
+    return {
+      campaign,
+      recipients: claimedRecipients.map((recipient) => ({
+        contactId: recipient.contactId,
+        claimProcessedAt: claimedAt,
+      })),
+    };
+  });
+}
+
+export async function startCampaignIfDue(
+  campaignId: string,
+  now: Date = new Date(),
+) {
+  const started = await db.campaign.updateMany({
+    where: {
+      id: campaignId,
+      status: "SCHEDULED",
+      OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }],
+    },
+    data: { status: "RUNNING" },
+  });
+
+  if (started.count !== 1) {
+    return null;
   }
 
-  const remainingInWave = Math.max(
-    0,
-    currentWaveSize - currentCampaign.deliveryBatchProcessed,
-  );
-
-  return {
-    campaign: currentCampaign,
-    take: Math.min(GRADUAL_DELIVERY_INTERNAL_BATCH_SIZE, remainingInWave),
-  };
+  return db.campaign.findUnique({ where: { id: campaignId } });
 }
 
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
@@ -1443,17 +1827,15 @@ export class CampaignBatchService {
       // Skip paused campaigns
       if (campaign.status === "PAUSED") return;
 
-      // Respect scheduledAt if set
-      if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now())
-        return;
-
-      // First touch moves SCHEDULED -> RUNNING
+      // Atomically start only if the campaign is still scheduled and due. This
+      // prevents a stale worker from overriding a concurrent reschedule.
       if (campaign.status === "SCHEDULED") {
-        campaign = await db.campaign.update({
-          where: { id: campaignId },
-          data: { status: "RUNNING" },
-        });
+        const startedCampaign = await startCampaignIfDue(campaignId);
+        if (!startedCampaign) return;
+        campaign = startedCampaign;
       }
+
+      if (campaign.status !== "RUNNING") return;
 
       campaign = await prepareCampaignAudience(campaign);
 
@@ -1465,35 +1847,29 @@ export class CampaignBatchService {
         return;
       }
 
-      const processingLimit = await getCampaignProcessingLimit(campaign);
-      campaign = processingLimit.campaign;
+      const domain = await db.domain.findUnique({
+        where: { id: campaign.domainId },
+      });
+      if (!domain) return;
 
-      if (processingLimit.take === 0) {
-        const pendingRecipients = await db.campaignEmail.count({
-          where: { campaignId, status: "PENDING" },
+      const claim = await claimCampaignRecipients(campaignId);
+      campaign = claim.campaign ?? campaign;
+      const recipients = claim.recipients;
+
+      if (recipients.length === 0) {
+        const outstandingRecipients = await db.campaignEmail.count({
+          where: {
+            campaignId,
+            status: { in: ["PENDING", "PROCESSING"] },
+          },
         });
 
-        if (pendingRecipients === 0) {
+        if (outstandingRecipients === 0) {
           await db.campaign.update({
             where: { id: campaignId },
             data: { status: "SENT", nextDeliveryAt: null },
           });
         }
-        return;
-      }
-
-      const recipients = await db.campaignEmail.findMany({
-        where: { campaignId, status: "PENDING" },
-        select: { contactId: true },
-        orderBy: { contactId: "asc" },
-        take: processingLimit.take,
-      });
-
-      if (recipients.length === 0) {
-        await db.campaign.update({
-          where: { id: campaignId },
-          data: { status: "SENT", nextDeliveryAt: null },
-        });
         return;
       }
 
@@ -1516,29 +1892,20 @@ export class CampaignBatchService {
         ...(contactBook?.variables ?? []),
       ];
 
-      // Fetch domain for region and id
-      const domain = await db.domain.findUnique({
-        where: { id: campaign.domainId },
-      });
-      if (!domain) return;
-
       // Process each contact in this batch
-      let processedRecipientCount = 0;
-
       for (const recipient of recipients) {
         const contact = contactsById.get(recipient.contactId);
 
         if (!contact || !contact.subscribed) {
-          await db.campaignEmail.update({
+          await db.campaignEmail.updateMany({
             where: {
-              campaignId_contactId: {
-                campaignId,
-                contactId: recipient.contactId,
-              },
+              campaignId,
+              contactId: recipient.contactId,
+              status: "PROCESSING",
+              processedAt: recipient.claimProcessedAt,
             },
             data: { status: "SKIPPED", processedAt: new Date() },
           });
-          processedRecipientCount += 1;
           continue;
         }
 
@@ -1546,6 +1913,7 @@ export class CampaignBatchService {
           await processContactEmail({
             contact,
             campaign,
+            claimProcessedAt: recipient.claimProcessedAt,
             allowedVariables,
             emailConfig: {
               from: campaign.from,
@@ -1569,6 +1937,7 @@ export class CampaignBatchService {
             await recordCampaignContactFailure({
               contact,
               campaign,
+              claimProcessedAt: recipient.claimProcessedAt,
               emailConfig: {
                 replyTo: Array.isArray(campaign.replyTo)
                   ? campaign.replyTo
@@ -1580,7 +1949,6 @@ export class CampaignBatchService {
               },
               error: err,
             });
-            processedRecipientCount += 1;
           } catch (recordErr) {
             logger.error(
               { err: recordErr, contactId: contact.id, campaignId },
@@ -1589,29 +1957,21 @@ export class CampaignBatchService {
           }
           continue;
         }
-
-        processedRecipientCount += 1;
       }
 
       await db.campaign.update({
         where: { id: campaignId },
-        data: {
-          lastSentAt: new Date(),
-          ...(campaign.deliveryMode === "GRADUAL"
-            ? {
-                deliveryBatchProcessed: {
-                  increment: processedRecipientCount,
-                },
-              }
-            : {}),
+        data: { lastSentAt: new Date() },
+      });
+
+      const outstandingRecipients = await db.campaignEmail.count({
+        where: {
+          campaignId,
+          status: { in: ["PENDING", "PROCESSING"] },
         },
       });
 
-      const pendingRecipients = await db.campaignEmail.count({
-        where: { campaignId, status: "PENDING" },
-      });
-
-      if (pendingRecipients === 0) {
+      if (outstandingRecipients === 0) {
         await db.campaign.update({
           where: { id: campaignId },
           data: { status: "SENT", nextDeliveryAt: null },
@@ -1700,7 +2060,11 @@ export class CampaignBatchService {
     await this.batchQueue.add(
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch:${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      {
+        jobId: `campaign-batch-${campaignId}`,
+        ...DEFAULT_QUEUE_OPTIONS,
+        removeOnFail: true,
+      },
     );
   }
 }

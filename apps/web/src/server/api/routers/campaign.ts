@@ -9,7 +9,6 @@ import {
   campaignProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import { logger } from "~/server/logger/log";
 import { nanoid } from "~/server/nanoid";
 import * as campaignService from "~/server/service/campaign-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
@@ -239,7 +238,10 @@ export const campaignRouter = createTRPCRouter({
         }),
         db.email.groupBy({
           by: ["latestStatus"],
-          where: { campaignId: campaign.id },
+          where: {
+            campaignId: campaign.id,
+            latestStatus: { in: ["SCHEDULED", "QUEUED", "FAILED"] },
+          },
           _count: { _all: true },
         }),
       ]);
@@ -250,12 +252,16 @@ export const campaignRouter = createTRPCRouter({
       const emailCount = new Map(
         emailStatuses.map((row) => [row.latestStatus, row._count._all]),
       );
+      const processingRecipients = recipientCount.get("PROCESSING") ?? 0;
+      const awaitingRecipients =
+        (recipientCount.get("PENDING") ?? 0) + processingRecipients;
 
       return {
-        pending: recipientCount.get("PENDING") ?? 0,
+        pending: awaitingRecipients,
+        processing: processingRecipients,
         processed:
           recipientStatuses.reduce((total, row) => total + row._count._all, 0) -
-          (recipientCount.get("PENDING") ?? 0),
+          awaitingRecipients,
         queued:
           (emailCount.get("QUEUED") ?? 0) + (emailCount.get("SCHEDULED") ?? 0),
         sent: campaign.sent,

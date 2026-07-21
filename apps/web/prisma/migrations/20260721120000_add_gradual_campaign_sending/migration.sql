@@ -2,17 +2,15 @@
 CREATE TYPE "CampaignDeliveryMode" AS ENUM ('ALL_AT_ONCE', 'GRADUAL');
 
 -- CreateEnum
-CREATE TYPE "CampaignRecipientStatus" AS ENUM ('PENDING', 'QUEUED', 'SUPPRESSED', 'SKIPPED', 'FAILED');
+CREATE TYPE "CampaignRecipientStatus" AS ENUM ('PENDING', 'PROCESSING', 'QUEUED', 'SUPPRESSED', 'SKIPPED', 'FAILED');
 
 -- AlterTable
 ALTER TABLE "CampaignEmail" ALTER COLUMN "emailId" DROP NOT NULL;
-ALTER TABLE "CampaignEmail" ADD COLUMN "status" "CampaignRecipientStatus";
+-- PostgreSQL 11+ stores a constant default as metadata instead of rewriting
+-- every existing row. Existing recipients are already queued, while new rows
+-- created by the gradual delivery worker should default to pending.
+ALTER TABLE "CampaignEmail" ADD COLUMN "status" "CampaignRecipientStatus" NOT NULL DEFAULT 'QUEUED';
 ALTER TABLE "CampaignEmail" ADD COLUMN "processedAt" TIMESTAMP(3);
-
-UPDATE "CampaignEmail"
-SET "status" = 'QUEUED', "processedAt" = "createdAt";
-
-ALTER TABLE "CampaignEmail" ALTER COLUMN "status" SET NOT NULL;
 ALTER TABLE "CampaignEmail" ALTER COLUMN "status" SET DEFAULT 'PENDING';
 
 -- AlterTable

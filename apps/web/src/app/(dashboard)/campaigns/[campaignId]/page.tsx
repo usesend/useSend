@@ -39,6 +39,7 @@ export default function CampaignDetailsPage({
         if (!c) return false;
 
         if (
+          c.status === CampaignStatus.SCHEDULED ||
           c.status === CampaignStatus.RUNNING ||
           c.status === CampaignStatus.PAUSED
         ) {
@@ -60,11 +61,29 @@ export default function CampaignDetailsPage({
   const { data: deliveryProgress } = api.campaign.getDeliveryProgress.useQuery(
     { campaignId },
     {
-      refetchInterval:
-        campaign?.status === CampaignStatus.RUNNING ||
-        campaign?.status === CampaignStatus.PAUSED
-          ? 5000
-          : false,
+      refetchInterval: (query) => {
+        if (
+          campaign?.status === CampaignStatus.SCHEDULED ||
+          campaign?.status === CampaignStatus.RUNNING
+        ) {
+          return 5000;
+        }
+
+        const progress = query.state.data;
+        if (
+          campaign?.status === CampaignStatus.PAUSED &&
+          progress?.processing
+        ) {
+          return 5000;
+        }
+
+        const needsFinalSnapshot =
+          campaign?.status === CampaignStatus.SENT &&
+          progress != null &&
+          progress.pending > 0;
+
+        return needsFinalSnapshot ? 5000 : false;
+      },
     },
   );
 
@@ -121,6 +140,10 @@ export default function CampaignDetailsPage({
     deliveryBatchSize > 0 ? Math.ceil(total / deliveryBatchSize) : 0;
   const currentDeliveryBatch = campaign.currentDeliveryBatch ?? 0;
   const isGradualDelivery = campaign.deliveryMode === "GRADUAL";
+  const showDeliveryCard =
+    campaign.status === CampaignStatus.SCHEDULED ||
+    campaign.status === CampaignStatus.RUNNING ||
+    campaign.status === CampaignStatus.PAUSED;
   const nextDeliveryAt = campaign.nextDeliveryAt
     ? new Date(campaign.nextDeliveryAt)
     : null;
@@ -137,6 +160,18 @@ export default function CampaignDetailsPage({
     { label: "Failed", value: deliveryProgress?.failed ?? 0 },
     { label: "Suppressed", value: deliveryProgress?.suppressed ?? 0 },
   ];
+
+  const completedDeliverySummary = [
+    isGradualDelivery && totalDeliveryBatches > 0
+      ? `Sent in ${totalDeliveryBatches.toLocaleString()} ${
+          totalDeliveryBatches === 1 ? "wave" : "waves"
+        }`
+      : "Sent all at once",
+    `${processed.toLocaleString()} processed`,
+    ...(deliveryProgress?.failed
+      ? [`${deliveryProgress.failed.toLocaleString()} failed`]
+      : []),
+  ].join(" · ");
 
   return (
     <div className="container mx-auto">
@@ -171,7 +206,7 @@ export default function CampaignDetailsPage({
       </div>
 
       <div className="mt-10 space-y-6">
-        <Card>
+        <Card hidden={!showDeliveryCard}>
           <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
             <div className="space-y-1">
               <CardTitle className="text-sm font-mono">Delivery</CardTitle>
@@ -259,7 +294,11 @@ export default function CampaignDetailsPage({
             <CardHeader className="space-y-4">
               <div className="flex flex-col gap-1">
                 <CardTitle className="text-sm font-mono">Statistics</CardTitle>
-                {total > 0 ? (
+                {campaign.status === CampaignStatus.SENT ? (
+                  <div className="text-sm text-muted-foreground font-mono">
+                    {completedDeliverySummary}
+                  </div>
+                ) : total > 0 ? (
                   <div className="text-sm text-muted-foreground font-mono">
                     {processed.toLocaleString()} of {total.toLocaleString()}{" "}
                     processed

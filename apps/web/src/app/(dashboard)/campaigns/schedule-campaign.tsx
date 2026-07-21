@@ -69,7 +69,7 @@ export const ScheduleCampaign: React.FC<{
   const scheduleMutation = api.campaign.scheduleCampaign.useMutation();
   const audienceQuery = api.campaign.getAudienceCount.useQuery(
     { campaignId: campaign.id },
-    { enabled: open },
+    { enabled: open && deliveryMode === "GRADUAL" },
   );
   const utils = api.useUtils();
   const scheduledAtTimestamp = campaign.scheduledAt
@@ -240,7 +240,16 @@ export const ScheduleCampaign: React.FC<{
         onOpenChange={(_open) => {
           if (_open !== open) {
             setOpen(_open);
-            if (!_open) setError(null);
+            if (!_open) {
+              setError(null);
+              setDeliveryMode(campaign.deliveryMode ?? "ALL_AT_ONCE");
+              setBatchPercentage(
+                String(campaign.deliveryBatchPercentage ?? 10),
+              );
+              setDeliveryInterval(
+                campaign.deliveryIntervalMinutes === 1 ? "minute" : "hour",
+              );
+            }
           }
         }}
       >
@@ -419,7 +428,10 @@ export const ScheduleCampaign: React.FC<{
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">
+                      <label
+                        htmlFor="deliveryInterval"
+                        className="text-sm font-medium"
+                      >
                         Time between waves
                       </label>
                       <Select
@@ -428,7 +440,7 @@ export const ScheduleCampaign: React.FC<{
                           setDeliveryInterval(value as GradualDeliveryInterval)
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="deliveryInterval">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -444,6 +456,24 @@ export const ScheduleCampaign: React.FC<{
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Spinner className="h-4 w-4" />
                         Calculating delivery plan
+                      </div>
+                    ) : audienceQuery.isError ? (
+                      <div
+                        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                        role="alert"
+                      >
+                        <p className="text-sm text-destructive">
+                          Couldn&apos;t load the audience preview.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void audienceQuery.refetch()}
+                          disabled={audienceQuery.isFetching}
+                        >
+                          {audienceQuery.isFetching ? "Retrying" : "Retry"}
+                        </Button>
                       </div>
                     ) : deliveryEstimate && deliveryEstimate.batchSize > 0 ? (
                       <div className="space-y-2">
@@ -478,11 +508,11 @@ export const ScheduleCampaign: React.FC<{
                           audience is captured when sending starts.
                         </p>
                       </div>
-                    ) : (
+                    ) : isBatchPercentageValid ? (
                       <p className="text-sm text-muted-foreground">
                         No subscribed recipients to preview yet.
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ) : null}

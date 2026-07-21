@@ -13,6 +13,78 @@ const SCHEDULER_TICK_MS = 1500;
 
 type SchedulerJob = TeamJob<{}>;
 
+export async function runCampaignSchedulerTick() {
+  try {
+    const now = new Date();
+    const campaigns = await db.campaign.findMany({
+      where: {
+        status: { in: ["SCHEDULED", "RUNNING"] },
+        AND: [
+          {
+            OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }],
+          },
+          {
+            OR: [
+              { deliveryMode: "ALL_AT_ONCE" },
+              { nextDeliveryAt: null },
+              { nextDeliveryAt: { lte: now } },
+            ],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        teamId: true,
+        lastSentAt: true,
+        batchWindowMinutes: true,
+      },
+    });
+
+    const enqueuePromises: Promise<any>[] = [];
+    for (const campaign of campaigns) {
+      const windowMin = campaign.batchWindowMinutes ?? 0;
+      if (windowMin > 0 && campaign.lastSentAt) {
+        const elapsedMs =
+          now.getTime() - new Date(campaign.lastSentAt).getTime();
+        const windowMs = windowMin * 60 * 1000;
+        if (elapsedMs < windowMs) {
+          const remainingMs = windowMs - elapsedMs;
+          logger.debug(
+            { campaignId: campaign.id, remainingMs, windowMs },
+            "Skip queueing batch; window not elapsed",
+          );
+          continue;
+        }
+      }
+      enqueuePromises.push(
+        CampaignBatchService.queueBatch({
+          campaignId: campaign.id,
+          teamId: campaign.teamId,
+        }).catch((err) => {
+          logger.error(
+            { err, campaignId: campaign.id },
+            "Failed to enqueue campaign batch",
+          );
+        }),
+      );
+    }
+
+    if (enqueuePromises.length > 0) {
+      const results = await Promise.allSettled(enqueuePromises);
+      const rejected = results.filter(
+        (result) => result.status === "rejected",
+      ).length;
+      const fulfilled = results.length - rejected;
+      logger.debug(
+        { total: results.length, fulfilled, rejected },
+        "Scheduler enqueue summary",
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "Campaign scheduler tick failed");
+  }
+}
+
 export class CampaignSchedulerService {
   private static schedulerQueue = new Queue<SchedulerJob>(
     CAMPAIGN_SCHEDULER_QUEUE,
@@ -20,71 +92,18 @@ export class CampaignSchedulerService {
       connection: getRedis(),
       prefix: BULL_PREFIX,
       skipVersionCheck: true,
-    }
+    },
   );
 
   static worker = new Worker(
     CAMPAIGN_SCHEDULER_QUEUE,
-    createWorkerHandler(async (_job: SchedulerJob) => {
-      try {
-        const now = new Date();
-        const campaigns = await db.campaign.findMany({
-          where: {
-            status: { in: ["SCHEDULED", "RUNNING"] },
-            OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }],
-          },
-          select: {
-            id: true,
-            teamId: true,
-            lastSentAt: true,
-            batchWindowMinutes: true,
-          },
-        });
-
-        const enqueuePromises: Promise<any>[] = [];
-        for (const c of campaigns) {
-          const windowMin = c.batchWindowMinutes ?? 0;
-          if (windowMin > 0 && c.lastSentAt) {
-            const elapsedMs = now.getTime() - new Date(c.lastSentAt).getTime();
-            const windowMs = windowMin * 60 * 1000;
-            if (elapsedMs < windowMs) {
-              const remainingMs = windowMs - elapsedMs;
-              logger.debug(
-                { campaignId: c.id, remainingMs, windowMs },
-                "Skip queueing batch; window not elapsed"
-              );
-              continue;
-            }
-          }
-          enqueuePromises.push(
-            CampaignBatchService.queueBatch({
-              campaignId: c.id,
-              teamId: c.teamId,
-            }).catch((err) => {
-              logger.error(
-                { err, campaignId: c.id },
-                "Failed to enqueue campaign batch"
-              );
-            })
-          );
-        }
-
-        if (enqueuePromises.length > 0) {
-          const results = await Promise.allSettled(enqueuePromises);
-          const rejected = results.filter(
-            (r) => r.status === "rejected"
-          ).length;
-          const fulfilled = results.length - rejected;
-          logger.debug(
-            { total: results.length, fulfilled, rejected },
-            "Scheduler enqueue summary"
-          );
-        }
-      } catch (err) {
-        logger.error({ err }, "Campaign scheduler tick failed");
-      }
-    }),
-    { connection: getRedis(), concurrency: 1, prefix: BULL_PREFIX, skipVersionCheck: true }
+    createWorkerHandler(runCampaignSchedulerTick),
+    {
+      connection: getRedis(),
+      concurrency: 1,
+      prefix: BULL_PREFIX,
+      skipVersionCheck: true,
+    },
   );
 
   static async start() {
@@ -96,7 +115,7 @@ export class CampaignSchedulerService {
           jobId: "campaign-scheduler",
           repeat: { every: SCHEDULER_TICK_MS },
           ...DEFAULT_QUEUE_OPTIONS,
-        }
+        },
       );
     } catch (err) {
       // Adding the same repeatable job is idempotent; ignore job-exists errors

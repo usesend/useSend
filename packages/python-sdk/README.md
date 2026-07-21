@@ -63,6 +63,11 @@ campaign_resp, _ = client.campaigns.create(payload=campaign_payload)
 # Schedule a campaign
 schedule_payload: types.CampaignSchedule = {
     "scheduledAt": "2024-12-01T10:00:00Z",
+    "delivery": {
+        "strategy": "gradual",
+        "batchPercentage": 10,
+        "interval": "hour",
+    },
 }
 schedule_resp, _ = client.campaigns.schedule(
     campaign_id=campaign_resp["id"],

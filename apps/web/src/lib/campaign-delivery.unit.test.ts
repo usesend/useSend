@@ -30,9 +30,7 @@ describe("calculateGradualDelivery", () => {
 
     expect(result.batchSize).toBe(2);
     expect(result.totalBatches).toBe(2);
-    expect(result.completesAt).toEqual(
-      new Date("2026-07-21T09:01:00.000Z"),
-    );
+    expect(result.completesAt).toEqual(new Date("2026-07-21T09:01:00.000Z"));
   });
 
   it("returns an empty schedule for an empty audience", () => {

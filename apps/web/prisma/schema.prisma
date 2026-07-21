@@ -267,6 +267,7 @@ model Email {
   emailEvents  EmailEvent[]
 
   @@index([campaignId, contactId])
+  @@index([campaignId, latestStatus])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -359,6 +360,7 @@ enum CampaignDeliveryMode {
 
 enum CampaignRecipientStatus {
   PENDING
+  PROCESSING
   QUEUED
   SUPPRESSED
   SKIPPED
