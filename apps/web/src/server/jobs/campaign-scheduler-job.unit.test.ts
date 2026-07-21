@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
+  loggerDebug: vi.fn(),
+  loggerError: vi.fn(),
+  loggerInfo: vi.fn(),
   queueBatch: vi.fn(),
   queueAdd: vi.fn(),
 }));
@@ -32,9 +35,9 @@ vi.mock("~/server/redis", () => ({
 
 vi.mock("~/server/logger/log", () => ({
   logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
+    debug: mocks.loggerDebug,
+    error: mocks.loggerError,
+    info: mocks.loggerInfo,
   },
 }));
 
@@ -49,6 +52,9 @@ import { runCampaignSchedulerTick } from "~/server/jobs/campaign-scheduler-job";
 describe("campaign scheduler", () => {
   beforeEach(() => {
     mocks.findMany.mockReset();
+    mocks.loggerDebug.mockReset();
+    mocks.loggerError.mockReset();
+    mocks.loggerInfo.mockReset();
     mocks.queueBatch.mockReset();
     mocks.queueAdd.mockReset();
     vi.useFakeTimers();
@@ -102,5 +108,37 @@ describe("campaign scheduler", () => {
       campaignId: "campaign_1",
       teamId: 7,
     });
+  });
+
+  it("reports rejected campaign enqueues in the scheduler summary", async () => {
+    const enqueueError = new Error("Redis unavailable");
+    mocks.findMany.mockResolvedValue([
+      {
+        id: "campaign_1",
+        teamId: 7,
+        lastSentAt: null,
+        batchWindowMinutes: 0,
+      },
+      {
+        id: "campaign_2",
+        teamId: 8,
+        lastSentAt: null,
+        batchWindowMinutes: 0,
+      },
+    ]);
+    mocks.queueBatch
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(enqueueError);
+
+    await runCampaignSchedulerTick();
+
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      { err: enqueueError, campaignId: "campaign_2" },
+      "Failed to enqueue campaign batch",
+    );
+    expect(mocks.loggerDebug).toHaveBeenCalledWith(
+      { total: 2, fulfilled: 1, rejected: 1 },
+      "Scheduler enqueue summary",
+    );
   });
 });

@@ -11,6 +11,7 @@ import {
   getCampaignForTeam,
   scheduleCampaign,
 } from "~/server/service/campaign-service";
+import { toServiceDelivery } from "./campaign-delivery";
 const route = createRoute({
   method: "post",
   path: "/v1/campaigns",
@@ -55,15 +56,7 @@ function createCampaign(app: PublicAPIApp) {
       cc: body.cc,
       bcc: body.bcc,
       batchSize: body.batchSize,
-      delivery: body.delivery
-        ? body.delivery.strategy === "gradual"
-          ? {
-              strategy: "GRADUAL",
-              batchPercentage: body.delivery.batchPercentage,
-              interval: body.delivery.interval,
-            }
-          : { strategy: "ALL_AT_ONCE" }
-        : undefined,
+      delivery: toServiceDelivery(body.delivery),
     });
 
     if (body.sendNow || body.scheduledAt) {
@@ -76,15 +69,7 @@ function createCampaign(app: PublicAPIApp) {
         teamId: team.id,
         scheduledAt: scheduledAtInput,
         batchSize: body.batchSize,
-        delivery: body.delivery
-          ? body.delivery.strategy === "gradual"
-            ? {
-                strategy: "GRADUAL",
-                batchPercentage: body.delivery.batchPercentage,
-                interval: body.delivery.interval,
-              }
-            : { strategy: "ALL_AT_ONCE" }
-          : undefined,
+        delivery: toServiceDelivery(body.delivery),
       });
     }
 

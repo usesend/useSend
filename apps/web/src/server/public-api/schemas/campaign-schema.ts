@@ -8,7 +8,7 @@ const stringOrStringArray = z.union([
 ]);
 
 export const campaignDeliverySchema = z.discriminatedUnion("strategy", [
-  z.object({ strategy: z.literal("all_at_once") }),
+  z.object({ strategy: z.literal("all_at_once") }).strict(),
   z.object({
     strategy: z.literal("gradual"),
     batchPercentage: z.number().int().min(1).max(50),

@@ -1556,7 +1556,12 @@ export async function prepareCampaignAudience(campaign: Campaign) {
   );
 }
 
-function getGradualDeliveryWaveSize(campaign: Campaign) {
+type GradualDeliveryWaveCampaign = Pick<
+  Campaign,
+  "deliveryMode" | "deliveryBatchSize" | "currentDeliveryBatch" | "total"
+>;
+
+function getGradualDeliveryWaveSize(campaign: GradualDeliveryWaveCampaign) {
   if (
     campaign.deliveryMode !== "GRADUAL" ||
     !campaign.deliveryBatchSize ||
@@ -2017,15 +2022,7 @@ export class CampaignBatchService {
         campaign.deliveryBatchSize &&
         campaign.currentDeliveryBatch > 0
       ) {
-        const previouslyReleased =
-          (campaign.currentDeliveryBatch - 1) * campaign.deliveryBatchSize;
-        const currentWaveSize = Math.max(
-          0,
-          Math.min(
-            campaign.deliveryBatchSize,
-            campaign.total - previouslyReleased,
-          ),
-        );
+        const currentWaveSize = getGradualDeliveryWaveSize(campaign);
         const currentWaveComplete =
           campaign.deliveryBatchProcessed >= currentWaveSize;
 

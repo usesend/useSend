@@ -24,9 +24,3 @@ ALTER TABLE "Campaign" ADD COLUMN "nextDeliveryAt" TIMESTAMP(3);
 ALTER TABLE "Campaign" ADD COLUMN "audienceCapturedAt" TIMESTAMP(3);
 ALTER TABLE "Campaign" ADD COLUMN "audiencePreparedAt" TIMESTAMP(3);
 ALTER TABLE "Campaign" ADD COLUMN "pausedAt" TIMESTAMP(3);
-
--- CreateIndex
-CREATE INDEX "CampaignEmail_campaignId_status_contactId_idx" ON "CampaignEmail"("campaignId", "status", "contactId");
-
--- CreateIndex
-CREATE INDEX "Campaign_status_nextDeliveryAt_idx" ON "Campaign"("status", "nextDeliveryAt");

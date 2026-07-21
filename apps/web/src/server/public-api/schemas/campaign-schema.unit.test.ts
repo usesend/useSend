@@ -44,4 +44,16 @@ describe("campaign delivery API schemas", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("rejects gradual-only fields for all-at-once delivery", () => {
+    const result = campaignScheduleSchema.safeParse({
+      delivery: {
+        strategy: "all_at_once",
+        batchPercentage: 10,
+        interval: "hour",
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

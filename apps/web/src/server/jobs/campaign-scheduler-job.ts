@@ -40,7 +40,7 @@ export async function runCampaignSchedulerTick() {
       },
     });
 
-    const enqueuePromises: Promise<any>[] = [];
+    const enqueuePromises: Promise<void>[] = [];
     for (const campaign of campaigns) {
       const windowMin = campaign.batchWindowMinutes ?? 0;
       if (windowMin > 0 && campaign.lastSentAt) {
@@ -65,6 +65,7 @@ export async function runCampaignSchedulerTick() {
             { err, campaignId: campaign.id },
             "Failed to enqueue campaign batch",
           );
+          throw err;
         }),
       );
     }
