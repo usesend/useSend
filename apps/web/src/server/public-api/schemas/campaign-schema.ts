@@ -7,6 +7,15 @@ const stringOrStringArray = z.union([
   z.array(z.string().min(1)),
 ]);
 
+export const campaignDeliverySchema = z.discriminatedUnion("strategy", [
+  z.object({ strategy: z.literal("all_at_once") }),
+  z.object({
+    strategy: z.literal("gradual"),
+    batchPercentage: z.number().int().min(1).max(50),
+    interval: z.enum(["minute", "hour"]),
+  }),
+]);
+
 export const parseScheduledAt = (scheduledAt?: string): Date | undefined => {
   if (!scheduledAt) return undefined;
 
@@ -45,13 +54,14 @@ export const campaignCreateSchema = z
       .string()
       .optional()
       .describe(
-        "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+        "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')",
       ),
     batchSize: z.number().int().min(1).max(100_000).optional(),
+    delivery: campaignDeliverySchema.optional(),
   })
   .refine(
     (data) => !!data.content || !!data.html,
-    "Either content or html must be provided."
+    "Either content or html must be provided.",
   );
 
 export const campaignScheduleSchema = z.object({
@@ -59,9 +69,10 @@ export const campaignScheduleSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')"
+      "Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30')",
     ),
   batchSize: z.number().int().min(1).max(100_000).optional(),
+  delivery: campaignDeliverySchema.optional(),
 });
 
 export type CampaignCreateInput = z.infer<typeof campaignCreateSchema>;
@@ -80,6 +91,13 @@ export const campaignResponseSchema = z.object({
   scheduledAt: z.string().datetime().nullable(),
   batchSize: z.number().int(),
   batchWindowMinutes: z.number().int(),
+  deliveryMode: z.enum(["ALL_AT_ONCE", "GRADUAL"]),
+  deliveryBatchPercentage: z.number().int().nullable(),
+  deliveryIntervalMinutes: z.number().int().nullable(),
+  deliveryBatchSize: z.number().int().nullable(),
+  currentDeliveryBatch: z.number().int(),
+  deliveryBatchProcessed: z.number().int(),
+  nextDeliveryAt: z.string().datetime().nullable(),
   total: z.number().int(),
   sent: z.number().int(),
   delivered: z.number().int(),

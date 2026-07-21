@@ -119,6 +119,48 @@ function getCampaignDeliveryData({
   };
 }
 
+function getCampaignDraftDeliveryData(delivery?: CampaignDeliveryInput) {
+  if (!delivery || delivery.strategy === "ALL_AT_ONCE") {
+    return {
+      deliveryMode: "ALL_AT_ONCE" as const,
+      deliveryBatchPercentage: null,
+      deliveryIntervalMinutes: null,
+      deliveryBatchSize: null,
+    };
+  }
+
+  return {
+    deliveryMode: "GRADUAL" as const,
+    deliveryBatchPercentage: delivery.batchPercentage,
+    deliveryIntervalMinutes:
+      GRADUAL_DELIVERY_INTERVAL_MINUTES[delivery.interval],
+    deliveryBatchSize: null,
+  };
+}
+
+function getStoredCampaignDelivery(campaign: Campaign): CampaignDeliveryInput {
+  if (campaign.deliveryMode !== "GRADUAL") {
+    return { strategy: "ALL_AT_ONCE" };
+  }
+
+  const interval = Object.entries(GRADUAL_DELIVERY_INTERVAL_MINUTES).find(
+    ([, minutes]) => minutes === campaign.deliveryIntervalMinutes,
+  )?.[0] as GradualDeliveryInterval | undefined;
+
+  if (!campaign.deliveryBatchPercentage || !interval) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "Gradual delivery configuration is incomplete",
+    });
+  }
+
+  return {
+    strategy: "GRADUAL",
+    batchPercentage: campaign.deliveryBatchPercentage,
+    interval,
+  };
+}
+
 async function prepareCampaignHtml(
   campaign: Campaign,
 ): Promise<{ campaign: Campaign; html: string }> {
@@ -228,6 +270,7 @@ export async function createCampaignFromApi({
   cc,
   bcc,
   batchSize,
+  delivery,
 }: {
   teamId: number;
   apiKeyId?: number;
@@ -242,6 +285,7 @@ export async function createCampaignFromApi({
   cc?: string | string[];
   bcc?: string | string[];
   batchSize?: number;
+  delivery?: CampaignDeliveryInput;
 }) {
   if (!content && !html) {
     throw new UnsendApiError({
@@ -326,6 +370,7 @@ export async function createCampaignFromApi({
       bcc: sanitizeAddressList(bcc),
       teamId,
       domainId: domain.id,
+      ...getCampaignDraftDeliveryData(delivery),
       ...(typeof batchSize === "number" ? { batchSize } : {}),
     },
   });
@@ -531,7 +576,7 @@ export async function scheduleCampaign({
   const shouldResetCursor = campaign.status === "DRAFT";
 
   const deliveryData = getCampaignDeliveryData({
-    delivery,
+    delivery: delivery ?? getStoredCampaignDelivery(campaign),
     audienceSize: total,
     startsAt: scheduledAt,
   });

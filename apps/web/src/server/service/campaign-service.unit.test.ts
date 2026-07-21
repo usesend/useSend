@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "crypto";
 import { UnsubscribeReason } from "@prisma/client";
 
-const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
+const {
+  mockDb,
+  mockTx,
+  mockUpdateContactSubscription,
+  mockValidateDomainFromEmail,
+} = vi.hoisted(() => {
   const mockTx = {
     campaignEmail: {
       findUnique: vi.fn(),
@@ -28,12 +33,17 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
       contact: {
         findUnique: vi.fn(),
       },
+      contactBook: {
+        findUnique: vi.fn(),
+      },
       campaign: {
+        create: vi.fn(),
         findUnique: vi.fn(),
         update: vi.fn(),
       },
     },
     mockUpdateContactSubscription: vi.fn(),
+    mockValidateDomainFromEmail: vi.fn(),
   };
 });
 
@@ -81,7 +91,7 @@ vi.mock("~/server/service/suppression-service", () => ({
 
 vi.mock("~/server/service/domain-service", () => ({
   validateApiKeyDomainAccess: vi.fn(),
-  validateDomainFromEmail: vi.fn(),
+  validateDomainFromEmail: mockValidateDomainFromEmail,
 }));
 
 vi.mock("~/server/logger/log", () => ({
@@ -94,6 +104,7 @@ vi.mock("~/server/logger/log", () => ({
 }));
 
 import {
+  createCampaignFromApi,
   recordCampaignContactFailure,
   resumeCampaign,
   scheduleCampaign,
@@ -243,6 +254,35 @@ describe("campaign delivery lifecycle", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("stores gradual settings on API-created drafts", async () => {
+    mockDb.contactBook.findUnique.mockResolvedValue({ id: "book_1" });
+    mockValidateDomainFromEmail.mockResolvedValue({ id: 11 });
+    mockDb.campaign.create.mockResolvedValue({ id: "campaign_1" });
+
+    await createCampaignFromApi({
+      teamId: 7,
+      name: "Launch",
+      from: "sender@example.com",
+      subject: "Hello",
+      html: '<a href="{{usesend_unsubscribe_url}}">Unsubscribe</a>',
+      contactBookId: "book_1",
+      delivery: {
+        strategy: "GRADUAL",
+        batchPercentage: 10,
+        interval: "hour",
+      },
+    });
+
+    expect(mockDb.campaign.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        deliveryMode: "GRADUAL",
+        deliveryBatchPercentage: 10,
+        deliveryIntervalMinutes: 60,
+        deliveryBatchSize: null,
+      }),
+    });
   });
 
   it("does not allow delivery settings to change after sending starts", async () => {

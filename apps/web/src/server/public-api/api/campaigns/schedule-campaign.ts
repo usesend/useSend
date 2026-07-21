@@ -5,9 +5,7 @@ import {
   CampaignScheduleInput,
   parseScheduledAt,
 } from "~/server/public-api/schemas/campaign-schema";
-import {
-  scheduleCampaign as scheduleCampaignService,
-} from "~/server/service/campaign-service";
+import { scheduleCampaign as scheduleCampaignService } from "~/server/service/campaign-service";
 const route = createRoute({
   method: "post",
   path: "/v1/campaigns/{campaignId}/schedule",
@@ -58,6 +56,15 @@ function scheduleCampaign(app: PublicAPIApp) {
       teamId: team.id,
       scheduledAt: parseScheduledAt(body.scheduledAt),
       batchSize: body.batchSize,
+      delivery: body.delivery
+        ? body.delivery.strategy === "gradual"
+          ? {
+              strategy: "GRADUAL",
+              batchPercentage: body.delivery.batchPercentage,
+              interval: body.delivery.interval,
+            }
+          : { strategy: "ALL_AT_ONCE" }
+        : undefined,
     });
 
     return c.json({ success: true });
