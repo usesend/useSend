@@ -3,10 +3,8 @@
   "checkpoint_id": "9d403c1dae5f",
   "strategy": "manual-commit",
   "branch": "codex/fix-self-hosted-github-auth",
-  "checkpoints_count": 1,
+  "checkpoints_count": 4,
   "files_touched": [
-    "apps/docs/self-hosting/overview.mdx",
-    "apps/docs/self-hosting/railway.mdx",
     "apps/web/src/server/auth.ts",
     "apps/web/src/server/auth.unit.test.ts"
   ],
@@ -19,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 183315,
+    "input_tokens": 96627,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1552384,
-    "output_tokens": 14626,
-    "api_call_count": 24
+    "cache_read_tokens": 7946240,
+    "output_tokens": 24818,
+    "api_call_count": 57
   }
 }
