@@ -22,6 +22,7 @@ import { Button } from "@usesend/ui/src/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@usesend/ui/src/card";
 import { EmailStatusBadge } from "../../emails/email-status-badge";
 import { AnimatePresence, motion } from "framer-motion";
+import { Clock3, Send } from "lucide-react";
 
 export default function CampaignDetailsPage({
   params,
@@ -45,7 +46,7 @@ export default function CampaignDetailsPage({
         }
         return false;
       },
-    }
+    },
   );
 
   const { data: latestEmails, isLoading: latestEmailsLoading } =
@@ -53,8 +54,19 @@ export default function CampaignDetailsPage({
       { campaignId: campaignId },
       {
         refetchInterval: 5000,
-      }
+      },
     );
+
+  const { data: deliveryProgress } = api.campaign.getDeliveryProgress.useQuery(
+    { campaignId },
+    {
+      refetchInterval:
+        campaign?.status === CampaignStatus.RUNNING ||
+        campaign?.status === CampaignStatus.PAUSED
+          ? 5000
+          : false,
+    },
+  );
 
   if (isLoading) {
     return (
@@ -100,7 +112,31 @@ export default function CampaignDetailsPage({
   ];
 
   const total = campaign.total ?? 0;
-  const processed = campaign.sent ?? 0;
+  const processed = deliveryProgress?.processed ?? campaign.sent ?? 0;
+  const awaiting = Math.max(deliveryProgress?.pending ?? 0, total - processed);
+  const completionPercentage =
+    total > 0 ? Math.min(100, (processed / total) * 100) : 0;
+  const deliveryBatchSize = campaign.deliveryBatchSize ?? 0;
+  const totalDeliveryBatches =
+    deliveryBatchSize > 0 ? Math.ceil(total / deliveryBatchSize) : 0;
+  const currentDeliveryBatch = campaign.currentDeliveryBatch ?? 0;
+  const isGradualDelivery = campaign.deliveryMode === "GRADUAL";
+  const nextDeliveryAt = campaign.nextDeliveryAt
+    ? new Date(campaign.nextDeliveryAt)
+    : null;
+  const nextDeliveryLabel = nextDeliveryAt
+    ? nextDeliveryAt.getTime() <= Date.now()
+      ? "Due now"
+      : formatDistanceToNow(nextDeliveryAt, { addSuffix: true })
+    : null;
+
+  const deliveryMetrics = [
+    { label: "Awaiting", value: awaiting },
+    { label: "Queued", value: deliveryProgress?.queued ?? 0 },
+    { label: "Sent", value: deliveryProgress?.sent ?? campaign.sent ?? 0 },
+    { label: "Failed", value: deliveryProgress?.failed ?? 0 },
+    { label: "Suppressed", value: deliveryProgress?.suppressed ?? 0 },
+  ];
 
   return (
     <div className="container mx-auto">
@@ -134,7 +170,90 @@ export default function CampaignDetailsPage({
         )}
       </div>
 
-      <div className="mt-10">
+      <div className="mt-10 space-y-6">
+        <Card>
+          <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+            <div className="space-y-1">
+              <CardTitle className="text-sm font-mono">Delivery</CardTitle>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {isGradualDelivery ? (
+                  <Clock3 className="h-4 w-4" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                <span>
+                  {isGradualDelivery
+                    ? (campaign.deliveryBatchPercentage ?? 0) +
+                      "% every " +
+                      (campaign.deliveryIntervalMinutes === 1
+                        ? "minute"
+                        : "hour")
+                    : "All at once"}
+                </span>
+              </div>
+            </div>
+
+            {isGradualDelivery && totalDeliveryBatches > 0 ? (
+              <div className="text-left sm:text-right">
+                <div className="text-sm font-mono">
+                  {currentDeliveryBatch > 0 ? (
+                    <>
+                      Wave {currentDeliveryBatch} of {totalDeliveryBatches}
+                    </>
+                  ) : (
+                    <>{totalDeliveryBatches} waves planned</>
+                  )}
+                </div>
+                {nextDeliveryLabel && campaign.status === "RUNNING" ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Next wave {nextDeliveryLabel}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                <span>
+                  {processed.toLocaleString()} of {total.toLocaleString()}{" "}
+                  processed
+                </span>
+                <span className="font-mono">
+                  {completionPercentage.toFixed(0)}%
+                </span>
+              </div>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label="Campaign delivery progress"
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={Math.min(processed, total)}
+              >
+                <div
+                  className="h-full rounded-full bg-foreground transition-[width] duration-300"
+                  style={{ width: completionPercentage + "%" }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-5">
+              {deliveryMetrics.map((metric) => (
+                <div key={metric.label} className="bg-background px-3 py-3">
+                  <div className="text-xs text-muted-foreground">
+                    {metric.label}
+                  </div>
+                  <div className="mt-1 font-mono text-sm">
+                    {metric.value.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader className="space-y-4">
