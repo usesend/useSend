@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "9d403c1dae5f",
+  "session_id": "019f82e4-53c9-70d3-b8d6-20a3ce7c78e8",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-21T04:25:13.105003Z",
+  "branch": "codex/fix-self-hosted-github-auth",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/docs/self-hosting/overview.mdx",
+    "apps/docs/self-hosting/railway.mdx",
+    "apps/web/src/server/auth.ts",
+    "apps/web/src/server/auth.unit.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "64b5ef7a41d6",
+  "token_usage": {
+    "input_tokens": 183315,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1552384,
+    "output_tokens": 14626,
+    "api_call_count": 24
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-21T04:25:13.08669Z",
+    "agent_lines": 119,
+    "agent_removed": 21,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 119,
+    "total_lines_changed": 140,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

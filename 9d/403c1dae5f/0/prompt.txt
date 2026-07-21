@@ -1,0 +1,89 @@
+<recommended_plugins>
+Here is a list of plugins that are available but not installed. If the user's query would benefit from one of these plugins, use the `request_plugin_install` tool to suggest that they install it. Pass the parenthesized ID as `plugin_id`. For example, suggest the Google Drive plugin if the query could possibly be better answered with access to Google Drive.
+
+- Atlassian Rovo (atlassian-rovo@openai-curated-remote)
+- Box (box@openai-curated-remote)
+- Figma (figma@openai-curated-remote)
+- Gmail (gmail@openai-curated-remote)
+- Google Calendar (google-calendar@openai-curated-remote)
+- Google Drive (google-drive@openai-curated-remote)
+- Notion (notion@openai-curated-remote)
+- Outlook Calendar (outlook-calendar@openai-curated-remote)
+- Outlook Email (outlook-email@openai-curated-remote)
+- SharePoint (sharepoint@openai-curated-remote)
+- Teams (teams@openai-curated-remote)
+</recommended_plugins>
+
+---
+
+# AGENTS.md instructions for /Users/koushik/.codex/worktrees/c84b/useSend
+
+<INSTRUCTIONS>
+when asked to create pr, create actual pr instead of draft. unless i mention draft specifically
+
+--- project-doc ---
+
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+- apps/web: Next.js app (primary product). Uses Prisma, TRPC, Tailwind.
+- apps/marketing: Public marketing site (Next.js, static export).
+- apps/docs: Mintlify docs content.
+- apps/smtp-server: SMTP proxy/server (TypeScript → tsup build).
+- packages/\*: Shared libraries (email-editor, ui, eslint-config, tailwind-config, typescript-config, sdk).
+- docker/: Dev/compose files; .env\* at repo root define configuration.
+
+## Build, Test, and Development Commands
+
+- `pnpm i`: Install workspace deps (Node >= 20).
+- `pnpm dev`: Turbo dev for all relevant apps (loads `.env`).
+- `pnpm start:web:local`: Run only `apps/web` locally on port 3000.
+- `pnpm build`: Turbo build across the monorepo.
+- `pnpm dx` / `pnpm dx:up` / `pnpm dx:down`: Spin up/down local infra via Docker Compose, then run migrations.
+- Database (apps/web filter): `pnpm db:generate` | `db:migrate-dev` | `db:push` | `db:studio`.
+- Never run migrations unless users explicitly asked
+
+## Coding Style & Naming Conventions
+
+- Files: React components PascalCase (e.g., `AppSideBar.tsx`); folders kebab/lowercase.
+- Paths (web): use alias `~/` for src imports (e.g., `import { x } from "~/utils/x"`).
+- NEVER USE DYNAMIC IMPORTS. ALWAYS IMPORT ON THE TOP
+
+## Rules
+
+- Prefer to use trpc alway unless asked otherwise
+
+## Testing Guidelines
+
+- Web testing is configured with Vitest in `apps/web`; add tests when changes impact logic, APIs, or behavior.
+- Prefer targeted suites first: `pnpm test:web:unit`, `pnpm test:web:trpc`, `pnpm test:web:api`; use `pnpm test:web` for default non-integration coverage.
+- Test file conventions: `*.unit.test.ts`, `*.trpc.test.ts`, `*.api.test.ts`, `*.integration.test.ts`.
+- Integration tests require infra and env (`RUN_INTEGRATION=true` with Postgres/Redis available). Root commands `pnpm test:web:all` and `pnpm test:web:integration:full` auto-manage infra lifecycle.
+- Use `pnpm test:infra:up` / `pnpm test:infra:down` when running targeted integration commands manually.
+- `pnpm test:web:integration:full` and `test:integration:prepare` run Prisma migrations (`prisma migrate deploy`); never run these unless the user explicitly asks.
+- Test defaults are cloud mode (`NEXT_PUBLIC_IS_CLOUD=true`); keep new tests compatible with cloud behavior unless the task says otherwise.
+
+## Commit & Pull Request Guidelines
+
+- Prefer Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`). Git history shows frequent feat/fix usage.
+- PRs must include: clear description, linked issues, screenshots for UI changes, migration notes, and verification steps.
+- never run build,migration commands unless asked for
+
+</INSTRUCTIONS>
+
+---
+
+<environment_context>
+  <cwd>/Users/koushik/.codex/worktrees/c84b/useSend</cwd>
+  <shell>zsh</shell>
+  <current_date>2026-07-21</current_date>
+  <timezone>Australia/Sydney</timezone>
+  <filesystem><workspace_roots><root>/Users/koushik/.codex/worktrees/c84b/useSend</root><root>/Users/koushik/.codex/visualizations/2026/07/21/019f82e4-53c9-70d3-b8d6-20a3ce7c78e8</root></workspace_roots><permission_profile type="disabled"><file_system type="unrestricted" /></permission_profile></filesystem>
+</environment_context>
+
+---
+
+[https://github.com/usesend/useSend/issues/434](https://github.com/usesend/useSend/issues/434)
+
+can you work on this issue? i bet it's because of self-hosting auth fix we did recently, figure out why it happened and a way to fix.
