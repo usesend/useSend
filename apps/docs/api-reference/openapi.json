@@ -2085,6 +2085,39 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 100000
+                  },
+                  "delivery": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "strategy": {
+                            "type": "string",
+                            "enum": ["all_at_once"]
+                          }
+                        },
+                        "required": ["strategy"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "strategy": {
+                            "type": "string",
+                            "enum": ["gradual"]
+                          },
+                          "batchPercentage": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "interval": {
+                            "type": "string",
+                            "enum": ["minute", "hour"]
+                          }
+                        },
+                        "required": ["strategy", "batchPercentage", "interval"]
+                      }
+                    ]
                   }
                 },
                 "required": ["name", "from", "subject", "contactBookId"]
@@ -2116,6 +2149,29 @@
                     },
                     "batchSize": { "type": "integer" },
                     "batchWindowMinutes": { "type": "integer" },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": ["ALL_AT_ONCE", "GRADUAL"]
+                    },
+                    "deliveryBatchPercentage": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryIntervalMinutes": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryBatchSize": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "currentDeliveryBatch": { "type": "integer" },
+                    "deliveryBatchProcessed": { "type": "integer" },
+                    "nextDeliveryAt": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    },
                     "total": { "type": "integer" },
                     "sent": { "type": "integer" },
                     "delivered": { "type": "integer" },
@@ -2147,6 +2203,13 @@
                     "scheduledAt",
                     "batchSize",
                     "batchWindowMinutes",
+                    "deliveryMode",
+                    "deliveryBatchPercentage",
+                    "deliveryIntervalMinutes",
+                    "deliveryBatchSize",
+                    "currentDeliveryBatch",
+                    "deliveryBatchProcessed",
+                    "nextDeliveryAt",
                     "total",
                     "sent",
                     "delivered",
@@ -2302,6 +2365,29 @@
                     },
                     "batchSize": { "type": "integer" },
                     "batchWindowMinutes": { "type": "integer" },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": ["ALL_AT_ONCE", "GRADUAL"]
+                    },
+                    "deliveryBatchPercentage": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryIntervalMinutes": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryBatchSize": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "currentDeliveryBatch": { "type": "integer" },
+                    "deliveryBatchProcessed": { "type": "integer" },
+                    "nextDeliveryAt": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    },
                     "total": { "type": "integer" },
                     "sent": { "type": "integer" },
                     "delivered": { "type": "integer" },
@@ -2333,6 +2419,13 @@
                     "scheduledAt",
                     "batchSize",
                     "batchWindowMinutes",
+                    "deliveryMode",
+                    "deliveryBatchPercentage",
+                    "deliveryIntervalMinutes",
+                    "deliveryBatchSize",
+                    "currentDeliveryBatch",
+                    "deliveryBatchProcessed",
+                    "nextDeliveryAt",
                     "total",
                     "sent",
                     "delivered",
@@ -2391,6 +2484,29 @@
                     },
                     "batchSize": { "type": "integer" },
                     "batchWindowMinutes": { "type": "integer" },
+                    "deliveryMode": {
+                      "type": "string",
+                      "enum": ["ALL_AT_ONCE", "GRADUAL"]
+                    },
+                    "deliveryBatchPercentage": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryIntervalMinutes": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "deliveryBatchSize": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "currentDeliveryBatch": { "type": "integer" },
+                    "deliveryBatchProcessed": { "type": "integer" },
+                    "nextDeliveryAt": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    },
                     "total": { "type": "integer" },
                     "sent": { "type": "integer" },
                     "delivered": { "type": "integer" },
@@ -2422,6 +2538,13 @@
                     "scheduledAt",
                     "batchSize",
                     "batchWindowMinutes",
+                    "deliveryMode",
+                    "deliveryBatchPercentage",
+                    "deliveryIntervalMinutes",
+                    "deliveryBatchSize",
+                    "currentDeliveryBatch",
+                    "deliveryBatchProcessed",
+                    "nextDeliveryAt",
                     "total",
                     "sent",
                     "delivered",
@@ -2473,6 +2596,39 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 100000
+                  },
+                  "delivery": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "strategy": {
+                            "type": "string",
+                            "enum": ["all_at_once"]
+                          }
+                        },
+                        "required": ["strategy"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "strategy": {
+                            "type": "string",
+                            "enum": ["gradual"]
+                          },
+                          "batchPercentage": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "interval": {
+                            "type": "string",
+                            "enum": ["minute", "hour"]
+                          }
+                        },
+                        "required": ["strategy", "batchPercentage", "interval"]
+                      }
+                    ]
                   }
                 }
               }
