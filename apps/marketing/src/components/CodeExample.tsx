@@ -1,7 +1,7 @@
 import { Button } from "@usesend/ui/src/button";
 import { CodeBlock } from "@usesend/ui/src/code-block";
 import { CodeBlockWithCopy } from "@usesend/ui/src/code-block-with-copy";
-import { LangToggle } from "./CodeLangToggle";
+import { CodeExampleClient } from "./CodeExampleClient";
 
 const TS_CODE = `import { UseSend } from "usesend-js";
 
@@ -82,8 +82,7 @@ if ($response === false) {
 }
 curl_close($ch);`;
 
-export function CodeExample() {
-  const containerId = "code-example";
+export async function CodeExample() {
   const languages = [
     {
       key: "ts",
@@ -115,6 +114,19 @@ export function CodeExample() {
     },
   ];
 
+  const panels = Object.fromEntries(
+    await Promise.all(
+      languages.map(async (l) => [
+        l.key,
+        <CodeBlockWithCopy key={l.key} code={l.code}>
+          <CodeBlock lang={l.shiki as any} className="p-4 rounded-[10px]">
+            {l.code}
+          </CodeBlock>
+        </CodeBlockWithCopy>,
+      ])
+    )
+  );
+
   return (
     <section className="py-16 sm:py-20">
       <div className="mx-auto max-w-6xl px-6">
@@ -128,44 +140,15 @@ export function CodeExample() {
           </p>
         </div>
 
-        <div className="mt-8 overflow-hidden" id={containerId}>
-          <div className="flex items-center gap-2 justify-center py-2 text-xs text-muted-foreground mb-4">
-            <LangToggle
-              containerId={containerId}
-              defaultLang="ts"
-              languages={languages.map(({ key, label, kind }) => ({
-                key,
-                label,
-                kind,
-              }))}
-            />
-          </div>
-          <div className="rounded-[18px] bg-primary/20 p-1">
-            <div className="rounded-[14px] bg-primary/20 p-0.5 shadow-sm">
-              <div className="bg-background rounded-xl overflow-hidden">
-                {languages.map((l, idx) => (
-                  <div
-                    key={l.key}
-                    data-lang-slot={l.key}
-                    className={idx === 0 ? "block" : "hidden"}
-                  >
-                    {/* Cast to any to align with shiki BundledLanguage without importing types here */}
-                    <CodeBlockWithCopy code={l.code}>
-                      <CodeBlock
-                        lang={l.shiki as any}
-                        className="p-4 rounded-[10px]"
-                      >
-                        {l.code}
-                      </CodeBlock>
-                    </CodeBlockWithCopy>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="sr-only" aria-live="polite">
-            Language example toggled
-          </div>
+        <div className="mt-8 overflow-hidden">
+          <CodeExampleClient
+            languages={languages.map(({ key, label, kind }) => ({
+              key,
+              label,
+              kind,
+            }))}
+            panels={panels}
+          />
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@usesend/ui/src/button";
 
@@ -11,35 +11,14 @@ type LangItem = {
 };
 
 export function LangToggle({
-  containerId,
   languages,
-  defaultLang,
+  active,
+  onActiveChange,
 }: {
-  containerId: string;
   languages: LangItem[];
-  defaultLang: string;
+  active: string;
+  onActiveChange: (key: string) => void;
 }) {
-  const [active, setActive] = useState(defaultLang);
-
-  useEffect(() => {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const slots = Array.from(
-      container.querySelectorAll<HTMLElement>("[data-lang-slot]")
-    );
-    for (const el of slots) {
-      const key = el.getAttribute("data-lang-slot");
-      if (key === active) {
-        el.classList.remove("hidden");
-        el.classList.add("block");
-      } else {
-        el.classList.add("hidden");
-        el.classList.remove("block");
-      }
-    }
-  }, [active, containerId]);
-
   return (
     <div className="flex items-center gap-2 justify-center">
       {languages.map((l) => (
@@ -54,7 +33,7 @@ export function LangToggle({
               : "border-input")
           }
           aria-pressed={active === l.key}
-          onClick={() => setActive(l.key)}
+          onClick={() => onActiveChange(l.key)}
         >
           <span className="inline-flex items-center">
             <LangIcon kind={l.kind} className="h-4 w-4 mr-1" /> {l.label}
