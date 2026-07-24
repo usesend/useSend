@@ -3,6 +3,7 @@ import { Readable } from "stream";
 import dotenv from "dotenv";
 import { simpleParser } from "mailparser";
 import { readFileSync, watch, FSWatcher } from "fs";
+import { extractForwardedHeaders } from "./email-headers";
 
 dotenv.config();
 
@@ -88,6 +89,8 @@ const serverOptions: SMTPServerOptions = {
         return callback(new Error("No API key found in session"));
       }
 
+      const forwardedHeaders = extractForwardedHeaders(parsed.headerLines);
+
       const emailObject = {
         to: Array.isArray(parsed.to)
           ? parsed.to.map((addr) => addr.text).join(", ")
@@ -99,6 +102,13 @@ const serverOptions: SMTPServerOptions = {
         text: parsed.text,
         html: parsed.html,
         replyTo: parsed.replyTo?.text,
+        cc: Array.isArray(parsed.cc)
+          ? parsed.cc.map((addr) => addr.text).join(", ")
+          : parsed.cc?.text,
+        bcc: Array.isArray(parsed.bcc)
+          ? parsed.bcc.map((addr) => addr.text).join(", ")
+          : parsed.bcc?.text,
+        headers: forwardedHeaders,
         attachments:
           parsed.attachments.length > 0
             ? parsed.attachments.map((attachment, index) => ({
