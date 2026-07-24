@@ -16,6 +16,39 @@ const SSL_KEY_PATH =
 const SSL_CERT_PATH =
   process.env.USESEND_API_CERT_PATH ?? process.env.UNSEND_API_CERT_PATH;
 
+// Forwarded headers that mailparser's normalized Map can't be trusted for.
+// Read from headerLines (raw) instead.
+const FORWARDED_HEADERS = ["list-unsubscribe", "list-unsubscribe-post"];
+
+function canonicalHeaderName(name: string): string {
+  return name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("-");
+}
+
+function extractForwardedHeaders(
+  headerLines: readonly { key: string; line: string }[] | undefined,
+): Record<string, string> | undefined {
+  const result: Record<string, string> = {};
+
+  for (const { key, line } of headerLines || []) {
+    if (!FORWARDED_HEADERS.includes(key)) {
+      continue;
+    }
+    const colonIndex = line.indexOf(":");
+    if (colonIndex === -1) {
+      continue;
+    }
+    const value = line.slice(colonIndex + 1).trim();
+    if (value.length > 0) {
+      result[canonicalHeaderName(key)] = value;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 async function sendEmailToUseSend(emailData: any, apiKey: string) {
   try {
     const apiEndpoint = "/api/v1/emails";
@@ -88,6 +121,8 @@ const serverOptions: SMTPServerOptions = {
         return callback(new Error("No API key found in session"));
       }
 
+      const forwardedHeaders = extractForwardedHeaders(parsed.headerLines);
+
       const emailObject = {
         to: Array.isArray(parsed.to)
           ? parsed.to.map((addr) => addr.text).join(", ")
@@ -99,6 +134,7 @@ const serverOptions: SMTPServerOptions = {
         text: parsed.text,
         html: parsed.html,
         replyTo: parsed.replyTo?.text,
+        headers: forwardedHeaders,
         attachments:
           parsed.attachments.length > 0
             ? parsed.attachments.map((attachment, index) => ({
