@@ -417,6 +417,23 @@ class ContactDeleteResponse(TypedDict):
 # Campaigns
 # ---------------------------------------------------------------------------
 
+CampaignDeliveryMode = Literal["ALL_AT_ONCE", "GRADUAL"]
+CampaignDeliveryInterval = Literal["minute", "hour"]
+
+
+class CampaignDeliveryAllAtOnce(TypedDict):
+    strategy: Literal["all_at_once"]
+
+
+class CampaignDeliveryGradual(TypedDict):
+    strategy: Literal["gradual"]
+    batchPercentage: int
+    interval: CampaignDeliveryInterval
+
+
+CampaignDelivery = Union[CampaignDeliveryAllAtOnce, CampaignDeliveryGradual]
+
+
 Campaign = TypedDict(
     "Campaign",
     {
@@ -432,6 +449,13 @@ Campaign = TypedDict(
         "scheduledAt": Optional[str],
         "batchSize": int,
         "batchWindowMinutes": int,
+        "deliveryMode": CampaignDeliveryMode,
+        "deliveryBatchPercentage": Optional[int],
+        "deliveryIntervalMinutes": Optional[int],
+        "deliveryBatchSize": Optional[int],
+        "currentDeliveryBatch": int,
+        "deliveryBatchProcessed": int,
+        "nextDeliveryAt": Optional[str],
         "total": int,
         "sent": int,
         "delivered": int,
@@ -466,6 +490,7 @@ CampaignCreate = TypedDict(
         "sendNow": NotRequired[bool],
         "scheduledAt": NotRequired[str],
         "batchSize": NotRequired[int],
+        "delivery": NotRequired[CampaignDelivery],
     },
 )
 
@@ -485,6 +510,13 @@ CampaignCreateResponse = TypedDict(
         "scheduledAt": Optional[str],
         "batchSize": int,
         "batchWindowMinutes": int,
+        "deliveryMode": CampaignDeliveryMode,
+        "deliveryBatchPercentage": Optional[int],
+        "deliveryIntervalMinutes": Optional[int],
+        "deliveryBatchSize": Optional[int],
+        "currentDeliveryBatch": int,
+        "deliveryBatchProcessed": int,
+        "nextDeliveryAt": Optional[str],
         "total": int,
         "sent": int,
         "delivered": int,
@@ -507,6 +539,7 @@ class CampaignSchedule(TypedDict, total=False):
     scheduledAt: Optional[str]
     batchSize: Optional[int]
     sendNow: Optional[bool]
+    delivery: CampaignDelivery
 
 
 class CampaignScheduleResponse(TypedDict, total=False):

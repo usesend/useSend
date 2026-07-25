@@ -25,9 +25,12 @@ export const TogglePauseCampaign: React.FC<{
           onSuccess: () => {
             utils.campaign.getCampaigns.invalidate();
             utils.campaign.getCampaign.invalidate();
+            utils.campaign.getDeliveryProgress.invalidate({
+              campaignId: campaign.id,
+            });
             toast.success("Campaign resumed");
           },
-        }
+        },
       );
     } else {
       pauseMutation.mutate(
@@ -36,9 +39,12 @@ export const TogglePauseCampaign: React.FC<{
           onSuccess: () => {
             utils.campaign.getCampaigns.invalidate();
             utils.campaign.getCampaign.invalidate();
+            utils.campaign.getDeliveryProgress.invalidate({
+              campaignId: campaign.id,
+            });
             toast.success("Campaign paused");
           },
-        }
+        },
       );
     }
   };

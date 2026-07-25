@@ -9,7 +9,6 @@ import {
   campaignProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import { logger } from "~/server/logger/log";
 import { nanoid } from "~/server/nanoid";
 import * as campaignService from "~/server/service/campaign-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
@@ -19,6 +18,14 @@ import {
 } from "~/server/service/storage-service";
 
 const statuses = Object.values(CampaignStatus) as [CampaignStatus];
+const campaignDeliverySchema = z.discriminatedUnion("strategy", [
+  z.object({ strategy: z.literal("ALL_AT_ONCE") }),
+  z.object({
+    strategy: z.literal("GRADUAL"),
+    batchPercentage: z.number().int().min(1).max(50),
+    interval: z.enum(["minute", "hour"]),
+  }),
+]);
 
 export const campaignRouter = createTRPCRouter({
   getCampaigns: teamProcedure
@@ -171,9 +178,11 @@ export const campaignRouter = createTRPCRouter({
       return campaign;
     }),
 
-  deleteCampaign: campaignProcedure.mutation(async ({ ctx: { team }, input }) => {
-    return await campaignService.deleteCampaign(input.campaignId, team.id);
-  }),
+  deleteCampaign: campaignProcedure.mutation(
+    async ({ ctx: { team }, input }) => {
+      return await campaignService.deleteCampaign(input.campaignId, team.id);
+    },
+  ),
 
   getCampaign: campaignProcedure.query(async ({ ctx: { db, team }, input }) => {
     const campaign = await db.campaign.findUnique({
@@ -201,6 +210,68 @@ export const campaignRouter = createTRPCRouter({
       imageUploadSupported,
     };
   }),
+
+  getAudienceCount: campaignProcedure.query(
+    async ({ ctx: { db, campaign } }) => {
+      if (!campaign.contactBookId) {
+        return { total: 0 };
+      }
+
+      const total = await db.contact.count({
+        where: {
+          contactBookId: campaign.contactBookId,
+          subscribed: true,
+        },
+      });
+
+      return { total };
+    },
+  ),
+
+  getDeliveryProgress: campaignProcedure.query(
+    async ({ ctx: { db, campaign } }) => {
+      const [recipientStatuses, emailStatuses] = await Promise.all([
+        db.campaignEmail.groupBy({
+          by: ["status"],
+          where: { campaignId: campaign.id },
+          _count: { _all: true },
+        }),
+        db.email.groupBy({
+          by: ["latestStatus"],
+          where: {
+            campaignId: campaign.id,
+            latestStatus: { in: ["SCHEDULED", "QUEUED", "FAILED"] },
+          },
+          _count: { _all: true },
+        }),
+      ]);
+
+      const recipientCount = new Map(
+        recipientStatuses.map((row) => [row.status, row._count._all]),
+      );
+      const emailCount = new Map(
+        emailStatuses.map((row) => [row.latestStatus, row._count._all]),
+      );
+      const processingRecipients = recipientCount.get("PROCESSING") ?? 0;
+      const awaitingRecipients =
+        (recipientCount.get("PENDING") ?? 0) + processingRecipients;
+
+      return {
+        pending: awaitingRecipients,
+        processing: processingRecipients,
+        processed:
+          recipientStatuses.reduce((total, row) => total + row._count._all, 0) -
+          awaitingRecipients,
+        queued:
+          (emailCount.get("QUEUED") ?? 0) + (emailCount.get("SCHEDULED") ?? 0),
+        sent: campaign.sent,
+        failed: emailCount.get("FAILED") ?? 0,
+        suppressed:
+          (recipientCount.get("SUPPRESSED") ?? 0) +
+          (recipientCount.get("SKIPPED") ?? 0),
+      };
+    },
+  ),
 
   latestEmails: campaignProcedure.query(
     async ({ ctx: { db, team, campaign } }) => {
@@ -266,6 +337,7 @@ export const campaignRouter = createTRPCRouter({
         campaignId: z.string(),
         scheduledAt: z.union([z.string().datetime(), z.date()]).optional(),
         batchSize: z.number().min(1).max(100_000).optional(),
+        delivery: campaignDeliverySchema.optional(),
       }),
     )
     .mutation(async ({ ctx: { team }, input }) => {
@@ -274,6 +346,7 @@ export const campaignRouter = createTRPCRouter({
         teamId: team.id,
         scheduledAt: input.scheduledAt,
         batchSize: input.batchSize,
+        delivery: input.delivery,
       });
       return { ok: true };
     }),

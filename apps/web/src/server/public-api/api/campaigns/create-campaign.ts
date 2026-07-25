@@ -1,4 +1,4 @@
-import { createRoute, z } from "@hono/zod-openapi";
+import { createRoute } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import {
   campaignCreateSchema,
@@ -11,6 +11,7 @@ import {
   getCampaignForTeam,
   scheduleCampaign,
 } from "~/server/service/campaign-service";
+import { toServiceDelivery } from "./campaign-delivery";
 const route = createRoute({
   method: "post",
   path: "/v1/campaigns",
@@ -55,6 +56,7 @@ function createCampaign(app: PublicAPIApp) {
       cc: body.cc,
       bcc: body.bcc,
       batchSize: body.batchSize,
+      delivery: toServiceDelivery(body.delivery),
     });
 
     if (body.sendNow || body.scheduledAt) {
@@ -67,6 +69,7 @@ function createCampaign(app: PublicAPIApp) {
         teamId: team.id,
         scheduledAt: scheduledAtInput,
         batchSize: body.batchSize,
+        delivery: toServiceDelivery(body.delivery),
       });
     }
 

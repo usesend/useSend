@@ -267,16 +267,20 @@ model Email {
   emailEvents  EmailEvent[]
 
   @@index([campaignId, contactId])
+  @@index([campaignId, latestStatus])
   @@index([createdAt(sort: Desc)])
 }
 
 model CampaignEmail {
-  campaignId String
-  contactId  String
-  emailId    String
-  createdAt  DateTime @default(now())
+  campaignId  String
+  contactId   String
+  emailId     String?
+  status      CampaignRecipientStatus @default(PENDING)
+  processedAt DateTime?
+  createdAt   DateTime                @default(now())
 
   @@id([campaignId, contactId])
+  @@index([campaignId, status, contactId])
 }
 
 model EmailEvent {
@@ -349,43 +353,68 @@ enum CampaignStatus {
   SENT
 }
 
+enum CampaignDeliveryMode {
+  ALL_AT_ONCE
+  GRADUAL
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  PROCESSING
+  QUEUED
+  SUPPRESSED
+  SKIPPED
+  FAILED
+}
+
 model Campaign {
-  id                 String         @id @default(cuid())
-  name               String
-  teamId             Int
-  from               String
-  cc                 String[]
-  bcc                String[]
-  replyTo            String[]
-  domainId           Int
-  subject            String
-  previewText        String?
-  html               String?
-  content            String?
-  contactBookId      String?
-  scheduledAt        DateTime?
-  total              Int            @default(0)
-  sent               Int            @default(0)
-  delivered          Int            @default(0)
-  opened             Int            @default(0)
-  clicked            Int            @default(0)
-  unsubscribed       Int            @default(0)
-  bounced            Int            @default(0)
-  hardBounced        Int            @default(0)
-  complained         Int            @default(0)
-  isApi              Boolean        @default(false)
-  status             CampaignStatus @default(DRAFT)
-  batchSize          Int            @default(500)
-  batchWindowMinutes Int            @default(0)
-  lastCursor         String?
-  lastSentAt         DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                      String               @id @default(cuid())
+  name                    String
+  teamId                  Int
+  from                    String
+  cc                      String[]
+  bcc                     String[]
+  replyTo                 String[]
+  domainId                Int
+  subject                 String
+  previewText             String?
+  html                    String?
+  content                 String?
+  contactBookId           String?
+  scheduledAt             DateTime?
+  total                   Int                  @default(0)
+  sent                    Int                  @default(0)
+  delivered               Int                  @default(0)
+  opened                  Int                  @default(0)
+  clicked                 Int                  @default(0)
+  unsubscribed            Int                  @default(0)
+  bounced                 Int                  @default(0)
+  hardBounced             Int                  @default(0)
+  complained              Int                  @default(0)
+  isApi                   Boolean              @default(false)
+  status                  CampaignStatus       @default(DRAFT)
+  batchSize               Int                  @default(500)
+  batchWindowMinutes      Int                  @default(0)
+  lastCursor              String?
+  lastSentAt              DateTime?
+  deliveryMode            CampaignDeliveryMode @default(ALL_AT_ONCE)
+  deliveryBatchPercentage Int?
+  deliveryIntervalMinutes Int?
+  deliveryBatchSize       Int?
+  currentDeliveryBatch    Int                  @default(0)
+  deliveryBatchProcessed  Int                  @default(0)
+  nextDeliveryAt          DateTime?
+  audienceCapturedAt      DateTime?
+  audiencePreparedAt      DateTime?
+  pausedAt                DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([createdAt(sort: Desc)])
   @@index([status, scheduledAt])
+  @@index([status, nextDeliveryAt])
 }
 
 model Template {

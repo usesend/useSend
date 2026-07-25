@@ -1605,6 +1605,16 @@ export interface paths {
                         /** @description Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30') */
                         scheduledAt?: string;
                         batchSize?: number;
+                        delivery?: {
+                            /** @enum {string} */
+                            strategy: "all_at_once";
+                        } | {
+                            /** @enum {string} */
+                            strategy: "gradual";
+                            batchPercentage: number;
+                            /** @enum {string} */
+                            interval: "minute" | "hour";
+                        };
                     };
                 };
             };
@@ -1629,6 +1639,15 @@ export interface paths {
                             scheduledAt: string | null;
                             batchSize: number;
                             batchWindowMinutes: number;
+                            /** @enum {string} */
+                            deliveryMode: "ALL_AT_ONCE" | "GRADUAL";
+                            deliveryBatchPercentage: number | null;
+                            deliveryIntervalMinutes: number | null;
+                            deliveryBatchSize: number | null;
+                            currentDeliveryBatch: number;
+                            deliveryBatchProcessed: number;
+                            /** Format: date-time */
+                            nextDeliveryAt: string | null;
                             total: number;
                             sent: number;
                             delivered: number;
@@ -1694,6 +1713,15 @@ export interface paths {
                             scheduledAt: string | null;
                             batchSize: number;
                             batchWindowMinutes: number;
+                            /** @enum {string} */
+                            deliveryMode: "ALL_AT_ONCE" | "GRADUAL";
+                            deliveryBatchPercentage: number | null;
+                            deliveryIntervalMinutes: number | null;
+                            deliveryBatchSize: number | null;
+                            currentDeliveryBatch: number;
+                            deliveryBatchProcessed: number;
+                            /** Format: date-time */
+                            nextDeliveryAt: string | null;
                             total: number;
                             sent: number;
                             delivered: number;
@@ -1748,6 +1776,15 @@ export interface paths {
                             scheduledAt: string | null;
                             batchSize: number;
                             batchWindowMinutes: number;
+                            /** @enum {string} */
+                            deliveryMode: "ALL_AT_ONCE" | "GRADUAL";
+                            deliveryBatchPercentage: number | null;
+                            deliveryIntervalMinutes: number | null;
+                            deliveryBatchSize: number | null;
+                            currentDeliveryBatch: number;
+                            deliveryBatchProcessed: number;
+                            /** Format: date-time */
+                            nextDeliveryAt: string | null;
                             total: number;
                             sent: number;
                             delivered: number;
@@ -1798,6 +1835,16 @@ export interface paths {
                         /** @description Timestamp in ISO 8601 format or natural language (e.g., 'tomorrow 9am', 'next monday 10:30') */
                         scheduledAt?: string;
                         batchSize?: number;
+                        delivery?: {
+                            /** @enum {string} */
+                            strategy: "all_at_once";
+                        } | {
+                            /** @enum {string} */
+                            strategy: "gradual";
+                            batchPercentage: number;
+                            /** @enum {string} */
+                            interval: "minute" | "hour";
+                        };
                     };
                 };
             };
