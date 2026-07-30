@@ -1,0 +1,144 @@
+name: usesend
+
+services:
+  usesend:
+    image: usesend/usesend:latest
+    container_name: usesend
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-3000}:3000"
+
+    environment:
+      #########################################
+      # Application
+      #########################################
+      PORT: 3000
+      NEXT_PUBLIC_IS_CLOUD: "false"
+
+      #########################################
+      # Authentication
+      #########################################
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # Email (magic link / OTP) dashboard login — enabled when FROM_EMAIL is set.
+      # The address domain must match a verified sending domain configured in-app
+      # (self-hosted delivers the OTP via the app's own SES pipeline).
+      FROM_EMAIL: ${FROM_EMAIL}
+
+      #########################################
+      # Mailer Provider (platform notifications)
+      #########################################
+      # Outbound transport for magic-link / invite / billing emails: ses | smtp | usesend.
+      # Unset = backward-compatible default (self-hosted -> SES via app domain; cloud -> useSend API).
+      MAILER_PROVIDER: ${MAILER_PROVIDER}
+      # Required only when MAILER_PROVIDER=smtp. Uses the MAILER_SMTP_ prefix
+      # (NOT SMTP_HOST/SMTP_USER, which are the inbound tenant proxy).
+      MAILER_SMTP_HOST: ${MAILER_SMTP_HOST}
+      MAILER_SMTP_PORT: ${MAILER_SMTP_PORT}
+      MAILER_SMTP_USER: ${MAILER_SMTP_USER}
+      MAILER_SMTP_PASS: ${MAILER_SMTP_PASS}
+      # "true" forces TLS; if unset, derived from port (465 = secure).
+      MAILER_SMTP_SECURE: ${MAILER_SMTP_SECURE}
+
+      #########################################
+      # Database (Neon)
+      #########################################
+      DATABASE_URL: ${DATABASE_URL}
+
+      #########################################
+      # Redis (Upstash)
+      #########################################
+      REDIS_URL: ${REDIS_URL}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX}
+
+      #########################################
+      # Amazon SES
+      #########################################
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      #########################################
+      # S3 Compatible Storage (Cloudflare R2)
+      #########################################
+      S3_COMPATIBLE_API_URL: ${S3_COMPATIBLE_API_URL}
+      S3_COMPATIBLE_ACCESS_KEY: ${S3_COMPATIBLE_ACCESS_KEY}
+      S3_COMPATIBLE_SECRET_KEY: ${S3_COMPATIBLE_SECRET_KEY}
+      S3_COMPATIBLE_BUCKET: ${S3_COMPATIBLE_BUCKET}
+      S3_COMPATIBLE_PUBLIC_URL: ${S3_COMPATIBLE_PUBLIC_URL}
+
+      #########################################
+      # OAuth Providers (at least one provider is required)
+      #########################################
+      GITHUB_ID: ${GITHUB_ID}
+      GITHUB_SECRET: ${GITHUB_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+
+      #########################################
+      # SMTP Proxy
+      #########################################
+      SMTP_HOST: smtp
+      SMTP_USER: ${SMTP_USER}
+
+      #########################################
+      # API & Rate Limits
+      #########################################
+      API_RATE_LIMIT: ${API_RATE_LIMIT}
+      # Max magic-link/OTP requests per IP per 60s (0 = unlimited). Recommended when email login is on.
+      AUTH_EMAIL_RATE_LIMIT: ${AUTH_EMAIL_RATE_LIMIT}
+
+      #########################################
+      # Admin, Notifications & Maintenance
+      #########################################
+      # Email of the dashboard admin (isAdmin = user.email === ADMIN_EMAIL).
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      # Founder email for waitlist/feedback/subscription notifications (optional).
+      FOUNDER_EMAIL: ${FOUNDER_EMAIL}
+      # Discord webhook for error notifications (optional).
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      # Self-hosted only: daily job nulls text/html of emails older than N days (disabled if unset/0).
+      EMAIL_CLEANUP_DAYS: ${EMAIL_CLEANUP_DAYS}
+
+      #########################################
+      # Timezone
+      #########################################
+      TZ: ${TZ}
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+    depends_on:
+      - smtp
+
+    networks:
+      - usesend
+
+  smtp:
+    image: usesend/smtp-proxy:latest
+    container_name: usesend-smtp
+    restart: unless-stopped
+
+    environment:
+      SMTP_AUTH_USERNAME: ${SMTP_USER}
+      USESEND_BASE_URL: http://usesend:3000
+      USESEND_API_KEY_PATH: "/certs/key.pem"
+      USESEND_API_CERT_PATH: "/certs/cert.pem"
+
+    volumes:
+      - /etc/letsencrypt/live/pintesia.com/key.pem:/certs/key.pem:ro
+      - /etc/letsencrypt/live/pintesia.com/cert.pem:/certs/cert.pem:ro
+    ports:
+      - "465:465"
+      - "587:587"
+
+    networks:
+      - usesend
+
+networks:
+  usesend:
+    driver: bridge
