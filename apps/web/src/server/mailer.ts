@@ -1,20 +1,7 @@
 import { env } from "~/env";
-import { UseSend } from "usesend-js";
-import { isSelfHosted } from "~/utils/common";
-import { db } from "./db";
-import { getDomains } from "./service/domain-service";
-import { sendEmail } from "./service/email-service";
 import { logger } from "./logger/log";
 import { renderOtpEmail, renderTeamInviteEmail } from "./email-templates";
-
-let usesend: UseSend | undefined;
-
-const getClient = () => {
-  if (!usesend) {
-    usesend = new UseSend(env.USESEND_API_KEY ?? env.UNSEND_API_KEY);
-  }
-  return usesend;
-};
+import { getMailerTransport } from "./mailer/providers/resolve";
 
 export async function sendSignUpEmail(
   email: string,
@@ -90,69 +77,12 @@ export async function sendMail(
   replyTo?: string,
   fromOverride?: string
 ) {
-  if (isSelfHosted()) {
-    logger.info("Sending email using self hosted");
-    /* 
-      Self hosted so checking if we can send using one of the available domain
-      Assuming self hosted will have only one team
-      TODO: fix this
-     */
-    const team = await db.team.findFirst({});
-    if (!team) {
-      logger.error("No team found");
-      return;
-    }
-
-    const domains = await getDomains(team.id);
-
-    if (domains.length === 0 || !domains[0]) {
-      logger.error("No domains found");
-      return;
-    }
-
-    const availableDomains = domains.map((d) => d.name);
-    const domain = domains[0];
-
-    const candidateFroms = [fromOverride, env.FROM_EMAIL, `hello@${domain.name}`].filter(
-      (value): value is string => Boolean(value)
-    );
-
-    const selectedFrom =
-      candidateFroms.find((address) => {
-        const domainPart = address.split("@")[1];
-        return domainPart ? availableDomains.includes(domainPart) : false;
-      }) ?? `hello@${domain.name}`;
-
-    await sendEmail({
-      teamId: team.id,
-      to: email,
-      from: selectedFrom,
-      subject,
-      text,
-      html,
-      replyTo,
-    });
-  } else if (env.UNSEND_API_KEY && (env.FROM_EMAIL || fromOverride)) {
-    const fromAddress = fromOverride ?? env.FROM_EMAIL!;
-    const resp = await getClient().emails.send({
-      to: email,
-      from: fromAddress,
-      subject,
-      text,
-      html,
-      replyTo,
-    });
-
-    if (resp.data) {
-      logger.info("Email sent using usesend");
-      return;
-    } else {
-      logger.error(
-        { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend"
-      );
-    }
-  } else {
-    throw new Error("USESEND_API_KEY/UNSEND_API_KEY not found");
-  }
+  await getMailerTransport().send({
+    to: email,
+    subject,
+    text,
+    html,
+    replyTo,
+    fromOverride,
+  });
 }
