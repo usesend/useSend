@@ -107,11 +107,11 @@ Railway provides the quickest way to spin up useSend. Read the [Railway self-hos
 
 ## Star History
 
-<a href="https://star-history.com/#usesend/usesend&Date">
+<a href="https://star-history.dera.page/#usesend/usesend&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=usesend/usesend&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=usesend/usesend&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=usesend/usesend&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=usesend/usesend&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=usesend/usesend&type=Date" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=usesend/usesend&type=Date" />
  </picture>
 </a>
 
