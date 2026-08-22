@@ -1,4 +1,5 @@
 import { db } from "~/server/db";
+import { logger } from "~/server/logger/log";
 import { SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
 import {
@@ -69,10 +70,32 @@ async function handleSubscription(message: SnsNotificationMessage) {
     );
   }
 
-  await fetch(message.SubscribeURL, {
-    method: "GET",
-    redirect: "error",
-  });
+  try {
+    const response = await fetch(message.SubscribeURL, {
+      method: "GET",
+      redirect: "error",
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status, topicArn: message.TopicArn },
+        "SNS subscription confirmation failed",
+      );
+      return Response.json(
+        { data: "Subscription confirmation failed" },
+        { status: 502 },
+      );
+    }
+  } catch (error) {
+    logger.warn(
+      { err: error, topicArn: message.TopicArn },
+      "SNS subscription confirmation request failed",
+    );
+    return Response.json(
+      { data: "Subscription confirmation failed" },
+      { status: 502 },
+    );
+  }
 
   const topicArn = message.TopicArn as string;
   const setting = await db.sesSetting.findFirst({

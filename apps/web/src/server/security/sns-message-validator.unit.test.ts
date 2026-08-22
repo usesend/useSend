@@ -131,6 +131,24 @@ describe("verifySnsMessageSignature", () => {
     ).resolves.toBe(false);
     expect(fetchCertificate).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-test.pem?x=1",
+    "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-test.pem#fragment",
+    "https://sns.eu-west-1.amazonaws.com:8443/SimpleNotificationService-test.pem",
+    "https://user:pass@sns.eu-west-1.amazonaws.com/SimpleNotificationService-test.pem",
+    "https://sns.eu-west-1.amazonaws.com/not-an-sns-certificate.pem",
+  ])("rejects an unsafe certificate URL: %s", async (SigningCertURL) => {
+    const fetchCertificate = vi.fn().mockResolvedValue(publicKeyPem);
+
+    await expect(
+      verifySnsMessageSignature(
+        signedMessage({ SigningCertURL }),
+        fetchCertificate,
+      ),
+    ).resolves.toBe(false);
+    expect(fetchCertificate).not.toHaveBeenCalled();
+  });
 });
 
 describe("isTrustedSnsSubscriptionUrl", () => {
