@@ -197,7 +197,10 @@ describe("SES callback", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       message.SubscribeURL,
-      expect.objectContaining({ redirect: "error" }),
+      expect.objectContaining({
+        redirect: "error",
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(mocks.updateSetting).toHaveBeenCalledWith({
       where: { id: "setting_1" },

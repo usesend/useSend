@@ -74,6 +74,7 @@ async function handleSubscription(message: SnsNotificationMessage) {
     const response = await fetch(message.SubscribeURL, {
       method: "GET",
       redirect: "error",
+      signal: AbortSignal.timeout(5_000),
     });
 
     if (!response.ok) {
