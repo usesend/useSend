@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "crypto";
 import { UnsubscribeReason } from "@prisma/client";
 
-const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
+const { mockDb, mockTx, mockQueueAdd, mockContactUpdate } = vi.hoisted(() => {
   const mockTx = {
     campaignEmail: {
       findUnique: vi.fn(),
@@ -28,10 +28,12 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
         findUnique: vi.fn(),
       },
       campaign: {
+        findUnique: vi.fn(),
         update: vi.fn(),
       },
     },
-    mockUpdateContactSubscription: vi.fn(),
+    mockQueueAdd: vi.fn(),
+    mockContactUpdate: vi.fn(),
   };
 });
 
@@ -50,12 +52,12 @@ vi.mock("~/env", () => ({
 }));
 
 vi.mock("~/server/service/contact-service", () => ({
-  updateContactSubscription: mockUpdateContactSubscription,
+  updateContactSubscription: mockContactUpdate,
 }));
 
 vi.mock("bullmq", () => ({
   Queue: class {
-    add = vi.fn();
+    add = mockQueueAdd;
   },
   Worker: class {},
 }));
@@ -92,6 +94,7 @@ vi.mock("~/server/logger/log", () => ({
 }));
 
 import {
+  CampaignBatchService,
   recordCampaignContactFailure,
   subscribeContact,
   unsubscribeContact,
@@ -118,6 +121,31 @@ const input = {
   },
   error: new Error("Queue for region ap-southeast-2 not found"),
 };
+
+describe("CampaignBatchService.queueBatch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses a BullMQ-compatible custom job ID", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      lastSentAt: null,
+      batchWindowMinutes: 0,
+      status: "SCHEDULED",
+    });
+
+    await CampaignBatchService.queueBatch({
+      campaignId: "campaign_1",
+      teamId: 7,
+    });
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "campaign-campaign_1",
+      { campaignId: "campaign_1", teamId: 7 },
+      expect.objectContaining({ jobId: "campaign-batch-campaign_1" }),
+    );
+  });
+});
 
 describe("recordCampaignContactFailure", () => {
   beforeEach(() => {
@@ -210,7 +238,7 @@ describe("campaign contact subscription changes", () => {
     };
     const updatedContact = { ...contact, subscribed: false };
     mockDb.contact.findUnique.mockResolvedValue(contact);
-    mockUpdateContactSubscription.mockResolvedValue(updatedContact);
+    mockContactUpdate.mockResolvedValue(updatedContact);
 
     const result = await unsubscribeContact({
       contactId: "contact_1",
@@ -218,7 +246,7 @@ describe("campaign contact subscription changes", () => {
       reason: UnsubscribeReason.UNSUBSCRIBED,
     });
 
-    expect(mockUpdateContactSubscription).toHaveBeenCalledWith({
+    expect(mockContactUpdate).toHaveBeenCalledWith({
       contactId: "contact_1",
       subscribed: false,
       unsubscribeReason: UnsubscribeReason.UNSUBSCRIBED,
@@ -242,7 +270,7 @@ describe("campaign contact subscription changes", () => {
 
     await subscribeContact(id, hash);
 
-    expect(mockUpdateContactSubscription).toHaveBeenCalledWith({
+    expect(mockContactUpdate).toHaveBeenCalledWith({
       contactId: "contact_1",
       subscribed: true,
       unsubscribeReason: null,
