@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { simpleParser } from "mailparser";
 import { readFileSync, watch, FSWatcher } from "fs";
 import { extractForwardedHeaders } from "./email-headers";
+import { resolveRecipients } from "./recipients";
 
 dotenv.config();
 
@@ -90,11 +91,13 @@ const serverOptions: SMTPServerOptions = {
       }
 
       const forwardedHeaders = extractForwardedHeaders(parsed.headerLines);
+      const { to, cc, bcc } = resolveRecipients(
+        parsed,
+        session.envelope.rcptTo.map((recipient) => recipient.address),
+      );
 
       const emailObject = {
-        to: Array.isArray(parsed.to)
-          ? parsed.to.map((addr) => addr.text).join(", ")
-          : parsed.to?.text,
+        to,
         from: Array.isArray(parsed.from)
           ? parsed.from.map((addr) => addr.text).join(", ")
           : parsed.from?.text,
@@ -102,12 +105,8 @@ const serverOptions: SMTPServerOptions = {
         text: parsed.text,
         html: parsed.html,
         replyTo: parsed.replyTo?.text,
-        cc: Array.isArray(parsed.cc)
-          ? parsed.cc.map((addr) => addr.text).join(", ")
-          : parsed.cc?.text,
-        bcc: Array.isArray(parsed.bcc)
-          ? parsed.bcc.map((addr) => addr.text).join(", ")
-          : parsed.bcc?.text,
+        cc,
+        bcc,
         headers: forwardedHeaders,
         attachments:
           parsed.attachments.length > 0
