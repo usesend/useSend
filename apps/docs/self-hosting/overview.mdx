@@ -81,6 +81,16 @@ Add the following environment variables.
 ```
 
   </Step>
+  <Step title="Email content retention (optional)">
+  By default, stored email content stays in the database forever. To bound database growth, set `EMAIL_CLEANUP_DAYS` to a positive number of days. A daily job (midnight UTC) then clears the `text`, `html`, `attachments` and `headers` values for emails older than the cutoff. Delivery status and event history are kept.
+
+```env
+EMAIL_CLEANUP_DAYS=30
+```
+
+Leave it unset to keep email content indefinitely.
+
+  </Step>
 </Steps>
 
 ## Step 2: Setting up the app
