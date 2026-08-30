@@ -8,7 +8,8 @@ export interface SnsNotificationMessage {
   SignatureVersion: string;
   Signature: string;
   SigningCertURL: string;
-  UnsubscribeURL: string;
+  SubscribeURL?: string;
+  Token?: string;
 }
 
 export interface SesMail {
