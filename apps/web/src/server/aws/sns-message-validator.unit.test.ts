@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildSnsStringToSign } from "./sns-message-validator";
+import { buildSnsStringToSign } from "~/server/aws/sns-message-validator";
 import { SnsNotificationMessage } from "~/types/aws-types";
-import { createSign } from "crypto";
 
 describe("buildSnsStringToSign", () => {
   it("uses the SNS canonical field order", () => {
@@ -15,7 +14,7 @@ describe("buildSnsStringToSign", () => {
       SignatureVersion: "1",
       Signature: "fake-signature",
       SigningCertURL: "https://example.com/cert.pem",
-      UnsubscribeURL: "https://example.com/unsubscribe",
+      UnsubscribeURL: "https://example.com/unsubscribe"
     };
 
     const result = buildSnsStringToSign(message);
@@ -43,7 +42,7 @@ describe("buildSnsStringToSign", () => {
       SignatureVersion: "1",
       Signature: "fake-signature",
       SigningCertURL: "https://example.com/cert.pem",
-      UnsubscribeURL: "https://example.com/unsubscribe",
+      UnsubscribeURL: "https://example.com/unsubscribe"
       // Subject is intentionally omitted (undefined)
     };
 
@@ -72,7 +71,7 @@ describe("buildSnsStringToSign", () => {
       SignatureVersion: "1",
       Signature: "fake-signature",
       SigningCertURL: "https://example.com/cert.pem",
-      UnsubscribeURL: "https://example.com/unsubscribe",
+      UnsubscribeURL: "https://example.com/unsubscribe"
     };
 
     const result = buildSnsStringToSign(message);
@@ -99,12 +98,42 @@ describe("buildSnsStringToSign", () => {
       Message: "Test Message",
       Timestamp: "2024-01-01T00:00:00Z",
       SignatureVersion: "1",
-      Signature: "", // Will be set below
+      Signature: "",
       SigningCertURL: "https://example.com/cert.pem",
-      UnsubscribeURL: "https://example.com/unsubscribe",
+      UnsubscribeURL: "https://example.com/unsubscribe"
     };
 
     const result = buildSnsStringToSign(message);
     expect(result).toBe(canonicalString);
+  });
+
+  it("uses different field order for SubscriptionConfirmation messages", () => {
+    const message: SnsNotificationMessage = {
+      Type: "SubscriptionConfirmation",
+      MessageId: "sub-123",
+      TopicArn: "arn:aws:sns:us-east-1:123456789012:test-topic",
+      Message: "You have chosen to subscribe to the topic...",
+      Timestamp: "2024-01-01T00:00:00Z",
+      Token: "token-value",
+      SubscribeURL: "https://sns.amazonaws.com/?Action=ConfirmSubscription&...",
+      SignatureVersion: "1",
+      Signature: "fake-signature",
+      SigningCertURL: "https://example.com/cert.pem"
+    };
+
+    const result = buildSnsStringToSign(message);
+
+    // SubscriptionConfirmation uses different field order:
+    // Message, MessageId, SubscribeURL, Timestamp, Token, TopicArn, Type
+    const expected =
+      "Message\nYou have chosen to subscribe to the topic...\n" +
+      "MessageId\nsub-123\n" +
+      "SubscribeURL\nhttps://sns.amazonaws.com/?Action=ConfirmSubscription&...\n" +
+      "Timestamp\n2024-01-01T00:00:00Z\n" +
+      "Token\ntoken-value\n" +
+      "TopicArn\narn:aws:sns:us-east-1:123456789012:test-topic\n" +
+      "Type\nSubscriptionConfirmation\n";
+
+    expect(result).toBe(expected);
   });
 });
