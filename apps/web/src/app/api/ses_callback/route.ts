@@ -4,6 +4,7 @@ import { logger } from "~/server/logger/log";
 import { parseSesHook, SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
 import { SnsNotificationMessage } from "~/types/aws-types";
+import { verifySnsMessageSignature } from "~/server/aws/sns-message-validator";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
     message = JSON.parse(data.Message || "{}");
     const status = await SesHookParser.queue({
       event: message,
-      messageId: data.MessageId,
+      messageId: data.MessageId
     });
     if (!status) {
       return Response.json({ data: "Error in parsing hook" });
@@ -52,14 +53,14 @@ export async function POST(req: Request) {
  */
 async function handleSubscription(message: any) {
   await fetch(message.SubscribeURL, {
-    method: "GET",
+    method: "GET"
   });
 
   const topicArn = message.TopicArn as string;
   const setting = await db.sesSetting.findFirst({
     where: {
-      topicArn,
-    },
+      topicArn
+    }
   });
 
   if (!setting) {
@@ -68,11 +69,11 @@ async function handleSubscription(message: any) {
 
   await db.sesSetting.update({
     where: {
-      id: setting?.id,
+      id: setting?.id
     },
     data: {
-      callbackSuccess: true,
-    },
+      callbackSuccess: true
+    }
   });
 
   SesSettingsService.invalidateCache();
@@ -81,7 +82,7 @@ async function handleSubscription(message: any) {
 }
 
 /**
- * A simple check to ensure that the event is from the correct topic
+ * A simple check to ensure that the event is from the correct topic and has a valid signature
  */
 async function checkEventValidity(message: SnsNotificationMessage) {
   if (env.NODE_ENV === "development") {
@@ -92,6 +93,16 @@ async function checkEventValidity(message: SnsNotificationMessage) {
   const configuredTopicArn = await SesSettingsService.getTopicArns();
 
   if (!configuredTopicArn.includes(TopicArn)) {
+    return false;
+  }
+
+  // Verify the SNS message signature
+  const isSignatureValid = await verifySnsMessageSignature(message);
+  if (!isSignatureValid) {
+    logger.error({
+      topicArn: TopicArn,
+      msg: "Rejected SNS message with invalid signature"
+    });
     return false;
   }
 
