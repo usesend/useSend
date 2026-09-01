@@ -1,7 +1,7 @@
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { parseSesHook, SesHookParser } from "~/server/service/ses-hook-parser";
+import { SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
 import { SnsNotificationMessage } from "~/types/aws-types";
 import { verifySnsMessageSignature } from "~/server/aws/sns-message-validator";

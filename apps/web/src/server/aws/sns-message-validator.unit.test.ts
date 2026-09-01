@@ -7,7 +7,7 @@ import { SnsNotificationMessage } from "~/types/aws-types";
 // Mock https.get to prevent actual network requests
 vi.mock("https", () => ({
   default: {
-    get: vi.fn((url: string, callback: any) => ({
+    get: vi.fn(() => ({
       on: vi.fn((event: string, handler: any) => {
         if (event === "error") {
           handler(new Error("Certificate fetch failed (mocked)"));
