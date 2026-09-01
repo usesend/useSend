@@ -2,44 +2,56 @@ import { createVerify } from "crypto";
 import https from "https";
 import { SnsNotificationMessage } from "~/types/aws-types";
 
-// AWS SNS certificate URLs must come from approved hosts
-const APPROVED_SNS_CERTIFICATE_HOSTS = [
-  "sns.amazonaws.com",
-  "sns.us-east-1.amazonaws.com",
-  "sns.us-east-2.amazonaws.com",
-  "sns.us-west-1.amazonaws.com",
-  "sns.us-west-2.amazonaws.com",
-  "sns.eu-west-1.amazonaws.com",
-  "sns.eu-west-2.amazonaws.com",
-  "sns.eu-west-3.amazonaws.com",
-  "sns.eu-central-1.amazonaws.com",
-  "sns.eu-north-1.amazonaws.com",
-  "sns.ap-east-1.amazonaws.com",
-  "sns.ap-northeast-1.amazonaws.com",
-  "sns.ap-northeast-2.amazonaws.com",
-  "sns.ap-southeast-1.amazonaws.com",
-  "sns.ap-southeast-2.amazonaws.com",
-  "sns.ap-south-1.amazonaws.com",
-  "sns.ca-central-1.amazonaws.com",
-  "sns.sa-east-1.amazonaws.com"
-];
+/**
+ * Extracts the region from an SNS TopicArn.
+ * TopicArn format: arn:aws:sns:REGION:ACCOUNT-ID:TOPIC-NAME
+ */
+function extractRegionFromTopicArn(topicArn: string): string | null {
+  const parts = topicArn.split(":");
+  if (parts.length >= 4 && parts[0] === "arn" && parts[2] === "sns") {
+    return parts[3];
+  }
+  return null;
+}
 
 /**
- * Validates that the signing certificate URL is from an approved AWS SNS host.
- * Prevents SSRF attacks by restricting certificate fetch to known AWS endpoints.
+ * Validates that the signing certificate URL is from an AWS SNS host in the correct region.
+ * Prevents SSRF attacks by:
+ * 1. Deriving the expected region from TopicArn
+ * 2. Validating the certificate URL hostname matches that region
+ * 3. Enforcing HTTPS protocol
+ * 4. Verifying the path contains expected SNS certificate path pattern
  */
-function isValidSnsSigningCertificateUrl(url: string): boolean {
+function isValidSnsSigningCertificateUrl(
+  url: string,
+  topicArn: string
+): boolean {
   try {
     const urlObj = new URL(url);
-    const isApproved = APPROVED_SNS_CERTIFICATE_HOSTS.some(
-      (host) =>
-        urlObj.hostname === host || urlObj.hostname?.endsWith("." + host)
+
+    // Extract region from TopicArn
+    const region = extractRegionFromTopicArn(topicArn);
+    if (!region) {
+      return false;
+    }
+
+    // Build expected hostname patterns for this region
+    const expectedHostnames = [
+      `sns.${region}.amazonaws.com`,
+      // Some regions might use the regional endpoint
+      `sns.amazonaws.com`
+    ];
+
+    // Check if the certificate URL hostname matches expected patterns
+    const isExpectedHost = expectedHostnames.some(
+      (host) => urlObj.hostname === host
     );
-    // Ensure it's HTTPS and has the expected path format
+
+    // Ensure it's HTTPS and has the expected SNS certificate path format
     return (
       urlObj.protocol === "https:" &&
       (urlObj.pathname.includes("/sns/") || urlObj.pathname.endsWith(".pem")) &&
-      isApproved
+      isExpectedHost
     );
   } catch {
     return false;
@@ -102,13 +114,17 @@ export function buildSnsStringToSign(message: SnsNotificationMessage): string {
 
 /**
  * Fetches the certificate from the SigningCertURL after validation.
- * Validates that the URL is from an approved AWS SNS host before fetching.
+ * Validates that the URL is from an AWS SNS host in the same region as TopicArn before fetching.
  */
-export async function getCertificate(signingCertUrl: string): Promise<string> {
+export async function getCertificate(
+  signingCertUrl: string,
+  topicArn: string
+): Promise<string> {
   // Validate the URL before making any network request
-  if (!isValidSnsSigningCertificateUrl(signingCertUrl)) {
+  if (!isValidSnsSigningCertificateUrl(signingCertUrl, topicArn)) {
+    const region = extractRegionFromTopicArn(topicArn);
     throw new Error(
-      "Invalid SNS signing certificate URL: must be from an approved AWS SNS host"
+      `Invalid SNS signing certificate URL: must be from aws SNS host in region ${region}`
     );
   }
 
@@ -151,7 +167,10 @@ export async function verifySnsMessageSignature(
     const algorithm = getSignatureAlgorithm(message.SignatureVersion);
 
     const stringToSign = buildSnsStringToSign(message);
-    const certificate = await getCertificate(message.SigningCertURL);
+    const certificate = await getCertificate(
+      message.SigningCertURL,
+      message.TopicArn
+    );
 
     const verifier = createVerify(algorithm);
     verifier.update(stringToSign);

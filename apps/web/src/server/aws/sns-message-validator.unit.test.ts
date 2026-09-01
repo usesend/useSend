@@ -1,7 +1,24 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildSnsStringToSign } from "~/server/aws/sns-message-validator";
+import {
+  buildSnsStringToSign,
+  getCertificate
+} from "~/server/aws/sns-message-validator";
 import { SnsNotificationMessage } from "~/types/aws-types";
-
+// Mock https.get to prevent actual network requests
+vi.mock("https", () => ({
+  default: {
+    get: vi.fn((url: string, callback: any) => ({
+      on: vi.fn((event: string, handler: any) => {
+        if (event === "error") {
+          handler(new Error("Certificate fetch failed (mocked)"));
+        }
+        return {
+          on: vi.fn()
+        };
+      })
+    }))
+  }
+}));
 describe("buildSnsStringToSign", () => {
   it("uses the SNS canonical field order", () => {
     const message: SnsNotificationMessage = {
@@ -135,5 +152,84 @@ describe("buildSnsStringToSign", () => {
       "Type\nSubscriptionConfirmation\n";
 
     expect(result).toBe(expected);
+  });
+});
+
+describe("getCertificate URL validation", () => {
+  it("accepts certificates from SNS hosts in the same region as TopicArn", async () => {
+    const topicArn = "arn:aws:sns:us-east-1:123456789012:test-topic";
+    const signingCertUrl =
+      "https://sns.us-east-1.amazonaws.com/SNSCertificate.pem";
+
+    // Should not throw with valid certificate URL
+    try {
+      await getCertificate(signingCertUrl, topicArn);
+    } catch (error: any) {
+      // Certificate fetch will fail, but URL validation should pass
+      expect(error.message).not.toContain(
+        "Invalid SNS signing certificate URL"
+      );
+    }
+  });
+
+  it("accepts certificates from eu-central-2 (new region)", async () => {
+    const topicArn = "arn:aws:sns:eu-central-2:123456789012:test-topic";
+    const signingCertUrl =
+      "https://sns.eu-central-2.amazonaws.com/SNSCertificate.pem";
+
+    // Should not throw with valid certificate URL
+    try {
+      await getCertificate(signingCertUrl, topicArn);
+    } catch (error: any) {
+      // Certificate fetch will fail, but URL validation should pass
+      expect(error.message).not.toContain(
+        "Invalid SNS signing certificate URL"
+      );
+    }
+  });
+
+  it("accepts certificates from ap-southeast-4 (new region)", async () => {
+    const topicArn = "arn:aws:sns:ap-southeast-4:123456789012:test-topic";
+    const signingCertUrl =
+      "https://sns.ap-southeast-4.amazonaws.com/SNSCertificate.pem";
+
+    // Should not throw with valid certificate URL
+    try {
+      await getCertificate(signingCertUrl, topicArn);
+    } catch (error: any) {
+      // Certificate fetch will fail, but URL validation should pass
+      expect(error.message).not.toContain(
+        "Invalid SNS signing certificate URL"
+      );
+    }
+  });
+
+  it("rejects certificates from mismatched regions", async () => {
+    const topicArn = "arn:aws:sns:us-east-1:123456789012:test-topic";
+    const signingCertUrl =
+      "https://sns.eu-west-1.amazonaws.com/SNSCertificate.pem"; // Wrong region
+
+    await expect(getCertificate(signingCertUrl, topicArn)).rejects.toThrow(
+      "Invalid SNS signing certificate URL"
+    );
+  });
+
+  it("rejects non-HTTPS certificate URLs", async () => {
+    const topicArn = "arn:aws:sns:us-east-1:123456789012:test-topic";
+    const signingCertUrl = "http://sns.us-east-1.amazonaws.com/cert.pem"; // HTTP not HTTPS
+
+    await expect(getCertificate(signingCertUrl, topicArn)).rejects.toThrow(
+      "Invalid SNS signing certificate URL"
+    );
+  });
+
+  it("rejects invalid TopicArn format", async () => {
+    const topicArn = "invalid-arn";
+    const signingCertUrl =
+      "https://sns.us-east-1.amazonaws.com/SNSCertificate.pem";
+
+    await expect(getCertificate(signingCertUrl, topicArn)).rejects.toThrow(
+      "Invalid SNS signing certificate URL"
+    );
   });
 });
