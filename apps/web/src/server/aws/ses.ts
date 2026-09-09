@@ -1,8 +1,13 @@
 import {
   SESv2Client,
+  AlreadyExistsException,
   CreateEmailIdentityCommand,
+  type CreateEmailIdentityCommandOutput,
   DeleteEmailIdentityCommand,
+  PutEmailIdentityDkimSigningAttributesCommand,
+  type PutEmailIdentityDkimSigningAttributesCommandOutput,
   GetEmailIdentityCommand,
+  type GetEmailIdentityCommandOutput,
   PutEmailIdentityMailFromAttributesCommand,
   SendEmailCommand,
   CreateConfigurationSetEventDestinationCommand,
@@ -15,6 +20,8 @@ import {
 } from "@aws-sdk/client-sesv2";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { generateKeyPairSync } from "crypto";
+import dns from "dns";
+import util from "util";
 import nodemailer from "nodemailer";
 import { env } from "~/env";
 import { getAwsCredentialOptions } from "~/server/aws/credentials";
@@ -78,38 +85,59 @@ function generateKeyPair() {
   return { privateKey: base64PrivateKey, publicKey: base64PublicKey };
 }
 
-export async function addDomain(
+const dnsResolveTxt = util.promisify(dns.resolveTxt);
+
+/**
+ * Reads the DKIM public key a domain already publishes. DKIM public keys live in
+ * DNS by definition, so an identity that was set up elsewhere can be adopted
+ * without rotating its keypair.
+ */
+async function getPublishedDkimPublicKey(domain: string, selector: string) {
+  try {
+    const records = await dnsResolveTxt(`${selector}._domainkey.${domain}`);
+
+    for (const record of records) {
+      // Long TXT records are split into 255 byte chunks.
+      const value = record.join("");
+      const publicKey = value
+        .split(";")
+        .map((tag) => tag.trim())
+        .find((tag) => tag.startsWith("p="))
+        ?.slice(2)
+        .trim();
+
+      if (publicKey) {
+        return publicKey;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    logger.warn(
+      { err: error, domain, selector },
+      "Couldn't read the published DKIM record"
+    );
+    return null;
+  }
+}
+
+async function associateTenant(
+  sesClient: SESv2Client,
   domain: string,
   region: string,
-  sesTenantId?: string,
-  dkimSelector: string = "usesend"
+  sesTenantId?: string
 ) {
-  const sesClient = getSesClient(region);
+  if (!sesTenantId) {
+    return;
+  }
 
-  const { privateKey, publicKey } = generateKeyPair();
-  const command = new CreateEmailIdentityCommand({
-    EmailIdentity: domain,
-    DkimSigningAttributes: {
-      DomainSigningSelector: dkimSelector,
-      DomainSigningPrivateKey: privateKey,
-    },
-  });
-  const response = await sesClient.send(command);
+  const tenantResourceAssociationCommand =
+    new CreateTenantResourceAssociationCommand({
+      TenantName: sesTenantId,
+      ResourceArn: await getIdentityArn(domain, region),
+    });
 
-  const emailIdentityCommand = new PutEmailIdentityMailFromAttributesCommand({
-    EmailIdentity: domain,
-    MailFromDomain: `mail.${domain}`,
-  });
-
-  const emailIdentityResponse = await sesClient.send(emailIdentityCommand);
-
-  if (sesTenantId) {
-    const tenantResourceAssociationCommand =
-      new CreateTenantResourceAssociationCommand({
-        TenantName: sesTenantId,
-        ResourceArn: await getIdentityArn(domain, region),
-      });
-
+  try {
     const tenantResourceAssociationResponse = await sesClient.send(
       tenantResourceAssociationCommand
     );
@@ -121,7 +149,160 @@ export async function addDomain(
       );
       throw new Error("Failed to associate domain with tenant");
     }
+  } catch (error) {
+    if (!(error instanceof AlreadyExistsException)) {
+      throw error;
+    }
+
+    logger.info(
+      { domain, region, sesTenantId },
+      "Domain already associated with tenant, reusing it"
+    );
   }
+}
+
+/**
+ * Adopting an identity rewrites its MAIL FROM domain, which would silently
+ * break mail flowing through an existing setup. Refuse instead.
+ */
+function assertMailFromCanBeReused(
+  domain: string,
+  identity: GetEmailIdentityCommandOutput
+) {
+  const existingMailFrom = identity.MailFromAttributes?.MailFromDomain;
+  const mailFromDomain = `mail.${domain}`;
+
+  if (existingMailFrom && existingMailFrom !== mailFromDomain) {
+    logger.error(
+      { domain, existingMailFrom, mailFromDomain },
+      "Refusing to reuse an identity configured with another MAIL FROM domain"
+    );
+    throw new Error(
+      `${domain} already exists in SES with the MAIL FROM domain ${existingMailFrom}. ` +
+        `Adding it here would change that to ${mailFromDomain} and break mail sent ` +
+        `through the existing setup. Clear the MAIL FROM domain in SES, or delete the ` +
+        `identity, and try again.`
+    );
+  }
+}
+
+/**
+ * Returns the DKIM key and selector of an identity that already exists in SES,
+ * or null when they can't be recovered and the keypair has to be rotated.
+ */
+async function getExistingDkimAttributes(
+  domain: string,
+  identity: GetEmailIdentityCommandOutput
+) {
+  const dkimAttributes = identity.DkimAttributes;
+
+  // Easy DKIM keys are generated and held by SES, so the public key is never
+  // exposed, in DNS or otherwise.
+  if (dkimAttributes?.SigningAttributesOrigin !== "EXTERNAL") {
+    return null;
+  }
+
+  // Only a verified identity proves the published record still matches the
+  // private key SES holds. Anything else could be a stale record.
+  if (dkimAttributes.Status !== "SUCCESS") {
+    return null;
+  }
+
+  const dkimSelector = dkimAttributes.Tokens?.[0];
+
+  if (!dkimSelector) {
+    return null;
+  }
+
+  const publicKey = await getPublishedDkimPublicKey(domain, dkimSelector);
+
+  return publicKey ? { publicKey, dkimSelector } : null;
+}
+
+export async function addDomain(
+  domain: string,
+  region: string,
+  sesTenantId?: string,
+  dkimSelector: string = "usesend"
+) {
+  const sesClient = getSesClient(region);
+
+  const { privateKey, publicKey } = generateKeyPair();
+
+  let response:
+    | CreateEmailIdentityCommandOutput
+    | PutEmailIdentityDkimSigningAttributesCommandOutput;
+
+  try {
+    response = await sesClient.send(
+      new CreateEmailIdentityCommand({
+        EmailIdentity: domain,
+        DkimSigningAttributes: {
+          DomainSigningSelector: dkimSelector,
+          DomainSigningPrivateKey: privateKey,
+        },
+      })
+    );
+  } catch (error) {
+    if (!(error instanceof AlreadyExistsException)) {
+      throw error;
+    }
+
+    // The identity is already registered in SES, either from an earlier attempt
+    // that failed before the domain row was stored, or because something else
+    // set it up. Reuse its existing DKIM key when we can still recover it, so
+    // that the records already in DNS keep working.
+    const identity = await sesClient.send(
+      new GetEmailIdentityCommand({ EmailIdentity: domain })
+    );
+
+    assertMailFromCanBeReused(domain, identity);
+
+    const existingDkim = await getExistingDkimAttributes(domain, identity);
+
+    if (existingDkim) {
+      logger.info(
+        { domain, region, dkimSelector: existingDkim.dkimSelector },
+        "Email identity already exists, reusing its DKIM key"
+      );
+
+      await sesClient.send(
+        new PutEmailIdentityMailFromAttributesCommand({
+          EmailIdentity: domain,
+          MailFromDomain: `mail.${domain}`,
+        })
+      );
+
+      await associateTenant(sesClient, domain, region, sesTenantId);
+
+      return existingDkim;
+    }
+
+    logger.info(
+      { domain, region },
+      "Email identity already exists, rotating its DKIM key"
+    );
+
+    response = await sesClient.send(
+      new PutEmailIdentityDkimSigningAttributesCommand({
+        EmailIdentity: domain,
+        SigningAttributesOrigin: "EXTERNAL",
+        SigningAttributes: {
+          DomainSigningSelector: dkimSelector,
+          DomainSigningPrivateKey: privateKey,
+        },
+      })
+    );
+  }
+
+  const emailIdentityCommand = new PutEmailIdentityMailFromAttributesCommand({
+    EmailIdentity: domain,
+    MailFromDomain: `mail.${domain}`,
+  });
+
+  const emailIdentityResponse = await sesClient.send(emailIdentityCommand);
+
+  await associateTenant(sesClient, domain, region, sesTenantId);
 
   if (
     response.$metadata.httpStatusCode !== 200 ||
@@ -134,7 +315,7 @@ export async function addDomain(
     throw new Error("Failed to create domain identity");
   }
 
-  return publicKey;
+  return { publicKey, dkimSelector };
 }
 
 export async function deleteDomain(
