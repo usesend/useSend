@@ -1,9 +1,13 @@
-import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { parseSesHook, SesHookParser } from "~/server/service/ses-hook-parser";
+import { SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
-import { SnsNotificationMessage } from "~/types/aws-types";
+import {
+  isSnsNotificationMessage,
+  isTrustedSnsSubscriptionUrl,
+  verifySnsMessageSignature,
+} from "~/server/security/sns-message-validator";
+import type { SnsNotificationMessage } from "~/types/aws-types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,16 +16,21 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const data = await req.json();
+  let data: unknown;
+  try {
+    data = await req.json();
+  } catch {
+    return Response.json({ data: "Invalid JSON" }, { status: 400 });
+  }
 
-  console.log(data, data.Message);
+  if (!isSnsNotificationMessage(data)) {
+    return Response.json({ data: "Event is not valid" }, { status: 401 });
+  }
 
   const isEventValid = await checkEventValidity(data);
 
-  console.log("Is event valid: ", isEventValid);
-
   if (!isEventValid) {
-    return Response.json({ data: "Event is not valid" });
+    return Response.json({ data: "Event is not valid" }, { status: 401 });
   }
 
   if (data.Type === "SubscriptionConfirmation") {
@@ -50,10 +59,44 @@ export async function POST(req: Request) {
 /**
  * Handles the subscription confirmation event. called only once for a webhook
  */
-async function handleSubscription(message: any) {
-  await fetch(message.SubscribeURL, {
-    method: "GET",
-  });
+async function handleSubscription(message: SnsNotificationMessage) {
+  if (
+    !message.SubscribeURL ||
+    !isTrustedSnsSubscriptionUrl(message.SubscribeURL, message.TopicArn)
+  ) {
+    return Response.json(
+      { data: "Subscription URL is not valid" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const response = await fetch(message.SubscribeURL, {
+      method: "GET",
+      redirect: "error",
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { status: response.status, topicArn: message.TopicArn },
+        "SNS subscription confirmation failed",
+      );
+      return Response.json(
+        { data: "Subscription confirmation failed" },
+        { status: 502 },
+      );
+    }
+  } catch (error) {
+    logger.warn(
+      { err: error, topicArn: message.TopicArn },
+      "SNS subscription confirmation request failed",
+    );
+    return Response.json(
+      { data: "Subscription confirmation failed" },
+      { status: 502 },
+    );
+  }
 
   const topicArn = message.TopicArn as string;
   const setting = await db.sesSetting.findFirst({
@@ -81,19 +124,14 @@ async function handleSubscription(message: any) {
 }
 
 /**
- * A simple check to ensure that the event is from the correct topic
+ * Ensure the event is signed by SNS and belongs to a configured topic.
  */
 async function checkEventValidity(message: SnsNotificationMessage) {
-  if (env.NODE_ENV === "development") {
-    return true;
-  }
-
-  const { TopicArn } = message;
   const configuredTopicArn = await SesSettingsService.getTopicArns();
 
-  if (!configuredTopicArn.includes(TopicArn)) {
+  if (!configuredTopicArn.includes(message.TopicArn)) {
     return false;
   }
 
-  return true;
+  return verifySnsMessageSignature(message);
 }
