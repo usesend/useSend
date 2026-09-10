@@ -33,6 +33,9 @@ export const DeleteDomain: React.FC<{ domain: Domain }> = ({ domain }) => {
           toast.success(`Domain ${domain.name} deleted`);
           router.replace("/domains");
         },
+        onError: (error) => {
+          toast.error(`Failed to delete domain: ${error.message}`);
+        },
       },
     );
   }
