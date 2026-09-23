@@ -23,12 +23,16 @@ type QueueEmailJob = TeamJob<{
   isBulk?: boolean;
 }>;
 
-// SES enforces its maximum send rate per second. Concurrency alone does not
-// honour it: a send round trip takes a fraction of a second, so `quota`
-// workers in flight send several times `quota` mails a second and SES
-// throttles the rest. The limiter caps the jobs a queue's workers start per
-// second (BullMQ keeps it in Redis, shared by every worker of the queue);
-// the concurrency keeps that many sends in flight.
+/**
+ * A worker for one email queue, limited to `quota` jobs per second.
+ *
+ * SES enforces its maximum send rate per second. Concurrency alone does not
+ * honour it: a send round trip takes a fraction of a second, so `quota`
+ * workers in flight send several times `quota` mails a second and SES
+ * throttles the rest. The limiter caps the jobs a queue's workers start per
+ * second (BullMQ keeps it in Redis, shared by every worker of the queue);
+ * the concurrency keeps that many sends in flight.
+ */
 function createWorker(queueName: string, quota: number) {
   const connection = getRedis();
 
@@ -42,6 +46,9 @@ function createWorker(queueName: string, quota: number) {
   });
 }
 
+/**
+ * The queue `${region}-${suffix}` and its first worker at `quota` per second.
+ */
 function createQueueAndWorker(region: string, quota: number, suffix: string) {
   const connection = getRedis();
 
@@ -54,10 +61,15 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
   return { queue, worker };
 }
 
-// A worker's limiter is fixed when it is created, so a new send rate means a
-// new worker on the same queue. The old one stops taking jobs and closes
-// once its in-flight sends are done; the queue and the jobs waiting in it
-// are untouched.
+/**
+ * Puts a worker at the new `quota` on the region's queue in place of the
+ * current one.
+ *
+ * A worker's limiter is fixed when it is created, so a new send rate means a
+ * new worker on the same queue. The old one stops taking jobs and closes
+ * once its in-flight sends are done; the queue and the jobs waiting in it
+ * are untouched.
+ */
 function replaceWorker(
   workers: Map<string, Worker>,
   region: string,
@@ -76,15 +88,22 @@ function replaceWorker(
   }
 }
 
-// A send SES throttled ("Maximum sending rate exceeded") is retried with
-// backoff instead of failing the mail; executeEmail decides per error
-// whether to hand the job back to the queue (isThrottled) or to fail it.
+/**
+ * Job options for every email: a send SES throttled ("Maximum sending rate
+ * exceeded") is retried with backoff instead of failing the mail;
+ * executeEmail decides per error whether to hand the job back to the queue
+ * (isThrottled) or to fail it.
+ */
 const EMAIL_JOB_OPTIONS = {
   ...DEFAULT_QUEUE_OPTIONS,
   attempts: 3,
   backoff: { type: "exponential", delay: 1000 },
 };
 
+/**
+ * Whether a send failed because SES refused it for the account's send rate:
+ * the SES error names for it, or any error the AWS SDK marks as throttling.
+ */
 function isThrottled(error: any): boolean {
   return (
     error?.name === "TooManyRequestsException" ||
@@ -371,6 +390,12 @@ export class EmailQueueService {
   }
 }
 
+/**
+ * Sends one queued email through SES and records the outcome on the email.
+ * A throttled send is thrown back to the queue while the job has attempts
+ * left, so the queue retries it after its backoff; any other error, and a
+ * throttle on the last attempt, marks the email FAILED.
+ */
 async function executeEmail(job: QueueEmailJob) {
   logger.info(
     { emailId: job.data.emailId, elapsed: Date.now() - job.data.timestamp },
