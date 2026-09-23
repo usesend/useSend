@@ -23,6 +23,25 @@ type QueueEmailJob = TeamJob<{
   isBulk?: boolean;
 }>;
 
+// SES enforces its maximum send rate per second. Concurrency alone does not
+// honour it: a send round trip takes a fraction of a second, so `quota`
+// workers in flight send several times `quota` mails a second and SES
+// throttles the rest. The limiter caps the jobs a queue's workers start per
+// second (BullMQ keeps it in Redis, shared by every worker of the queue);
+// the concurrency keeps that many sends in flight.
+function createWorker(queueName: string, quota: number) {
+  const connection = getRedis();
+
+  // TODO: Add team context to job data when queueing
+  return new Worker(queueName, createWorkerHandler(executeEmail), {
+    concurrency: quota,
+    limiter: { max: quota, duration: 1000 },
+    connection,
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
+  });
+}
+
 function createQueueAndWorker(region: string, quota: number, suffix: string) {
   const connection = getRedis();
 
@@ -30,15 +49,50 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queue = new Queue(queueName, { connection, prefix: BULL_PREFIX, skipVersionCheck: true });
 
-  // TODO: Add team context to job data when queueing
-  const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
-    concurrency: quota,
-    connection,
-    prefix: BULL_PREFIX,
-    skipVersionCheck: true,
-  });
+  const worker = createWorker(queueName, quota);
 
   return { queue, worker };
+}
+
+// A worker's limiter is fixed when it is created, so a new send rate means a
+// new worker on the same queue. The old one stops taking jobs and closes
+// once its in-flight sends are done; the queue and the jobs waiting in it
+// are untouched.
+function replaceWorker(
+  workers: Map<string, Worker>,
+  region: string,
+  queueName: string,
+  quota: number,
+) {
+  const previous = workers.get(region);
+  workers.set(region, createWorker(queueName, quota));
+  if (previous) {
+    previous.close().catch((error) => {
+      logger.error(
+        { err: error, queue: queueName },
+        `[EmailQueueService]: Failed to close the replaced worker`,
+      );
+    });
+  }
+}
+
+// A send SES throttled ("Maximum sending rate exceeded") is retried with
+// backoff instead of failing the mail; executeEmail decides per error
+// whether to hand the job back to the queue (isThrottled) or to fail it.
+const EMAIL_JOB_OPTIONS = {
+  ...DEFAULT_QUEUE_OPTIONS,
+  attempts: 3,
+  backoff: { type: "exponential", delay: 1000 },
+};
+
+function isThrottled(error: any): boolean {
+  return (
+    error?.name === "TooManyRequestsException" ||
+    error?.name === "ThrottlingException" ||
+    error?.name === "Throttling" ||
+    error?.$retryable?.throttling === true ||
+    error?.$metadata?.httpStatusCode === 429
+  );
 }
 
 export class EmailQueueService {
@@ -68,11 +122,12 @@ export class EmailQueueService {
         { region, transactionalQuota },
         `[EmailQueueService]: Updating transactional quota for region`
       );
-      const transactionalWorker = this.transactionalWorker.get(region);
-      if (transactionalWorker) {
-        transactionalWorker.concurrency =
-          transactionalQuota !== 0 ? transactionalQuota : 1;
-      }
+      replaceWorker(
+        this.transactionalWorker,
+        region,
+        `${region}-transaction`,
+        transactionalQuota !== 0 ? transactionalQuota : 1,
+      );
     } else {
       logger.info(
         { region, transactionalQuota },
@@ -93,10 +148,12 @@ export class EmailQueueService {
         { region, marketingQuota },
         `[EmailQueueService]: Updating marketing quota for region`
       );
-      const marketingWorker = this.marketingWorker.get(region);
-      if (marketingWorker) {
-        marketingWorker.concurrency = marketingQuota !== 0 ? marketingQuota : 1;
-      }
+      replaceWorker(
+        this.marketingWorker,
+        region,
+        `${region}-marketing`,
+        marketingQuota !== 0 ? marketingQuota : 1,
+      );
     } else {
       logger.info(
         { region, marketingQuota },
@@ -140,7 +197,7 @@ export class EmailQueueService {
         isBulk,
         teamId,
       },
-      { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS }
+      { jobId: emailId, delay, ...EMAIL_JOB_OPTIONS }
     );
   }
 
@@ -231,7 +288,7 @@ export class EmailQueueService {
         opts: {
           jobId: job.emailId, // Use emailId as jobId
           delay: job.delay,
-          ...DEFAULT_QUEUE_OPTIONS, // Apply default options (attempts, backoff)
+          ...EMAIL_JOB_OPTIONS, // Apply default options (attempts, backoff)
         },
       }));
 
@@ -461,6 +518,16 @@ async function executeEmail(job: QueueEmailJob) {
       data: { sesEmailId: messageId, text, attachments: null, headers: null },
     });
   } catch (error: any) {
+    const attempt = job.attemptsMade + 1;
+    const attempts = job.opts.attempts ?? 1;
+    if (isThrottled(error) && attempt < attempts) {
+      logger.warn(
+        { emailId: email.id, attempt, attempts },
+        `[EmailQueueService]: SES throttled the send, the queue retries it`,
+      );
+      // rethrowing fails this attempt, so BullMQ retries the job after its backoff
+      throw error;
+    }
     await db.emailEvent.create({
       data: {
         emailId: email.id,
