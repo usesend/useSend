@@ -1,7 +1,11 @@
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { parseSesHook, SesHookParser } from "~/server/service/ses-hook-parser";
+import {
+  isTrustedSnsUrl,
+  verifySnsMessageSignature,
+} from "~/server/aws/sns-message-validator";
+import { SesHookParser } from "~/server/service/ses-hook-parser";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
 import { SnsNotificationMessage } from "~/types/aws-types";
 
@@ -12,16 +16,18 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const data = await req.json();
+  let data: SnsNotificationMessage;
 
-  console.log(data, data.Message);
+  try {
+    data = (await req.json()) as SnsNotificationMessage;
+  } catch {
+    return Response.json({ data: "Invalid payload" }, { status: 400 });
+  }
 
   const isEventValid = await checkEventValidity(data);
 
-  console.log("Is event valid: ", isEventValid);
-
   if (!isEventValid) {
-    return Response.json({ data: "Event is not valid" });
+    return Response.json({ data: "Event is not valid" }, { status: 401 });
   }
 
   if (data.Type === "SubscriptionConfirmation") {
@@ -50,12 +56,21 @@ export async function POST(req: Request) {
 /**
  * Handles the subscription confirmation event. called only once for a webhook
  */
-async function handleSubscription(message: any) {
-  await fetch(message.SubscribeURL, {
+async function handleSubscription(message: SnsNotificationMessage) {
+  const subscribeUrl = message.SubscribeURL;
+
+  if (!subscribeUrl || !isTrustedSnsUrl(subscribeUrl, message.TopicArn)) {
+    logger.warn({ subscribeUrl }, "Rejected untrusted SNS SubscribeURL");
+    return Response.json({ data: "Invalid subscription URL" }, { status: 400 });
+  }
+
+  await fetch(subscribeUrl, {
     method: "GET",
+    // Do not follow redirects: the confirmation URL must be the AWS SNS host.
+    redirect: "error",
   });
 
-  const topicArn = message.TopicArn as string;
+  const topicArn = message.TopicArn;
   const setting = await db.sesSetting.findFirst({
     where: {
       topicArn,
@@ -81,9 +96,12 @@ async function handleSubscription(message: any) {
 }
 
 /**
- * A simple check to ensure that the event is from the correct topic
+ * Checks that the event is from a configured topic and that its AWS SNS
+ * signature is valid before the payload is trusted.
  */
-async function checkEventValidity(message: SnsNotificationMessage) {
+async function checkEventValidity(
+  message: SnsNotificationMessage
+): Promise<boolean> {
   if (env.NODE_ENV === "development") {
     return true;
   }
@@ -95,5 +113,5 @@ async function checkEventValidity(message: SnsNotificationMessage) {
     return false;
   }
 
-  return true;
+  return verifySnsMessageSignature(message);
 }
