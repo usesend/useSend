@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { env } from "~/env";
 import { getStripe, syncStripeData } from "~/server/billing/payments";
+import { logger } from "~/server/logger/log";
 
 const allowedEvents: Stripe.Event.Type[] = [
   "checkout.session.completed",
@@ -41,8 +42,11 @@ export async function POST(req: Request) {
 
   const stripe = getStripe();
 
+  let event: Stripe.Event | undefined;
+  let customerId: string | undefined;
+
   try {
-    const event = stripe.webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       body,
       signature,
       env.STRIPE_WEBHOOK_SECRET
@@ -53,9 +57,7 @@ export async function POST(req: Request) {
     }
 
     // All the events I track have a customerId
-    const { customer: customerId } = event?.data?.object as {
-      customer: string; // Sadly TypeScript does not know this
-    };
+    customerId = (event.data.object as { customer: string }).customer;
 
     // This helps make it typesafe and also lets me know if my assumption is wrong
     if (typeof customerId !== "string") {
@@ -68,7 +70,15 @@ export async function POST(req: Request) {
 
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
-    console.error("Error processing webhook:", err);
+    logger.error(
+      {
+        err,
+        stripeEventId: event?.id,
+        stripeEventType: event?.type,
+        stripeCustomerId: customerId,
+      },
+      "[StripeHook]: Failed to process the billing event"
+    );
     return new NextResponse("Webhook error", { status: 400 });
   }
 }
