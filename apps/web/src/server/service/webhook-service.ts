@@ -18,6 +18,10 @@ import {
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
+import {
+  assertWebhookUrlAllowed,
+  WebhookUrlNotAllowedError,
+} from "./webhook-url-guard";
 import { UnsendApiError } from "../public-api/api-error";
 
 const WEBHOOK_DISPATCH_CONCURRENCY = 25;
@@ -267,6 +271,8 @@ export class WebhookService {
       });
     }
 
+    await WebhookService.assertAllowedWebhookUrl(params.url);
+
     const normalizedDomainIds = WebhookService.normalizeDomainIds(
       params.domainIds,
     );
@@ -315,6 +321,10 @@ export class WebhookService {
       });
     }
 
+    if (params.url !== undefined) {
+      await WebhookService.assertAllowedWebhookUrl(params.url);
+    }
+
     const secret =
       params.rotateSecret === true
         ? WebhookService.generateSecret()
@@ -345,6 +355,20 @@ export class WebhookService {
         secret: secret ?? webhook.secret,
       },
     });
+  }
+
+  private static async assertAllowedWebhookUrl(url: string) {
+    try {
+      await assertWebhookUrlAllowed(url);
+    } catch (error) {
+      if (error instanceof WebhookUrlNotAllowedError) {
+        throw new UnsendApiError({
+          code: "BAD_REQUEST",
+          message: error.message,
+        });
+      }
+      throw error;
+    }
   }
 
   private static normalizeDomainIds(domainIds?: number[]) {
@@ -777,6 +801,8 @@ async function postWebhook(params: {
   callId: string;
   body: WebhookPayload;
 }) {
+  await assertWebhookUrlAllowed(params.url);
+
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
