@@ -78,6 +78,10 @@ vi.mock("~/server/queue/bullmq-context", () => ({
   },
 }));
 
+const { mockDnsLookup } = vi.hoisted(() => ({ mockDnsLookup: vi.fn() }));
+
+vi.mock("node:dns/promises", () => ({ lookup: mockDnsLookup }));
+
 vi.mock("~/server/redis", () => ({
   BULL_PREFIX: "bull",
   getRedis: () => mockRedis,
@@ -147,11 +151,13 @@ describe("WebhookService documented behavior", () => {
     mockRedis.eval.mockReset();
     mockRedis.set.mockReset();
     mockTxWebhookUpdate.mockReset();
+    mockDnsLookup.mockReset();
 
     mockLimitService.checkWebhookLimit.mockResolvedValue({
       isLimitReached: false,
       reason: null,
     });
+    mockDnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
     mockRedis.set.mockResolvedValue("OK");
     mockRedis.eval.mockResolvedValue(1);
     mockQueueAdd.mockResolvedValue(undefined);
