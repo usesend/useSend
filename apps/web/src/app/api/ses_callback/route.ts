@@ -14,13 +14,22 @@ export async function GET() {
 export async function POST(req: Request) {
   const data = await req.json();
 
-  console.log(data, data.Message);
+  logger.info(
+    {
+      snsMessageId: data.MessageId,
+      snsType: data.Type,
+      topicArn: data.TopicArn,
+    },
+    "[SesCallback]: Received an SNS notification",
+  );
 
   const isEventValid = await checkEventValidity(data);
 
-  console.log("Is event valid: ", isEventValid);
-
   if (!isEventValid) {
+    logger.warn(
+      { snsMessageId: data.MessageId, topicArn: data.TopicArn },
+      "[SesCallback]: Dropped the SES event because the topic is not configured",
+    );
     return Response.json({ data: "Event is not valid" });
   }
 
@@ -28,10 +37,8 @@ export async function POST(req: Request) {
     return handleSubscription(data);
   }
 
-  let message = null;
-
   try {
-    message = JSON.parse(data.Message || "{}");
+    const message = JSON.parse(data.Message || "{}");
     const status = await SesHookParser.queue({
       event: message,
       messageId: data.MessageId,
@@ -42,7 +49,10 @@ export async function POST(req: Request) {
 
     return Response.json({ data: "Success" });
   } catch (e) {
-    console.error(e);
+    logger.error(
+      { err: e, snsMessageId: data.MessageId, topicArn: data.TopicArn },
+      "[SesCallback]: Failed to queue the SES event",
+    );
     return Response.json({ data: "Error is parsing hook" });
   }
 }
@@ -51,11 +61,19 @@ export async function POST(req: Request) {
  * Handles the subscription confirmation event. called only once for a webhook
  */
 async function handleSubscription(message: any) {
-  await fetch(message.SubscribeURL, {
+  const topicArn = message.TopicArn as string;
+
+  const confirmResponse = await fetch(message.SubscribeURL, {
     method: "GET",
   });
 
-  const topicArn = message.TopicArn as string;
+  if (!confirmResponse.ok) {
+    logger.error(
+      { status: confirmResponse.status, topicArn },
+      "[SesCallback]: SNS subscription confirmation returned a non-success status",
+    );
+  }
+
   const setting = await db.sesSetting.findFirst({
     where: {
       topicArn,
@@ -63,6 +81,10 @@ async function handleSubscription(message: any) {
   });
 
   if (!setting) {
+    logger.warn(
+      { topicArn },
+      "[SesCallback]: No SES setting matches the confirmed topic ARN",
+    );
     return Response.json({ data: "Setting not found" });
   }
 

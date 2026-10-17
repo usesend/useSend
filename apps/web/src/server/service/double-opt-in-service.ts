@@ -139,8 +139,9 @@ export async function sendDoubleOptInConfirmationEmail({
   } catch (error) {
     logger.error(
       {
-        error,
+        err: error,
         contactBookId,
+        contactId,
       },
       "[DoubleOptInService]: Failed to render custom template, using fallback HTML",
     );

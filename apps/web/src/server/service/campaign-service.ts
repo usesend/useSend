@@ -87,7 +87,10 @@ async function prepareCampaignHtml(
 
       return { campaign, html };
     } catch (error) {
-      logger.error({ err: error }, "Failed to parse campaign content");
+      logger.error(
+        { err: error, campaignId: campaign.id },
+        "Failed to parse campaign content",
+      );
       throw new Error("Failed to parse campaign content");
     }
   }
@@ -149,7 +152,10 @@ async function renderCampaignHtmlForContact({
         linkValues,
       });
     } catch (error) {
-      logger.error({ err: error }, "Failed to parse campaign content");
+      logger.error(
+        { err: error, campaignId: campaign.id, contactId: contact.id },
+        "Failed to parse campaign content",
+      );
       throw new Error("Failed to parse campaign content");
     }
   }
@@ -412,6 +418,10 @@ export async function scheduleCampaign({
     campaign = prepared.campaign;
     html = prepared.html;
   } catch (err) {
+    logger.error(
+      { err, campaignId, teamId },
+      "Failed to prepare campaign content for scheduling",
+    );
     throw new UnsendApiError({
       code: "BAD_REQUEST",
       message: err instanceof Error ? err.message : "Invalid campaign content",
@@ -642,7 +652,10 @@ export async function unsubscribeContact({
 
     return contact;
   } catch (error) {
-    logger.error({ err: error }, "Error unsubscribing contact");
+    logger.error(
+      { err: error, contactId, campaignId, reason },
+      "Error unsubscribing contact",
+    );
     throw new Error("Failed to unsubscribe contact");
   }
 }
@@ -692,7 +705,10 @@ export async function subscribeContact(id: string, hash: string) {
 
     return true;
   } catch (error) {
-    logger.error({ err: error }, "Error subscribing contact");
+    logger.error(
+      { err: error, contactId, campaignId },
+      "Error subscribing contact",
+    );
     throw new Error("Failed to subscribe contact");
   }
 }
