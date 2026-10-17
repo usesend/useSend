@@ -10,7 +10,6 @@ import {
   Link,
   Heading,
   Hr,
-  Butan as Button,
   Img,
   Preview,
   Row,
@@ -19,6 +18,7 @@ import {
   Code,
 } from "jsx-email";
 import { AllowedAlignments } from "./types";
+import { EmailButton } from "./email-button";
 
 interface NodeOptions {
   parent?: JSONContent;
@@ -571,7 +571,7 @@ export class EmailRenderer {
           marginBottom: isNextSpacer ? "0px" : "20px",
         }}
       >
-        <Button
+        <EmailButton
           href={href}
           style={{
             color: String(textColor),
@@ -587,7 +587,7 @@ export class EmailRenderer {
           }}
         >
           {text}
-        </Button>
+        </EmailButton>
       </Container>
     );
   }
