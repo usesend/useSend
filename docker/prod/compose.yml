@@ -33,13 +33,13 @@ services:
     image: minio/minio
     container_name: usesend-storage-prod
     ports:
-      - 9002:9002
-      - 9001:9001
+      - 127.0.0.1:9002:9002
+      - 127.0.0.1:9001:9001
     volumes:
       - storage:/data
     environment:
-      MINIO_ROOT_USER: unsend
-      MINIO_ROOT_PASSWORD: password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?err}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?err}
     entrypoint: sh
     command: -c 'mkdir -p /data/unsend && minio server /data --console-address ":9001" --address ":9002"'
 
