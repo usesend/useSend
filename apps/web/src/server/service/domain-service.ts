@@ -422,12 +422,13 @@ export async function createDomain(
   }
 
   const subdomain = tldts.getSubdomain(name);
-  const dkimSelector = "usesend";
-  const publicKey = await ses.addDomain(
+  // An identity that already exists keeps its own selector, so take back
+  // whichever one the domain is actually signing with.
+  const { publicKey, dkimSelector } = await ses.addDomain(
     name,
     region,
     sesTenantId,
-    dkimSelector,
+    "usesend",
   );
 
   const domain = await db.domain.create({
