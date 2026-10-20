@@ -38,6 +38,10 @@ Use this link to [create an github app](https://docs.github.com/en/apps/creating
 
 Callback URL : `https://<your-usesend-instance>/api/auth/callback/github`
 
+Under **Permissions & events**, set **Account permissions → Email addresses**
+to **Read-only**. useSend needs the authenticated user's email address to match
+new accounts to team invitations.
+
 ![github app](/images/github-callback.png)
 
 Add the following environment variables.
@@ -75,6 +79,16 @@ Add the following environment variables.
   NEXTAUTH_URL="https://<your-usesend-instance>"
   NEXTAUTH_SECRET="<your-usesend-secret>"
 ```
+
+  </Step>
+  <Step title="Email content retention (optional)">
+  By default, stored email content stays in the database forever. To bound database growth, set `EMAIL_CLEANUP_DAYS` to a positive number of days. A daily job (midnight UTC) then clears the `text`, `html`, `attachments` and `headers` values for emails older than the cutoff. Delivery status and event history are kept.
+
+```env
+EMAIL_CLEANUP_DAYS=30
+```
+
+Leave it unset to keep email content indefinitely.
 
   </Step>
 </Steps>

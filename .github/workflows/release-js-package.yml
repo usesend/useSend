@@ -24,17 +24,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Node.js 20.x
-        uses: actions/setup-node@v3
+      - name: Set up Node.js 22.22.2
+        uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.22.2
           registry-url: "https://registry.npmjs.org"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 11.11.0
 
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.6.2
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -25,6 +25,7 @@ import {
 import { Badge } from "@usesend/ui/src/badge";
 import ScheduleCampaign from "../../schedule-campaign";
 import { useRouter } from "next/navigation";
+import { getCampaignEditorVariables } from "~/lib/constants/campaign";
 
 const sendSchema = z.object({
   confirmation: z.string(),
@@ -160,12 +161,10 @@ function CampaignEditor({
   const audienceQuery = api.campaign.getCampaignAudience.useQuery({
     campaignId: campaign.id,
   });
-  const editorVariables = useMemo(() => {
-    const baseVariables = ["email", "firstName", "lastName"];
-    const registryVariables = contactBook?.variables ?? [];
-
-    return Array.from(new Set([...baseVariables, ...registryVariables]));
-  }, [contactBook]);
+  const editorVariables = useMemo(
+    () => getCampaignEditorVariables(contactBook?.variables),
+    [contactBook],
+  );
   const variableSuggestionsHelperText = contactBookId
     ? undefined
     : "Select the contact book for related variable";

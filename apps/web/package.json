@@ -19,6 +19,7 @@
     "test:integration": "RUN_INTEGRATION=true vitest run -c vitest.integration.config.ts",
     "test:integration:full": "pnpm test:integration:prepare:local && pnpm test:integration",
     "test:coverage": "vitest run -c vitest.default.config.ts --coverage",
+    "typecheck": "tsc --noEmit --pretty false",
     "db:post-install": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push --skip-generate",
@@ -32,7 +33,7 @@
     "memory:baseline": "node --expose-gc scripts/baseline-test.js"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.9.0",
+    "@auth/prisma-adapter": "^2.11.3",
     "@aws-sdk/client-s3": "^3.1048.0",
     "@aws-sdk/client-sesv2": "^3.1048.0",
     "@aws-sdk/client-sns": "^3.1048.0",
@@ -40,7 +41,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1048.0",
     "@hono/swagger-ui": "^0.5.1",
     "@hono/zod-openapi": "^0.10.0",
-    "@hookform/resolvers": "^5.0.1",
+    "@hookform/resolvers": "5.0.1",
     "@isaacs/ttlcache": "^1.4.1",
     "@prisma/client": "^6.6.0",
     "@t3-oss/env-nextjs": "^0.13.0",
@@ -59,17 +60,17 @@
     "framer-motion": "^12.9.2",
     "hono": "^4.12.19",
     "html-to-text": "^9.0.5",
-    "ioredis": "^5.6.1",
+    "ioredis": "5.10.1",
     "jsx-email": "^2.8.4",
     "lucide-react": "^0.503.0",
     "mime-types": "^3.0.1",
     "nanoid": "^5.1.5",
-    "next": "15.5.18",
-    "next-auth": "^4.24.14",
+    "next": "15.5.27",
+    "next-auth": "^4.24.15",
     "nodemailer": "^8.0.5",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
-    "pnpm": "^10.28.2",
+    "pnpm": "^11.11.0",
     "prisma": "^6.6.0",
     "query-string": "^9.1.1",
     "react": "19.1.0",
@@ -78,7 +79,7 @@
     "recharts": "^2.15.3",
     "server-only": "^0.0.1",
     "shiki": "^3.3.0",
-    "stripe": "^18.0.0",
+    "stripe": "18.0.0",
     "superjson": "^2.2.2",
     "tldts": "^7.0.4",
     "ua-parser-js": "^2.0.3",
@@ -119,5 +120,5 @@
   "ct3aMetadata": {
     "initVersion": "7.30.0"
   },
-  "packageManager": "pnpm@8.9.2"
+  "packageManager": "pnpm@11.11.0"
 }

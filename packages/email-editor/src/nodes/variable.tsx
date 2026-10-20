@@ -169,9 +169,8 @@ export function getVariableSuggestions(
 export function VariableComponent(props: NodeViewProps) {
   const { name, fallback } = props.node.attrs as VariableOptions;
   const [fallbackValue, setFallbackValue] = useState(fallback);
+  const [open, setOpen] = useState(false);
   const { getPos, editor } = props;
-
-  console.log(props.selected);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +187,7 @@ export function VariableComponent(props: NodeViewProps) {
       draggable="false"
       data-drag-handle=""
     >
-      <Popover open={props.selected}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             className={cn(
@@ -197,8 +196,11 @@ export function VariableComponent(props: NodeViewProps) {
             )}
             onClick={(e) => {
               e.preventDefault();
+
               const pos = getPos();
               editor.commands.setNodeSelection(pos);
+
+              setOpen(true);
             }}
           >
             <span className="">{`{{${name}}}`}</span>

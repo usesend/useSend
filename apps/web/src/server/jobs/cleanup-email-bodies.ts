@@ -37,11 +37,15 @@ if (isSelfHosted() && isEmailCleanupEnabled()) {
                     OR: [
                         {text: {not: null}},
                         {html: {not: null}},
+                        {attachments: {not: null}},
+                        {headers: {not: null}},
                     ],
                 },
                 data: {
                     text: null,
                     html: null,
+                    attachments: null,
+                    headers: null,
                 },
             });
 

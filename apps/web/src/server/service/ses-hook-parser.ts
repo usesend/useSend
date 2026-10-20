@@ -101,6 +101,18 @@ export async function parseSesHook(data: SesEvent) {
     return true;
   }
 
+  const isEngagementEvent =
+    mailStatus === EmailStatus.OPENED || mailStatus === EmailStatus.CLICKED;
+  const existingMailEvent =
+    email.campaignId || isEngagementEvent
+      ? await db.emailEvent.findFirst({
+          where: {
+            emailId: email.id,
+            status: mailStatus,
+          },
+        })
+      : null;
+
   // Update the latest status and to avoid race conditions
   await db.$executeRaw`
       UPDATE "Email"
@@ -190,7 +202,10 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
+  const isDuplicateEngagement = Boolean(existingMailEvent) && isEngagementEvent;
+
   if (
+    !isDuplicateEngagement &&
     [
       "DELIVERED",
       "OPENED",
@@ -274,14 +289,7 @@ export async function parseSesHook(data: SesEvent) {
         mailData: data,
       });
 
-      const mailEvent = await db.emailEvent.findFirst({
-        where: {
-          emailId: email.id,
-          status: mailStatus,
-        },
-      });
-
-      if (!mailEvent) {
+      if (!existingMailEvent) {
         await updateCampaignAnalytics(
           email.campaignId,
           mailStatus,

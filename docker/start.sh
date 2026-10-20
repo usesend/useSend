@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 set -x
 
 echo "Deploying prisma migrations"

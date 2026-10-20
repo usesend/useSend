@@ -1,6 +1,6 @@
 "use client";
 
-import { Contact } from "@prisma/client";
+import type { Contact } from "@prisma/client";
 import { Button } from "@usesend/ui/src/button";
 import Spinner from "@usesend/ui/src/spinner";
 import { toast } from "@usesend/ui/src/toaster";
@@ -43,9 +43,11 @@ export default function ReSubscribe({
       <div className="flex justify-center">
         {!subscribed ? (
           <Button
-            className="mx-auto w-[150px]"
+            type="button"
+            className="mx-auto min-h-11 w-[150px] touch-manipulation"
             onClick={() => reSubscribe.mutate({ id, hash })}
             disabled={reSubscribe.isPending}
+            aria-disabled={reSubscribe.isPending}
           >
             {reSubscribe.isPending ? (
               <Spinner className="w-4 h-4" />

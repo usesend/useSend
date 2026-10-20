@@ -16,15 +16,19 @@ import {
 } from "~/server/service/domain-service";
 import { sendEmail } from "~/server/service/email-service";
 import { SesSettingsService } from "~/server/service/ses-settings-service";
+import {
+  getValidSesRegions,
+  sesRegionSchema,
+} from "~/lib/zod/ses-setting-schema";
 
 export const domainRouter = createTRPCRouter({
   getAvailableRegions: protectedProcedure.query(async () => {
     const settings = await SesSettingsService.getAllSettings();
-    return settings.map((setting) => setting.region);
+    return getValidSesRegions(settings.map((setting) => setting.region));
   }),
 
   createDomain: teamProcedure
-    .input(z.object({ name: z.string(), region: z.string() }))
+    .input(z.object({ name: z.string(), region: sesRegionSchema }))
     .mutation(async ({ ctx, input }) => {
       return createDomain(
         ctx.team.id,

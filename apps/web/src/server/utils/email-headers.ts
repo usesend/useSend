@@ -1,8 +1,44 @@
 import { nanoid } from "../nanoid";
 
-const RESERVED_EMAIL_HEADERS = new Set(
-  ["x-usesend-email-id"].map((header) => header.toLowerCase())
-);
+const RESERVED_EMAIL_HEADERS = new Set([
+  "authentication-results",
+  "bcc",
+  "cc",
+  "content-disposition",
+  "content-id",
+  "content-length",
+  "content-md5",
+  "content-transfer-encoding",
+  "content-type",
+  "date",
+  "delivered-to",
+  "dkim-signature",
+  "domainkey-signature",
+  "envelope-to",
+  "errors-to",
+  "from",
+  "message-id",
+  "mime-version",
+  "received",
+  "received-spf",
+  "reply-to",
+  "return-path",
+  "sender",
+  "subject",
+  "to",
+  "x-envelope-to",
+  "x-google-dkim-signature",
+  "x-original-to",
+  "x-received",
+]);
+
+const RESERVED_EMAIL_HEADER_PREFIXES = [
+  "arc-",
+  "resent-",
+  "x-ses-",
+  "x-unsend-",
+  "x-usesend-",
+];
 
 const HEADER_INJECTION_PATTERN = /[\r\n]/;
 
@@ -13,14 +49,21 @@ const HEADER_INJECTION_PATTERN = /[\r\n]/;
  */
 export function sanitizeHeader(
   rawName: unknown,
-  rawValue: unknown
+  rawValue: unknown,
 ): { name: string; value: string } | undefined {
   if (typeof rawName !== "string" || typeof rawValue !== "string") {
     return undefined;
   }
 
   const name = rawName.trim();
-  if (!name || RESERVED_EMAIL_HEADERS.has(name.toLowerCase())) {
+  const normalizedName = name.toLowerCase();
+  if (
+    !name ||
+    RESERVED_EMAIL_HEADERS.has(normalizedName) ||
+    RESERVED_EMAIL_HEADER_PREFIXES.some((prefix) =>
+      normalizedName.startsWith(prefix),
+    )
+  ) {
     return undefined;
   }
 
@@ -35,7 +78,7 @@ export function sanitizeHeader(
 }
 
 export function sanitizeCustomHeaders(
-  headers?: Record<string, string | null | undefined>
+  headers?: Record<string, string | null | undefined>,
 ): Record<string, string> | undefined {
   if (!headers) {
     return undefined;
@@ -44,7 +87,7 @@ export function sanitizeCustomHeaders(
   const sanitizedEntries = Object.entries(headers)
     .map(([name, value]) => sanitizeHeader(name, value))
     .filter((entry): entry is { name: string; value: string } =>
-      Boolean(entry)
+      Boolean(entry),
     );
 
   if (sanitizedEntries.length === 0) {
@@ -56,7 +99,7 @@ export function sanitizeCustomHeaders(
       acc[name] = value;
       return acc;
     },
-    {} as Record<string, string>
+    {} as Record<string, string>,
   );
 }
 
@@ -75,7 +118,7 @@ export function buildHeaders({
 }) {
   const sanitizedHeaders = sanitizeCustomHeaders(headers);
   const sanitizedHeaderNames = new Set(
-    Object.keys(sanitizedHeaders ?? {}).map((name) => name.toLowerCase())
+    Object.keys(sanitizedHeaders ?? {}).map((name) => name.toLowerCase()),
   );
 
   const defaultHeaders: Record<string, string> = {};

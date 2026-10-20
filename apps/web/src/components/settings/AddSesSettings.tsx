@@ -18,9 +18,10 @@ import { Button } from "@usesend/ui/src/button";
 import Spinner from "@usesend/ui/src/spinner";
 import { toast } from "@usesend/ui/src/toaster";
 import { isLocalhost } from "~/utils/client";
+import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 
 const FormSchema = z.object({
-  region: z.string(),
+  region: sesRegionSchema,
   usesendUrl: z.string().url(),
   sendRate: z.coerce.number(),
   transactionalQuota: z.coerce.number().min(0).max(100),
@@ -48,14 +49,51 @@ export const AddSesSettings: React.FC<SesSettingsProps> = ({ onSuccess }) => {
 export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
   onSuccess,
 }) => {
-  const addSesSettings = api.admin.addSesSettings.useMutation();
+  const defaultRegion = api.admin.getDefaultSesRegion.useQuery();
 
+  if (defaultRegion.isLoading) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <Spinner className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  if (!defaultRegion.data) {
+    return (
+      <div className="flex min-h-[500px] flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-muted-foreground" role="alert">
+          Failed to load the default AWS region.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void defaultRegion.refetch()}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <SesSettingsForm
+      defaultRegion={defaultRegion.data}
+      onSuccess={onSuccess}
+    />
+  );
+};
+
+const SesSettingsForm: React.FC<
+  SesSettingsProps & { defaultRegion: string }
+> = ({ defaultRegion, onSuccess }) => {
+  const addSesSettings = api.admin.addSesSettings.useMutation();
   const utils = api.useUtils();
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      region: "",
+      region: defaultRegion,
       usesendUrl: "",
       sendRate: 1,
       transactionalQuota: 50,
@@ -101,11 +139,22 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
   }
 
   const onRegionInputOutOfFocus = async () => {
-    const region = form.getValues("region");
+    const region = sesRegionSchema.safeParse(form.getValues("region"));
 
-    if (region) {
-      const quota = await utils.admin.getQuotaForRegion.fetch({ region });
-      form.setValue("sendRate", quota ?? 1);
+    if (region.success) {
+      form.clearErrors("region");
+
+      try {
+        const quota = await utils.admin.getQuotaForRegion.fetch({
+          region: region.data,
+        });
+        form.setValue("sendRate", quota ?? 1);
+      } catch {
+        form.setValue("sendRate", 1);
+        form.setError("region", {
+          message: "Unable to load the SES quota for this region",
+        });
+      }
     }
   };
 
@@ -113,7 +162,7 @@ export const AddSesSettingsForm: React.FC<SesSettingsProps> = ({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className=" flex flex-col gap-8 w-full"
+        className=" flex min-h-[500px] flex-col gap-8 w-full"
       >
         <FormField
           control={form.control}

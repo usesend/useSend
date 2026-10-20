@@ -56,7 +56,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8.9.0
+          version: 11.11.0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -69,6 +69,9 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter=web db:generate
+
+      - name: Type check
+        run: pnpm --filter=web typecheck
 
       - name: Prepare test database schema
         run: pnpm --filter=web test:integration:prepare

@@ -11,6 +11,7 @@ import { logger } from "~/server/logger/log";
 import { UseSend } from "usesend-js";
 import { isCloud } from "~/utils/common";
 import { toPlainHtml } from "~/server/utils/email-content";
+import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 
 const waitlistUserSelection = {
   id: true,
@@ -67,10 +68,12 @@ export const adminRouter = createTRPCRouter({
     return SesSettingsService.getAllSettings();
   }),
 
+  getDefaultSesRegion: adminProcedure.query(() => env.AWS_DEFAULT_REGION),
+
   getQuotaForRegion: adminProcedure
     .input(
       z.object({
-        region: z.string(),
+        region: sesRegionSchema,
       }),
     )
     .query(async ({ input }) => {
@@ -81,7 +84,7 @@ export const adminRouter = createTRPCRouter({
   addSesSettings: adminProcedure
     .input(
       z.object({
-        region: z.string(),
+        region: sesRegionSchema,
         usesendUrl: z.string().url(),
         sendRate: z.number(),
         transactionalQuota: z.number(),

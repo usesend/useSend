@@ -366,6 +366,27 @@ export async function subscribeContact(contactId: string) {
   });
 }
 
+export async function updateContactSubscription({
+  contactId,
+  subscribed,
+  unsubscribeReason,
+  teamId,
+}: {
+  contactId: string;
+  subscribed: boolean;
+  unsubscribeReason: UnsubscribeReason | null;
+  teamId?: number;
+}) {
+  const updatedContact = await db.contact.update({
+    where: { id: contactId },
+    data: { subscribed, unsubscribeReason },
+  });
+
+  await emitContactEvent(updatedContact, "contact.updated", teamId);
+
+  return updatedContact;
+}
+
 function buildContactPayload(contact: Contact): ContactPayload {
   return {
     id: contact.id,
