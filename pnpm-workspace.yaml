@@ -20,3 +20,6 @@ allowBuilds:
 overrides:
   "linkify-it@<=5.0.0": "5.0.1"
   "pnpm@<11.11.0": "11.11.0"
+  # next accepts sharp ^0.34.3 || ^0.35.5; 0.35.5 is the release the
+  # October 2026 Next.js image-optimization advisory (GHSA-2464-fhr4-w9xw) names.
+  "sharp@>=0.34.0 <0.35.5": "0.35.5"
