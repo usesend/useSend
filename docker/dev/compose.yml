@@ -50,7 +50,7 @@ services:
       RUSTFS_CONSOLE_ENABLE: "true"
       RUSTFS_OBS_LOGGER_LEVEL: error
     volumes:
-      - storage:/data
+      - minio:/data
     command: ["/data"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
@@ -86,4 +86,4 @@ services:
 volumes:
   database:
   redis:
-  storage:
+  minio:
