@@ -35,8 +35,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - 127.0.0.1:9002:9002
-      - 127.0.0.1:9001:9001
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?err}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?err}
@@ -86,8 +86,8 @@ services:
     ports:
       - ${PORT:-3000}:${PORT:-3000}
     environment:
-      - HOSTNAME=${HOSTNAME:-0.0.0.0}       
-      - PORT=${PORT:-3000}      
+      - HOSTNAME=${HOSTNAME:-0.0.0.0}
+      - PORT=${PORT:-3000}
       - DATABASE_URL=${DATABASE_URL:?err}
       - NEXTAUTH_URL=${NEXTAUTH_URL:?err}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?err}
@@ -104,11 +104,11 @@ services:
       - API_RATE_LIMIT=${API_RATE_LIMIT:-1}
       - SMTP_HOST=${SMTP_HOST:-smtp.usesend.com}
       - SMTP_USER=${SMTP_USER:-usesend}
-      # - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?err}
-      # - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:?err}
-      # - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:?err}
-      # - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:?err}
-      # - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-usesend}
+      - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?err}
+      - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:?err}
+      - S3_COMPATIBLE_API_URL=http://rustfs:9000
+      - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:?err}
+      - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-usesend}
     depends_on:
       postgres:
         condition: service_healthy
