@@ -35,8 +35,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - 127.0.0.1:9002:9000
-      - 127.0.0.1:9001:9001
+      - 127.0.0.1:${RUSTFS_API_PORT:-9002}:9000
+      - 127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?err}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?err}
@@ -106,7 +106,7 @@ services:
       - SMTP_USER=${SMTP_USER:-usesend}
       - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?err}
       - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:?err}
-      - S3_COMPATIBLE_API_URL=http://rustfs:9000
+      - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:?err}
       - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:?err}
       - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-usesend}
     depends_on:
