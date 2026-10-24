@@ -29,19 +29,55 @@ services:
       - cache:/data
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
 
-  minio:
-    image: minio/minio
-    container_name: usesend-storage-prod
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: usesend-rustfs-prod
+    security_opt:
+      - no-new-privileges:true
     ports:
       - 127.0.0.1:9002:9002
       - 127.0.0.1:9001:9001
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?err}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?err}
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_OBS_LOGGER_LEVEL: error
     volumes:
       - storage:/data
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  rustfs-init:
+    image: amazon/aws-cli:latest
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?err}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?err}
-    entrypoint: sh
-    command: -c 'mkdir -p /data/unsend && minio server /data --console-address ":9001" --address ":9002"'
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?err}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?err}
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+      S3_COMPATIBLE_BUCKET: ${S3_COMPATIBLE_BUCKET:-usesend}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?err}
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    command: |
+      if ! aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$S3_COMPATIBLE_BUCKET" >/dev/null 2>&1; then
+        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$S3_COMPATIBLE_BUCKET"
+      fi
+
+      printf '{"CORSRules":[{"AllowedOrigins":["%s"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}' "$$NEXTAUTH_URL" > /tmp/cors.json
+
+      aws --endpoint-url http://rustfs:9000 s3api put-bucket-cors \
+        --bucket "$$S3_COMPATIBLE_BUCKET" \
+        --cors-configuration file:///tmp/cors.json
 
   usesend:
     image: usesend/usesend:latest
@@ -68,11 +104,18 @@ services:
       - API_RATE_LIMIT=${API_RATE_LIMIT:-1}
       - SMTP_HOST=${SMTP_HOST:-smtp.usesend.com}
       - SMTP_USER=${SMTP_USER:-usesend}
+      # - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?err}
+      # - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:?err}
+      # - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:?err}
+      # - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:?err}
+      # - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-usesend}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+      rustfs-init:
+        condition: service_completed_successfully
 
 volumes:
   database:

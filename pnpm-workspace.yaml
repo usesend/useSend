@@ -15,8 +15,19 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 
+minimumReleaseAgeExclude:
+  - react-router@7.13.2 || 7.14.0 || 7.14.2 || 7.15.0
+  - tar@7.5.19
+  - proxy-addr@2.0.8
+  - tinypool@2.1.1 || 2.1.2
+
 # pnpm 10+ reads overrides from the workspace configuration. Keep this in sync
 # with package.json for deployment environments that still use pnpm 9.
 overrides:
   "linkify-it@<=5.0.0": "5.0.1"
+  "next@15.5.28>sharp": "0.35.5"
   "pnpm@<11.11.0": "11.11.0"
+  "react-is": "^19.0.0-rc-69d4b800-20241021"
+  "tar@<7.5.22": "7.5.22"
+
+shellEmulator: true

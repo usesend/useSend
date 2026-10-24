@@ -27,7 +27,7 @@
     "postcss": "^8.5.14",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "react": "^19.1.0",
+    "react": "^19.1.10",
     "tailwindcss": "^4.1.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"
@@ -62,6 +62,6 @@
     "tiptap-extension-global-drag-handle": "^0.1.18"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1 <27"
   }
 }

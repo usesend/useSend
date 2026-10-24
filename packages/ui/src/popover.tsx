@@ -14,7 +14,7 @@ type PopoverContentProps = React.ComponentPropsWithoutRef<
 > & { container?: HTMLElement | null };
 
 const PopoverContent = React.forwardRef<
-  React.ElementRef<typeof PopoverPrimitive.Content>,
+  React.ComponentRef<typeof PopoverPrimitive.Content>,
   PopoverContentProps
 >(({ className, align = "center", sideOffset = 4, container, ...props }, ref) => (
   <PopoverPrimitive.Portal container={container ?? undefined}>

@@ -7,6 +7,7 @@ const {
   mockWebhookEmit,
   mockRedis,
   mockSendMail,
+  mockLoggerError,
   mockRenderDomainVerificationStatusEmail,
   mockResolveTxt,
 } = vi.hoisted(() => ({
@@ -27,6 +28,7 @@ const {
     del: vi.fn(),
   },
   mockSendMail: vi.fn(),
+  mockLoggerError: vi.fn(),
   mockRenderDomainVerificationStatusEmail: vi.fn(),
   mockResolveTxt: vi.fn(),
 }));
@@ -64,6 +66,13 @@ vi.mock("~/server/redis", () => ({
 
 vi.mock("~/server/mailer", () => ({
   sendMail: mockSendMail,
+}));
+
+vi.mock("~/server/logger/log", () => ({
+  logger: {
+    error: mockLoggerError,
+    info: vi.fn(),
+  },
 }));
 
 vi.mock("~/server/email-templates", () => ({
@@ -115,6 +124,7 @@ describe("domain-service", () => {
     mockRedis.set.mockReset();
     mockRedis.del.mockReset();
     mockSendMail.mockReset();
+    mockLoggerError.mockReset();
     mockRenderDomainVerificationStatusEmail.mockReset();
     mockResolveTxt.mockReset();
 
@@ -350,6 +360,16 @@ describe("domain-service", () => {
     expect(result.status).toBe(DomainStatus.SUCCESS);
     expect(mockDb.domain.update).toHaveBeenCalled();
     expect(wasLastNotifiedStatusStored()).toBe(false);
+
+    expect(mockLoggerError).toHaveBeenCalledOnce();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      {
+        err: expect.objectContaining({ message: "mail failed" }),
+        domainId: domain.id,
+        status: DomainStatus.SUCCESS,
+      },
+      "[DomainService]: Failed to send domain status notification",
+    );
   });
 
   it("uses a 6 hour cadence for domains that have never verified", async () => {
