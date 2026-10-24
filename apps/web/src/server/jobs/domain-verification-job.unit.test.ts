@@ -15,17 +15,26 @@ const {
   mockRefreshDomainVerification: vi.fn(),
   mockUpsertJobScheduler: vi.fn(),
   mockWorkerOn: vi.fn(),
-  mockQueue: vi.fn().mockImplementation(() => ({
-    upsertJobScheduler: mockUpsertJobScheduler,
-  })),
-  mockWorker: vi.fn().mockImplementation(() => ({
-    on: mockWorkerOn,
-  })),
+  mockQueue: vi.fn(),
+  mockWorker: vi.fn(),
 }));
 
 vi.mock("bullmq", () => ({
-  Queue: mockQueue,
-  Worker: mockWorker,
+  Queue: class {
+    upsertJobScheduler = mockUpsertJobScheduler;
+
+    constructor() {
+      mockQueue();
+    }
+  },
+
+  Worker: class {
+    on = mockWorkerOn;
+
+    constructor() {
+      mockWorker();
+    }
+  },
 }));
 
 vi.mock("~/server/db", () => ({
@@ -90,12 +99,6 @@ describe("domain-verification-job", () => {
     mockWorkerOn.mockReset();
     mockQueue.mockReset();
     mockWorker.mockReset();
-    mockQueue.mockImplementation(() => ({
-      upsertJobScheduler: mockUpsertJobScheduler,
-    }));
-    mockWorker.mockImplementation(() => ({
-      on: mockWorkerOn,
-    }));
   });
 
   it("refreshes only domains that are due", async () => {
