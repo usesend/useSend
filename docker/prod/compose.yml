@@ -35,8 +35,8 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "127.0.0.1:9002:9000"
-      - "127.0.0.1:9001:9001"
+      - 127.0.0.1:9002:9000
+      - 127.0.0.1:9001:9001
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?err}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?err}
