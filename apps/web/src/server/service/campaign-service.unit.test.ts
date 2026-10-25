@@ -21,7 +21,7 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   return {
     mockTx,
     mockDb: {
-      $transaction: vi.fn(async (callback: ReturnType<typeof vi.fn>) =>
+      $transaction: vi.fn(async (callback: (tx: typeof mockTx) => unknown) =>
         callback(mockTx),
       ),
       contact: {

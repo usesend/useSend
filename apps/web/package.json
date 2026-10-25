@@ -65,9 +65,9 @@
     "lucide-react": "^0.503.0",
     "mime-types": "^3.0.1",
     "nanoid": "^5.1.5",
-    "next": "15.5.27",
+    "next": "15.5.28",
     "next-auth": "^4.24.15",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^10.2.1",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
     "pnpm": "^11.11.0",
@@ -95,7 +95,6 @@
     "@types/html-to-text": "^9.0.4",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^22.15.2",
-    "@types/nodemailer": "^8.0.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@types/ua-parser-js": "^0.7.39",
@@ -111,8 +110,8 @@
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.4",
-    "@vitest/coverage-v8": "^3.2.4"
+    "vitest": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.11"
   },
   "overrides": {
     "react-is": "^19.0.0-rc-69d4b800-20241021"
