@@ -17,20 +17,19 @@ export const DashboardProvider = ({
   const { data: teams, status } = api.team.getTeams.useQuery();
   const { data: settings, status: settingsStatus } =
     api.admin.getSesSettings.useQuery(undefined, {
-      enabled: !env.NEXT_PUBLIC_IS_CLOUD || session?.user.isAdmin,
+      enabled: session?.user.isAdmin,
     });
 
   if (
     status === "pending" ||
-    (settingsStatus === "pending" && !env.NEXT_PUBLIC_IS_CLOUD)
+    (settingsStatus === "pending" &&
+      !env.NEXT_PUBLIC_IS_CLOUD &&
+      session?.user.isAdmin)
   ) {
     return <FullScreenLoading />;
   }
 
-  if (
-    settings?.length === 0 &&
-    (!env.NEXT_PUBLIC_IS_CLOUD || session?.user.isAdmin)
-  ) {
+  if (settings?.length === 0 && session?.user.isAdmin) {
     return <AddSesSettings />;
   }
 
