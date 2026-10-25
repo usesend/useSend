@@ -3,6 +3,10 @@ import { DomainStatus, type Domain } from "@prisma/client";
 
 const {
   mockDb,
+  mockTx,
+  mockAddDomain,
+  mockGetSesSetting,
+  mockLimitService,
   mockGetDomainIdentity,
   mockWebhookEmit,
   mockRedis,
@@ -12,7 +16,9 @@ const {
   mockResolveTxt,
 } = vi.hoisted(() => ({
   mockDb: {
+    $transaction: vi.fn(),
     domain: {
+      create: vi.fn(),
       update: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
@@ -20,6 +26,17 @@ const {
     teamUser: {
       findMany: vi.fn(),
     },
+  },
+  mockTx: {
+    domain: {
+      create: vi.fn(),
+    },
+  },
+  mockAddDomain: vi.fn(),
+  mockGetSesSetting: vi.fn(),
+  mockLimitService: {
+    checkDomainLimit: vi.fn(),
+    lockPlanLimit: vi.fn(),
   },
   mockGetDomainIdentity: vi.fn(),
   mockWebhookEmit: vi.fn(),
@@ -51,7 +68,18 @@ vi.mock("~/server/db", () => ({
 }));
 
 vi.mock("~/server/aws/ses", () => ({
+  addDomain: mockAddDomain,
   getDomainIdentity: mockGetDomainIdentity,
+}));
+
+vi.mock("~/server/service/ses-settings-service", () => ({
+  SesSettingsService: {
+    getSetting: mockGetSesSetting,
+  },
+}));
+
+vi.mock("~/server/service/limit-service", () => ({
+  LimitService: mockLimitService,
 }));
 
 vi.mock("~/server/service/webhook-service", () => ({
@@ -81,6 +109,7 @@ vi.mock("~/server/email-templates", () => ({
 }));
 
 import {
+  createDomain as createDomainForTeam,
   DOMAIN_UNVERIFIED_RECHECK_MS,
   DOMAIN_VERIFIED_RECHECK_MS,
   isDomainVerificationDue,
@@ -494,6 +523,72 @@ describe("domain-service", () => {
           apiKey,
         ),
       ).rejects.toThrow("Domain: a-corp.test of from email is wrong");
+    });
+  });
+
+  describe("createDomain", () => {
+    beforeEach(() => {
+      mockGetSesSetting.mockResolvedValue({ region: "us-east-1" });
+      mockAddDomain.mockResolvedValue("public-key");
+      mockTx.domain.create.mockImplementation(async ({ data }) =>
+        createDomain({ ...data, isVerifying: false }),
+      );
+      mockDb.$transaction.mockImplementation(async (callback: any) =>
+        callback(mockTx),
+      );
+      mockLimitService.checkDomainLimit.mockResolvedValue({
+        isLimitReached: false,
+        limit: 1,
+      });
+    });
+
+    it("checks the limit, registers with SES and creates under the plan-limit lock", async () => {
+      await createDomainForTeam(7, "example.com", "us-east-1");
+
+      expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockLimitService.lockPlanLimit).toHaveBeenCalledWith(
+        mockTx,
+        7,
+        "domain",
+      );
+      expect(mockLimitService.checkDomainLimit).toHaveBeenCalledWith(7, mockTx);
+      expect(
+        mockLimitService.lockPlanLimit.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mockLimitService.checkDomainLimit.mock.invocationCallOrder[0]!,
+      );
+      expect(
+        mockLimitService.checkDomainLimit.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockAddDomain.mock.invocationCallOrder[0]!);
+      expect(mockTx.domain.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: "example.com",
+          teamId: 7,
+          publicKey: "public-key",
+        }),
+      });
+      expect(mockDb.domain.create).not.toHaveBeenCalled();
+      expect(mockWebhookEmit).toHaveBeenCalledWith(
+        7,
+        "domain.created",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("rejects before calling SES when the domain limit is reached", async () => {
+      mockLimitService.checkDomainLimit.mockResolvedValue({
+        isLimitReached: true,
+        limit: 1,
+        reason: "DOMAIN",
+      });
+
+      await expect(
+        createDomainForTeam(7, "example.com", "us-east-1"),
+      ).rejects.toMatchObject({ code: "FORBIDDEN", message: "DOMAIN" });
+
+      expect(mockAddDomain).not.toHaveBeenCalled();
+      expect(mockTx.domain.create).not.toHaveBeenCalled();
     });
   });
 });

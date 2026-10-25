@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { LimitService } from "~/server/service/limit-service";
 
 export const invitationRouter = createTRPCRouter({
   getUserInvites: protectedProcedure
@@ -57,18 +58,34 @@ export const invitationRouter = createTRPCRouter({
         });
       }
 
-      await ctx.db.teamUser.create({
-        data: {
-          teamId: invite.teamId,
-          userId: ctx.session.user.id,
-          role: invite.role,
-        },
-      });
+      await ctx.db.$transaction(async (tx) => {
+        await LimitService.lockPlanLimit(tx, invite.teamId, "teamMember");
 
-      await ctx.db.teamInvite.delete({
-        where: {
-          id: input.inviteId,
-        },
+        const { isLimitReached } = await LimitService.checkTeamMemberLimit(
+          invite.teamId,
+          tx,
+        );
+
+        if (isLimitReached) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Team member limit reached",
+          });
+        }
+
+        await tx.teamUser.create({
+          data: {
+            teamId: invite.teamId,
+            userId: ctx.session.user.id,
+            role: invite.role,
+          },
+        });
+
+        await tx.teamInvite.delete({
+          where: {
+            id: input.inviteId,
+          },
+        });
       });
       // No need to invalidate cache here again
 

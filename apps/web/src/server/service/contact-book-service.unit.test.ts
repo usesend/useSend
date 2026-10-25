@@ -4,26 +4,38 @@ import {
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
 } from "~/lib/constants/double-opt-in";
 
-const { mockDb, mockCheckContactBookLimit, mockValidateDomainFromEmail } =
-  vi.hoisted(() => ({
-    mockDb: {
-      contactBook: {
-        create: vi.fn(),
-        update: vi.fn(),
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        delete: vi.fn(),
-      },
-      contact: {
-        count: vi.fn(),
-      },
-      campaign: {
-        findMany: vi.fn(),
-      },
+const {
+  mockDb,
+  mockTx,
+  mockCheckContactBookLimit,
+  mockLockPlanLimit,
+  mockValidateDomainFromEmail,
+} = vi.hoisted(() => ({
+  mockDb: {
+    $transaction: vi.fn(),
+    contactBook: {
+      create: vi.fn(),
+      update: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      delete: vi.fn(),
     },
-    mockCheckContactBookLimit: vi.fn(),
-    mockValidateDomainFromEmail: vi.fn(),
-  }));
+    contact: {
+      count: vi.fn(),
+    },
+    campaign: {
+      findMany: vi.fn(),
+    },
+  },
+  mockTx: {
+    contactBook: {
+      create: vi.fn(),
+    },
+  },
+  mockCheckContactBookLimit: vi.fn(),
+  mockLockPlanLimit: vi.fn(),
+  mockValidateDomainFromEmail: vi.fn(),
+}));
 
 vi.mock("~/server/db", () => ({
   db: mockDb,
@@ -32,6 +44,7 @@ vi.mock("~/server/db", () => ({
 vi.mock("~/server/service/limit-service", () => ({
   LimitService: {
     checkContactBookLimit: mockCheckContactBookLimit,
+    lockPlanLimit: mockLockPlanLimit,
   },
 }));
 
@@ -53,6 +66,10 @@ describe("contact-book-service", () => {
     mockDb.contactBook.update.mockReset();
     mockDb.contactBook.findUnique.mockReset();
     mockValidateDomainFromEmail.mockReset();
+
+    mockDb.$transaction.mockImplementation(async (callback: any) =>
+      callback(mockTx),
+    );
   });
 
   it("returns double opt-in content in contact book listings", async () => {
@@ -75,11 +92,11 @@ describe("contact-book-service", () => {
       isLimitReached: false,
       reason: null,
     });
-    mockDb.contactBook.create.mockResolvedValue({ id: "book_1" });
+    mockTx.contactBook.create.mockResolvedValue({ id: "book_1" });
 
     await createContactBook(12, "Newsletter");
 
-    expect(mockDb.contactBook.create).toHaveBeenCalledWith({
+    expect(mockTx.contactBook.create).toHaveBeenCalledWith({
       data: {
         name: "Newsletter",
         teamId: 12,
@@ -92,6 +109,46 @@ describe("contact-book-service", () => {
     });
   });
 
+  it("checks the limit and creates under the plan-limit lock in one transaction", async () => {
+    mockCheckContactBookLimit.mockResolvedValue({
+      isLimitReached: false,
+      reason: null,
+    });
+    mockTx.contactBook.create.mockResolvedValue({ id: "book_1" });
+
+    await createContactBook(12, "Newsletter");
+
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockLockPlanLimit).toHaveBeenCalledWith(mockTx, 12, "contactBook");
+    expect(mockCheckContactBookLimit).toHaveBeenCalledWith(12, mockTx);
+    expect(mockLockPlanLimit.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCheckContactBookLimit.mock.invocationCallOrder[0]!,
+    );
+    expect(mockCheckContactBookLimit.mock.invocationCallOrder[0]).toBeLessThan(
+      mockTx.contactBook.create.mock.invocationCallOrder[0]!,
+    );
+    expect(mockDb.contactBook.create).not.toHaveBeenCalled();
+  });
+
+  it("reuses a caller-provided transaction instead of opening a new one", async () => {
+    const callerTx = {
+      contactBook: {
+        create: vi.fn().mockResolvedValue({ id: "book_2" }),
+      },
+    };
+    mockCheckContactBookLimit.mockResolvedValue({
+      isLimitReached: false,
+      reason: null,
+    });
+
+    await createContactBook(12, "Newsletter", undefined, callerTx as any);
+
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockLockPlanLimit).toHaveBeenCalledWith(callerTx, 12, "contactBook");
+    expect(mockCheckContactBookLimit).toHaveBeenCalledWith(12, callerTx);
+    expect(callerTx.contactBook.create).toHaveBeenCalledTimes(1);
+  });
+
   it("throws when the contact book limit is reached", async () => {
     mockCheckContactBookLimit.mockResolvedValue({
       isLimitReached: true,
@@ -102,7 +159,7 @@ describe("contact-book-service", () => {
       code: "FORBIDDEN",
       message: "limit reached",
     });
-    expect(mockDb.contactBook.create).not.toHaveBeenCalled();
+    expect(mockTx.contactBook.create).not.toHaveBeenCalled();
   });
 
   it("normalizes empty double opt-in content to defaults", async () => {

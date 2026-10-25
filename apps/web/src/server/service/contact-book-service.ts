@@ -1,4 +1,4 @@
-import { CampaignStatus } from "@prisma/client";
+import { CampaignStatus, type Prisma } from "@prisma/client";
 import {
   DEFAULT_DOUBLE_OPT_IN_CONTENT,
   DEFAULT_DOUBLE_OPT_IN_SUBJECT,
@@ -45,42 +45,48 @@ export async function createContactBook(
   teamId: number,
   name: string,
   variables?: string[],
-  client: ContactBookDbClient = db,
+  tx?: Prisma.TransactionClient,
 ) {
-  const { isLimitReached, reason } =
-    await LimitService.checkContactBookLimit(teamId);
+  const create = async (client: Prisma.TransactionClient) => {
+    await LimitService.lockPlanLimit(client, teamId, "contactBook");
 
-  if (isLimitReached) {
-    throw new UnsendApiError({
-      code: "FORBIDDEN",
-      message: reason ?? "Contact book limit reached",
-    });
-  }
-
-  const normalizedVariables = normalizeContactBookVariables(variables);
-
-  try {
-    validateContactBookVariables(normalizedVariables);
-  } catch (error) {
-    throw new UnsendApiError({
-      code: "BAD_REQUEST",
-      message: error instanceof Error ? error.message : "Invalid variables",
-    });
-  }
-
-  const created = await client.contactBook.create({
-    data: {
-      name,
+    const { isLimitReached, reason } = await LimitService.checkContactBookLimit(
       teamId,
-      properties: {},
-      variables: normalizedVariables,
-      doubleOptInEnabled: true,
-      doubleOptInSubject: DEFAULT_DOUBLE_OPT_IN_SUBJECT,
-      doubleOptInContent: DEFAULT_DOUBLE_OPT_IN_CONTENT,
-    },
-  });
+      client,
+    );
 
-  return created;
+    if (isLimitReached) {
+      throw new UnsendApiError({
+        code: "FORBIDDEN",
+        message: reason ?? "Contact book limit reached",
+      });
+    }
+
+    const normalizedVariables = normalizeContactBookVariables(variables);
+
+    try {
+      validateContactBookVariables(normalizedVariables);
+    } catch (error) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: error instanceof Error ? error.message : "Invalid variables",
+      });
+    }
+
+    return client.contactBook.create({
+      data: {
+        name,
+        teamId,
+        properties: {},
+        variables: normalizedVariables,
+        doubleOptInEnabled: true,
+        doubleOptInSubject: DEFAULT_DOUBLE_OPT_IN_SUBJECT,
+        doubleOptInContent: DEFAULT_DOUBLE_OPT_IN_CONTENT,
+      },
+    });
+  };
+
+  return tx ? create(tx) : db.$transaction(create);
 }
 
 export async function getContactBookDetails(contactBookId: string) {

@@ -24,6 +24,8 @@ const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
 export const DOMAIN_UNVERIFIED_RECHECK_MS = 6 * 60 * 60 * 1000;
 export const DOMAIN_VERIFIED_RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
 const VERIFIED_DOMAIN_STATUSES = new Set<DomainStatus>([DomainStatus.SUCCESS]);
+// Covers the SES identity calls made inside the domain create transaction.
+const DOMAIN_CREATE_TRANSACTION_TIMEOUT_MS = 30_000;
 
 type DomainVerificationState = {
   hasEverVerified: boolean;
@@ -398,38 +400,50 @@ export async function createDomain(
     throw new Error("Ses setting not found");
   }
 
-  const { isLimitReached, reason } =
-    await LimitService.checkDomainLimit(teamId);
+  // The SES identity is created while the plan-limit lock is held so that
+  // concurrent requests cannot both pass the limit check. Requests rejected by
+  // the limit never reach SES.
+  const domain = await db.$transaction(
+    async (tx) => {
+      await LimitService.lockPlanLimit(tx, teamId, "domain");
 
-  if (isLimitReached) {
-    throw new UnsendApiError({
-      code: "FORBIDDEN",
-      message: reason ?? "Domain limit reached",
-    });
-  }
+      const { isLimitReached, reason } = await LimitService.checkDomainLimit(
+        teamId,
+        tx,
+      );
 
-  const subdomain = tldts.getSubdomain(name);
-  const dkimSelector = "usesend";
-  const publicKey = await ses.addDomain(
-    name,
-    region,
-    sesTenantId,
-    dkimSelector,
-  );
+      if (isLimitReached) {
+        throw new UnsendApiError({
+          code: "FORBIDDEN",
+          message: reason ?? "Domain limit reached",
+        });
+      }
 
-  const domain = await db.domain.create({
-    data: {
-      name,
-      publicKey,
-      teamId,
-      subdomain,
-      region,
-      sesTenantId,
-      dkimSelector,
-      dkimStatus: DomainStatus.NOT_STARTED,
-      spfDetails: DomainStatus.NOT_STARTED,
+      const subdomain = tldts.getSubdomain(name);
+      const dkimSelector = "usesend";
+      const publicKey = await ses.addDomain(
+        name,
+        region,
+        sesTenantId,
+        dkimSelector,
+      );
+
+      return tx.domain.create({
+        data: {
+          name,
+          publicKey,
+          teamId,
+          subdomain,
+          region,
+          sesTenantId,
+          dkimSelector,
+          dkimStatus: DomainStatus.NOT_STARTED,
+          spfDetails: DomainStatus.NOT_STARTED,
+        },
+      });
     },
-  });
+    { timeout: DOMAIN_CREATE_TRANSACTION_TIMEOUT_MS },
+  );
 
   await emitDomainEvent(domain, "domain.created");
 
