@@ -78,9 +78,15 @@ vi.mock("~/server/queue/bullmq-context", () => ({
   },
 }));
 
-const { mockDnsLookup } = vi.hoisted(() => ({ mockDnsLookup: vi.fn() }));
+const { mockFetchOutbound } = vi.hoisted(() => ({
+  mockFetchOutbound: vi.fn(),
+}));
 
-vi.mock("node:dns/promises", () => ({ lookup: mockDnsLookup }));
+vi.mock("~/server/utils/outbound-url-guard", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  assertOutboundUrlAllowed: vi.fn(),
+  fetchOutbound: mockFetchOutbound,
+}));
 
 vi.mock("~/server/redis", () => ({
   BULL_PREFIX: "bull",
@@ -151,13 +157,12 @@ describe("WebhookService documented behavior", () => {
     mockRedis.eval.mockReset();
     mockRedis.set.mockReset();
     mockTxWebhookUpdate.mockReset();
-    mockDnsLookup.mockReset();
+    mockFetchOutbound.mockReset();
 
     mockLimitService.checkWebhookLimit.mockResolvedValue({
       isLimitReached: false,
       reason: null,
     });
-    mockDnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
     mockRedis.set.mockResolvedValue("OK");
     mockRedis.eval.mockResolvedValue(1);
     mockQueueAdd.mockResolvedValue(undefined);
@@ -184,7 +189,7 @@ describe("WebhookService documented behavior", () => {
   it("sends documented webhook headers with retry=false on first attempt", async () => {
     mockDb.webhookCall.findUnique.mockResolvedValue(buildCall());
 
-    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue(
+    const fetchSpy = mockFetchOutbound.mockResolvedValue(
       new Response('{"ok":true}', {
         status: 200,
         headers: {
@@ -207,7 +212,7 @@ describe("WebhookService documented behavior", () => {
   it("sets retry=true header for retry attempts", async () => {
     mockDb.webhookCall.findUnique.mockResolvedValue(buildCall());
 
-    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue(
+    const fetchSpy = mockFetchOutbound.mockResolvedValue(
       new Response("ok", {
         status: 200,
         headers: {
@@ -231,7 +236,7 @@ describe("WebhookService documented behavior", () => {
       consecutiveFailures: 1,
     });
 
-    vi.spyOn(global, "fetch").mockRejectedValue(new Error("network down"));
+    mockFetchOutbound.mockRejectedValue(new Error("network down"));
 
     await expect(invokeProcessWebhookCall(5)).rejects.toThrow("network down");
 
@@ -253,7 +258,7 @@ describe("WebhookService documented behavior", () => {
       consecutiveFailures: 0,
     });
 
-    vi.spyOn(global, "fetch").mockRejectedValue(new Error("network down"));
+    mockFetchOutbound.mockRejectedValue(new Error("network down"));
 
     await expect(invokeProcessWebhookCall(0)).rejects.toThrow("network down");
 
@@ -287,7 +292,7 @@ describe("WebhookService documented behavior", () => {
         consecutiveFailures: 30,
       });
 
-    vi.spyOn(global, "fetch").mockRejectedValue(new Error("endpoint 500"));
+    mockFetchOutbound.mockRejectedValue(new Error("endpoint 500"));
 
     await expect(invokeProcessWebhookCall(5)).resolves.toBeUndefined();
 
@@ -310,7 +315,7 @@ describe("WebhookService documented behavior", () => {
       consecutiveFailures: 1,
     });
 
-    vi.spyOn(global, "fetch").mockRejectedValue(new Error("endpoint 500"));
+    mockFetchOutbound.mockRejectedValue(new Error("endpoint 500"));
 
     await expect(invokeProcessWebhookCall(5)).rejects.toThrow("endpoint 500");
     expect(mockTxWebhookUpdate).toHaveBeenCalledTimes(1);

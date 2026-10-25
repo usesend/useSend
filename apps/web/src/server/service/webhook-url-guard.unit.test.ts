@@ -1,28 +1,39 @@
 import { createServer, type Server } from "node:http";
 import { WebhookStatus } from "@prisma/client";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const {
   capturedProcessWebhookCall,
   mockDb,
   mockDnsLookup,
+  mockEnv,
   mockLimitService,
   mockRedis,
-} =
-  vi.hoisted(() => ({
-    capturedProcessWebhookCall: { handler: null as any },
-    mockDb: {
-      $transaction: vi.fn(),
-      domain: { findMany: vi.fn() },
-      webhook: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-      webhookCall: { findUnique: vi.fn(), update: vi.fn() },
-    },
-    mockDnsLookup: vi.fn(),
-    mockLimitService: { checkWebhookLimit: vi.fn() },
-    mockRedis: { eval: vi.fn(), set: vi.fn() },
-  }));
+} = vi.hoisted(() => ({
+  capturedProcessWebhookCall: { handler: null as any },
+  mockDb: {
+    $transaction: vi.fn(),
+    domain: { findMany: vi.fn() },
+    webhook: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    webhookCall: { findUnique: vi.fn(), update: vi.fn() },
+  },
+  mockDnsLookup: vi.fn(),
+  mockEnv: { OUTBOUND_ALLOW_PRIVATE_ADDRESSES: false },
+  mockLimitService: { checkWebhookLimit: vi.fn() },
+  mockRedis: { eval: vi.fn(), set: vi.fn() },
+}));
 
-vi.mock("node:dns/promises", () => ({ lookup: mockDnsLookup }));
+vi.mock("node:dns", () => ({ lookup: mockDnsLookup }));
+
+vi.mock("~/env", () => ({ env: mockEnv }));
 
 vi.mock("bullmq", () => ({
   Queue: class {
@@ -56,121 +67,23 @@ vi.mock("~/server/redis", () => ({
   redisKey: (key: string) => key,
 }));
 
-import {
-  assertWebhookUrlAllowed,
-  isNonPublicIpAddress,
-  WebhookUrlNotAllowedError,
-} from "~/server/service/webhook-url-guard";
+import { OutboundUrlNotAllowedError } from "~/server/utils/outbound-url-guard";
 import { WebhookService } from "~/server/service/webhook-service";
 
-const publicAddress = { address: "93.184.216.34", family: 4 };
+function resolveTo(address: string) {
+  mockDnsLookup.mockImplementation(
+    (_hostname: string, _options: unknown, callback: Function) =>
+      callback(null, [{ address, family: 4 }]),
+  );
+}
 
-describe("isNonPublicIpAddress", () => {
-  it.each([
-    "127.0.0.1",
-    "0.0.0.0",
-    "10.1.2.3",
-    "100.64.0.1",
-    "169.254.169.254",
-    "172.16.0.1",
-    "172.31.255.255",
-    "192.168.1.1",
-    "198.18.0.1",
-    "224.0.0.1",
-    "255.255.255.255",
-    "::1",
-    "::",
-    "fe80::1",
-    "fc00::1",
-    "fd12:3456::1",
-    "ff02::1",
-    "::ffff:127.0.0.1",
-    "::ffff:169.254.169.254",
-    "2001:db8::1",
-    "not-an-address",
-  ])("treats %s as non-public", (address) => {
-    expect(isNonPublicIpAddress(address)).toBe(true);
-  });
-
-  it.each([
-    "93.184.216.34",
-    "8.8.8.8",
-    "172.32.0.1",
-    "2606:4700:10::6814:179a",
-    "::ffff:93.184.216.34",
-    "2001:4860:4860::8888",
-  ])("treats %s as public", (address) => {
-    expect(isNonPublicIpAddress(address)).toBe(false);
-  });
-});
-
-describe("assertWebhookUrlAllowed", () => {
-  beforeEach(() => {
-    mockDnsLookup.mockReset();
-    mockDnsLookup.mockResolvedValue([publicAddress]);
-  });
-
-  it("rejects a non-http scheme", async () => {
-    await expect(assertWebhookUrlAllowed("file:///etc/passwd")).rejects.toThrow(
-      WebhookUrlNotAllowedError,
-    );
-  });
-
-  it("rejects an unparsable URL", async () => {
-    await expect(assertWebhookUrlAllowed("not a url")).rejects.toThrow(
-      WebhookUrlNotAllowedError,
-    );
-  });
-
-  it.each([
-    "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-    "http://127.0.0.1:3000/admin",
-    "http://10.0.0.5/hook",
-    "http://[::1]:3000/hook",
-    "http://[::ffff:169.254.169.254]/latest/meta-data/",
-  ])("rejects the internal target %s", async (url) => {
-    await expect(assertWebhookUrlAllowed(url)).rejects.toThrow(
-      WebhookUrlNotAllowedError,
-    );
-    expect(mockDnsLookup).not.toHaveBeenCalled();
-  });
-
-  it("rejects a hostname that resolves to a private address", async () => {
-    mockDnsLookup.mockResolvedValue([{ address: "10.0.0.5", family: 4 }]);
-
-    await expect(
-      assertWebhookUrlAllowed("https://hooks.internal.example.com/event"),
-    ).rejects.toThrow(WebhookUrlNotAllowedError);
-  });
-
-  it("rejects a hostname when any resolved address is private", async () => {
-    mockDnsLookup.mockResolvedValue([
-      publicAddress,
-      { address: "169.254.169.254", family: 4 },
-    ]);
-
-    await expect(
-      assertWebhookUrlAllowed("https://hooks.example.com/event"),
-    ).rejects.toThrow(WebhookUrlNotAllowedError);
-  });
-
-  it("allows a hostname that resolves to public addresses", async () => {
-    await expect(
-      assertWebhookUrlAllowed("https://hooks.example.com/event"),
-    ).resolves.toBeUndefined();
-  });
-
-  it("allows a public address literal", async () => {
-    await expect(
-      assertWebhookUrlAllowed("https://93.184.216.34/hook"),
-    ).resolves.toBeUndefined();
-  });
+beforeEach(() => {
+  mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = false;
+  resolveTo("93.184.216.34");
 });
 
 describe("WebhookService URL validation", () => {
   beforeEach(() => {
-    mockDnsLookup.mockReset();
-    mockDnsLookup.mockResolvedValue([publicAddress]);
     mockDb.webhook.create.mockReset();
     mockDb.webhook.findFirst.mockReset();
     mockDb.webhook.update.mockReset();
@@ -182,7 +95,6 @@ describe("WebhookService URL validation", () => {
   });
 
   it("rejects create with an internal URL and writes nothing", async () => {
-
     await expect(
       WebhookService.createWebhook({
         teamId: 77,
@@ -217,6 +129,53 @@ describe("WebhookService URL validation", () => {
     expect(mockDb.webhook.update).not.toHaveBeenCalled();
   });
 
+  it("rejects create with a hostname that resolves to a private address", async () => {
+    resolveTo("172.18.0.4");
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 5,
+        url: "http://n8n:5678/webhook",
+        eventTypes: ["email.delivered"],
+      }),
+    ).rejects.toThrow(/publicly reachable host/);
+
+    expect(mockDb.webhook.create).not.toHaveBeenCalled();
+  });
+
+  it("accepts create when the host cannot be resolved", async () => {
+    mockDnsLookup.mockImplementation(
+      (_hostname: string, _options: unknown, callback: Function) =>
+        callback(Object.assign(new Error("EAI_AGAIN"), { code: "EAI_AGAIN" })),
+    );
+    mockDb.webhook.create.mockResolvedValue({ id: "wh_new" });
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 5,
+        url: "https://hooks.example.com/event",
+        eventTypes: ["email.delivered"],
+      }),
+    ).resolves.toMatchObject({ id: "wh_new" });
+  });
+
+  it("accepts create with an internal URL when private addresses are allowed", async () => {
+    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    resolveTo("172.18.0.4");
+    mockDb.webhook.create.mockResolvedValue({ id: "wh_new" });
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 5,
+        url: "http://n8n:5678/webhook",
+        eventTypes: ["email.delivered"],
+      }),
+    ).resolves.toMatchObject({ id: "wh_new" });
+  });
+
   it("accepts create with a public URL", async () => {
     mockDb.webhook.create.mockResolvedValue({ id: "wh_new" });
 
@@ -236,9 +195,24 @@ describe("webhook delivery guard", () => {
   let port = 0;
   let received = 0;
 
-  beforeEach(async () => {
-    mockDnsLookup.mockReset();
-    mockDnsLookup.mockResolvedValue([publicAddress]);
+  beforeAll(async () => {
+    server = createServer((_request, response) => {
+      received += 1;
+      response.statusCode = 200;
+      response.setHeader("content-type", "text/plain");
+      response.end("ok");
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    port = (server.address() as { port: number }).port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  beforeEach(() => {
     mockDb.$transaction.mockReset();
     mockDb.webhook.update.mockReset();
     mockDb.webhookCall.findUnique.mockReset();
@@ -262,21 +236,6 @@ describe("webhook delivery guard", () => {
     mockRedis.eval.mockResolvedValue(1);
 
     received = 0;
-    server = createServer((_request, response) => {
-      received += 1;
-      response.statusCode = 200;
-      response.end("ok");
-    });
-    await new Promise<void>((resolve) =>
-      server.listen(0, "127.0.0.1", resolve),
-    );
-    port = (server.address() as { port: number }).port;
-  });
-
-  afterAll(async () => {
-    if (server) {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
   });
 
   function buildCall(url: string) {
@@ -314,7 +273,7 @@ describe("webhook delivery guard", () => {
       buildCall(`http://127.0.0.1:${port}/internal`),
     );
 
-    await expect(invokeHandler()).rejects.toThrow(WebhookUrlNotAllowedError);
+    await expect(invokeHandler()).rejects.toThrow(OutboundUrlNotAllowedError);
 
     expect(received).toBe(0);
     expect(mockDb.webhookCall.update).toHaveBeenCalledWith(
@@ -326,17 +285,33 @@ describe("webhook delivery guard", () => {
     );
   });
 
-  it("delivers to a public target", async () => {
+  it("does not contact a hostname that resolves to loopback", async () => {
+    resolveTo("127.0.0.1");
     mockDb.webhookCall.findUnique.mockResolvedValue(
-      buildCall("https://93.184.216.34/webhook"),
+      buildCall(`http://hooks.example.com:${port}/internal`),
     );
-    const fetchSpy = vi
-      .spyOn(global, "fetch")
-      .mockResolvedValue(new Response("ok", { status: 200 }));
 
-    await invokeHandler();
+    await expect(invokeHandler()).rejects.toThrow(OutboundUrlNotAllowedError);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://93.184.216.34/webhook");
+    expect(received).toBe(0);
+  });
+
+  it("delivers to an internal target when private addresses are allowed", async () => {
+    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockDb.webhookCall.findUnique.mockResolvedValue(
+      buildCall(`http://127.0.0.1:${port}/internal`),
+    );
+
+    await expect(invokeHandler()).resolves.toBeUndefined();
+
+    expect(received).toBe(1);
+    expect(mockDb.webhookCall.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          responseStatus: 200,
+          responseText: "ok",
+        }),
+      }),
+    );
   });
 });

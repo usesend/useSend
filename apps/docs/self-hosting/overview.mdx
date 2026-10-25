@@ -135,6 +135,16 @@ docker rm -f usesend-minio-migrate
 This uses the `minio/minio` image already on your server. If your public storage URL stays the same, images in emails you already sent keep loading. Once you've checked them, you can remove the old volume with `docker volume rm usesend-prod_storage`.
 
   </Step>
+  <Step title="Webhooks to internal hosts (optional)">
+  By default, webhooks (and the SES callback URL check) can only reach publicly routable addresses. Private, loopback, and link-local addresses such as `http://n8n:5678`, `http://localhost`, or `169.254.169.254` are refused. If you need to send webhooks to services on your internal network, set:
+
+```env
+OUTBOUND_ALLOW_PRIVATE_ADDRESSES=true
+```
+
+Only enable this if you trust every user who can create webhooks on your instance, since they can then make the server send requests to your internal network.
+
+  </Step>
 </Steps>
 
 ## Step 2: Setting up the app
