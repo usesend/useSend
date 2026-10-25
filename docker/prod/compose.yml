@@ -30,7 +30,7 @@ services:
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
 
   minio:
-    image: minio/minio
+    image: cgr.dev/chainguard/minio:latest
     container_name: usesend-storage-prod
     ports:
       - 127.0.0.1:9002:9002

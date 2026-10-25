@@ -36,7 +36,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   minio:
-    image: minio/minio
+    image: cgr.dev/chainguard/minio:latest
     container_name: unsend-storage-dev
     ports:
       - 9002:9002
