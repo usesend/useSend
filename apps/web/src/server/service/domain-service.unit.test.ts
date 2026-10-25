@@ -15,6 +15,7 @@ const {
     domain: {
       update: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     teamUser: {
       findMany: vi.fn(),
@@ -84,6 +85,8 @@ import {
   DOMAIN_VERIFIED_RECHECK_MS,
   isDomainVerificationDue,
   refreshDomainVerification,
+  validateApiKeyDomainAccess,
+  validateDomainFromEmail,
 } from "~/server/service/domain-service";
 
 function createDomain(overrides: Partial<Domain> = {}): Domain {
@@ -117,6 +120,7 @@ describe("domain-service", () => {
 
     mockDb.domain.update.mockReset();
     mockDb.domain.findUnique.mockReset();
+    mockDb.domain.findFirst.mockReset();
     mockDb.teamUser.findMany.mockReset();
     mockGetDomainIdentity.mockReset();
     mockWebhookEmit.mockReset();
@@ -430,5 +434,66 @@ describe("domain-service", () => {
     ]);
 
     await expect(isDomainVerificationDue(domain)).resolves.toBe(false);
+  });
+
+  describe("validateDomainFromEmail", () => {
+    const ownedDomain = createDomain({
+      id: 42,
+      name: "b-corp.test",
+      status: DomainStatus.SUCCESS,
+    });
+
+    beforeEach(() => {
+      mockDb.domain.findFirst.mockImplementation(
+        async ({ where }: { where: { name: string; teamId: number } }) =>
+          where.name === ownedDomain.name && where.teamId === 7
+            ? ownedDomain
+            : null,
+      );
+    });
+
+    it.each([
+      "billing@b-corp.test",
+      "Billing <billing@b-corp.test>",
+      '"Billing, Team" <billing@b-corp.test>',
+    ])("accepts %s", async (from) => {
+      await expect(validateDomainFromEmail(from, 7)).resolves.toBe(ownedDomain);
+    });
+
+    it.each([
+      "billing@a-corp.test",
+      "Billing (<x@b-corp.test>) <billing@a-corp.test>",
+      '"Me <x@b-corp.test>" <billing@a-corp.test>',
+    ])("looks up the delivered domain for %s", async (from) => {
+      await expect(validateDomainFromEmail(from, 7)).rejects.toThrow(
+        "Domain: a-corp.test of from email is wrong",
+      );
+    });
+
+    it.each([
+      "billing@a-corp.test@b-corp.test",
+      "x@b-corp.test@a-corp.test",
+      "Group: billing@a-corp.test;",
+      "Billing <x@b-corp.test>, billing@a-corp.test",
+    ])("rejects %s before looking up a domain", async (from) => {
+      await expect(validateDomainFromEmail(from, 7)).rejects.toThrow(
+        "From email is invalid",
+      );
+      expect(mockDb.domain.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("does not let a domain-scoped API key send from another domain", async () => {
+      const apiKey = { domainId: 42 } as Parameters<
+        typeof validateApiKeyDomainAccess
+      >[2];
+
+      await expect(
+        validateApiKeyDomainAccess(
+          "Billing (<x@b-corp.test>) <billing@a-corp.test>",
+          7,
+          apiKey,
+        ),
+      ).rejects.toThrow("Domain: a-corp.test of from email is wrong");
+    });
   });
 });

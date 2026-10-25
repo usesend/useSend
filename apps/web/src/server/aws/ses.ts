@@ -21,6 +21,7 @@ import { getAwsCredentialOptions } from "~/server/aws/credentials";
 import { EmailContent } from "~/types";
 import { logger } from "../logger/log";
 import { buildHeaders } from "~/server/utils/email-headers";
+import { parseFromAddress } from "~/server/utils/from-address";
 
 let accountId: string | undefined = undefined;
 
@@ -213,10 +214,15 @@ export async function sendRawEmail({
 }) {
   const sesClient = getSesClient(region);
 
+  const parsedFrom = from ? parseFromAddress(from) : undefined;
+  if (!parsedFrom) {
+    throw new Error("From email is invalid");
+  }
+
   const { message: messageStream } = await nodemailer
     .createTransport({ streamTransport: true })
     .sendMail({
-      from,
+      from: { name: parsedFrom.name, address: parsedFrom.address },
       to,
       subject,
       html,

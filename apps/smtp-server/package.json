@@ -16,14 +16,13 @@
     "@types/smtp-server": "^3.5.10",
     "dotenv": "^16.5.0",
     "mailparser": "^3.12.4",
-    "nodemailer": "^10.1.4",
+    "nodemailer": "^10.2.1",
     "smtp-server": "^3.21.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.2",
-    "@types/nodemailer": "^8.0.1",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.11"
   }
 }
