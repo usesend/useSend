@@ -100,7 +100,7 @@ async function handleSubscription(message: SnsNotificationMessage) {
  * signature is valid before the payload is trusted.
  */
 async function checkEventValidity(
-  message: SnsNotificationMessage
+  message: SnsNotificationMessage,
 ): Promise<boolean> {
   if (env.NODE_ENV === "development") {
     return true;
@@ -110,8 +110,31 @@ async function checkEventValidity(
   const configuredTopicArn = await SesSettingsService.getTopicArns();
 
   if (!configuredTopicArn.includes(TopicArn)) {
+    logger.warn(
+      { topicArn: TopicArn, messageId: message.MessageId },
+      "Rejected SNS message from an unknown topic",
+    );
     return false;
   }
 
-  return verifySnsMessageSignature(message);
+  if (await verifySnsMessageSignature(message)) {
+    return true;
+  }
+
+  const enforced = env.SNS_SIGNATURE_VERIFICATION !== "log-only";
+  logger.error(
+    {
+      topicArn: TopicArn,
+      messageId: message.MessageId,
+      type: message.Type,
+      signatureVersion: message.SignatureVersion,
+      signingCertUrl: message.SigningCertURL,
+      enforced,
+    },
+    enforced
+      ? "Rejected SNS message with invalid signature"
+      : "SNS message has an invalid signature, accepting because SNS_SIGNATURE_VERIFICATION=log-only",
+  );
+
+  return !enforced;
 }

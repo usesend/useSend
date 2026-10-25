@@ -1,23 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { state, mockQueue, mockGetTopicArns, mockInvalidateCache, mockDb } =
-  vi.hoisted(() => ({
-    state: {
-      signatureValid: false,
-      subscribeUrlTrusted: false,
+const {
+  state,
+  mockEnv,
+  mockLogger,
+  mockQueue,
+  mockGetTopicArns,
+  mockInvalidateCache,
+  mockDb,
+} = vi.hoisted(() => ({
+  state: {
+    signatureValid: false,
+    subscribeUrlTrusted: false,
+    useRealValidator: false,
+  },
+  mockEnv: {
+    NODE_ENV: "test",
+    SNS_SIGNATURE_VERIFICATION: "enforce",
+  },
+  mockLogger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+  mockQueue: vi.fn(),
+  mockGetTopicArns: vi.fn(),
+  mockInvalidateCache: vi.fn(),
+  mockDb: {
+    sesSetting: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
     },
-    mockQueue: vi.fn(),
-    mockGetTopicArns: vi.fn(),
-    mockInvalidateCache: vi.fn(),
-    mockDb: {
-      sesSetting: {
-        findFirst: vi.fn(),
-        update: vi.fn(),
-      },
-    },
-  }));
+  },
+}));
 
-vi.mock("~/env", () => ({ env: { NODE_ENV: "test" } }));
+vi.mock("~/env", () => ({ env: mockEnv }));
+
+vi.mock("~/server/logger/log", () => ({ logger: mockLogger }));
 
 vi.mock("~/server/db", () => ({ db: mockDb }));
 
@@ -32,12 +51,25 @@ vi.mock("~/server/service/ses-settings-service", () => ({
   },
 }));
 
-vi.mock("~/server/aws/sns-message-validator", () => ({
-  verifySnsMessageSignature: vi.fn(async () => state.signatureValid),
-  isTrustedSnsUrl: vi.fn(() => state.subscribeUrlTrusted),
-}));
+vi.mock("~/server/aws/sns-message-validator", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/server/aws/sns-message-validator")>();
+  return {
+    verifySnsMessageSignature: vi.fn(async (message: SnsNotificationMessage) =>
+      state.useRealValidator
+        ? actual.verifySnsMessageSignature(message)
+        : state.signatureValid,
+    ),
+    isTrustedSnsUrl: vi.fn(() => state.subscribeUrlTrusted),
+  };
+});
 
 import { POST } from "~/app/api/ses_callback/route";
+import {
+  AWS_SIGNED_SNS_MESSAGES,
+  AWS_SNS_SIGNING_CERT,
+} from "~/test/fixtures/aws-sns-signed-messages";
+import type { SnsNotificationMessage } from "~/types/aws-types";
 
 const TOPIC_ARN = "arn:aws:sns:us-east-1:123456789012:my-topic";
 
@@ -71,6 +103,10 @@ beforeEach(() => {
   mockDb.sesSetting.update.mockResolvedValue({ id: "setting_1" });
   state.signatureValid = false;
   state.subscribeUrlTrusted = false;
+  state.useRealValidator = false;
+  mockEnv.SNS_SIGNATURE_VERIFICATION = "enforce";
+  mockLogger.error.mockClear();
+  mockQueue.mockClear();
 });
 
 describe("ses_callback route", () => {
@@ -78,7 +114,9 @@ describe("ses_callback route", () => {
     const response = await postRequest(forgedNotification());
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ data: "Event is not valid" });
+    await expect(response.json()).resolves.toEqual({
+      data: "Event is not valid",
+    });
     expect(mockQueue).not.toHaveBeenCalled();
   });
 
@@ -94,7 +132,9 @@ describe("ses_callback route", () => {
 
   it("rejects a notification from an unconfigured topic", async () => {
     state.signatureValid = true;
-    mockGetTopicArns.mockResolvedValue(["arn:aws:sns:us-east-1:123456789012:other"]);
+    mockGetTopicArns.mockResolvedValue([
+      "arn:aws:sns:us-east-1:123456789012:other",
+    ]);
 
     const response = await postRequest(forgedNotification());
 
@@ -152,5 +192,79 @@ describe("ses_callback route", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it("logs an error when it rejects an invalid signature", async () => {
+    await postRequest(forgedNotification());
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ topicArn: TOPIC_ARN, enforced: true }),
+      "Rejected SNS message with invalid signature",
+    );
+  });
+
+  it("accepts an invalid signature but still logs it in log-only mode", async () => {
+    mockEnv.SNS_SIGNATURE_VERIFICATION = "log-only";
+
+    const response = await postRequest(forgedNotification());
+
+    expect(response.status).toBe(200);
+    expect(mockQueue).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ enforced: false }),
+      expect.stringContaining("log-only"),
+    );
+  });
+
+  it("still rejects an unconfigured topic in log-only mode", async () => {
+    mockEnv.SNS_SIGNATURE_VERIFICATION = "log-only";
+    mockGetTopicArns.mockResolvedValue([
+      "arn:aws:sns:us-east-1:123456789012:other",
+    ]);
+
+    const response = await postRequest(forgedNotification());
+
+    expect(response.status).toBe(401);
+    expect(mockQueue).not.toHaveBeenCalled();
+  });
+
+  it("queues a genuine AWS-signed SES event end to end", async () => {
+    state.useRealValidator = true;
+    const message = AWS_SIGNED_SNS_MESSAGES.sesComplaintEventWithSubject;
+    mockGetTopicArns.mockResolvedValue([message.TopicArn]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(AWS_SNS_SIGNING_CERT, { status: 200 })),
+    );
+
+    const response = await postRequest(message);
+
+    expect(response.status).toBe(200);
+    expect(mockQueue).toHaveBeenCalledWith({
+      event: JSON.parse(message.Message),
+      messageId: message.MessageId,
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects a genuine AWS-signed SES event after tampering", async () => {
+    state.useRealValidator = true;
+    const message = AWS_SIGNED_SNS_MESSAGES.sesComplaintEventWithSubject;
+    mockGetTopicArns.mockResolvedValue([message.TopicArn]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(AWS_SNS_SIGNING_CERT, { status: 200 })),
+    );
+
+    const response = await postRequest({
+      ...message,
+      Message: message.Message.replace("Complaint", "Bounce"),
+    });
+
+    expect(response.status).toBe(401);
+    expect(mockQueue).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 });

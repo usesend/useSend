@@ -5,6 +5,10 @@ import {
   isTrustedSnsUrl,
   verifySnsMessageSignature,
 } from "~/server/aws/sns-message-validator";
+import {
+  AWS_SIGNED_SNS_MESSAGES,
+  AWS_SNS_SIGNING_CERT,
+} from "~/test/fixtures/aws-sns-signed-messages";
 import type { SnsNotificationMessage } from "~/types/aws-types";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -70,9 +74,7 @@ function buildNotification(
 }
 
 function stubCertFetch(cert: string) {
-  const fetchMock = vi.fn(
-    async () => new Response(cert, { status: 200 }),
-  );
+  const fetchMock = vi.fn(async () => new Response(cert, { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -190,5 +192,109 @@ describe("verifySnsMessageSignature", () => {
     delete message.Signature;
 
     await expect(verifySnsMessageSignature(message)).resolves.toBe(false);
+  });
+});
+
+describe("verifySnsMessageSignature with genuine AWS-signed messages", () => {
+  const realMessages = Object.entries(AWS_SIGNED_SNS_MESSAGES).map(
+    ([name, message]) => [name, message as SnsNotificationMessage] as const,
+  );
+
+  it.each(realMessages)("accepts the real %s message", async (_, message) => {
+    stubCertFetch(AWS_SNS_SIGNING_CERT);
+
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(true);
+  });
+
+  it.each([
+    ["Message", { Message: "Goodbye world" }],
+    ["MessageId", { MessageId: "00000000-0000-0000-0000-000000000000" }],
+    ["Timestamp", { Timestamp: "2022-07-28T21:24:09.324Z" }],
+    ["TopicArn", { TopicArn: "arn:aws:sns:us-east-2:295079676684:other" }],
+    ["Subject (added)", { Subject: "Injected" }],
+  ])("rejects a real message with a tampered %s", async (_, change) => {
+    stubCertFetch(AWS_SNS_SIGNING_CERT);
+    const message = {
+      ...(AWS_SIGNED_SNS_MESSAGES.sha256 as SnsNotificationMessage),
+      ...change,
+    };
+
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(false);
+  });
+
+  it("rejects a real message whose Subject was removed", async () => {
+    stubCertFetch(AWS_SNS_SIGNING_CERT);
+    const { Subject: _, ...message } =
+      AWS_SIGNED_SNS_MESSAGES.sesComplaintEventWithSubject;
+
+    await expect(
+      verifySnsMessageSignature(message as SnsNotificationMessage),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects a real SHA256 signature relabelled as SignatureVersion 1", async () => {
+    stubCertFetch(AWS_SNS_SIGNING_CERT);
+    const message = {
+      ...(AWS_SIGNED_SNS_MESSAGES.sha256 as SnsNotificationMessage),
+      SignatureVersion: "1",
+    };
+
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(false);
+  });
+
+  it.each([
+    "http://sns.us-east-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+    "https://sns.us-east-2.amazonaws.com.evil.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+    "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+    "https://sns.us-east-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.txt",
+    "https://sns.us-east-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem?x=1",
+    "https://sns.us-east-2.amazonaws.com:8443/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+    "https://user@sns.us-east-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+  ])(
+    "rejects a real message pointing at an untrusted cert URL %s",
+    async (SigningCertURL) => {
+      const fetchMock = stubCertFetch(AWS_SNS_SIGNING_CERT);
+      const message = {
+        ...(AWS_SIGNED_SNS_MESSAGES.sha256 as SnsNotificationMessage),
+        SigningCertURL,
+      };
+
+      await expect(verifySnsMessageSignature(message)).resolves.toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("signing certificate fetch", () => {
+  it("fetches with a timeout, refuses redirects and caches the certificate", async () => {
+    const fetchMock = stubCertFetch(publicKey);
+    const message = buildNotification({
+      SigningCertURL:
+        "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-cache.pem",
+    });
+
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(true);
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(init.redirect).toBe("error");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("does not cache a failed certificate fetch", async () => {
+    const fetchMock = vi.fn(async () => new Response("nope", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const message = buildNotification({
+      SigningCertURL:
+        "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-flaky.pem",
+    });
+
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(false);
+    stubCertFetch(publicKey);
+    await expect(verifySnsMessageSignature(message)).resolves.toBe(true);
   });
 });

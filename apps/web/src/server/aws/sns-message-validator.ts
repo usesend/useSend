@@ -4,6 +4,8 @@ import type { SnsNotificationMessage } from "~/types/aws-types";
 
 const SNS_HOST_PATTERN = /^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/;
 const SIGNING_CERT_PATH_PATTERN = /\.pem$/i;
+const CERTIFICATE_FETCH_TIMEOUT_MS = 5000;
+const CERTIFICATE_CACHE_LIMIT = 50;
 
 const certificateCache = new Map<string, Promise<string>>();
 
@@ -55,11 +57,17 @@ function isTrustedSigningCertUrl(rawUrl: string, topicArn?: string): boolean {
     return false;
   }
 
-  try {
-    return SIGNING_CERT_PATH_PATTERN.test(new URL(rawUrl).pathname);
-  } catch {
-    return false;
-  }
+  const url = new URL(rawUrl);
+  // Reject query strings, credentials and ports so forged messages cannot
+  // make us fetch and cache an unbounded number of distinct URLs.
+  return (
+    SIGNING_CERT_PATH_PATTERN.test(url.pathname) &&
+    !url.search &&
+    !url.hash &&
+    !url.username &&
+    !url.password &&
+    !url.port
+  );
 }
 
 async function getSigningCertificate(certUrl: string): Promise<string> {
@@ -68,11 +76,16 @@ async function getSigningCertificate(certUrl: string): Promise<string> {
     return cached;
   }
 
+  if (certificateCache.size >= CERTIFICATE_CACHE_LIMIT) {
+    certificateCache.clear();
+  }
+
   const pending = (async () => {
     const response = await fetch(certUrl, {
       method: "GET",
       // Do not follow redirects: the certificate URL must be the AWS SNS host.
       redirect: "error",
+      signal: AbortSignal.timeout(CERTIFICATE_FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
