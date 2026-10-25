@@ -29,23 +29,29 @@ services:
       - cache:/data
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
 
+  # S3-compatible storage for images uploaded in the email editor. Uploads go
+  # straight from the browser to S3_COMPATIBLE_API_URL, and emails link to
+  # S3_COMPATIBLE_PUBLIC_URL, so both must be public URLs (for example a
+  # reverse proxy in front of port 9002). Leave them unset to disable uploads.
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.4
     container_name: usesend-rustfs-prod
+    restart: always
     security_opt:
       - no-new-privileges:true
     ports:
       - 127.0.0.1:${RUSTFS_API_PORT:-9002}:9000
       - 127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001
     environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?err}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?err}
+      # Falls back to the MinIO credentials older setups already have.
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-${MINIO_ROOT_USER:?set RUSTFS_ACCESS_KEY}}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-${MINIO_ROOT_PASSWORD:?set RUSTFS_SECRET_KEY}}
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
       RUSTFS_CONSOLE_ENABLE: "true"
       RUSTFS_OBS_LOGGER_LEVEL: error
     volumes:
-      - minio:/data
+      - rustfs:/data
     command: ["/data"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
@@ -54,30 +60,30 @@ services:
       retries: 5
       start_period: 40s
 
+  # Creates the bucket, lets the dashboard upload to it (CORS) and makes
+  # objects publicly readable so images load in sent emails. Safe to rerun.
   rustfs-init:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:2.34.30
     restart: "no"
     entrypoint: ["/bin/sh", "-ec"]
     environment:
-      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?err}
-      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?err}
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-${MINIO_ROOT_USER:?set RUSTFS_ACCESS_KEY}}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-${MINIO_ROOT_PASSWORD:?set RUSTFS_SECRET_KEY}}
       AWS_DEFAULT_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: "true"
-      S3_COMPATIBLE_BUCKET: ${S3_COMPATIBLE_BUCKET:-usesend}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:?err}
+      BUCKET: ${S3_COMPATIBLE_BUCKET:-unsend}
+      APP_ORIGIN: ${NEXTAUTH_URL:?err}
     depends_on:
       rustfs:
         condition: service_healthy
-    command: |
-      if ! aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$S3_COMPATIBLE_BUCKET" >/dev/null 2>&1; then
-        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$S3_COMPATIBLE_BUCKET"
-      fi
-
-      printf '{"CORSRules":[{"AllowedOrigins":["%s"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}' "$$NEXTAUTH_URL" > /tmp/cors.json
-
-      aws --endpoint-url http://rustfs:9000 s3api put-bucket-cors \
-        --bucket "$$S3_COMPATIBLE_BUCKET" \
-        --cors-configuration file:///tmp/cors.json
+    command:
+      - |
+        s3="aws --endpoint-url http://rustfs:9000 s3api"
+        $$s3 head-bucket --bucket "$$BUCKET" >/dev/null 2>&1 || $$s3 create-bucket --bucket "$$BUCKET"
+        $$s3 put-bucket-cors --bucket "$$BUCKET" --cors-configuration \
+          '{"CORSRules":[{"AllowedOrigins":["'"$$APP_ORIGIN"'"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
+        $$s3 put-bucket-policy --bucket "$$BUCKET" --policy \
+          '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::'"$$BUCKET"'/*"]}]}'
 
   usesend:
     image: usesend/usesend:latest
@@ -104,11 +110,11 @@ services:
       - API_RATE_LIMIT=${API_RATE_LIMIT:-1}
       - SMTP_HOST=${SMTP_HOST:-smtp.usesend.com}
       - SMTP_USER=${SMTP_USER:-usesend}
-      - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?err}
-      - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:?err}
-      - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:?err}
-      - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:?err}
-      - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-usesend}
+      - S3_COMPATIBLE_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-${MINIO_ROOT_USER:?set RUSTFS_ACCESS_KEY}}
+      - S3_COMPATIBLE_SECRET_KEY=${RUSTFS_SECRET_KEY:-${MINIO_ROOT_PASSWORD:?set RUSTFS_SECRET_KEY}}
+      - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:-}
+      - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:-}
+      - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-unsend}
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,4 +126,4 @@ services:
 volumes:
   database:
   cache:
-  minio:
+  rustfs:

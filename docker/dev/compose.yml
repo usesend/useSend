@@ -35,56 +35,58 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # S3-compatible storage for editor image uploads. Matching .env values:
+  # S3_COMPATIBLE_ACCESS_KEY=usesend, S3_COMPATIBLE_SECRET_KEY=password,
+  # S3_COMPATIBLE_API_URL=http://localhost:9002,
+  # S3_COMPATIBLE_PUBLIC_URL=http://localhost:9002/unsend
   rustfs:
-    image: rustfs/rustfs:latest
-    container_name: usesend-rustfs-prod
-    security_opt:
-      - no-new-privileges:true
+    image: rustfs/rustfs:1.0.4
+    container_name: unsend-rustfs-dev
+    restart: always
     ports:
       - 127.0.0.1:9002:9000
       - 127.0.0.1:9001:9001
     environment:
-      RUSTFS_ACCESS_KEY: username
+      RUSTFS_ACCESS_KEY: usesend
       RUSTFS_SECRET_KEY: password
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
       RUSTFS_CONSOLE_ENABLE: "true"
       RUSTFS_OBS_LOGGER_LEVEL: error
     volumes:
-      - minio:/data
+      - rustfs:/data
     command: ["/data"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
-      interval: 20s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   rustfs-init:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:2.34.30
     restart: "no"
     entrypoint: ["/bin/sh", "-ec"]
     environment:
-      AWS_ACCESS_KEY_ID: username
+      AWS_ACCESS_KEY_ID: usesend
       AWS_SECRET_ACCESS_KEY: password
       AWS_DEFAULT_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: "true"
-      S3_COMPATIBLE_BUCKET: ${S3_COMPATIBLE_BUCKET:-unsend}
+      BUCKET: unsend
+      APP_ORIGIN: http://localhost:3000
     depends_on:
       rustfs:
         condition: service_healthy
-    command: |
-      if ! aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$S3_COMPATIBLE_BUCKET" >/dev/null 2>&1; then
-        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$S3_COMPATIBLE_BUCKET"
-      fi
-
-      printf '{"CORSRules":[{"AllowedOrigins":["%s"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}' "$$NEXTAUTH_URL" > /tmp/cors.json
-
-      aws --endpoint-url http://rustfs:9000 s3api put-bucket-cors \
-        --bucket "$$S3_COMPATIBLE_BUCKET" \
-        --cors-configuration file:///tmp/cors.json
+    command:
+      - |
+        s3="aws --endpoint-url http://rustfs:9000 s3api"
+        $$s3 head-bucket --bucket "$$BUCKET" >/dev/null 2>&1 || $$s3 create-bucket --bucket "$$BUCKET"
+        $$s3 put-bucket-cors --bucket "$$BUCKET" --cors-configuration \
+          '{"CORSRules":[{"AllowedOrigins":["'"$$APP_ORIGIN"'"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
+        $$s3 put-bucket-policy --bucket "$$BUCKET" --policy \
+          '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::'"$$BUCKET"'/*"]}]}'
 
 volumes:
   database:
   redis:
-  minio:
+  rustfs:

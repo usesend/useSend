@@ -91,6 +91,26 @@ EMAIL_CLEANUP_DAYS=30
 Leave it unset to keep email content indefinitely.
 
   </Step>
+  <Step title="Image uploads (optional)">
+  Images added in the email editor are stored in S3-compatible storage. The docker-compose setup runs [RustFS](https://github.com/rustfs/rustfs) for this and creates the bucket for you. Set its credentials:
+
+```env
+RUSTFS_ACCESS_KEY="<access-key>"
+RUSTFS_SECRET_KEY="<secret-key>"
+```
+
+To turn uploads on, expose the RustFS API (port `9002`, bound to `127.0.0.1`) through your reverse proxy and set both URLs. The browser uploads to `S3_COMPATIBLE_API_URL`, and sent emails link to `S3_COMPATIBLE_PUBLIC_URL`, so both must be reachable from the internet. Objects in the bucket are publicly readable so images load in inboxes; nothing else is.
+
+```env
+S3_COMPATIBLE_API_URL="https://s3.example.com"
+S3_COMPATIBLE_PUBLIC_URL="https://s3.example.com/unsend"
+```
+
+Leave the URLs empty to disable uploads. If you run the image without docker-compose, you can point it at any S3-compatible service (Cloudflare R2, AWS S3) by setting `S3_COMPATIBLE_ACCESS_KEY`, `S3_COMPATIBLE_SECRET_KEY`, `S3_COMPATIBLE_API_URL`, `S3_COMPATIBLE_PUBLIC_URL` and `S3_COMPATIBLE_BUCKET`.
+
+<Info>Upgrading from the MinIO setup: MinIO's community edition is no longer maintained or patched, so docker-compose now runs RustFS instead. Your existing `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` keep working as RustFS credentials. RustFS starts with a new, empty `rustfs` volume; the old `storage` volume can be removed with `docker volume rm usesend-prod_storage`.</Info>
+
+  </Step>
 </Steps>
 
 ## Step 2: Setting up the app
