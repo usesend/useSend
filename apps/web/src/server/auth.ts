@@ -14,6 +14,7 @@ import { Provider } from "next-auth/providers/index";
 import { sendSignUpEmail } from "~/server/mailer";
 import { env } from "~/env";
 import { db } from "~/server/db";
+import { isPlatformAdmin } from "~/server/platform-admin";
 
 const GITHUB_OAUTH_ISSUER = "https://github.com/login/oauth";
 
@@ -183,13 +184,16 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     signIn: async ({ user, account }) =>
       canRegisterSelfHostedUser(user.email, account),
-    session: ({ session, user }) => ({
+    session: async ({ session, user }) => ({
       ...session,
       user: {
         ...session.user,
         id: user.id,
         isBetaUser: user.isBetaUser,
-        isAdmin: user.email === env.ADMIN_EMAIL,
+        isAdmin: await isPlatformAdmin({
+          id: Number(user.id),
+          email: user.email,
+        }),
         isWaitlisted: user.isWaitlisted,
       },
     }),
