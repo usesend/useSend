@@ -1,4 +1,4 @@
-FROM node:22-alpine3.23 AS base
+FROM node:24-alpine3.24 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH"
 ENV SKIP_ENV_VALIDATION="true"
@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY ./apps/web ./apps/web
 COPY ./packages ./packages
-RUN pnpm add turbo@^2.5.2 -g
+RUN pnpm add -g turbo@^2.11.10
 
 # Generate a partial monorepo with a pruned lockfile for a target workspace.
 # Assuming "web" is the name entered in the project's package.json: { name: "web" }
