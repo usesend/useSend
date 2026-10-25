@@ -7,11 +7,7 @@ export default mergeConfig(
     test: {
       include: ["src/**/*.integration.test.ts"],
       pool: "forks",
-      poolOptions: {
-        forks: {
-          singleFork: true,
-        },
-      },
+      maxWorkers: 1,
     },
   }),
 );
