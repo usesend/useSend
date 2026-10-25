@@ -17,6 +17,7 @@ import {
 } from "@usesend/lib/src/webhook/webhook-events";
 import { LimitService } from "./limit-service";
 import type { DomainDnsRecord } from "~/types/domain";
+import { parseFromAddress } from "~/server/utils/from-address";
 import { WebhookService } from "./webhook-service";
 
 const DOMAIN_STATUS_VALUES = new Set(Object.values(DomainStatus));
@@ -323,21 +324,7 @@ function buildDomainPayload(domain: Domain): DomainPayload {
 }
 
 export async function validateDomainFromEmail(email: string, teamId: number) {
-  // Extract email from format like 'Name <email@domain>' this will allow entries such as "Someone @ something <some@domain.com>" to parse correctly as well.
-  const match = email.match(/<([^>]+)>/);
-  let fromDomain: string | undefined;
-
-  if (match && match[1]) {
-    const parts = match[1].split("@");
-    fromDomain = parts.length > 1 ? parts[1] : undefined;
-  } else {
-    const parts = email.split("@");
-    fromDomain = parts.length > 1 ? parts[1] : undefined;
-  }
-
-  if (fromDomain?.endsWith(">")) {
-    fromDomain = fromDomain.slice(0, -1);
-  }
+  const fromDomain = parseFromAddress(email)?.domain;
 
   if (!fromDomain) {
     throw new UnsendApiError({
