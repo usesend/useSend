@@ -20,7 +20,7 @@
     "test:web:integration:full": "pnpm test:infra:up && (pnpm --filter=web test:integration:full; code=$?; pnpm test:infra:down; exit $code)",
     "test:infra:up": "docker compose -f docker/testing/compose.yml up -d --wait",
     "test:infra:down": "docker compose -f docker/testing/compose.yml down -v",
-    "dev:docs": "cd apps/docs && pnpm dlx mintlify dev",
+    "dev:docs": "cd apps/docs && pnpm dlx mintlify@4.2.1125 dev",
     "dev:marketing": "cd apps/marketing && turbo dev",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
