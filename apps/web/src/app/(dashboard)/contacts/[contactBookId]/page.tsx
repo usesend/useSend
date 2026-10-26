@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import EditContactBook from "../edit-contact-book";
 import DeleteContactBook from "../delete-contact-book";
+import ContactSegmentsManager from "./contact-segments-manager";
 
 function ContactBookDetailActions({
   contactBookId,
@@ -474,6 +475,11 @@ export default function ContactsPage({
             </div>
           </CardContent>
         </Card>
+
+        <ContactSegmentsManager
+          contactBookId={contactBookId}
+          contactBookVariables={contactBookDetailQuery.data?.variables ?? []}
+        />
       </div>
 
       <div className="mt-10">

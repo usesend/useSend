@@ -12,6 +12,7 @@ import {
 import { logger } from "~/server/logger/log";
 import { nanoid } from "~/server/nanoid";
 import * as campaignService from "~/server/service/campaign-service";
+import * as contactSegmentService from "~/server/service/contact-segment-service";
 import { validateDomainFromEmail } from "~/server/service/domain-service";
 import {
   getDocumentUploadUrl,
@@ -121,14 +122,21 @@ export const campaignRouter = createTRPCRouter({
         content: z.string().optional(),
         html: z.string().optional(),
         contactBookId: z.string().optional(),
+        contactSegmentId: z.string().nullable().optional(),
         replyTo: z.string().array().optional(),
       }),
     )
     .mutation(async ({ ctx: { db, team, campaign: campaignOld }, input }) => {
       const { html: htmlInput, campaignId, ...data } = input;
-      if (data.contactBookId) {
+      const nextContactBookId = data.contactBookId ?? campaignOld.contactBookId;
+      const nextContactSegmentId =
+        data.contactSegmentId !== undefined
+          ? data.contactSegmentId
+          : campaignOld.contactSegmentId;
+
+      if (nextContactBookId) {
         const contactBook = await db.contactBook.findUnique({
-          where: { id: data.contactBookId, teamId: team.id },
+          where: { id: nextContactBookId, teamId: team.id },
         });
 
         if (!contactBook) {
@@ -138,6 +146,21 @@ export const campaignRouter = createTRPCRouter({
           });
         }
       }
+
+      if (nextContactSegmentId) {
+        if (!nextContactBookId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "A segment requires a contact book",
+          });
+        }
+
+        await contactSegmentService.getSegmentForContactBook(
+          nextContactSegmentId,
+          nextContactBookId,
+        );
+      }
+
       let domainId = campaignOld.domainId;
       if (data.from) {
         const domain = await validateDomainFromEmail(data.from, team.id);
@@ -190,17 +213,71 @@ export const campaignRouter = createTRPCRouter({
     const imageUploadSupported = isStorageConfigured();
 
     if (campaign?.contactBookId) {
-      const contactBook = await db.contactBook.findUnique({
-        where: { id: campaign.contactBookId, teamId: team.id },
-      });
-      return { ...campaign, contactBook, imageUploadSupported };
+      const [contactBook, contactSegment] = await Promise.all([
+        db.contactBook.findUnique({
+          where: { id: campaign.contactBookId, teamId: team.id },
+        }),
+        campaign.contactSegmentId
+          ? contactSegmentService.getSegmentForContactBook(
+              campaign.contactSegmentId,
+              campaign.contactBookId,
+            )
+          : Promise.resolve(null),
+      ]);
+      return {
+        ...campaign,
+        contactBook,
+        contactSegment,
+        imageUploadSupported,
+      };
     }
     return {
       ...campaign,
       contactBook: null,
+      contactSegment: null,
       imageUploadSupported,
     };
   }),
+
+  getCampaignAudience: campaignProcedure.query(
+    async ({ ctx: { db, team, campaign } }) => {
+      if (!campaign.contactBookId) {
+        return { count: 0, segment: null };
+      }
+
+      const contactBook = await db.contactBook.findUnique({
+        where: { id: campaign.contactBookId, teamId: team.id },
+        select: { variables: true },
+      });
+      if (!contactBook) {
+        return { count: 0, segment: null };
+      }
+
+      const segment = campaign.contactSegmentId
+        ? await contactSegmentService.getSegmentForContactBook(
+            campaign.contactSegmentId,
+            campaign.contactBookId,
+          )
+        : null;
+      const segmentWhere = segment
+        ? await contactSegmentService.getSegmentWhereInput({
+            contactBookId: campaign.contactBookId,
+            segmentId: segment.id,
+            variables: contactBook.variables,
+          })
+        : undefined;
+
+      const count = await db.contact.count({
+        where: {
+          contactBookId: campaign.contactBookId,
+          subscribed: true,
+          ...(segmentWhere ?? {}),
+        },
+      });
+
+      return { count, segment };
+    },
+  ),
 
   latestEmails: campaignProcedure.query(
     async ({ ctx: { db, team, campaign } }) => {
@@ -253,6 +330,7 @@ export const campaignRouter = createTRPCRouter({
           teamId: team.id,
           domainId: campaign.domainId,
           contactBookId: campaign.contactBookId,
+          contactSegmentId: campaign.contactSegmentId,
         },
       });
 

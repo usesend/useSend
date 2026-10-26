@@ -35,6 +35,7 @@ import {
 } from "@usesend/ui/src/tooltip";
 import { UnsubscribeReason } from "@prisma/client";
 import { Download } from "lucide-react";
+import { useEffect } from "react";
 
 function sanitizeFilename(
   name: string | undefined,
@@ -83,13 +84,30 @@ export default function ContactList({
   const [page, setPage] = useUrlState("page", "1");
   const [status, setStatus] = useUrlState("status");
   const [search, setSearch] = useUrlState("search");
+  const [segmentId, setSegmentId] = useUrlState("segment");
 
   const pageNumber = Number(page);
+  const segmentsQuery = api.contacts.listSegments.useQuery({ contactBookId });
+
+  useEffect(() => {
+    if (!segmentId || !segmentsQuery.data) {
+      return;
+    }
+
+    const segmentExists = segmentsQuery.data.some(
+      (segment) => segment.id === segmentId,
+    );
+
+    if (!segmentExists) {
+      setSegmentId(null);
+    }
+  }, [segmentId, segmentsQuery.data, setSegmentId]);
 
   const contactsQuery = api.contacts.contacts.useQuery({
     contactBookId,
     page: pageNumber,
     search: search ?? undefined,
+    segmentId: segmentId ?? undefined,
     subscribed:
       status === "Subscribed"
         ? true
@@ -108,10 +126,16 @@ export default function ContactList({
     setPage("1");
   };
 
+  const handleSegmentChange = (value: string) => {
+    setSegmentId(value === "all" ? null : value);
+    setPage("1");
+  };
+
   const exportQuery = api.contacts.exportContacts.useQuery(
     {
       contactBookId,
       search: search ?? undefined,
+      segmentId: segmentId ?? undefined,
       subscribed:
         status === "Subscribed"
           ? true
@@ -201,6 +225,22 @@ export default function ContactList({
             />
           </div>
           <div className="flex gap-2">
+            <Select value={segmentId ?? "all"} onValueChange={handleSegmentChange}>
+              <SelectTrigger className="w-[220px]">
+                {segmentId
+                  ? segmentsQuery.data?.find((segment) => segment.id === segmentId)
+                      ?.name ?? "Segment"
+                  : "All segments"}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All segments</SelectItem>
+                {segmentsQuery.data?.map((segment) => (
+                  <SelectItem key={segment.id} value={segment.id}>
+                    {segment.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={status ?? "All"} onValueChange={handleStatusChange}>
               <SelectTrigger className="w-[180px] capitalize">
                 {status || "All statuses"}

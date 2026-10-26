@@ -307,6 +307,7 @@ model ContactBook {
   emoji              String    @default("📙")
   team               Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   contacts           Contact[]
+  segments           ContactSegment[]
 
   @@index([teamId])
 }
@@ -363,6 +364,7 @@ model Campaign {
   html               String?
   content            String?
   contactBookId      String?
+  contactSegmentId   String?
   scheduledAt        DateTime?
   total              Int            @default(0)
   sent               Int            @default(0)
@@ -382,10 +384,27 @@ model Campaign {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team           Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contactSegment ContactSegment? @relation(fields: [contactSegmentId], references: [id], onDelete: SetNull)
 
   @@index([createdAt(sort: Desc)])
+  @@index([contactSegmentId])
   @@index([status, scheduledAt])
+}
+
+model ContactSegment {
+  id            String   @id @default(cuid())
+  name          String
+  contactBookId String
+  filters       Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contactBook ContactBook @relation(fields: [contactBookId], references: [id], onDelete: Cascade)
+  campaigns   Campaign[]
+
+  @@unique([contactBookId, name])
+  @@index([contactBookId, createdAt(sort: Desc)])
 }
 
 model Template {
