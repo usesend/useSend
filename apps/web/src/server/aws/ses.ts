@@ -265,7 +265,10 @@ export async function sendRawEmail({
     logger.info({ messageId: response.MessageId }, "Email sent!");
     return response.MessageId;
   } catch (error) {
-    logger.error({ err: error }, "Failed to send email");
+    logger.error(
+      { err: error, emailId, region },
+      "Failed to send email"
+    );
     // It's better to throw the original error or a new error with more context
     // throw new Error("Failed to send email");
     throw error;

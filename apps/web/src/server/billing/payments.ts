@@ -123,6 +123,10 @@ export async function syncStripeData(customerId: string) {
   });
 
   if (!team) {
+    logger.warn(
+      { stripeCustomerId: customerId },
+      "[Billing]: No team matches the Stripe customer; plan was not synced",
+    );
     return;
   }
 

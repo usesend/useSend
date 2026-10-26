@@ -99,9 +99,11 @@ vi.mock("~/server/logger/log", () => ({
 import {
   CampaignBatchService,
   recordCampaignContactFailure,
+  scheduleCampaign,
   subscribeContact,
   unsubscribeContact,
 } from "~/server/service/campaign-service";
+import { logger } from "~/server/logger/log";
 
 const input = {
   contact: {
@@ -282,5 +284,80 @@ describe("campaign contact subscription changes", () => {
       where: { id: "campaign_1" },
       data: { unsubscribed: { decrement: 1 } },
     });
+  });
+});
+
+describe("campaign failure logs carry the failing identifiers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("logs the campaign and the contact when the unsubscribe write fails", async () => {
+    mockDb.contact.findUnique.mockResolvedValue({
+      id: "contact_1",
+      contactBookId: "book_1",
+      email: "alice@example.com",
+      subscribed: true,
+    });
+    mockUpdateContactSubscription.mockRejectedValue(new Error("write failed"));
+
+    await expect(
+      unsubscribeContact({
+        contactId: "contact_1",
+        campaignId: "campaign_1",
+        reason: UnsubscribeReason.UNSUBSCRIBED,
+      }),
+    ).rejects.toThrow("Failed to unsubscribe contact");
+
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: "contact_1",
+        campaignId: "campaign_1",
+        reason: UnsubscribeReason.UNSUBSCRIBED,
+      }),
+      "Error unsubscribing contact",
+    );
+  });
+
+  it("logs the campaign and the contact when the re-subscribe write fails", async () => {
+    mockDb.contact.findUnique.mockResolvedValue({
+      id: "contact_1",
+      contactBookId: "book_1",
+      email: "alice@example.com",
+      subscribed: false,
+    });
+    mockUpdateContactSubscription.mockRejectedValue(new Error("write failed"));
+    const id = "contact_1-campaign_1";
+    const hash = createHash("sha256").update(`${id}-test-secret`).digest("hex");
+
+    await expect(subscribeContact(id, hash)).rejects.toThrow(
+      "Failed to subscribe contact",
+    );
+
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: "contact_1",
+        campaignId: "campaign_1",
+      }),
+      "Error subscribing contact",
+    );
+  });
+
+  it("logs the campaign and the team when scheduling cannot prepare the campaign content", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      content: null,
+      html: null,
+    });
+
+    await expect(
+      scheduleCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("No content added for campaign");
+
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: "campaign_1", teamId: 7 }),
+      "Failed to prepare campaign content for scheduling",
+    );
   });
 });

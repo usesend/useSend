@@ -202,7 +202,14 @@ describe("double-opt-in-service", () => {
     const sendArgs = mockSendEmail.mock.calls[0]?.[0];
     expect(sendArgs.html).toContain("Please confirm your subscription");
     expect(sendArgs.html).toContain("contactId=contact_1");
-    expect(mockLogger.error).toHaveBeenCalled();
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: "contact_1",
+        contactBookId: "book_1",
+        err: expect.any(Error),
+      }),
+      "[DoubleOptInService]: Failed to render custom template, using fallback HTML",
+    );
   });
 
   it("replaces empty template variables instead of leaving tokens", async () => {
