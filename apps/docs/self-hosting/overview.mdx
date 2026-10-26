@@ -108,7 +108,31 @@ S3_COMPATIBLE_PUBLIC_URL="https://s3.example.com/unsend"
 
 Leave the URLs empty to disable uploads. If you run the image without docker-compose, you can point it at any S3-compatible service (Cloudflare R2, AWS S3) by setting `S3_COMPATIBLE_ACCESS_KEY`, `S3_COMPATIBLE_SECRET_KEY`, `S3_COMPATIBLE_API_URL`, `S3_COMPATIBLE_PUBLIC_URL` and `S3_COMPATIBLE_BUCKET`.
 
-<Info>Upgrading from the MinIO setup: MinIO's community edition is no longer maintained or patched, so docker-compose now runs RustFS instead. Your existing `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` keep working as RustFS credentials. RustFS starts with a new, empty `rustfs` volume; the old `storage` volume can be removed with `docker volume rm usesend-prod_storage`.</Info>
+#### Upgrading from the MinIO setup
+
+MinIO's community edition is no longer maintained, and its `minio/minio` image has been removed from Docker Hub, so docker-compose now runs RustFS. Your existing `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` keep working as RustFS credentials.
+
+RustFS starts with a new, empty `rustfs` volume. Your old MinIO volume is not touched or deleted. The stock compose file never connected the app to MinIO, so most installs have nothing in it. If you configured uploads yourself, copy the files across once after upgrading (run from the folder with your `.env`, while the new stack is up):
+
+```sh
+set -a; . ./.env; set +a
+docker run -d --name usesend-minio-migrate --network usesend-prod_default \
+  -v usesend-prod_storage:/data -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
+  minio/minio server /data --address :9000
+sleep 5
+docker run --rm --network usesend-prod_default \
+  -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
+  -e NEW_KEY="${RUSTFS_ACCESS_KEY:-$MINIO_ROOT_USER}" -e NEW_SECRET="${RUSTFS_SECRET_KEY:-$MINIO_ROOT_PASSWORD}" \
+  -e BUCKET="${S3_COMPATIBLE_BUCKET:-unsend}" -e AWS_DEFAULT_REGION=us-east-1 \
+  --entrypoint sh amazon/aws-cli:2.34.30 -ec '
+    AWS_ACCESS_KEY_ID=$MINIO_ROOT_USER AWS_SECRET_ACCESS_KEY=$MINIO_ROOT_PASSWORD \
+      aws --endpoint-url http://usesend-minio-migrate:9000 s3 sync "s3://$BUCKET" /tmp/data
+    AWS_ACCESS_KEY_ID=$NEW_KEY AWS_SECRET_ACCESS_KEY=$NEW_SECRET \
+      aws --endpoint-url http://rustfs:9000 s3 sync /tmp/data "s3://$BUCKET"'
+docker rm -f usesend-minio-migrate
+```
+
+This uses the `minio/minio` image already on your server. If your public storage URL stays the same, images in emails you already sent keep loading. Once you've checked them, you can remove the old volume with `docker volume rm usesend-prod_storage`.
 
   </Step>
 </Steps>
