@@ -1,4 +1,3 @@
-import { initDomainVerificationJob } from "~/server/jobs/domain-verification-job";
 import { isCloud, isEmailCleanupEnabled } from "~/utils/common";
 
 let initialized = false;
@@ -26,6 +25,10 @@ export async function register() {
     }
 
     if (process.env.REDIS_URL) {
+      const { initDomainVerificationJob } = await import(
+        "~/server/jobs/domain-verification-job"
+      );
+
       await initDomainVerificationJob();
     }
 

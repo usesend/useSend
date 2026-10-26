@@ -291,6 +291,7 @@ export default function LoginPage({
                                 className=" w-[350px]"
                                 type="email"
                                 {...field}
+                                value={field.value ?? ""}
                               />
                             </FormControl>
                             <FormDescription />

@@ -27,7 +27,7 @@
     "postcss": "^8.5.14",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "react": "^19.1.0",
+    "react": "^19.1.10",
     "tailwindcss": "^4.1.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"

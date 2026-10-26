@@ -51,7 +51,10 @@ export async function addApiKey({
     });
     return apiKey;
   } catch (error) {
-    logger.error({ err: error }, "Error adding API key");
+    if (!(error instanceof Error && error.message === "DOMAIN_NOT_FOUND")) {
+      logger.error({ err: error }, "Error adding API key");
+    }
+
     throw error;
   }
 }
@@ -131,7 +134,9 @@ export async function updateApiKey({
       },
     });
   } catch (error) {
-    logger.error({ err: error }, "Error updating API key");
+    if (!(error instanceof Error && error.message === "DOMAIN_NOT_FOUND")) {
+      logger.error({ err: error }, "Error updating API key");
+    }
     throw error;
   }
 }
