@@ -17,6 +17,7 @@ const {
   mockEnv: {
     NODE_ENV: "test",
     SNS_SIGNATURE_VERIFICATION: "enforce",
+    AWS_SNS_ENDPOINT: undefined as string | undefined,
   },
   mockLogger: {
     info: vi.fn(),
@@ -105,6 +106,7 @@ beforeEach(() => {
   state.subscribeUrlTrusted = false;
   state.useRealValidator = false;
   mockEnv.SNS_SIGNATURE_VERIFICATION = "enforce";
+  mockEnv.AWS_SNS_ENDPOINT = undefined;
   mockLogger.error.mockClear();
   mockQueue.mockClear();
 });
@@ -181,6 +183,59 @@ describe("ses_callback route", () => {
     expect(mockInvalidateCache).toHaveBeenCalledTimes(1);
 
     vi.unstubAllGlobals();
+  });
+
+  describe("custom SNS endpoint (emulators)", () => {
+    const emulatorConfirmation = () => ({
+      ...forgedNotification(),
+      Type: "SubscriptionConfirmation",
+      SubscribeURL: "http://localhost:5350",
+      Token: "abc",
+    });
+
+    it("confirms the emulator's SubscribeURL in log-only mode", async () => {
+      mockEnv.AWS_SNS_ENDPOINT = "http://localhost:5350/api/sns";
+      mockEnv.SNS_SIGNATURE_VERIFICATION = "log-only";
+      const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const response = await postRequest(emulatorConfirmation());
+
+      expect(response.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:5350",
+        expect.objectContaining({ redirect: "error" }),
+      );
+
+      vi.unstubAllGlobals();
+    });
+
+    it("still requires an AWS SubscribeURL when signatures are enforced", async () => {
+      mockEnv.AWS_SNS_ENDPOINT = "http://localhost:5350/api/sns";
+      state.signatureValid = true;
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const response = await postRequest(emulatorConfirmation());
+
+      expect(response.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      vi.unstubAllGlobals();
+    });
+
+    it("still requires an AWS SubscribeURL in log-only mode without a custom endpoint", async () => {
+      mockEnv.SNS_SIGNATURE_VERIFICATION = "log-only";
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const response = await postRequest(emulatorConfirmation());
+
+      expect(response.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      vi.unstubAllGlobals();
+    });
   });
 
   it("rejects a malformed body with 400", async () => {
