@@ -39,6 +39,9 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     AWS_SES_ENDPOINT: z.string().optional(),
     AWS_SNS_ENDPOINT: z.string().optional(),
+    SNS_SIGNATURE_VERIFICATION: z
+      .enum(["enforce", "log-only"])
+      .default("enforce"),
     AWS_DEFAULT_REGION: z
       .string()
       .trim()
@@ -112,6 +115,7 @@ export const env = createEnv({
     AWS_DEFAULT_REGION: process.env.AWS_DEFAULT_REGION,
     AWS_SES_ENDPOINT: process.env.AWS_SES_ENDPOINT,
     AWS_SNS_ENDPOINT: process.env.AWS_SNS_ENDPOINT,
+    SNS_SIGNATURE_VERIFICATION: process.env.SNS_SIGNATURE_VERIFICATION,
     API_RATE_LIMIT: process.env.API_RATE_LIMIT,
     AUTH_EMAIL_RATE_LIMIT: process.env.AUTH_EMAIL_RATE_LIMIT,
     NEXT_PUBLIC_IS_CLOUD: process.env.NEXT_PUBLIC_IS_CLOUD,
