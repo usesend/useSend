@@ -135,6 +135,14 @@ docker rm -f usesend-minio-migrate
 This uses the `minio/minio` image already on your server. If your public storage URL stays the same, images in emails you already sent keep loading. Once you've checked them, you can remove the old volume with `docker volume rm usesend-prod_storage`.
 
   </Step>
+  <Step title="Instance admin (optional)">
+  The instance admin manages instance-wide settings such as SES configurations from the Admin page. By default this is the first user who signed up. To choose a different user, set `ADMIN_EMAIL` to their email address. When it is set, only that user is the admin, and the address must match their account email exactly. Other users on the instance no longer see the Admin page.
+
+```env
+ADMIN_EMAIL="you@example.com"
+```
+
+  </Step>
 </Steps>
 
 ## Step 2: Setting up the app
