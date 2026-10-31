@@ -14,6 +14,9 @@ const { mockEnv, mockDb, mockTx, mockGetTeamCached } = vi.hoisted(() => ({
     contactBook: {
       count: vi.fn(),
     },
+    team: {
+      findUnique: vi.fn(),
+    },
   },
   mockGetTeamCached: vi.fn(),
 }));
@@ -46,6 +49,7 @@ describe("LimitService plan-limit locking", () => {
   beforeEach(() => {
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
     mockGetTeamCached.mockResolvedValue({ plan: "FREE", isActive: true });
+    mockTx.team.findUnique.mockResolvedValue({ plan: "FREE", isActive: true });
   });
 
   it("takes a per-team transaction advisory lock for the resource", async () => {
@@ -87,6 +91,18 @@ describe("LimitService plan-limit locking", () => {
     expect(mockDb.contactBook.count).not.toHaveBeenCalled();
   });
 
+  it("reads the team through the transaction client instead of the cache", async () => {
+    mockTx.contactBook.count.mockResolvedValue(0);
+
+    await LimitService.checkContactBookLimit(12, mockTx as any);
+
+    expect(mockTx.team.findUnique).toHaveBeenCalledWith({
+      where: { id: 12 },
+      select: { plan: true, isActive: true },
+    });
+    expect(mockGetTeamCached).not.toHaveBeenCalled();
+  });
+
   it("counts through the default client when no transaction is given", async () => {
     mockDb.contactBook.count.mockResolvedValue(0);
 
@@ -95,5 +111,6 @@ describe("LimitService plan-limit locking", () => {
     );
 
     expect(mockDb.contactBook.count).toHaveBeenCalledTimes(1);
+    expect(mockGetTeamCached).toHaveBeenCalledWith(12);
   });
 });

@@ -6,6 +6,7 @@ import { withCache } from "../redis";
 import { db } from "../db";
 import { logger } from "../logger/log";
 import { Plan, type Prisma } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 export type PlanLimitResource =
   "domain" | "contactBook" | "teamMember" | "webhook";
@@ -27,6 +28,29 @@ const PLAN_LIMIT_LOCK_NAMESPACE: Record<PlanLimitResource, number> = {
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
   return current >= limit;
+}
+
+/**
+ * Inside a transaction the team is read through the transaction client, so the
+ * check never needs a second pool connection while it holds the plan-limit
+ * lock. Otherwise it uses the cached team.
+ */
+async function getLimitTeam(
+  teamId: number,
+  client?: Prisma.TransactionClient,
+): Promise<{ plan: Plan; isActive: boolean }> {
+  if (!client) {
+    return TeamService.getTeamCached(teamId);
+  }
+
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { plan: true, isActive: true },
+  });
+  if (!team) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+  }
+  return team;
 }
 
 function getActivePlan(team: { plan: Plan; isActive: boolean }): Plan {
@@ -54,7 +78,7 @@ export class LimitService {
 
   static async checkDomainLimit(
     teamId: number,
-    client: Prisma.TransactionClient = db,
+    client?: Prisma.TransactionClient,
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -65,8 +89,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await client.domain.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).domain.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].domains;
     if (isLimitExceeded(currentCount, limit)) {
@@ -85,7 +109,7 @@ export class LimitService {
 
   static async checkContactBookLimit(
     teamId: number,
-    client: Prisma.TransactionClient = db,
+    client?: Prisma.TransactionClient,
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -96,8 +120,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await client.contactBook.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).contactBook.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].contactBooks;
     if (isLimitExceeded(currentCount, limit)) {
@@ -116,7 +140,7 @@ export class LimitService {
 
   static async checkTeamMemberLimit(
     teamId: number,
-    client: Prisma.TransactionClient = db,
+    client?: Prisma.TransactionClient,
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -127,8 +151,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await client.teamUser.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).teamUser.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].teamMembers;
     if (isLimitExceeded(currentCount, limit)) {
@@ -147,7 +171,7 @@ export class LimitService {
 
   static async checkWebhookLimit(
     teamId: number,
-    client: Prisma.TransactionClient = db,
+    client?: Prisma.TransactionClient,
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -158,8 +182,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await client.webhook.count({
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).webhook.count({
       where: { teamId },
     });
 
