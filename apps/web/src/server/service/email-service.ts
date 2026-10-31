@@ -43,11 +43,58 @@ export const replaceVariables = (
   variables: Record<string, string>
 ) => {
   return Object.keys(variables).reduce((accum, key) => {
-    const re = new RegExp(`{{${key}}}`, "g");
-    const returnTxt = accum.replace(re, variables[key] as string);
-    return returnTxt;
+    // Plain string split/join so keys and values are always treated literally
+    return accum.split(`{{${key}}}`).join(variables[key] ?? "");
   }, text);
 };
+
+type LoadedTemplate = { subject: string; renderer: EmailRenderer };
+
+async function loadTeamTemplate(
+  templateId: string,
+  teamId: number
+): Promise<LoadedTemplate> {
+  const template = await db.template.findUnique({
+    where: { id: templateId, teamId },
+  });
+
+  if (!template) {
+    throw new UnsendApiError({
+      code: "NOT_FOUND",
+      message: "Template not found",
+    });
+  }
+
+  return {
+    subject: template.subject || "",
+    renderer: new EmailRenderer(JSON.parse(template.content || "{}")),
+  };
+}
+
+async function renderTemplate(
+  template: LoadedTemplate,
+  variables: Record<string, string> = {}
+) {
+  // {{}} for link replacements
+  const modifiedVariables = {
+    ...variables,
+    ...Object.keys(variables).reduce(
+      (acc, key) => {
+        acc[`{{${key}}}`] = variables[key] || "";
+        return acc;
+      },
+      {} as Record<string, string>
+    ),
+  };
+
+  return {
+    subject: replaceVariables(template.subject, variables),
+    html: await template.renderer.render({
+      shouldReplaceVariableValues: true,
+      variableValues: modifiedVariables,
+    }),
+  };
+}
 
 /**
  Send transactional email
@@ -97,6 +144,10 @@ export async function sendEmail(
     // For non-API calls (dashboard, etc.), use regular domain validation
     domain = await validateDomainFromEmail(from, teamId);
   }
+
+  const template = templateId
+    ? await loadTeamTemplate(templateId, teamId)
+    : undefined;
 
   // Check for suppressed emails before sending
   const toEmails = Array.isArray(to) ? to : [to];
@@ -188,34 +239,8 @@ export async function sendEmail(
     );
   }
 
-  if (templateId) {
-    const template = await db.template.findUnique({
-      where: { id: templateId },
-    });
-
-    if (template) {
-      const jsonContent = JSON.parse(template.content || "{}");
-      const renderer = new EmailRenderer(jsonContent);
-
-      subject = replaceVariables(template.subject || "", variables || {});
-
-      // {{}} for link replacements
-      const modifiedVariables = {
-        ...variables,
-        ...Object.keys(variables || {}).reduce(
-          (acc, key) => {
-            acc[`{{${key}}}`] = variables?.[key] || "";
-            return acc;
-          },
-          {} as Record<string, string>
-        ),
-      };
-
-      html = await renderer.render({
-        shouldReplaceVariableValues: true,
-        variableValues: modifiedVariables,
-      });
-    }
+  if (template) {
+    ({ subject, html } = await renderTemplate(template, variables));
   }
 
   if (inReplyToId) {
@@ -387,6 +412,19 @@ export async function sendBulkEmails(
     });
   }
 
+  // Load every referenced template up front so an unknown one fails the
+  // request before any email records are created
+  const templateCache = new Map<string, LoadedTemplate>();
+  const templateCacheKey = (teamId: number, templateId: string) =>
+    `${teamId}:${templateId}`;
+  for (const { teamId, templateId } of emailContents) {
+    if (!templateId) continue;
+    const key = templateCacheKey(teamId, templateId);
+    if (!templateCache.has(key)) {
+      templateCache.set(key, await loadTeamTemplate(templateId, teamId));
+    }
+  }
+
   // Filter out suppressed emails
   const emailChecks = await Promise.all(
     emailContents.map(async (content, index) => {
@@ -498,34 +536,10 @@ export async function sendBulkEmails(
     const domain = await validateDomainFromEmail(from, teamId);
 
     // Process template if specified
-    if (templateId) {
-      const template = await db.template.findUnique({
-        where: { id: templateId },
-      });
-
-      if (template) {
-        const jsonContent = JSON.parse(template.content || "{}");
-        const renderer = new EmailRenderer(jsonContent);
-
-        subject = replaceVariables(template.subject || "", variables || {});
-
-        // {{}} for link replacements
-        const modifiedVariables = {
-          ...variables,
-          ...Object.keys(variables || {}).reduce(
-            (acc, key) => {
-              acc[`{{${key}}}`] = variables?.[key] || "";
-              return acc;
-            },
-            {} as Record<string, string>
-          ),
-        };
-
-        html = await renderer.render({
-          shouldReplaceVariableValues: true,
-          variableValues: modifiedVariables,
-        });
-      }
+    const template =
+      templateId && templateCache.get(templateCacheKey(teamId, templateId));
+    if (template) {
+      ({ subject, html } = await renderTemplate(template, variables));
     }
 
     const originalToEmails = Array.isArray(originalContent.to)
@@ -610,12 +624,6 @@ export async function sendBulkEmails(
     emailsByDomain.get(from)?.emails.push(content);
   }
 
-  // Cache templates to avoid repeated database queries
-  const templateCache = new Map<
-    number,
-    { subject: string; content: any; renderer: EmailRenderer }
-  >();
-
   const createdEmails = [];
   const queueJobs = [];
 
@@ -650,43 +658,10 @@ export async function sendBulkEmails(
       let html = htmlFromApiCall;
 
       // Process template if specified
-      if (templateId) {
-        let templateData = templateCache.get(Number(templateId));
-        if (!templateData) {
-          const template = await db.template.findUnique({
-            where: { id: templateId },
-          });
-          if (template) {
-            const jsonContent = JSON.parse(template.content || "{}");
-            templateData = {
-              subject: template.subject || "",
-              content: jsonContent,
-              renderer: new EmailRenderer(jsonContent),
-            };
-            templateCache.set(Number(templateId), templateData);
-          }
-        }
-
-        if (templateData) {
-          subject = replaceVariables(templateData.subject, variables || {});
-
-          // {{}} for link replacements
-          const modifiedVariables = {
-            ...variables,
-            ...Object.keys(variables || {}).reduce(
-              (acc, key) => {
-                acc[`{{${key}}}`] = variables?.[key] || "";
-                return acc;
-              },
-              {} as Record<string, string>
-            ),
-          };
-
-          html = await templateData.renderer.render({
-            shouldReplaceVariableValues: true,
-            variableValues: modifiedVariables,
-          });
-        }
+      const template =
+        templateId && templateCache.get(templateCacheKey(teamId, templateId));
+      if (template) {
+        ({ subject, html } = await renderTemplate(template, variables));
       }
 
       if (!text && !html) {

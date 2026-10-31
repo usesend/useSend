@@ -30,7 +30,7 @@ function replaceTemplateTokens(
 
     const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const tokenRegex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "gi");
-    return acc.replace(tokenRegex, replacement);
+    return acc.replace(tokenRegex, () => replacement);
   }, value);
 }
 
