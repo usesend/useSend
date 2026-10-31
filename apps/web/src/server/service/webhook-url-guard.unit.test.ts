@@ -26,7 +26,7 @@ const {
     webhookCall: { findUnique: vi.fn(), update: vi.fn() },
   },
   mockDnsLookup: vi.fn(),
-  mockEnv: { OUTBOUND_ALLOW_PRIVATE_ADDRESSES: false },
+  mockEnv: { WEBHOOK_ALLOW_PRIVATE_URLS: false },
   mockLimitService: { checkWebhookLimit: vi.fn() },
   mockRedis: { eval: vi.fn(), set: vi.fn() },
 }));
@@ -78,7 +78,7 @@ function resolveTo(address: string) {
 }
 
 beforeEach(() => {
-  mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = false;
+  mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = false;
   resolveTo("93.184.216.34");
 });
 
@@ -162,7 +162,7 @@ describe("WebhookService URL validation", () => {
   });
 
   it("accepts create with an internal URL when private addresses are allowed", async () => {
-    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = true;
     resolveTo("172.18.0.4");
     mockDb.webhook.create.mockResolvedValue({ id: "wh_new" });
 
@@ -296,8 +296,28 @@ describe("webhook delivery guard", () => {
     expect(received).toBe(0);
   });
 
+  it("counts a hanging DNS lookup against the request timeout", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      mockDnsLookup.mockImplementation(() => undefined);
+      mockDb.webhookCall.findUnique.mockResolvedValue(
+        buildCall(`http://hooks.example.com:${port}/internal`),
+      );
+
+      const result = invokeHandler().catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(result).resolves.toMatchObject({
+        message: "Webhook request timed out",
+      });
+      expect(received).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("delivers to an internal target when private addresses are allowed", async () => {
-    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = true;
     mockDb.webhookCall.findUnique.mockResolvedValue(
       buildCall(`http://127.0.0.1:${port}/internal`),
     );

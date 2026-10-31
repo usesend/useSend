@@ -136,13 +136,15 @@ This uses the `minio/minio` image already on your server. If your public storage
 
   </Step>
   <Step title="Webhooks to internal hosts (optional)">
-  By default, webhooks (and the SES callback URL check) can only reach publicly routable addresses. Private, loopback, and link-local addresses such as `http://n8n:5678`, `http://localhost`, or `169.254.169.254` are refused. If you need to send webhooks to services on your internal network, set:
+  When self-hosted, webhooks can be sent to services on your internal network, such as `http://n8n:5678` on the same Docker network. Anyone who can create a webhook can then make the server send requests to private, loopback, and link-local addresses, including `http://localhost` and cloud metadata at `169.254.169.254`.
+
+If you don't trust every user who can create webhooks on your instance, only allow publicly reachable webhook URLs:
 
 ```env
-OUTBOUND_ALLOW_PRIVATE_ADDRESSES=true
+WEBHOOK_ALLOW_PRIVATE_URLS=false
 ```
 
-Only enable this if you trust every user who can create webhooks on your instance, since they can then make the server send requests to your internal network.
+With this set, webhook URLs that point at or resolve to a non-public address are rejected when saved, and deliveries to them fail. Redirects from webhook endpoints are never followed.
 
   </Step>
 </Steps>

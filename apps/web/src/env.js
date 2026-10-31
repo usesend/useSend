@@ -74,9 +74,12 @@ export const env = createEnv({
     SMTP_HOST: z.string().default("smtp.usesend.com"),
     SMTP_USER: z.string().default("usesend"),
     CONTACT_BOOK_ID: z.string().optional(),
-    OUTBOUND_ALLOW_PRIVATE_ADDRESSES: z
+    // Lets webhooks reach private, loopback, and link-local addresses. Blocked
+    // by default in cloud; allowed by default when self-hosted so webhooks to
+    // internal services (e.g. http://n8n:5678) keep working.
+    WEBHOOK_ALLOW_PRIVATE_URLS: z
       .string()
-      .default("false")
+      .default(process.env.NEXT_PUBLIC_IS_CLOUD === "true" ? "false" : "true")
       .transform((str) => str === "true"),
     EMAIL_CLEANUP_DAYS: z
         .string()
@@ -144,8 +147,8 @@ export const env = createEnv({
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
-    OUTBOUND_ALLOW_PRIVATE_ADDRESSES:
-      process.env.OUTBOUND_ALLOW_PRIVATE_ADDRESSES,
+    WEBHOOK_ALLOW_PRIVATE_URLS:
+      process.env.WEBHOOK_ALLOW_PRIVATE_URLS,
     EMAIL_CLEANUP_DAYS: process.env.EMAIL_CLEANUP_DAYS,
   },
   /**

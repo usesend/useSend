@@ -12,7 +12,7 @@ import {
 
 const { mockDnsLookup, mockEnv } = vi.hoisted(() => ({
   mockDnsLookup: vi.fn(),
-  mockEnv: { OUTBOUND_ALLOW_PRIVATE_ADDRESSES: false },
+  mockEnv: { WEBHOOK_ALLOW_PRIVATE_URLS: false },
 }));
 
 vi.mock("node:dns", () => ({ lookup: mockDnsLookup }));
@@ -37,7 +37,7 @@ function resolveTo(...addresses: Array<{ address: string; family: number }>) {
 }
 
 beforeEach(() => {
-  mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = false;
+  mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = false;
   resolveTo(publicAddress);
 });
 
@@ -167,7 +167,7 @@ describe("assertOutboundUrlAllowed", () => {
   });
 
   it("allows internal targets when private addresses are allowed", async () => {
-    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = true;
     resolveTo({ address: "172.18.0.4", family: 4 });
 
     await expect(
@@ -283,8 +283,22 @@ describe("fetchOutbound", () => {
     expect(received).toHaveLength(0);
   });
 
+  it("lets the request signal cut short a hanging lookup", async () => {
+    mockDnsLookup.mockImplementation(() => undefined);
+
+    const error = await fetchOutbound(`http://hooks.example.com:${port}/`, {
+      method: "GET",
+      signal: AbortSignal.timeout(50),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(OutboundUrlNotAllowedError);
+    expect(mockDnsLookup).toHaveBeenCalled();
+    expect(received).toHaveLength(0);
+  });
+
   it("reaches internal targets when private addresses are allowed", async () => {
-    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = true;
 
     const response = await fetchOutbound(`http://127.0.0.1:${port}/hook`, {
       method: "POST",
@@ -299,7 +313,7 @@ describe("fetchOutbound", () => {
   });
 
   it("does not follow redirects", async () => {
-    mockEnv.OUTBOUND_ALLOW_PRIVATE_ADDRESSES = true;
+    mockEnv.WEBHOOK_ALLOW_PRIVATE_URLS = true;
 
     const response = await fetchOutbound(`http://127.0.0.1:${port}/redirect`, {
       method: "GET",

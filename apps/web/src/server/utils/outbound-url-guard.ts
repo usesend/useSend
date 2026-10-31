@@ -214,7 +214,7 @@ export function isNonPublicIpAddress(address: string): boolean {
 }
 
 function privateAddressesAllowed() {
-  return env.OUTBOUND_ALLOW_PRIVATE_ADDRESSES;
+  return env.WEBHOOK_ALLOW_PRIVATE_URLS;
 }
 
 function urlHostname(url: URL) {
