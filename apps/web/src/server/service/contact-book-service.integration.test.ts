@@ -1,4 +1,11 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The mailer imports the usesend-js SDK, which is not built in CI.
+vi.mock("~/server/mailer", () => ({
+  sendMail: vi.fn(),
+  sendTeamInviteEmail: vi.fn(),
+}));
+
 import { db } from "~/server/db";
 import { createContactBook } from "~/server/service/contact-book-service";
 import { createTeam } from "~/test/factories/core";
