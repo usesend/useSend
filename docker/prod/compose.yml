@@ -115,6 +115,7 @@ services:
       - S3_COMPATIBLE_API_URL=${S3_COMPATIBLE_API_URL:-}
       - S3_COMPATIBLE_PUBLIC_URL=${S3_COMPATIBLE_PUBLIC_URL:-}
       - S3_COMPATIBLE_BUCKET=${S3_COMPATIBLE_BUCKET:-unsend}
+      - WEBHOOK_ALLOW_PRIVATE_URLS=${WEBHOOK_ALLOW_PRIVATE_URLS:-}
     depends_on:
       postgres:
         condition: service_healthy
