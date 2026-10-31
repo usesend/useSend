@@ -256,41 +256,46 @@ export class WebhookService {
     domainIds?: number[];
     secret?: string;
   }) {
-    const { isLimitReached, reason } = await LimitService.checkWebhookLimit(
-      params.teamId,
-    );
+    return db.$transaction(async (tx) => {
+      await LimitService.lockPlanLimit(tx, params.teamId, "webhook");
 
-    if (isLimitReached) {
-      throw new UnsendApiError({
-        code: "FORBIDDEN",
-        message: reason ?? "Webhook limit reached",
-      });
-    }
-
-    const normalizedDomainIds = WebhookService.normalizeDomainIds(
-      params.domainIds,
-    );
-
-    if (normalizedDomainIds.length > 0) {
-      await WebhookService.assertDomainsBelongToTeam(
-        normalizedDomainIds,
+      const { isLimitReached, reason } = await LimitService.checkWebhookLimit(
         params.teamId,
+        tx,
       );
-    }
 
-    const secret = params.secret ?? WebhookService.generateSecret();
+      if (isLimitReached) {
+        throw new UnsendApiError({
+          code: "FORBIDDEN",
+          message: reason ?? "Webhook limit reached",
+        });
+      }
 
-    return db.webhook.create({
-      data: {
-        teamId: params.teamId,
-        domainIds: normalizedDomainIds,
-        url: params.url,
-        description: params.description,
-        secret,
-        eventTypes: params.eventTypes,
-        status: WebhookStatus.ACTIVE,
-        createdByUserId: params.userId,
-      },
+      const normalizedDomainIds = WebhookService.normalizeDomainIds(
+        params.domainIds,
+      );
+
+      if (normalizedDomainIds.length > 0) {
+        await WebhookService.assertDomainsBelongToTeam(
+          normalizedDomainIds,
+          params.teamId,
+        );
+      }
+
+      const secret = params.secret ?? WebhookService.generateSecret();
+
+      return tx.webhook.create({
+        data: {
+          teamId: params.teamId,
+          domainIds: normalizedDomainIds,
+          url: params.url,
+          description: params.description,
+          secret,
+          eventTypes: params.eventTypes,
+          status: WebhookStatus.ACTIVE,
+          createdByUserId: params.userId,
+        },
+      });
     });
   }
 

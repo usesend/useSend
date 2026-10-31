@@ -5,11 +5,52 @@ import { TeamService } from "./team-service";
 import { withCache } from "../redis";
 import { db } from "../db";
 import { logger } from "../logger/log";
-import { Plan } from "@prisma/client";
+import { Plan, type Prisma } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
+
+export type PlanLimitResource =
+  "domain" | "contactBook" | "teamMember" | "webhook";
+
+/**
+ * PostgreSQL advisory-lock namespaces for plan-limited resource creation.
+ *
+ * Each lock is keyed by (namespace, teamId), so it only serializes creates of
+ * the same resource type for the same team. pg_advisory_xact_lock is released
+ * automatically on commit, rollback, or connection loss.
+ */
+const PLAN_LIMIT_LOCK_NAMESPACE: Record<PlanLimitResource, number> = {
+  domain: 1431520591,
+  contactBook: 1431520592,
+  teamMember: 1431520593,
+  webhook: 1431520594,
+};
 
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
   return current >= limit;
+}
+
+/**
+ * Inside a transaction the team is read through the transaction client, so the
+ * check never needs a second pool connection while it holds the plan-limit
+ * lock. Otherwise it uses the cached team.
+ */
+async function getLimitTeam(
+  teamId: number,
+  client?: Prisma.TransactionClient,
+): Promise<{ plan: Plan; isActive: boolean }> {
+  if (!client) {
+    return TeamService.getTeamCached(teamId);
+  }
+
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { plan: true, isActive: true },
+  });
+  if (!team) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+  }
+  return team;
 }
 
 function getActivePlan(team: { plan: Plan; isActive: boolean }): Plan {
@@ -17,7 +58,28 @@ function getActivePlan(team: { plan: Plan; isActive: boolean }): Plan {
 }
 
 export class LimitService {
-  static async checkDomainLimit(teamId: number): Promise<{
+  /**
+   * Serializes plan-limit checks for a team and resource type. Must be called
+   * inside a transaction, before the limit check and the create that it guards,
+   * so concurrent requests cannot both pass the check.
+   */
+  static async lockPlanLimit(
+    tx: Prisma.TransactionClient,
+    teamId: number,
+    resource: PlanLimitResource,
+  ) {
+    // Limits only apply in cloud mode
+    if (!env.NEXT_PUBLIC_IS_CLOUD) {
+      return;
+    }
+
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${PLAN_LIMIT_LOCK_NAMESPACE[resource]}::int4, ${teamId}::int4)`;
+  }
+
+  static async checkDomainLimit(
+    teamId: number,
+    client?: Prisma.TransactionClient,
+  ): Promise<{
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
@@ -27,8 +89,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await db.domain.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).domain.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].domains;
     if (isLimitExceeded(currentCount, limit)) {
@@ -45,7 +107,10 @@ export class LimitService {
     };
   }
 
-  static async checkContactBookLimit(teamId: number): Promise<{
+  static async checkContactBookLimit(
+    teamId: number,
+    client?: Prisma.TransactionClient,
+  ): Promise<{
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
@@ -55,8 +120,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await db.contactBook.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).contactBook.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].contactBooks;
     if (isLimitExceeded(currentCount, limit)) {
@@ -73,7 +138,10 @@ export class LimitService {
     };
   }
 
-  static async checkTeamMemberLimit(teamId: number): Promise<{
+  static async checkTeamMemberLimit(
+    teamId: number,
+    client?: Prisma.TransactionClient,
+  ): Promise<{
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
@@ -83,8 +151,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await db.teamUser.count({ where: { teamId } });
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).teamUser.count({ where: { teamId } });
 
     const limit = PLAN_LIMITS[getActivePlan(team)].teamMembers;
     if (isLimitExceeded(currentCount, limit)) {
@@ -101,7 +169,10 @@ export class LimitService {
     };
   }
 
-  static async checkWebhookLimit(teamId: number): Promise<{
+  static async checkWebhookLimit(
+    teamId: number,
+    client?: Prisma.TransactionClient,
+  ): Promise<{
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
@@ -111,8 +182,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
-    const team = await TeamService.getTeamCached(teamId);
-    const currentCount = await db.webhook.count({
+    const team = await getLimitTeam(teamId, client);
+    const currentCount = await (client ?? db).webhook.count({
       where: { teamId },
     });
 

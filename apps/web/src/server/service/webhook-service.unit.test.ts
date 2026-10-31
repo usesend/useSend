@@ -8,6 +8,7 @@ const {
   mockLogger,
   mockQueueAdd,
   mockRedis,
+  mockTxWebhookCreate,
   mockTxWebhookUpdate,
 } = vi.hoisted(() => ({
   capturedProcessWebhookCall: {
@@ -35,6 +36,7 @@ const {
   },
   mockLimitService: {
     checkWebhookLimit: vi.fn(),
+    lockPlanLimit: vi.fn(),
   },
   mockLogger: {
     debug: vi.fn(),
@@ -47,6 +49,7 @@ const {
     eval: vi.fn(),
     set: vi.fn(),
   },
+  mockTxWebhookCreate: vi.fn(),
   mockTxWebhookUpdate: vi.fn(),
 }));
 
@@ -146,6 +149,7 @@ describe("WebhookService documented behavior", () => {
     mockQueueAdd.mockReset();
     mockRedis.eval.mockReset();
     mockRedis.set.mockReset();
+    mockTxWebhookCreate.mockReset();
     mockTxWebhookUpdate.mockReset();
 
     mockLimitService.checkWebhookLimit.mockResolvedValue({
@@ -166,6 +170,7 @@ describe("WebhookService documented behavior", () => {
       if (typeof input === "function") {
         return input({
           webhook: {
+            create: mockTxWebhookCreate,
             update: mockTxWebhookUpdate,
           },
         });
@@ -390,7 +395,7 @@ describe("WebhookService documented behavior", () => {
 
   it("dedupes and validates domainIds on webhook creation", async () => {
     mockDb.domain.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-    mockDb.webhook.create.mockResolvedValue({
+    mockTxWebhookCreate.mockResolvedValue({
       id: "wh_created",
     });
 
@@ -416,7 +421,7 @@ describe("WebhookService documented behavior", () => {
         id: true,
       },
     });
-    expect(mockDb.webhook.create).toHaveBeenCalledWith({
+    expect(mockTxWebhookCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         teamId: 77,
         createdByUserId: 42,
@@ -443,7 +448,52 @@ describe("WebhookService documented behavior", () => {
       }),
     ).rejects.toThrow("One or more domains were not found");
 
+    expect(mockTxWebhookCreate).not.toHaveBeenCalled();
+  });
+
+  it("checks the webhook limit and creates under the plan-limit lock in one transaction", async () => {
+    mockTxWebhookCreate.mockResolvedValue({ id: "wh_created" });
+
+    await WebhookService.createWebhook({
+      teamId: 77,
+      userId: 42,
+      url: "https://example.com/webhook",
+      eventTypes: ["email.sent"],
+    });
+
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    const tx = mockLimitService.lockPlanLimit.mock.calls[0]![0];
+    expect(tx.webhook.create).toBe(mockTxWebhookCreate);
+    expect(mockLimitService.lockPlanLimit).toHaveBeenCalledWith(
+      tx,
+      77,
+      "webhook",
+    );
+    expect(mockLimitService.checkWebhookLimit).toHaveBeenCalledWith(77, tx);
+    expect(
+      mockLimitService.lockPlanLimit.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockLimitService.checkWebhookLimit.mock.invocationCallOrder[0]!,
+    );
     expect(mockDb.webhook.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects webhook creation when the webhook limit is reached", async () => {
+    mockLimitService.checkWebhookLimit.mockResolvedValue({
+      isLimitReached: true,
+      reason: "WEBHOOK",
+    });
+
+    await expect(
+      WebhookService.createWebhook({
+        teamId: 77,
+        userId: 42,
+        url: "https://example.com/webhook",
+        eventTypes: ["email.sent"],
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", message: "WEBHOOK" });
+
+    expect(mockTxWebhookCreate).not.toHaveBeenCalled();
   });
 
   it("preserves existing domainIds on webhook update when domainIds are omitted", async () => {
