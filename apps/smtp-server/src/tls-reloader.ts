@@ -14,6 +14,8 @@ import { createSecureContext } from "tls";
 
 export const DEFAULT_TLS_RELOAD_INTERVAL_MS = 5 * 60 * 1000;
 export const MIN_TLS_RELOAD_INTERVAL_MS = 10 * 1000;
+// setInterval turns anything above 2^31-1 ms into 1 ms, so cap well below it.
+export const MAX_TLS_RELOAD_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const EXPIRY_WARNING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 export interface TlsPair {
@@ -64,6 +66,12 @@ export function parseReloadInterval(
     );
     return MIN_TLS_RELOAD_INTERVAL_MS;
   }
+  if (value > MAX_TLS_RELOAD_INTERVAL_MS) {
+    logger.warn(
+      `[tls] TLS_RELOAD_INTERVAL_MS ${value}ms is above the maximum, using ${MAX_TLS_RELOAD_INTERVAL_MS}ms`,
+    );
+    return MAX_TLS_RELOAD_INTERVAL_MS;
+  }
   return Math.floor(value);
 }
 
@@ -101,7 +109,13 @@ export class TlsReloader {
     this.current = options.initial;
     this.logger = options.logger ?? console;
     this.now = options.now ?? (() => new Date());
-    this.intervalMs = options.intervalMs ?? DEFAULT_TLS_RELOAD_INTERVAL_MS;
+    this.intervalMs = Math.min(
+      Math.max(
+        options.intervalMs ?? DEFAULT_TLS_RELOAD_INTERVAL_MS,
+        MIN_TLS_RELOAD_INTERVAL_MS,
+      ),
+      MAX_TLS_RELOAD_INTERVAL_MS,
+    );
     try {
       this.currentValidTo = certificateExpiry(options.initial.cert);
       this.logger.log(
