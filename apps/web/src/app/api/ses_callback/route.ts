@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 async function handleSubscription(message: SnsNotificationMessage) {
   const subscribeUrl = message.SubscribeURL;
 
-  if (!subscribeUrl || !isTrustedSnsUrl(subscribeUrl, message.TopicArn)) {
+  if (!subscribeUrl || !isAllowedSubscribeUrl(subscribeUrl, message.TopicArn)) {
     logger.warn({ subscribeUrl }, "Rejected untrusted SNS SubscribeURL");
     return Response.json({ data: "Invalid subscription URL" }, { status: 400 });
   }
@@ -93,6 +93,36 @@ async function handleSubscription(message: SnsNotificationMessage) {
   SesSettingsService.invalidateCache();
 
   return Response.json({ data: "Success" });
+}
+
+function isSignatureEnforced() {
+  return (
+    env.NODE_ENV !== "development" &&
+    env.SNS_SIGNATURE_VERIFICATION !== "log-only"
+  );
+}
+
+/**
+ * AWS always sends an https SubscribeURL on its own SNS host. A custom SNS
+ * endpoint (an emulator such as local-ses-sns, or LocalStack) sends its own
+ * URL instead, so that is only trusted when the operator has pointed
+ * AWS_SNS_ENDPOINT elsewhere and turned off signature enforcement.
+ */
+function isAllowedSubscribeUrl(subscribeUrl: string, topicArn: string) {
+  if (isTrustedSnsUrl(subscribeUrl, topicArn)) {
+    return true;
+  }
+
+  if (!env.AWS_SNS_ENDPOINT || isSignatureEnforced()) {
+    return false;
+  }
+
+  try {
+    const { protocol } = new URL(subscribeUrl);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 /**

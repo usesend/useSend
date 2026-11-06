@@ -161,6 +161,10 @@ Once you log in to useSend, it will prompt you add SES configuration.
 
 ![github app](/images/ses-settings/add-ses-settings.png)
 
+<Note>
+  useSend checks the AWS signature on every SNS message it receives at the callback URL and rejects any that fail. If email statuses stop updating past "Sent", look for `Rejected SNS message` in the logs. Setting `SNS_SIGNATURE_VERIFICATION=log-only` accepts those messages while you investigate. You also need `log-only` (together with `AWS_SNS_ENDPOINT`) if you use an SNS emulator such as LocalStack instead of AWS, because emulators don't sign their messages.
+</Note>
+
 ## Step 4: Getting out of sandbox mode
 
 <Warning>Don't forget to get the SES account out of sandbox mode.</Warning>
