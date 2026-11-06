@@ -2,9 +2,10 @@ import { SMTPServer, SMTPServerOptions, SMTPServerSession } from "smtp-server";
 import { Readable } from "stream";
 import dotenv from "dotenv";
 import { simpleParser } from "mailparser";
-import { readFileSync, watch, FSWatcher } from "fs";
+import { readFileSync } from "fs";
 import { extractForwardedHeaders } from "./email-headers";
 import { resolveRecipients } from "./recipients";
+import { TlsReloader, parseReloadInterval } from "./tls-reloader";
 
 dotenv.config();
 
@@ -140,7 +141,7 @@ const serverOptions: SMTPServerOptions = {
 
 function startServers() {
   const servers: SMTPServer[] = [];
-  const watchers: FSWatcher[] = [];
+  let tlsReloader: TlsReloader | undefined;
 
   if (SSL_KEY_PATH && SSL_CERT_PATH) {
     // Implicit SSL/TLS for ports 465 and 2465
@@ -176,31 +177,32 @@ function startServers() {
     servers.push(server);
   });
 
-  if (SSL_KEY_PATH && SSL_CERT_PATH) {
-    const reloadCertificates = () => {
-      try {
-        const { key, cert } = loadCertificates();
-        if (key && cert) {
-          servers.forEach((srv) => srv.updateSecureContext({ key, cert }));
-          console.log("TLS certificates reloaded");
-        }
-      } catch (err) {
-        console.error("Failed to reload TLS certificates", err);
-      }
-    };
-
-    [SSL_KEY_PATH, SSL_CERT_PATH].forEach((file) => {
-      watchers.push(watch(file, { persistent: false }, reloadCertificates));
+  if (
+    SSL_KEY_PATH &&
+    SSL_CERT_PATH &&
+    initialCerts.key &&
+    initialCerts.cert
+  ) {
+    // Poll instead of fs.watch: certbot swaps symlinks on renewal, which
+    // inotify does not see. updateSecureContext() rebuilds the context used by
+    // both implicit TLS and STARTTLS upgrades, so new connections pick it up.
+    tlsReloader = new TlsReloader({
+      keyPath: SSL_KEY_PATH,
+      certPath: SSL_CERT_PATH,
+      initial: { key: initialCerts.key, cert: initialCerts.cert },
+      servers,
+      intervalMs: parseReloadInterval(process.env.TLS_RELOAD_INTERVAL_MS),
     });
+    tlsReloader.start();
   }
-  return { servers, watchers };
+  return { servers, tlsReloader };
 }
 
-const { servers, watchers } = startServers();
+const { servers, tlsReloader } = startServers();
 
 function shutdown() {
   console.log("Shutting down SMTP server...");
-  watchers.forEach((w) => w.close());
+  tlsReloader?.stop();
   servers.forEach((s) => s.close());
   process.exit(0);
 }
