@@ -165,15 +165,19 @@ export const adminRouter = createTRPCRouter({
         throw new Error("User not found");
       }
 
-      const updatedUser = await db.user.update({
-        where: { id: input.userId },
-        data: { isWaitlisted: input.isWaitlisted },
-        select: waitlistUserSelection,
-      });
+      const updatedUser = await db.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id: input.userId },
+          data: { isWaitlisted: input.isWaitlisted },
+          select: waitlistUserSelection,
+        });
 
-      if (existingUser.isWaitlisted && !input.isWaitlisted) {
-        await WaitlistService.setStatus(input.userId, "APPROVED");
-      }
+        if (existingUser.isWaitlisted && !input.isWaitlisted) {
+          await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+        }
+
+        return user;
+      });
 
       const founderEmail = env.FOUNDER_EMAIL ?? undefined;
       const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;

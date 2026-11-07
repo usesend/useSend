@@ -1,4 +1,4 @@
-import type { WaitlistStatus } from "@prisma/client";
+import type { Prisma, WaitlistStatus } from "@prisma/client";
 import {
   normalizeWebsite,
   type WaitlistSubmissionInput,
@@ -34,8 +34,12 @@ export class WaitlistService {
   }
 
   /** Records the review outcome. Users who never filled the form have no application. */
-  static async setStatus(userId: number, status: WaitlistStatus) {
-    await db.waitlistApplication.updateMany({
+  static async setStatus(
+    userId: number,
+    status: WaitlistStatus,
+    client: Prisma.TransactionClient = db,
+  ) {
+    await client.waitlistApplication.updateMany({
       where: { userId },
       data: {
         status,

@@ -30,6 +30,13 @@ export const waitlistRouter = createTRPCRouter({
 
       const { user } = ctx.session;
 
+      if (!user.isWaitlisted) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You already have access",
+        });
+      }
+
       const founderEmail = env.FOUNDER_EMAIL ?? env.ADMIN_EMAIL;
 
       if (!founderEmail) {
