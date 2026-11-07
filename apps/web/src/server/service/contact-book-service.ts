@@ -8,6 +8,7 @@ import { db } from "../db";
 import { UnsendApiError } from "../public-api/api-error";
 import { validateDomainFromEmail } from "./domain-service";
 import { LimitService } from "./limit-service";
+import { withPlanLimitLock } from "./plan-limit-lock";
 import {
   normalizeContactBookVariables,
   validateContactBookVariables,
@@ -42,6 +43,17 @@ export async function getContactBooks(teamId: number, search?: string) {
 }
 
 export async function createContactBook(
+  teamId: number,
+  name: string,
+  variables?: string[],
+  client: ContactBookDbClient = db,
+) {
+  return withPlanLimitLock(teamId, "contactBook", () =>
+    createContactBookUnlocked(teamId, name, variables, client),
+  );
+}
+
+async function createContactBookUnlocked(
   teamId: number,
   name: string,
   variables?: string[],
