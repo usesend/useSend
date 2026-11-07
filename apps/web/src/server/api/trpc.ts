@@ -10,10 +10,10 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z, ZodError } from "zod";
-import { env } from "~/env";
 
 import { getServerAuthSession } from "~/server/auth";
 import { db } from "~/server/db";
+import { isPlatformAdmin } from "~/server/platform-admin";
 import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 
@@ -262,10 +262,10 @@ export const templateProcedure = teamProcedure
   });
 
 /**
- * To manage application settings, for hosted version, authenticated users will be considered as admin
+ * To manage application settings. Only the platform admin is allowed, see `isPlatformAdmin`
  */
 export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  if (env.NEXT_PUBLIC_IS_CLOUD && ctx.session.user.email !== env.ADMIN_EMAIL) {
+  if (!(await isPlatformAdmin(ctx.session.user))) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   return next();

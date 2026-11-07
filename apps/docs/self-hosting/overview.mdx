@@ -147,6 +147,14 @@ WEBHOOK_ALLOW_PRIVATE_URLS=false
 With this set, webhook URLs that point at or resolve to a non-public address are rejected when saved, and deliveries to them fail. Redirects from webhook endpoints are never followed.
 
   </Step>
+  <Step title="Instance admin (optional)">
+  The instance admin manages instance-wide settings such as SES configurations from the Admin page. By default this is the first user who signed up. To choose a different user, set `ADMIN_EMAIL` to their email address. When it is set, only that user is the admin, and the address must match their account email exactly. Other users on the instance no longer see the Admin page. If no account has that exact email, the first user who signed up stays the admin and a warning is logged.
+
+```env
+ADMIN_EMAIL="you@example.com"
+```
+
+  </Step>
 </Steps>
 
 ## Step 2: Setting up the app

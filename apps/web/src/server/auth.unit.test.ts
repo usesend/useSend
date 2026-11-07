@@ -219,6 +219,40 @@ describe("authOptions", () => {
     });
   });
 
+  describe("session admin flag", () => {
+    const sessionCallback = authOptions.callbacks!.session!;
+
+    async function getIsAdmin(user: { id: number; email: string }) {
+      const session: any = await sessionCallback({
+        session: { user: {}, expires: "" },
+        user: { ...newUser, ...user },
+      } as any);
+
+      return session.user.isAdmin;
+    }
+
+    it("marks the first self-hosted user as admin", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+      mocks.userFindFirst.mockResolvedValue({ id: 1 });
+
+      await expect(
+        getIsAdmin({ id: 1, email: "owner@example.com" }),
+      ).resolves.toBe(true);
+      await expect(
+        getIsAdmin({ id: 2, email: "member@example.com" }),
+      ).resolves.toBe(false);
+    });
+
+    it("does not mark cloud users as admin without ADMIN_EMAIL", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = true;
+      mocks.userFindFirst.mockResolvedValue({ id: 1 });
+
+      await expect(
+        getIsAdmin({ id: 1, email: "owner@example.com" }),
+      ).resolves.toBe(false);
+    });
+  });
+
   describe("adapter user creation", () => {
     const createUser = authOptions.adapter?.createUser;
 
