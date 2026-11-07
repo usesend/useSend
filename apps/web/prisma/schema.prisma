@@ -158,6 +158,24 @@ model Team {
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
   actions          TeamAction[]
+  sendingCohorts   SendingCohort[]
+}
+
+/// Emails a team sent each day, with the hard bounces and complaints those
+/// same emails caused (filed under the day they were sent). Used by the
+/// sending rules, so rates always compare matching sends and outcomes.
+model SendingCohort {
+  teamId      Int
+  /// YYYY-MM-DD (UTC) the emails were sent
+  date        String
+  sent        Int      @default(0)
+  hardBounced Int      @default(0)
+  complained  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, date])
 }
 
 enum TeamActionType {

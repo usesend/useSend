@@ -7,8 +7,12 @@ const {
   mockUpdateCampaignAnalytics,
   mockWebhookEmit,
   mockCheckSendingHealth,
+  mockClaimOutcome,
+  mockRecordOutcome,
 } = vi.hoisted(() => ({
   mockCheckSendingHealth: vi.fn(),
+  mockClaimOutcome: vi.fn(),
+  mockRecordOutcome: vi.fn(),
   mockDb: {
     $executeRaw: vi.fn(),
     email: {
@@ -49,6 +53,11 @@ vi.mock("~/server/service/webhook-service", () => ({
   WebhookService: {
     emit: mockWebhookEmit,
   },
+}));
+
+vi.mock("~/server/service/sending-cohorts", () => ({
+  claimOutcome: mockClaimOutcome,
+  recordOutcome: mockRecordOutcome,
 }));
 
 vi.mock("~/server/service/sending-rules-service", () => ({
@@ -202,6 +211,7 @@ describe("parseSesHook sending rules", () => {
     mockDb.dailyEmailUsage.upsert.mockResolvedValue({});
     mockDb.cumulatedMetrics.upsert.mockResolvedValue({});
     mockWebhookEmit.mockResolvedValue(undefined);
+    mockClaimOutcome.mockResolvedValue(true);
   });
 
   function bounceEvent(diagnosticCode: string): SesEvent {
@@ -246,20 +256,24 @@ describe("parseSesHook sending rules", () => {
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
 
+  it("files the bounce under the day its email was sent", async () => {
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockClaimOutcome).toHaveBeenCalledWith(email.id, "hardBounced");
+    expect(mockRecordOutcome).toHaveBeenCalledWith(
+      7,
+      new Date("2026-07-13T01:00:00.000Z"),
+      "hardBounced",
+    );
+  });
+
   it("counts a repeated hard bounce only once", async () => {
-    mockDb.emailEvent.findFirst.mockResolvedValue({ id: "earlier_bounce" });
+    mockClaimOutcome.mockResolvedValue(false);
 
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
-    expect(mockDb.emailEvent.findFirst).toHaveBeenCalledWith({
-      where: {
-        emailId: email.id,
-        status: EmailStatus.BOUNCED,
-        data: { path: ["bounceType"], equals: "Permanent" },
-      },
-      select: { id: true },
-    });
     expect(mockDb.dailyEmailUsage.upsert).not.toHaveBeenCalled();
+    expect(mockRecordOutcome).not.toHaveBeenCalled();
     expect(mockCheckSendingHealth).not.toHaveBeenCalled();
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
