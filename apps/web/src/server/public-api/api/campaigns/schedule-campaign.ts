@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
+import { assertCampaignInApiKeyScope } from "~/server/public-api/api-key-scope";
 import {
   campaignScheduleSchema,
   CampaignScheduleInput,
@@ -51,6 +52,7 @@ function scheduleCampaign(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
     const campaignId = c.req.param("campaignId");
+    await assertCampaignInApiKeyScope(team, campaignId);
     const body: CampaignScheduleInput = c.req.valid("json");
 
     await scheduleCampaignService({

@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { DomainSchema } from "~/lib/zod/domain-schema";
 import { PublicAPIApp } from "~/server/public-api/hono";
+import { assertApiKeyCanCreateDomains } from "~/server/public-api/api-key-scope";
 import { createDomain as createDomainService } from "~/server/service/domain-service";
 
 const route = createRoute({
@@ -34,6 +35,7 @@ const route = createRoute({
 function createDomain(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
+    assertApiKeyCanCreateDomains(team);
     const body = c.req.valid("json");
     const response = await createDomainService(
       team.id,
