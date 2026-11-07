@@ -31,6 +31,8 @@ import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
+import { checkSendingHealth } from "./sending-rules-service";
+import { isSpamTrapBounce } from "./sending-rules";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -299,6 +301,22 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
+  if (isHardBounced || mailStatus === EmailStatus.COMPLAINED) {
+    try {
+      await checkSendingHealth({
+        teamId: email.teamId,
+        campaignId: email.campaignId,
+        spamTrap: isHardBounced && isSpamTrapBounce(data.bounce),
+      });
+    } catch (error) {
+      // Never fail event processing because of the rules.
+      logger.error(
+        { err: error, teamId: email.teamId },
+        "[SesHookParser]: Sending rules check failed",
+      );
+    }
+  }
+
   logger.info("Creating email event");
 
   await db.emailEvent.create({
@@ -412,8 +430,7 @@ function normalizeBounceSubType(
   subType: SesBounce["bounceSubType"] | undefined,
 ): EmailBounceSubType {
   const normalized = subType?.replace(/\s+/g, "") as
-    | EmailBounceSubType
-    | undefined;
+    EmailBounceSubType | undefined;
 
   const validSubTypes: EmailBounceSubType[] = [
     "General",

@@ -55,8 +55,20 @@ const teamAdminSelection = {
   dailyEmailLimit: true,
   isBlocked: true,
   freePlanAllowed: true,
+  sendingPausedAt: true,
   billingEmail: true,
   createdAt: true,
+  actions: {
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      action: true,
+      actor: true,
+      reason: true,
+      createdAt: true,
+    },
+  },
   teamUsers: {
     select: {
       role: true,
@@ -421,16 +433,57 @@ export const adminRouter = createTRPCRouter({
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
         freePlanAllowed: z.boolean(),
+        sendingPaused: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
       }),
     )
-    .mutation(async ({ input }) => {
-      const { teamId, ...data } = input;
+    .mutation(async ({ ctx, input }) => {
+      const { teamId, sendingPaused, ...data } = input;
 
-      const updatedTeam = await db.team.update({
+      const existing = await db.team.findUnique({
         where: { id: teamId },
-        data,
-        select: teamAdminSelection,
+        select: { isBlocked: true, sendingPausedAt: true },
+      });
+      if (!existing) {
+        throw new Error("Team not found");
+      }
+
+      const actor = `admin:${ctx.session.user.email ?? ctx.session.user.id}`;
+      const actions: Prisma.TeamActionCreateManyInput[] = [];
+      if (existing.isBlocked !== data.isBlocked) {
+        actions.push({
+          teamId,
+          actor,
+          action: data.isBlocked ? "BLOCK" : "UNBLOCK",
+          reason: data.isBlocked
+            ? "Blocked by an admin"
+            : "Unblocked by an admin",
+        });
+      }
+      if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
+        actions.push({
+          teamId,
+          actor,
+          action: sendingPaused ? "PAUSE" : "RESUME",
+          reason: sendingPaused ? "Paused by an admin" : "Resumed by an admin",
+        });
+      }
+
+      const updatedTeam = await db.$transaction(async (tx) => {
+        const team = await tx.team.update({
+          where: { id: teamId },
+          data: {
+            ...data,
+            sendingPausedAt: sendingPaused
+              ? (existing.sendingPausedAt ?? new Date())
+              : null,
+          },
+          select: teamAdminSelection,
+        });
+        if (actions.length > 0) {
+          await tx.teamAction.createMany({ data: actions });
+        }
+        return team;
       });
 
       // Sending reads the cached team, so refresh it for blocks to apply now.

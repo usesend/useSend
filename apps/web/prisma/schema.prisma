@@ -79,18 +79,18 @@ model VerificationToken {
 }
 
 model User {
-  id               Int        @id @default(autoincrement())
-  name             String?
-  email            String?    @unique
-  emailVerified    DateTime?
-  image            String?
-  isBetaUser       Boolean    @default(false)
-  isWaitlisted     Boolean    @default(false)
-  createdAt        DateTime   @default(now())
-  accounts         Account[]
-  sessions         Session[]
-  teamUsers        TeamUser[]
-  webhookEndpoints Webhook[]
+  id                  Int                  @id @default(autoincrement())
+  name                String?
+  email               String?              @unique
+  emailVerified       DateTime?
+  image               String?
+  isBetaUser          Boolean              @default(false)
+  isWaitlisted        Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  accounts            Account[]
+  sessions            Session[]
+  teamUsers           TeamUser[]
+  webhookEndpoints    Webhook[]
   waitlistApplication WaitlistApplication?
 }
 
@@ -142,6 +142,8 @@ model Team {
   isBlocked        Boolean           @default(false)
   /// Teams created before paid-only signups may keep sending on the free plan.
   freePlanAllowed  Boolean           @default(false)
+  /// Set when sending is paused (e.g. bounce rate too high). Cleared on resume.
+  sendingPausedAt  DateTime?
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]
@@ -155,6 +157,31 @@ model Team {
   suppressionList  SuppressionList[]
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
+  actions          TeamAction[]
+}
+
+enum TeamActionType {
+  ALERT
+  PAUSE
+  RESUME
+  BLOCK
+  UNBLOCK
+}
+
+/// Every pause, block and alert on a team, by the sending rules, an admin or the Guard.
+model TeamAction {
+  id        String         @id @default(cuid())
+  teamId    Int
+  action    TeamActionType
+  /// "rules", "guard" or "admin:<email>"
+  actor     String
+  reason    String
+  details   Json?
+  createdAt DateTime       @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
 }
 
 model TeamInvite {

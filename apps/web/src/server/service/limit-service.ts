@@ -176,6 +176,15 @@ export class LimitService {
       };
     }
 
+    // Paused by the sending rules (or an admin) until someone resumes it.
+    if (team.sendingPausedAt) {
+      return {
+        isLimitReached: true,
+        limit: 0,
+        reason: LimitReason.EMAIL_SENDING_PAUSED,
+      };
+    }
+
     // Teams created after paid-only signups need to pay to send, except test
     // emails to their own members. Strict `=== false` so a team cached before
     // this field existed isn't caught.
