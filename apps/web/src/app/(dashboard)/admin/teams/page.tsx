@@ -34,7 +34,10 @@ import { isCloud } from "~/utils/common";
 
 const searchSchema = z.object({
   query: z
-    .string({ required_error: "Enter a team ID, name, domain, member email, or subscription ID" })
+    .string({
+      required_error:
+        "Enter a team ID, name, domain, member email, or subscription ID",
+    })
     .trim()
     .min(1, "Enter a team ID, name, domain, member email, or subscription ID"),
 });
@@ -49,6 +52,7 @@ const updateSchema = z.object({
   dailyEmailLimit: z.coerce.number().int().min(0).max(10_000_000),
   isBlocked: z.boolean(),
   freePlanAllowed: z.boolean(),
+  sendingPaused: z.boolean(),
   plan: z.enum(["FREE", "BASIC"]),
 });
 
@@ -70,6 +74,7 @@ export default function AdminTeamsPage() {
       dailyEmailLimit: 0,
       isBlocked: false,
       freePlanAllowed: false,
+      sendingPaused: false,
       plan: "FREE",
     },
   });
@@ -81,6 +86,7 @@ export default function AdminTeamsPage() {
         dailyEmailLimit: team.dailyEmailLimit,
         isBlocked: team.isBlocked,
         freePlanAllowed: team.freePlanAllowed,
+        sendingPaused: Boolean(team.sendingPausedAt),
         plan: team.plan,
       });
     }
@@ -117,6 +123,7 @@ export default function AdminTeamsPage() {
         dailyEmailLimit: updated.dailyEmailLimit,
         isBlocked: updated.isBlocked,
         freePlanAllowed: updated.freePlanAllowed,
+        sendingPaused: Boolean(updated.sendingPausedAt),
         plan: updated.plan,
       });
       toast.success("Team settings updated");
@@ -190,7 +197,10 @@ export default function AdminTeamsPage() {
               <p className="text-sm text-muted-foreground">Team</p>
               <p className="text-xl font-semibold">{team.name}</p>
               <p className="text-xs text-muted-foreground">
-                ID #{team.id} • Created {formatDistanceToNow(new Date(team.createdAt), { addSuffix: true })}
+                ID #{team.id} • Created{" "}
+                {formatDistanceToNow(new Date(team.createdAt), {
+                  addSuffix: true,
+                })}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -198,12 +208,17 @@ export default function AdminTeamsPage() {
               <Badge variant={team.isBlocked ? "destructive" : "outline"}>
                 {team.isBlocked ? "Blocked" : "Active"}
               </Badge>
+              {team.sendingPausedAt ? (
+                <Badge variant="destructive">Sending paused</Badge>
+              ) : null}
             </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Members</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Members
+              </h3>
               <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                 {team.teamUsers.length ? (
                   team.teamUsers.map((member) => (
@@ -212,19 +227,27 @@ export default function AdminTeamsPage() {
                       className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm"
                     >
                       <div>
-                        <p className="font-medium">{member.user.name ?? member.user.email}</p>
-                        <p className="text-xs text-muted-foreground">{member.user.email}</p>
+                        <p className="font-medium">
+                          {member.user.name ?? member.user.email}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {member.user.email}
+                        </p>
                       </div>
                       <Badge variant="outline">{member.role}</Badge>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-muted-foreground">No members found.</p>
+                  <p className="text-xs text-muted-foreground">
+                    No members found.
+                  </p>
                 )}
               </div>
             </div>
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Domains</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Domains
+              </h3>
               <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                 {team.domains.length ? (
                   team.domains.map((domain) => (
@@ -233,7 +256,11 @@ export default function AdminTeamsPage() {
                       className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-sm"
                     >
                       <span>{domain.name}</span>
-                      <Badge variant={domain.status === "SUCCESS" ? "outline" : "secondary"}>
+                      <Badge
+                        variant={
+                          domain.status === "SUCCESS" ? "outline" : "secondary"
+                        }
+                      >
                         {domain.status === "SUCCESS"
                           ? "Verified"
                           : domain.status.toLowerCase()}
@@ -241,7 +268,9 @@ export default function AdminTeamsPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-muted-foreground">No domains connected.</p>
+                  <p className="text-xs text-muted-foreground">
+                    No domains connected.
+                  </p>
                 )}
               </div>
             </div>
@@ -255,7 +284,10 @@ export default function AdminTeamsPage() {
 
           <div className="rounded-lg border p-6">
             <Form {...updateForm}>
-              <form onSubmit={updateForm.handleSubmit(onUpdateSubmit)} className="grid gap-6 lg:grid-cols-2">
+              <form
+                onSubmit={updateForm.handleSubmit(onUpdateSubmit)}
+                className="grid gap-6 lg:grid-cols-2"
+              >
                 <FormField
                   control={updateForm.control}
                   name="apiRateLimit"
@@ -351,6 +383,30 @@ export default function AdminTeamsPage() {
                 />
                 <FormField
                   control={updateForm.control}
+                  name="sendingPaused"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sending paused</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={updateTeam.isPending}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value
+                              ? "Emails fail until resumed"
+                              : "Sending normally"}
+                          </span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={updateForm.control}
                   name="freePlanAllowed"
                   render={({ field }) => (
                     <FormItem>
@@ -386,6 +442,30 @@ export default function AdminTeamsPage() {
                 </div>
               </form>
             </Form>
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="mb-3 text-sm font-medium">Recent actions</h3>
+            {team.actions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No pauses, blocks or alerts yet.
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {team.actions.map((action) => (
+                  <li key={action.id} className="flex flex-wrap gap-x-3">
+                    <span className="text-muted-foreground">
+                      {new Date(action.createdAt).toLocaleString()}
+                    </span>
+                    <span className="font-medium">{action.action}</span>
+                    <span className="text-muted-foreground">
+                      by {action.actor}
+                    </span>
+                    <span>{action.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       ) : null}

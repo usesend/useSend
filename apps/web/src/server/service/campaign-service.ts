@@ -522,6 +522,17 @@ export async function resumeCampaign({
     });
   }
 
+  const team = await db.team.findUnique({
+    where: { id: teamId },
+    select: { isBlocked: true, sendingPausedAt: true },
+  });
+  if (team?.isBlocked || team?.sendingPausedAt) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: "Sending is paused on your account, so campaigns can't resume",
+    });
+  }
+
   if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
     await db.campaign.update({
       where: { id: campaignId },
