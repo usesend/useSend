@@ -88,16 +88,32 @@ export async function claimOutcome(emailId: string, outcome: Outcome) {
  * worker, or whose count failed) are skipped. Returns whether it counted.
  */
 export async function recordOutcome(
-  email: { teamId: number; cohortDate: string | null },
+  email: {
+    teamId: number;
+    campaignId: string | null;
+    cohortDate: string | null;
+  },
   outcome: Outcome,
 ) {
   if (!env.NEXT_PUBLIC_IS_CLOUD || !email.cohortDate) return false;
 
   const date = email.cohortDate;
-  await db.sendingCohort.upsert({
-    where: { teamId_date: { teamId: email.teamId, date } },
-    create: { teamId: email.teamId, date, [outcome]: 1 },
-    update: { [outcome]: { increment: 1 } },
-  });
+  const campaignField =
+    outcome === "hardBounced" ? "acceptedHardBounced" : "acceptedComplained";
+  await db.$transaction([
+    db.sendingCohort.upsert({
+      where: { teamId_date: { teamId: email.teamId, date } },
+      create: { teamId: email.teamId, date, [outcome]: 1 },
+      update: { [outcome]: { increment: 1 } },
+    }),
+    ...(email.campaignId
+      ? [
+          db.campaign.updateMany({
+            where: { id: email.campaignId },
+            data: { [campaignField]: { increment: 1 } },
+          }),
+        ]
+      : []),
+  ]);
   return true;
 }

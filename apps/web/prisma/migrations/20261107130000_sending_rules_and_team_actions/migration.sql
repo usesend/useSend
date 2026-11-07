@@ -8,7 +8,9 @@ ALTER TABLE "Team" ADD COLUMN     "sendingPausedAt" TIMESTAMP(3);
 ALTER TABLE "Email" ADD COLUMN     "cohortDate" TEXT;
 
 -- AlterTable
-ALTER TABLE "Campaign" ADD COLUMN     "acceptedSends" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Campaign" ADD COLUMN     "acceptedComplained" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "acceptedHardBounced" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "acceptedSends" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateTable
 CREATE TABLE "SendingCohort" (

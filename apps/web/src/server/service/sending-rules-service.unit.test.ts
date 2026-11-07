@@ -252,12 +252,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "November news",
-      sent: 400,
-      delivered: 380,
-      bounced: 20,
-      acceptedSends: 0,
-      hardBounced: 20,
-      complained: 0,
+      acceptedSends: 400,
+      acceptedHardBounced: 20,
+      acceptedComplained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
 
@@ -276,12 +273,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "November news",
-      sent: 400,
-      delivered: 380,
-      bounced: 20,
-      acceptedSends: 0,
-      hardBounced: 20,
-      complained: 0,
+      acceptedSends: 400,
+      acceptedHardBounced: 20,
+      acceptedComplained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
@@ -294,16 +288,14 @@ describe("checkSendingHealth", () => {
   });
 
   it("counts campaign sends at send time, not when SES reports them", async () => {
-    // 10 bounces processed before the Send events for 10,000 accepted emails.
+    // 10 bounces against 10,000 emails counted when SES accepted them,
+    // even though SES has only reported 10 sends so far.
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Big send",
-      sent: 10,
-      delivered: 0,
-      bounced: 10,
       acceptedSends: 10_000,
-      hardBounced: 10,
-      complained: 0,
+      acceptedHardBounced: 10,
+      acceptedComplained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
 
@@ -317,12 +309,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Old blast",
-      sent: 100_000,
-      delivered: 99_000,
-      bounced: 0,
-      acceptedSends: 0,
-      hardBounced: 0,
-      complained: 3,
+      acceptedSends: 100_000,
+      acceptedHardBounced: 0,
+      acceptedComplained: 3,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
@@ -345,12 +334,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_draft",
       name: "Draft",
-      sent: 400,
-      delivered: 200,
-      bounced: 200,
-      acceptedSends: 0,
-      hardBounced: 200,
-      complained: 0,
+      acceptedSends: 400,
+      acceptedHardBounced: 200,
+      acceptedComplained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>

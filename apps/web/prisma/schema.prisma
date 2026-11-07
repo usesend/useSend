@@ -427,39 +427,42 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id                 String         @id @default(cuid())
-  name               String
-  teamId             Int
-  from               String
-  cc                 String[]
-  bcc                String[]
-  replyTo            String[]
-  domainId           Int
-  subject            String
-  previewText        String?
-  html               String?
-  content            String?
-  contactBookId      String?
-  scheduledAt        DateTime?
-  total              Int            @default(0)
-  sent               Int            @default(0)
-  delivered          Int            @default(0)
-  opened             Int            @default(0)
-  clicked            Int            @default(0)
-  unsubscribed       Int            @default(0)
-  bounced            Int            @default(0)
-  hardBounced        Int            @default(0)
-  complained         Int            @default(0)
-  /// Emails handed to SES, counted at send time for the sending rules.
-  acceptedSends      Int            @default(0)
-  isApi              Boolean        @default(false)
-  status             CampaignStatus @default(DRAFT)
-  batchSize          Int            @default(500)
-  batchWindowMinutes Int            @default(0)
-  lastCursor         String?
-  lastSentAt         DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  name                String
+  teamId              Int
+  from                String
+  cc                  String[]
+  bcc                 String[]
+  replyTo             String[]
+  domainId            Int
+  subject             String
+  previewText         String?
+  html                String?
+  content             String?
+  contactBookId       String?
+  scheduledAt         DateTime?
+  total               Int            @default(0)
+  sent                Int            @default(0)
+  delivered           Int            @default(0)
+  opened              Int            @default(0)
+  clicked             Int            @default(0)
+  unsubscribed        Int            @default(0)
+  bounced             Int            @default(0)
+  hardBounced         Int            @default(0)
+  complained          Int            @default(0)
+  /// For the sending rules: emails counted as sent (marked with a cohort
+  /// day), and the hard bounces and complaints of those same emails.
+  acceptedSends       Int            @default(0)
+  acceptedHardBounced Int            @default(0)
+  acceptedComplained  Int            @default(0)
+  isApi               Boolean        @default(false)
+  status              CampaignStatus @default(DRAFT)
+  batchSize           Int            @default(500)
+  batchWindowMinutes  Int            @default(0)
+  lastCursor          String?
+  lastSentAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
