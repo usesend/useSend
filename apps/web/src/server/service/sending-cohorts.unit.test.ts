@@ -11,6 +11,10 @@ const { mockEnv, mockDb, redisStore, mockRedisSet } = vi.hoisted(() => {
       },
       campaign: {
         update: vi.fn((args: unknown) => ({ op: "campaign", args })),
+        updateMany: vi.fn((args: unknown) => ({
+          op: "campaignOutcome",
+          args,
+        })),
       },
       email: { update: vi.fn((args: unknown) => ({ op: "email", args })) },
     },
@@ -91,8 +95,16 @@ describe("sending cohorts", () => {
   it("files an outcome under the day its email was counted", async () => {
     vi.useRealTimers();
     await expect(
-      recordOutcome({ teamId: 3, cohortDate: "2026-11-09" }, "complained"),
+      recordOutcome(
+        { teamId: 3, campaignId: "c1", cohortDate: "2026-11-09" },
+        "complained",
+      ),
     ).resolves.toBe(true);
+
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { acceptedComplained: { increment: 1 } },
+    });
 
     expect(mockDb.sendingCohort.upsert).toHaveBeenCalledWith({
       where: { teamId_date: { teamId: 3, date: "2026-11-09" } },
@@ -104,7 +116,10 @@ describe("sending cohorts", () => {
   it("skips outcomes of emails whose send wasn't counted", async () => {
     vi.useRealTimers();
     await expect(
-      recordOutcome({ teamId: 3, cohortDate: null }, "hardBounced"),
+      recordOutcome(
+        { teamId: 3, campaignId: null, cohortDate: null },
+        "hardBounced",
+      ),
     ).resolves.toBe(false);
 
     expect(mockDb.sendingCohort.upsert).not.toHaveBeenCalled();
@@ -129,7 +144,10 @@ describe("sending cohorts", () => {
     mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
 
     await saveSentEmail({ id: "e1", teamId: 3, campaignId: null }, sent);
-    await recordOutcome({ teamId: 3, cohortDate: "2026-11-09" }, "complained");
+    await recordOutcome(
+      { teamId: 3, campaignId: null, cohortDate: "2026-11-09" },
+      "complained",
+    );
 
     expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(mockDb.sendingCohort.upsert).not.toHaveBeenCalled();

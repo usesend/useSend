@@ -109,18 +109,6 @@ function windowStart(days: number, reset: Reset) {
   return from;
 }
 
-/** Sends never count as fewer than the emails we know were delivered or bounced. */
-function sendsOf(counts: {
-  sent?: number | null;
-  delivered?: number | null;
-  bounced?: number | null;
-}) {
-  return Math.max(
-    counts.sent ?? 0,
-    (counts.delivered ?? 0) + (counts.bounced ?? 0),
-  );
-}
-
 /**
  * Emails the team sent over the last 7 days, and the hard bounces and
  * complaints those same emails caused, whenever they arrived.
@@ -305,12 +293,9 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
     select: {
       id: true,
       name: true,
-      sent: true,
-      delivered: true,
-      bounced: true,
       acceptedSends: true,
-      hardBounced: true,
-      complained: true,
+      acceptedHardBounced: true,
+      acceptedComplained: true,
       createdAt: true,
     },
   });
@@ -326,12 +311,12 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
     return;
   }
 
-  // Sends counted when we handed them to SES, so bounces processed before
-  // their Send events can't inflate the rate.
+  // Only emails counted when we handed them to SES, and the bounces and
+  // complaints of those same emails, like the team check.
   const verdict = judgeCounts({
-    sent: Math.max(campaign.acceptedSends, sendsOf(campaign)),
-    hardBounced: campaign.hardBounced,
-    complained: campaign.complained,
+    sent: campaign.acceptedSends,
+    hardBounced: campaign.acceptedHardBounced,
+    complained: campaign.acceptedComplained,
   });
   if (verdict.level === "ok") return;
 
