@@ -5,7 +5,14 @@ const { mockEnv, mockDb, redisStore, mockRedisSet } = vi.hoisted(() => {
   return {
     mockEnv: { NEXT_PUBLIC_IS_CLOUD: true },
     mockDb: {
-      sendingCohort: { upsert: vi.fn(), findFirst: vi.fn() },
+      $transaction: vi.fn(),
+      sendingCohort: {
+        upsert: vi.fn((args: unknown) => ({ op: "cohort", args })),
+      },
+      campaign: {
+        update: vi.fn((args: unknown) => ({ op: "campaign", args })),
+      },
+      email: { update: vi.fn((args: unknown) => ({ op: "email", args })) },
     },
     redisStore,
     mockRedisSet: vi.fn(async (key: string) => {
@@ -29,40 +36,62 @@ vi.mock("~/server/redis", () => ({
 import {
   claimOutcome,
   recordOutcome,
-  recordSend,
-  resetTrackingStartCache,
+  saveSentEmail,
 } from "~/server/service/sending-cohorts";
+
+const sent = { sesEmailId: "ses_1", text: "hi", headers: null };
 
 describe("sending cohorts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     redisStore.clear();
-    resetTrackingStartCache();
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
-    mockDb.sendingCohort.findFirst.mockResolvedValue({
-      createdAt: new Date("2026-11-08T00:00:00Z"),
-    });
+    mockDb.$transaction.mockResolvedValue([]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-09T10:00:00Z"));
   });
 
-  it("counts a send under today's date", async () => {
-    await recordSend(3, new Date("2026-11-09T10:00:00Z"));
+  it("counts the send and marks the email in one transaction", async () => {
+    await saveSentEmail({ id: "e1", teamId: 3, campaignId: "c1" }, sent);
 
+    const ops = mockDb.$transaction.mock.calls[0]?.[0];
+    expect(ops.map((op: { op: string }) => op.op)).toEqual([
+      "cohort",
+      "campaign",
+      "email",
+    ]);
     expect(mockDb.sendingCohort.upsert).toHaveBeenCalledWith({
       where: { teamId_date: { teamId: 3, date: "2026-11-09" } },
       create: { teamId: 3, date: "2026-11-09", sent: 1 },
       update: { sent: { increment: 1 } },
     });
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { acceptedSends: { increment: 1 } },
+    });
+    expect(mockDb.email.update).toHaveBeenCalledWith({
+      where: { id: "e1" },
+      data: { ...sent, cohortDate: "2026-11-09" },
+    });
+    vi.useRealTimers();
   });
 
-  it("never fails a send because counting failed", async () => {
-    mockDb.sendingCohort.upsert.mockRejectedValue(new Error("db down"));
+  it("still saves the email, unmarked, if counting fails", async () => {
+    mockDb.$transaction.mockRejectedValue(new Error("db busy"));
 
-    await expect(recordSend(3)).resolves.toBeUndefined();
+    await saveSentEmail({ id: "e1", teamId: 3, campaignId: null }, sent);
+
+    expect(mockDb.email.update).toHaveBeenLastCalledWith({
+      where: { id: "e1" },
+      data: sent,
+    });
+    vi.useRealTimers();
   });
 
-  it("files a complaint under the day its email was sent", async () => {
+  it("files an outcome under the day its email was counted", async () => {
+    vi.useRealTimers();
     await expect(
-      recordOutcome(3, new Date("2026-11-09T23:59:00Z"), "complained"),
+      recordOutcome({ teamId: 3, cohortDate: "2026-11-09" }, "complained"),
     ).resolves.toBe(true);
 
     expect(mockDb.sendingCohort.upsert).toHaveBeenCalledWith({
@@ -72,38 +101,41 @@ describe("sending cohorts", () => {
     });
   });
 
-  it("skips emails sent before send counting began", async () => {
+  it("skips outcomes of emails whose send wasn't counted", async () => {
+    vi.useRealTimers();
     await expect(
-      recordOutcome(3, new Date("2026-11-07T12:00:00Z"), "hardBounced"),
-    ).resolves.toBe(false);
-
-    mockDb.sendingCohort.findFirst.mockResolvedValue(null);
-    resetTrackingStartCache();
-    await expect(
-      recordOutcome(3, new Date("2026-11-09T12:00:00Z"), "hardBounced"),
+      recordOutcome({ teamId: 3, cohortDate: null }, "hardBounced"),
     ).resolves.toBe(false);
 
     expect(mockDb.sendingCohort.upsert).not.toHaveBeenCalled();
   });
 
   it("claims each outcome once per email", async () => {
+    vi.useRealTimers();
     await expect(claimOutcome("email_1", "complained")).resolves.toBe(true);
     await expect(claimOutcome("email_1", "complained")).resolves.toBe(false);
     await expect(claimOutcome("email_1", "hardBounced")).resolves.toBe(true);
   });
 
-  it("counts the event if Redis is unavailable", async () => {
+  it("doesn't count the event if Redis is unavailable", async () => {
+    vi.useRealTimers();
     mockRedisSet.mockRejectedValueOnce(new Error("redis down"));
 
-    await expect(claimOutcome("email_2", "complained")).resolves.toBe(true);
+    await expect(claimOutcome("email_2", "complained")).resolves.toBe(false);
   });
 
-  it("does nothing on self-hosted", async () => {
+  it("only saves the email on self-hosted", async () => {
+    vi.useRealTimers();
     mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
 
-    await recordSend(3);
-    await recordOutcome(3, new Date(), "complained");
+    await saveSentEmail({ id: "e1", teamId: 3, campaignId: null }, sent);
+    await recordOutcome({ teamId: 3, cohortDate: "2026-11-09" }, "complained");
 
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(mockDb.sendingCohort.upsert).not.toHaveBeenCalled();
+    expect(mockDb.email.update).toHaveBeenCalledWith({
+      where: { id: "e1" },
+      data: sent,
+    });
   });
 });

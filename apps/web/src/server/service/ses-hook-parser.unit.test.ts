@@ -256,13 +256,12 @@ describe("parseSesHook sending rules", () => {
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
 
-  it("files the bounce under the day its email was sent", async () => {
+  it("files the bounce against its email's counted send", async () => {
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
     expect(mockClaimOutcome).toHaveBeenCalledWith(email.id, "hardBounced");
     expect(mockRecordOutcome).toHaveBeenCalledWith(
-      7,
-      new Date("2026-07-13T01:00:00.000Z"),
+      expect.objectContaining({ id: email.id, teamId: 7 }),
       "hardBounced",
     );
   });

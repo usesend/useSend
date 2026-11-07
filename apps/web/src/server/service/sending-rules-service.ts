@@ -308,6 +308,7 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
       sent: true,
       delivered: true,
       bounced: true,
+      acceptedSends: true,
       hardBounced: true,
       complained: true,
       createdAt: true,
@@ -325,8 +326,10 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
     return;
   }
 
+  // Sends counted when we handed them to SES, so bounces processed before
+  // their Send events can't inflate the rate.
   const verdict = judgeCounts({
-    sent: sendsOf(campaign),
+    sent: Math.max(campaign.acceptedSends, sendsOf(campaign)),
     hardBounced: campaign.hardBounced,
     complained: campaign.complained,
   });

@@ -4,6 +4,12 @@ CREATE TYPE "TeamActionType" AS ENUM ('ALERT', 'PAUSE', 'RESUME', 'BLOCK', 'UNBL
 -- AlterTable
 ALTER TABLE "Team" ADD COLUMN     "sendingPausedAt" TIMESTAMP(3);
 
+-- AlterTable
+ALTER TABLE "Email" ADD COLUMN     "cohortDate" TEXT;
+
+-- AlterTable
+ALTER TABLE "Campaign" ADD COLUMN     "acceptedSends" INTEGER NOT NULL DEFAULT 0;
+
 -- CreateTable
 CREATE TABLE "SendingCohort" (
     "teamId" INTEGER NOT NULL,
@@ -11,7 +17,6 @@ CREATE TABLE "SendingCohort" (
     "sent" INTEGER NOT NULL DEFAULT 0,
     "hardBounced" INTEGER NOT NULL DEFAULT 0,
     "complained" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SendingCohort_pkey" PRIMARY KEY ("teamId","date")
 );
