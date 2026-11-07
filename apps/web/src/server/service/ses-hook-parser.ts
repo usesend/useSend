@@ -33,6 +33,7 @@ import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
 import { checkSendingHealth } from "./sending-rules-service";
 import { isSpamTrapBounce } from "./sending-rules";
+import { claimOutcome, recordOutcome } from "./sending-cohorts";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -207,23 +208,15 @@ export async function parseSesHook(data: SesEvent) {
   const isDuplicateEngagement = Boolean(existingMailEvent) && isEngagementEvent;
 
   // SES can deliver the same hard bounce or complaint more than once. Count
-  // each only once per email: the sending rules and dashboards rely on it. A
-  // soft bounce before a hard bounce doesn't make the hard bounce a duplicate.
-  const isDuplicateOutcome =
-    isHardBounced || mailStatus === EmailStatus.COMPLAINED
-      ? Boolean(
-          await db.emailEvent.findFirst({
-            where: {
-              emailId: email.id,
-              status: mailStatus,
-              ...(isHardBounced
-                ? { data: { path: ["bounceType"], equals: "Permanent" } }
-                : {}),
-            },
-            select: { id: true },
-          }),
-        )
-      : false;
+  // each only once per email: the sending rules and dashboards rely on it.
+  const outcome = isHardBounced
+    ? ("hardBounced" as const)
+    : mailStatus === EmailStatus.COMPLAINED
+      ? ("complained" as const)
+      : null;
+  const isDuplicateOutcome = outcome
+    ? !(await claimOutcome(email.id, outcome))
+    : false;
 
   if (
     !isDuplicateEngagement &&
@@ -321,11 +314,9 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
-  if (
-    (isHardBounced || mailStatus === EmailStatus.COMPLAINED) &&
-    !isDuplicateOutcome
-  ) {
+  if (outcome && !isDuplicateOutcome) {
     try {
+      await recordOutcome(email.teamId, new Date(data.mail.timestamp), outcome);
       await checkSendingHealth({
         teamId: email.teamId,
         campaignId: email.campaignId,

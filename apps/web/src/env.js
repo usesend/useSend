@@ -85,9 +85,9 @@ export const env = createEnv({
       .default(process.env.NEXT_PUBLIC_IS_CLOUD === "true" ? "false" : "true")
       .transform((str) => str === "true"),
     EMAIL_CLEANUP_DAYS: z
-      .string()
-      .optional()
-      .transform((str) => (str ? parseInt(str, 10) : undefined)),
+        .string()
+        .optional()
+        .transform((str) => (str ? parseInt(str, 10) : undefined)),
   },
 
   /**
@@ -116,10 +116,8 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     GITHUB_ID: process.env.GITHUB_ID,
     GITHUB_SECRET: process.env.GITHUB_SECRET,
-    AWS_ACCESS_KEY_ID:
-      process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
-    AWS_SECRET_ACCESS_KEY:
-      process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
     USESEND_API_KEY: process.env.USESEND_API_KEY,
     UNSEND_API_KEY: process.env.UNSEND_API_KEY,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
@@ -153,7 +151,8 @@ export const env = createEnv({
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
-    WEBHOOK_ALLOW_PRIVATE_URLS: process.env.WEBHOOK_ALLOW_PRIVATE_URLS,
+    WEBHOOK_ALLOW_PRIVATE_URLS:
+      process.env.WEBHOOK_ALLOW_PRIVATE_URLS,
     EMAIL_CLEANUP_DAYS: process.env.EMAIL_CLEANUP_DAYS,
   },
   /**

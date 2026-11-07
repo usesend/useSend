@@ -10,6 +10,7 @@ import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
+import { recordSend } from "./sending-cohorts";
 import {
   BUILT_IN_CONTACT_VARIABLES,
   replaceContactVariables,
@@ -454,6 +455,8 @@ async function executeEmail(job: QueueEmailJob) {
       { emailId: email.id, sesEmailId: messageId },
       `[EmailQueueService]: Email sent`
     );
+
+    await recordSend(email.teamId);
 
     // Delete attachments and headers after sending the email
     await db.email.update({

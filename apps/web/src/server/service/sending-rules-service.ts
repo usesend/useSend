@@ -122,34 +122,25 @@ function sendsOf(counts: {
 }
 
 /**
- * Bounces and complaints from the last 7 days, against sends from the last
- * 10: complaints often arrive days after the email went out, so a team that
- * stopped sending isn't judged on late complaints against too few sends.
+ * Emails the team sent over the last 7 days, and the hard bounces and
+ * complaints those same emails caused, whenever they arrived.
  */
 async function teamCounts(
   teamId: number,
   reset: Reset,
 ): Promise<SendingCounts> {
-  const [outcomes, sends] = await Promise.all([
-    db.dailyEmailUsage.aggregate({
-      where: {
-        teamId,
-        date: { gte: windowStart(SENDING_RULES.windowDays, reset) },
-      },
-      _sum: { hardBounced: true, complained: true },
-    }),
-    db.dailyEmailUsage.aggregate({
-      where: {
-        teamId,
-        date: { gte: windowStart(SENDING_RULES.sendWindowDays, reset) },
-      },
-      _sum: { sent: true, delivered: true, bounced: true },
-    }),
-  ]);
+  const result = await db.sendingCohort.aggregate({
+    where: {
+      teamId,
+      date: { gte: windowStart(SENDING_RULES.windowDays, reset) },
+      sent: { gt: 0 },
+    },
+    _sum: { sent: true, hardBounced: true, complained: true },
+  });
   return {
-    sent: sendsOf(sends._sum),
-    hardBounced: outcomes._sum.hardBounced ?? 0,
-    complained: outcomes._sum.complained ?? 0,
+    sent: result._sum.sent ?? 0,
+    hardBounced: result._sum.hardBounced ?? 0,
+    complained: result._sum.complained ?? 0,
   };
 }
 

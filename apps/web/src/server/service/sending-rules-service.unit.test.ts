@@ -18,7 +18,7 @@ const {
     team: { findUnique: vi.fn(), updateMany: vi.fn() },
     campaign: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
     teamAction: { findFirst: vi.fn(), create: vi.fn() },
-    dailyEmailUsage: { aggregate: vi.fn() },
+    sendingCohort: { aggregate: vi.fn() },
   },
   redisStore: new Set<string>(),
   mockSendToDiscord: vi.fn(),
@@ -67,8 +67,8 @@ async function flush() {
 }
 
 function usage(sent: number, hardBounced: number, complained = 0) {
-  mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
-    _sum: { sent, delivered: 0, bounced: hardBounced, hardBounced, complained },
+  mockDb.sendingCohort.aggregate.mockResolvedValue({
+    _sum: { sent, hardBounced, complained },
   });
 }
 
@@ -224,7 +224,7 @@ describe("checkSendingHealth", () => {
       where: { id: 1, isBlocked: false },
       data: { isBlocked: true },
     });
-    expect(mockDb.dailyEmailUsage.aggregate).not.toHaveBeenCalled();
+    expect(mockDb.sendingCohort.aggregate).not.toHaveBeenCalled();
   });
 
   it("only alerts, once a day, in alert mode", async () => {
@@ -347,34 +347,13 @@ describe("checkSendingHealth", () => {
     });
   });
 
-  it("judges late complaints against the sends that caused them", async () => {
-    // 3 complaints this week; 10,000 sends over the last 10 days.
-    mockDb.dailyEmailUsage.aggregate.mockImplementation(async (args: any) =>
-      args._sum.sent
-        ? { _sum: { sent: 10_000, delivered: 9_900, bounced: 0 } }
-        : { _sum: { hardBounced: 0, complained: 3 } },
-    );
-
+  it("compares sends with the bounces and complaints they caused", async () => {
     await checkSendingHealth({ teamId: 1 });
 
-    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
-  });
-
-  it("doesn't undercount sends when SES send events are missing", async () => {
-    mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
-      _sum: {
-        sent: 20,
-        delivered: 980,
-        bounced: 20,
-        hardBounced: 20,
-        complained: 0,
-      },
-    });
-
-    await checkSendingHealth({ teamId: 1 });
-
-    // 20 of 1,000 is 2%: fine. Counted against 20 sends it would be 100%.
-    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    const where = mockDb.sendingCohort.aggregate.mock.calls[0]?.[0].where;
+    expect(where.teamId).toBe(1);
+    // Only days we counted sends for; outcomes filed under their send day.
+    expect(where.sent).toEqual({ gt: 0 });
   });
 
   it("doesn't re-block on old counts when an admin unblocked mid-check", async () => {
@@ -412,11 +391,12 @@ describe("checkSendingHealth", () => {
 
     const tomorrow = new Date(resumedAt);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    expect(mockDb.dailyEmailUsage.aggregate).toHaveBeenCalledWith(
+    expect(mockDb.sendingCohort.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           teamId: 1,
           date: { gte: tomorrow.toISOString().split("T")[0] },
+          sent: { gt: 0 },
         },
       }),
     );
@@ -432,6 +412,6 @@ describe("checkSendingHealth", () => {
     await checkSendingHealth({ teamId: 1, spamTrap: true });
 
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
-    expect(mockDb.dailyEmailUsage.aggregate).not.toHaveBeenCalled();
+    expect(mockDb.sendingCohort.aggregate).not.toHaveBeenCalled();
   });
 });
