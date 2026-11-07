@@ -14,6 +14,7 @@ import { toPlainHtml } from "~/server/utils/email-content";
 import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 import { TeamService } from "~/server/service/team-service";
 import { WaitlistService } from "~/server/service/waitlist-service";
+import { unsentCampaignIds } from "~/server/service/sending-rules-service";
 
 const waitlistUserSelection = {
   id: true,
@@ -42,8 +43,20 @@ const teamAdminSelection = {
   dailyEmailLimit: true,
   isBlocked: true,
   freePlanAllowed: true,
+  sendingPausedAt: true,
   billingEmail: true,
   createdAt: true,
+  actions: {
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      action: true,
+      actor: true,
+      reason: true,
+      createdAt: true,
+    },
+  },
   teamUsers: {
     select: {
       role: true,
@@ -403,16 +416,83 @@ export const adminRouter = createTRPCRouter({
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
         freePlanAllowed: z.boolean(),
+        sendingPaused: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
       }),
     )
-    .mutation(async ({ input }) => {
-      const { teamId, ...data } = input;
+    .mutation(async ({ ctx, input }) => {
+      const { teamId, sendingPaused, ...data } = input;
 
-      const updatedTeam = await db.team.update({
-        where: { id: teamId },
-        data,
-        select: teamAdminSelection,
+      const actor = `admin:${ctx.session.user.email ?? ctx.session.user.id}`;
+
+      const updatedTeam = await db.$transaction(async (tx) => {
+        // Lock the row so a concurrent pause or block by the sending rules
+        // can't be overwritten without being logged.
+        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+        const existing = await tx.team.findUnique({
+          where: { id: teamId },
+          select: { isBlocked: true, sendingPausedAt: true },
+        });
+        if (!existing) {
+          throw new Error("Team not found");
+        }
+
+        const actions: Prisma.TeamActionCreateManyInput[] = [];
+        const resets =
+          (existing.isBlocked && !data.isBlocked) ||
+          (Boolean(existing.sendingPausedAt) && !sendingPaused);
+        // Campaigns that already sent aren't judged on old totals after a reset.
+        const resetDetails = resets
+          ? { unsentCampaignIds: await unsentCampaignIds(tx, teamId) }
+          : undefined;
+        if (existing.isBlocked !== data.isBlocked) {
+          actions.push({
+            teamId,
+            actor,
+            action: data.isBlocked ? "BLOCK" : "UNBLOCK",
+            reason: data.isBlocked
+              ? "Blocked by an admin"
+              : "Unblocked by an admin",
+            details: data.isBlocked ? undefined : resetDetails,
+          });
+        }
+        if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
+          actions.push({
+            teamId,
+            actor,
+            action: sendingPaused ? "PAUSE" : "RESUME",
+            reason: sendingPaused
+              ? "Paused by an admin"
+              : "Resumed by an admin",
+            details: sendingPaused ? undefined : resetDetails,
+          });
+        }
+
+        const team = await tx.team.update({
+          where: { id: teamId },
+          data: {
+            ...data,
+            sendingPausedAt: sendingPaused
+              ? (existing.sendingPausedAt ?? new Date())
+              : null,
+          },
+          select: teamAdminSelection,
+        });
+
+        const stopsSending =
+          (data.isBlocked && !existing.isBlocked) ||
+          (sendingPaused && !existing.sendingPausedAt);
+        if (stopsSending) {
+          await tx.campaign.updateMany({
+            where: { teamId, status: { in: ["RUNNING", "SCHEDULED"] } },
+            data: { status: "PAUSED" },
+          });
+        }
+
+        if (actions.length > 0) {
+          await tx.teamAction.createMany({ data: actions });
+        }
+        return team;
       });
 
       // Sending reads the cached team, so refresh it for blocks to apply now.

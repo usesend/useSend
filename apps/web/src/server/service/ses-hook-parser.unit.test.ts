@@ -2,29 +2,37 @@ import { EmailStatus } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SesEvent } from "~/types/aws-types";
 
-const { mockDb, mockUpdateCampaignAnalytics, mockWebhookEmit } = vi.hoisted(
-  () => ({
-    mockDb: {
-      $executeRaw: vi.fn(),
-      email: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-      emailEvent: {
-        findFirst: vi.fn(),
-        create: vi.fn(),
-      },
-      dailyEmailUsage: {
-        upsert: vi.fn(),
-      },
-      cumulatedMetrics: {
-        upsert: vi.fn(),
-      },
+const {
+  mockDb,
+  mockUpdateCampaignAnalytics,
+  mockWebhookEmit,
+  mockCheckSendingHealth,
+  mockClaimOutcome,
+  mockRecordOutcome,
+} = vi.hoisted(() => ({
+  mockCheckSendingHealth: vi.fn(),
+  mockClaimOutcome: vi.fn(),
+  mockRecordOutcome: vi.fn(),
+  mockDb: {
+    $executeRaw: vi.fn(),
+    email: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
-    mockUpdateCampaignAnalytics: vi.fn(),
-    mockWebhookEmit: vi.fn(),
-  }),
-);
+    emailEvent: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+    dailyEmailUsage: {
+      upsert: vi.fn(),
+    },
+    cumulatedMetrics: {
+      upsert: vi.fn(),
+    },
+  },
+  mockUpdateCampaignAnalytics: vi.fn(),
+  mockWebhookEmit: vi.fn(),
+}));
 
 vi.mock("~/server/db", () => ({
   db: mockDb,
@@ -45,6 +53,15 @@ vi.mock("~/server/service/webhook-service", () => ({
   WebhookService: {
     emit: mockWebhookEmit,
   },
+}));
+
+vi.mock("~/server/service/sending-cohorts", () => ({
+  claimOutcome: mockClaimOutcome,
+  recordOutcome: mockRecordOutcome,
+}));
+
+vi.mock("~/server/service/sending-rules-service", () => ({
+  checkSendingHealth: mockCheckSendingHealth,
 }));
 
 vi.mock("~/server/service/suppression-service", () => ({
@@ -183,4 +200,87 @@ describe("parseSesHook dashboard engagement usage", () => {
       expect(mockDb.emailEvent.create).toHaveBeenCalledTimes(2);
     },
   );
+});
+
+describe("parseSesHook sending rules", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.email.findUnique.mockResolvedValue(email);
+    mockDb.emailEvent.findFirst.mockResolvedValue(null);
+    mockDb.emailEvent.create.mockResolvedValue({});
+    mockDb.dailyEmailUsage.upsert.mockResolvedValue({});
+    mockDb.cumulatedMetrics.upsert.mockResolvedValue({});
+    mockWebhookEmit.mockResolvedValue(undefined);
+    mockClaimOutcome.mockResolvedValue(true);
+  });
+
+  function bounceEvent(diagnosticCode: string): SesEvent {
+    const event = buildEvent("Open");
+    delete event.open;
+    event.eventType = "Bounce";
+    event.bounce = {
+      bounceType: "Permanent",
+      bounceSubType: "General",
+      bouncedRecipients: [
+        { emailAddress: "recipient@example.com", diagnosticCode },
+      ],
+      timestamp: "2026-07-13T01:00:00.000Z",
+      feedbackId: "feedback_1",
+    } as SesEvent["bounce"];
+    return event;
+  }
+
+  it("checks the team's sending health after a hard bounce", async () => {
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockCheckSendingHealth).toHaveBeenCalledWith({
+      teamId: 7,
+      campaignId: null,
+      spamTrap: false,
+    });
+  });
+
+  it("flags spam trap bounces", async () => {
+    await parseSesHook(bounceEvent("550 spamtrap hit"));
+
+    expect(mockCheckSendingHealth).toHaveBeenCalledWith(
+      expect.objectContaining({ spamTrap: true }),
+    );
+  });
+
+  it("keeps processing the event if the check fails", async () => {
+    mockCheckSendingHealth.mockRejectedValue(new Error("db down"));
+
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockDb.emailEvent.create).toHaveBeenCalled();
+  });
+
+  it("files the bounce against its email's counted send", async () => {
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockClaimOutcome).toHaveBeenCalledWith(email.id, "hardBounced");
+    expect(mockRecordOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ id: email.id, teamId: 7 }),
+      "hardBounced",
+    );
+  });
+
+  it("counts a repeated hard bounce only once", async () => {
+    mockClaimOutcome.mockResolvedValue(false);
+
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockDb.dailyEmailUsage.upsert).not.toHaveBeenCalled();
+    expect(mockRecordOutcome).not.toHaveBeenCalled();
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
+    expect(mockDb.emailEvent.create).toHaveBeenCalled();
+  });
+
+  it("doesn't run on opens", async () => {
+    mockDb.emailEvent.findFirst.mockResolvedValue(null);
+    await parseSesHook(buildEvent("Open"));
+
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
+  });
 });

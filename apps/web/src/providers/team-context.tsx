@@ -13,6 +13,7 @@ type Team = {
   isActive: boolean;
   isBlocked: boolean;
   freePlanAllowed: boolean;
+  sendingPausedAt?: Date | string | null;
   stripeCustomerId?: string | null;
   billingEmail?: string | null;
 };

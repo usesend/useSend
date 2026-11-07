@@ -31,6 +31,9 @@ import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
+import { checkSendingHealth } from "./sending-rules-service";
+import { isSpamTrapBounce } from "./sending-rules";
+import { claimOutcome, recordOutcome } from "./sending-cohorts";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -204,8 +207,20 @@ export async function parseSesHook(data: SesEvent) {
 
   const isDuplicateEngagement = Boolean(existingMailEvent) && isEngagementEvent;
 
+  // SES can deliver the same hard bounce or complaint more than once. Count
+  // each only once per email: the sending rules and dashboards rely on it.
+  const outcome = isHardBounced
+    ? ("hardBounced" as const)
+    : mailStatus === EmailStatus.COMPLAINED
+      ? ("complained" as const)
+      : null;
+  const isDuplicateOutcome = outcome
+    ? !(await claimOutcome(email.id, outcome))
+    : false;
+
   if (
     !isDuplicateEngagement &&
+    !isDuplicateOutcome &&
     [
       "DELIVERED",
       "OPENED",
@@ -296,6 +311,23 @@ export async function parseSesHook(data: SesEvent) {
           isHardBounced,
         );
       }
+    }
+  }
+
+  if (outcome && !isDuplicateOutcome) {
+    try {
+      await recordOutcome(email, outcome);
+      await checkSendingHealth({
+        teamId: email.teamId,
+        campaignId: email.campaignId,
+        spamTrap: isHardBounced && isSpamTrapBounce(data.bounce),
+      });
+    } catch (error) {
+      // Never fail event processing because of the rules.
+      logger.error(
+        { err: error, teamId: email.teamId },
+        "[SesHookParser]: Sending rules check failed",
+      );
     }
   }
 
@@ -412,8 +444,7 @@ function normalizeBounceSubType(
   subType: SesBounce["bounceSubType"] | undefined,
 ): EmailBounceSubType {
   const normalized = subType?.replace(/\s+/g, "") as
-    | EmailBounceSubType
-    | undefined;
+    EmailBounceSubType | undefined;
 
   const validSubTypes: EmailBounceSubType[] = [
     "General",
