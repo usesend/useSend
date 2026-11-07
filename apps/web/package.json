@@ -65,7 +65,7 @@
     "lucide-react": "^0.503.0",
     "mime-types": "^3.0.1",
     "nanoid": "^5.1.5",
-    "next": "15.5.28",
+    "next": "15.5.29",
     "next-auth": "^4.24.15",
     "nodemailer": "^10.2.1",
     "pino": "^9.7.0",
