@@ -7,7 +7,10 @@
  * the rates at which AWS reviews our whole SES account (5% / 0.1%).
  */
 export const SENDING_RULES = {
+  /** Bounces and complaints are counted over this many days... */
   windowDays: 7,
+  /** ...against sends over this many, since complaints arrive late. */
+  sendWindowDays: 10,
   pause: {
     bounceRate: 0.025,
     minBounces: 5,

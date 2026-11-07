@@ -68,7 +68,7 @@ async function flush() {
 
 function usage(sent: number, hardBounced: number, complained = 0) {
   mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
-    _sum: { sent, hardBounced, complained },
+    _sum: { sent, delivered: 0, bounced: hardBounced, hardBounced, complained },
   });
 }
 
@@ -253,6 +253,8 @@ describe("checkSendingHealth", () => {
       id: "cmp_1",
       name: "November news",
       sent: 400,
+      delivered: 380,
+      bounced: 20,
       hardBounced: 20,
       complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
@@ -274,6 +276,8 @@ describe("checkSendingHealth", () => {
       id: "cmp_1",
       name: "November news",
       sent: 400,
+      delivered: 380,
+      bounced: 20,
       hardBounced: 20,
       complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
@@ -287,31 +291,29 @@ describe("checkSendingHealth", () => {
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
 
-  it("only counts a campaign's bounces since an admin unblock", async () => {
+  it("doesn't judge an already-sent campaign on old totals after an unblock", async () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Old blast",
-      sent: 500,
-      hardBounced: 202,
-      complained: 0,
+      sent: 100_000,
+      delivered: 99_000,
+      bounced: 0,
+      hardBounced: 0,
+      complained: 3,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
       args.where.action?.in
         ? {
             id: "reset_1",
             createdAt: new Date("2026-11-05T00:00:00Z"),
-            details: {
-              campaignBaselines: {
-                cmp_1: { sent: 400, hardBounced: 200, complained: 0 },
-              },
-            },
+            details: { unsentCampaignIds: [] },
           }
         : null,
     );
 
     await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
 
-    // 2 bounces out of 100 since the unblock: fine.
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
@@ -321,15 +323,18 @@ describe("checkSendingHealth", () => {
       id: "cmp_draft",
       name: "Draft",
       sent: 400,
+      delivered: 200,
+      bounced: 200,
       hardBounced: 200,
       complained: 0,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
       args.where.action?.in
         ? {
             id: "reset_1",
             createdAt: new Date("2026-11-05T00:00:00Z"),
-            details: { campaignBaselines: {} },
+            details: { unsentCampaignIds: ["cmp_draft"] },
           }
         : null,
     );
@@ -340,6 +345,36 @@ describe("checkSendingHealth", () => {
       where: { id: 1, isBlocked: false },
       data: { isBlocked: true },
     });
+  });
+
+  it("judges late complaints against the sends that caused them", async () => {
+    // 3 complaints this week; 10,000 sends over the last 10 days.
+    mockDb.dailyEmailUsage.aggregate.mockImplementation(async (args: any) =>
+      args._sum.sent
+        ? { _sum: { sent: 10_000, delivered: 9_900, bounced: 0 } }
+        : { _sum: { hardBounced: 0, complained: 3 } },
+    );
+
+    await checkSendingHealth({ teamId: 1 });
+
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("doesn't undercount sends when SES send events are missing", async () => {
+    mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
+      _sum: {
+        sent: 20,
+        delivered: 980,
+        bounced: 20,
+        hardBounced: 20,
+        complained: 0,
+      },
+    });
+
+    await checkSendingHealth({ teamId: 1 });
+
+    // 20 of 1,000 is 2%: fine. Counted against 20 sends it would be 100%.
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
   });
 
   it("doesn't re-block on old counts when an admin unblocked mid-check", async () => {
