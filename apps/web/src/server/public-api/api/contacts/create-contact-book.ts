@@ -3,9 +3,10 @@ import { ContactBookSchema } from "~/lib/zod/contact-book-schema";
 import { db } from "~/server/db";
 import { PublicAPIApp } from "~/server/public-api/hono";
 import {
-  createContactBook as createContactBookService,
+  createContactBookUnlocked,
   updateContactBook,
 } from "~/server/service/contact-book-service";
+import { withPlanLimitLock } from "~/server/service/plan-limit-lock";
 
 const route = createRoute({
   method: "post",
@@ -54,31 +55,35 @@ function createContactBook(app: PublicAPIApp) {
       body.doubleOptInSubject !== undefined ||
       body.doubleOptInContent !== undefined;
 
-    const contactBook = await db.$transaction(async (tx) => {
-      const created = await createContactBookService(
-        team.id,
-        body.name,
-        body.variables,
-        tx,
-      );
+    // Hold the plan-limit lock until the transaction commits, so a concurrent
+    // request can't count contact books before this one is visible.
+    const contactBook = await withPlanLimitLock(team.id, "contactBook", () =>
+      db.$transaction(async (tx) => {
+        const created = await createContactBookUnlocked(
+          team.id,
+          body.name,
+          body.variables,
+          tx,
+        );
 
-      if (!hasOptionalFields) {
-        return created;
-      }
+        if (!hasOptionalFields) {
+          return created;
+        }
 
-      return updateContactBook(
-        created.id,
-        {
-          emoji: body.emoji,
-          properties: body.properties,
-          doubleOptInEnabled: body.doubleOptInEnabled,
-          doubleOptInFrom: body.doubleOptInFrom,
-          doubleOptInSubject: body.doubleOptInSubject,
-          doubleOptInContent: body.doubleOptInContent,
-        },
-        tx,
-      );
-    });
+        return updateContactBook(
+          created.id,
+          {
+            emoji: body.emoji,
+            properties: body.properties,
+            doubleOptInEnabled: body.doubleOptInEnabled,
+            doubleOptInFrom: body.doubleOptInFrom,
+            doubleOptInSubject: body.doubleOptInSubject,
+            doubleOptInContent: body.doubleOptInContent,
+          },
+          tx,
+        );
+      }),
+    );
 
     return c.json({
       ...contactBook,

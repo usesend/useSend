@@ -11,18 +11,22 @@ const { mockEnv, store, mockRedis } = vi.hoisted(() => {
         store.set(key, value);
         return "OK";
       }),
-      eval: vi.fn(async (_script: string, _n: number, key: string, token: string) => {
-        if (store.get(key) === token) {
+      eval: vi.fn(
+        async (script: string, _n: number, key: string, token: string, ..._rest: string[]) => {
+          if (store.get(key) !== token) return 0;
+          if (script.includes("pexpire")) return 1;
           store.delete(key);
           return 1;
-        }
-        return 0;
-      }),
+        },
+      ),
     },
   };
 });
 
 vi.mock("~/env", () => ({ env: mockEnv }));
+vi.mock("~/server/logger/log", () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
 vi.mock("~/server/redis", () => ({
   getRedis: () => mockRedis,
   redisKey: (key: string) => key,
@@ -75,6 +79,32 @@ describe("withPlanLimitLock", () => {
 
     await expect(withPlanLimitLock(2, "domain", async () => "ok")).resolves.toBe("ok");
     await expect(withPlanLimitLock(1, "webhook", async () => "ok")).resolves.toBe("ok");
+  });
+
+  it("keeps renewing the lock while slow work is still running", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: () => void = () => {};
+      const work = withPlanLimitLock(1, "domain", () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(35_000);
+
+      const renewals = mockRedis.eval.mock.calls.filter(([script]) =>
+        String(script).includes("pexpire"),
+      );
+      expect(renewals.length).toBeGreaterThanOrEqual(3);
+      expect((renewals[0] as unknown[])[4]).toBe("30000");
+
+      finish();
+      await work;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(store.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("skips the lock on self-hosted, where plan limits don't apply", async () => {
