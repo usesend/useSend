@@ -8,6 +8,7 @@ import { UnsendApiError } from "../public-api/api-error";
 import { getRedis, redisKey } from "~/server/redis";
 import { LimitReason } from "~/lib/constants/plans";
 import { LimitService } from "./limit-service";
+import { withPlanLimitLock } from "./plan-limit-lock";
 import { renderUsageLimitReachedEmail } from "../email-templates/UsageLimitReachedEmail";
 import { renderUsageWarningEmail } from "../email-templates/UsageWarningEmail";
 
@@ -149,6 +150,24 @@ export class TeamService {
   }
 
   static async createTeamInvite(
+    teamId: number,
+    email: string,
+    role: "MEMBER" | "ADMIN",
+    teamName: string,
+    sendEmail: boolean = true,
+  ): Promise<TeamInvite> {
+    return withPlanLimitLock(teamId, "teamMember", () =>
+      TeamService.createTeamInviteUnlocked(
+        teamId,
+        email,
+        role,
+        teamName,
+        sendEmail,
+      ),
+    );
+  }
+
+  private static async createTeamInviteUnlocked(
     teamId: number,
     email: string,
     role: "MEMBER" | "ADMIN",

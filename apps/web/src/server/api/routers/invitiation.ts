@@ -2,6 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { LimitService } from "~/server/service/limit-service";
+import { withPlanLimitLock } from "~/server/service/plan-limit-lock";
 
 /**
  * Invites belong to the email address they were sent to. Only a signed-in user
@@ -74,20 +76,34 @@ export const invitationRouter = createTRPCRouter({
         });
       }
 
-      await ctx.db.$transaction([
-        ctx.db.teamUser.create({
-          data: {
-            teamId: invite.teamId,
-            userId: ctx.session.user.id,
-            role: invite.role,
-          },
-        }),
-        ctx.db.teamInvite.delete({
-          where: {
-            id: invite.id,
-          },
-        }),
-      ]);
+      // Pending invites don't count toward the seat limit, so check it again
+      // when someone actually joins, one join at a time per team.
+      await withPlanLimitLock(invite.teamId, "teamMember", async () => {
+        const { isLimitReached } = await LimitService.checkTeamMemberLimit(
+          invite.teamId,
+        );
+        if (isLimitReached) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This team has reached its member limit",
+          });
+        }
+
+        await ctx.db.$transaction([
+          ctx.db.teamUser.create({
+            data: {
+              teamId: invite.teamId,
+              userId: ctx.session.user.id,
+              role: invite.role,
+            },
+          }),
+          ctx.db.teamInvite.delete({
+            where: {
+              id: invite.id,
+            },
+          }),
+        ]);
+      });
       // No need to invalidate cache here again
 
       return true;

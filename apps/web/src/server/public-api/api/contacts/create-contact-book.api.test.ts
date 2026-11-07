@@ -39,8 +39,13 @@ vi.mock("~/server/db", () => ({
 }));
 
 vi.mock("~/server/service/contact-book-service", () => ({
-  createContactBook: mockCreateContactBook,
+  createContactBookUnlocked: mockCreateContactBook,
   updateContactBook: mockUpdateContactBook,
+}));
+
+vi.mock("~/server/service/plan-limit-lock", () => ({
+  withPlanLimitLock: (_teamId: number, _resource: string, fn: () => unknown) =>
+    fn(),
 }));
 
 vi.mock("~/utils/common", () => ({

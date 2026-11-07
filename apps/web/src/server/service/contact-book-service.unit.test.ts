@@ -29,6 +29,11 @@ vi.mock("~/server/db", () => ({
   db: mockDb,
 }));
 
+vi.mock("~/server/service/plan-limit-lock", () => ({
+  withPlanLimitLock: (_teamId: number, _resource: string, fn: () => unknown) =>
+    fn(),
+}));
+
 vi.mock("~/server/service/limit-service", () => ({
   LimitService: {
     checkContactBookLimit: mockCheckContactBookLimit,

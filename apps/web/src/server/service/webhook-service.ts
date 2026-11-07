@@ -18,6 +18,7 @@ import {
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
+import { withPlanLimitLock } from "./plan-limit-lock";
 import {
   assertOutboundUrlAllowed,
   fetchOutbound,
@@ -252,7 +253,15 @@ export class WebhookService {
     return webhook;
   }
 
-  public static async createWebhook(params: {
+  public static async createWebhook(
+    params: Parameters<typeof WebhookService.createWebhookUnlocked>[0],
+  ) {
+    return withPlanLimitLock(params.teamId, "webhook", () =>
+      WebhookService.createWebhookUnlocked(params),
+    );
+  }
+
+  private static async createWebhookUnlocked(params: {
     teamId: number;
     userId: number;
     url: string;

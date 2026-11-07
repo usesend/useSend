@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb } = vi.hoisted(() => ({
+const { mockDb, mockCheckTeamMemberLimit } = vi.hoisted(() => ({
+  mockCheckTeamMemberLimit: vi.fn(),
   mockDb: {
     teamInvite: {
       findFirst: vi.fn(),
@@ -16,6 +17,15 @@ const { mockDb } = vi.hoisted(() => ({
 
 vi.mock("~/server/db", () => ({
   db: mockDb,
+}));
+
+vi.mock("~/server/service/limit-service", () => ({
+  LimitService: { checkTeamMemberLimit: mockCheckTeamMemberLimit },
+}));
+
+vi.mock("~/server/service/plan-limit-lock", () => ({
+  withPlanLimitLock: (_teamId: number, _resource: string, fn: () => unknown) =>
+    fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -56,6 +66,25 @@ describe("invitationRouter is bound to the invited email", () => {
     mockDb.teamUser.create.mockReset();
     mockDb.$transaction.mockReset();
     mockDb.$transaction.mockResolvedValue([]);
+    mockCheckTeamMemberLimit.mockReset();
+    mockCheckTeamMemberLimit.mockResolvedValue({ isLimitReached: false });
+  });
+
+  it("does not let anyone join a team that is at its member limit", async () => {
+    mockDb.teamInvite.findFirst.mockResolvedValue({
+      id: "inv_1",
+      teamId: 3,
+      role: "MEMBER",
+      email: "member@example.com",
+    });
+    mockCheckTeamMemberLimit.mockResolvedValue({ isLimitReached: true });
+
+    await expect(
+      createCaller(getContext()).acceptTeamInvite({ inviteId: "inv_1" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(mockCheckTeamMemberLimit).toHaveBeenCalledWith(3);
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
   });
 
   it("does not let a user accept an invite sent to another email", async () => {

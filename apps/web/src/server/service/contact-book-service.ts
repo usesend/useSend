@@ -8,6 +8,7 @@ import { db } from "../db";
 import { UnsendApiError } from "../public-api/api-error";
 import { validateDomainFromEmail } from "./domain-service";
 import { LimitService } from "./limit-service";
+import { withPlanLimitLock } from "./plan-limit-lock";
 import {
   normalizeContactBookVariables,
   validateContactBookVariables,
@@ -42,6 +43,24 @@ export async function getContactBooks(teamId: number, search?: string) {
 }
 
 export async function createContactBook(
+  teamId: number,
+  name: string,
+  variables?: string[],
+) {
+  // Always the global client: the lock must cover the commit, which a
+  // caller-supplied transaction would outlive.
+  return withPlanLimitLock(teamId, "contactBook", () =>
+    createContactBookUnlocked(teamId, name, variables, db),
+  );
+}
+
+/**
+ * Creates a contact book without taking the plan-limit lock. Only for callers
+ * that create it inside their own transaction: they must hold
+ * `withPlanLimitLock(teamId, "contactBook", ...)` around the whole transaction,
+ * so the lock lasts until the insert is committed.
+ */
+export async function createContactBookUnlocked(
   teamId: number,
   name: string,
   variables?: string[],

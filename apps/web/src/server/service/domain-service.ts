@@ -16,6 +16,7 @@ import {
   type DomainWebhookEventType,
 } from "@usesend/lib/src/webhook/webhook-events";
 import { LimitService } from "./limit-service";
+import { withPlanLimitLock } from "./plan-limit-lock";
 import type { DomainDnsRecord } from "~/types/domain";
 import { parseFromAddress } from "~/server/utils/from-address";
 import { WebhookService } from "./webhook-service";
@@ -379,6 +380,17 @@ export async function validateApiKeyDomainAccess(
 }
 
 export async function createDomain(
+  teamId: number,
+  name: string,
+  region: string,
+  sesTenantId?: string,
+) {
+  return withPlanLimitLock(teamId, "domain", () =>
+    createDomainUnlocked(teamId, name, region, sesTenantId),
+  );
+}
+
+async function createDomainUnlocked(
   teamId: number,
   name: string,
   region: string,
