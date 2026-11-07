@@ -206,8 +206,28 @@ export async function parseSesHook(data: SesEvent) {
 
   const isDuplicateEngagement = Boolean(existingMailEvent) && isEngagementEvent;
 
+  // SES can deliver the same hard bounce or complaint more than once. Count
+  // each only once per email: the sending rules and dashboards rely on it. A
+  // soft bounce before a hard bounce doesn't make the hard bounce a duplicate.
+  const isDuplicateOutcome =
+    isHardBounced || mailStatus === EmailStatus.COMPLAINED
+      ? Boolean(
+          await db.emailEvent.findFirst({
+            where: {
+              emailId: email.id,
+              status: mailStatus,
+              ...(isHardBounced
+                ? { data: { path: ["bounceType"], equals: "Permanent" } }
+                : {}),
+            },
+            select: { id: true },
+          }),
+        )
+      : false;
+
   if (
     !isDuplicateEngagement &&
+    !isDuplicateOutcome &&
     [
       "DELIVERED",
       "OPENED",
@@ -301,7 +321,10 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
-  if (isHardBounced || mailStatus === EmailStatus.COMPLAINED) {
+  if (
+    (isHardBounced || mailStatus === EmailStatus.COMPLAINED) &&
+    !isDuplicateOutcome
+  ) {
     try {
       await checkSendingHealth({
         teamId: email.teamId,

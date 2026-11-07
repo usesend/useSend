@@ -246,6 +246,24 @@ describe("parseSesHook sending rules", () => {
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
 
+  it("counts a repeated hard bounce only once", async () => {
+    mockDb.emailEvent.findFirst.mockResolvedValue({ id: "earlier_bounce" });
+
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockDb.emailEvent.findFirst).toHaveBeenCalledWith({
+      where: {
+        emailId: email.id,
+        status: EmailStatus.BOUNCED,
+        data: { path: ["bounceType"], equals: "Permanent" },
+      },
+      select: { id: true },
+    });
+    expect(mockDb.dailyEmailUsage.upsert).not.toHaveBeenCalled();
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
+    expect(mockDb.emailEvent.create).toHaveBeenCalled();
+  });
+
   it("doesn't run on opens", async () => {
     mockDb.emailEvent.findFirst.mockResolvedValue(null);
     await parseSesHook(buildEvent("Open"));

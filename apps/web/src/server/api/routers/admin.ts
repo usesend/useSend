@@ -14,7 +14,7 @@ import { toPlainHtml } from "~/server/utils/email-content";
 import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 import { TeamService } from "~/server/service/team-service";
 import { WaitlistService } from "~/server/service/waitlist-service";
-import { campaignBaselines } from "~/server/service/sending-rules-service";
+import { unsentCampaignIds } from "~/server/service/sending-rules-service";
 
 const waitlistUserSelection = {
   id: true,
@@ -459,9 +459,9 @@ export const adminRouter = createTRPCRouter({
         const resets =
           (existing.isBlocked && !data.isBlocked) ||
           (Boolean(existing.sendingPausedAt) && !sendingPaused);
-        // Only bounces after a reset count against the team's campaigns.
+        // Campaigns that already sent aren't judged on old totals after a reset.
         const resetDetails = resets
-          ? { campaignBaselines: await campaignBaselines(tx, teamId) }
+          ? { unsentCampaignIds: await unsentCampaignIds(tx, teamId) }
           : undefined;
         if (existing.isBlocked !== data.isBlocked) {
           actions.push({

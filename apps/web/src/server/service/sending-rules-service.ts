@@ -24,11 +24,14 @@ function toDateString(date: Date) {
 
 type Client = Prisma.TransactionClient | typeof db;
 
-/** The last time an admin resumed or unblocked the team, with each campaign's totals at that moment. */
+/**
+ * The last time an admin resumed or unblocked the team, and which of its
+ * campaigns hadn't sent anything yet at that moment.
+ */
 type Reset = {
   id: string;
   createdAt: Date;
-  campaignBaselines: Record<string, SendingCounts>;
+  unsentCampaignIds: string[];
 } | null;
 
 async function lastReset(teamId: number, client: Client = db): Promise<Reset> {
@@ -38,41 +41,31 @@ async function lastReset(teamId: number, client: Client = db): Promise<Reset> {
     select: { id: true, createdAt: true, details: true },
   });
   if (!reset) return null;
-  const details = reset.details as {
-    campaignBaselines?: Record<string, SendingCounts>;
-  } | null;
+  const details = reset.details as { unsentCampaignIds?: string[] } | null;
   return {
     id: reset.id,
     createdAt: reset.createdAt,
-    campaignBaselines: details?.campaignBaselines ?? {},
+    unsentCampaignIds: details?.unsentCampaignIds ?? [],
   };
 }
 
 /**
- * Snapshot of recent campaigns' totals, stored on an admin resume or unblock
- * so only bounces and complaints after it count against those campaigns.
+ * Stored on an admin resume or unblock. Campaigns that had already sent are
+ * not judged on their totals again (late bounces from before the reset would
+ * otherwise count against no new sends); the team's rolling window still
+ * covers them. Campaigns that hadn't sent yet are judged in full.
  */
-export async function campaignBaselines(
+export async function unsentCampaignIds(
   client: Client,
   teamId: number,
-): Promise<Record<string, SendingCounts>> {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+): Promise<string[]> {
   const campaigns = await client.campaign.findMany({
-    where: { teamId, sent: { gt: 0 }, updatedAt: { gte: since } },
-    select: { id: true, sent: true, hardBounced: true, complained: true },
-    orderBy: { updatedAt: "desc" },
-    take: 500,
+    where: { teamId, sent: 0, status: { not: "SENT" } },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+    take: 1000,
   });
-  return Object.fromEntries(
-    campaigns.map((campaign) => [
-      campaign.id,
-      {
-        sent: campaign.sent,
-        hardBounced: campaign.hardBounced,
-        complained: campaign.complained,
-      },
-    ]),
-  );
+  return campaigns.map((campaign) => campaign.id);
 }
 
 /**
@@ -98,12 +91,12 @@ function inBackground(task: Promise<unknown>, what: string) {
 }
 
 /**
- * First day counted for the team's rolling window. After an admin resumes or
+ * First day counted, `days` back including today. After an admin resumes or
  * unblocks a team, days up to and including that day no longer count.
  */
-function windowStart(reset: Reset) {
+function windowStart(days: number, reset: Reset) {
   const start = new Date();
-  start.setUTCDate(start.getUTCDate() - (SENDING_RULES.windowDays - 1));
+  start.setUTCDate(start.getUTCDate() - (days - 1));
   let from = toDateString(start);
 
   if (reset) {
@@ -116,19 +109,47 @@ function windowStart(reset: Reset) {
   return from;
 }
 
+/** Sends never count as fewer than the emails we know were delivered or bounced. */
+function sendsOf(counts: {
+  sent?: number | null;
+  delivered?: number | null;
+  bounced?: number | null;
+}) {
+  return Math.max(
+    counts.sent ?? 0,
+    (counts.delivered ?? 0) + (counts.bounced ?? 0),
+  );
+}
+
+/**
+ * Bounces and complaints from the last 7 days, against sends from the last
+ * 10: complaints often arrive days after the email went out, so a team that
+ * stopped sending isn't judged on late complaints against too few sends.
+ */
 async function teamCounts(
   teamId: number,
   reset: Reset,
 ): Promise<SendingCounts> {
-  const from = windowStart(reset);
-  const result = await db.dailyEmailUsage.aggregate({
-    where: { teamId, date: { gte: from } },
-    _sum: { sent: true, hardBounced: true, complained: true },
-  });
+  const [outcomes, sends] = await Promise.all([
+    db.dailyEmailUsage.aggregate({
+      where: {
+        teamId,
+        date: { gte: windowStart(SENDING_RULES.windowDays, reset) },
+      },
+      _sum: { hardBounced: true, complained: true },
+    }),
+    db.dailyEmailUsage.aggregate({
+      where: {
+        teamId,
+        date: { gte: windowStart(SENDING_RULES.sendWindowDays, reset) },
+      },
+      _sum: { sent: true, delivered: true, bounced: true },
+    }),
+  ]);
   return {
-    sent: result._sum.sent ?? 0,
-    hardBounced: result._sum.hardBounced ?? 0,
-    complained: result._sum.complained ?? 0,
+    sent: sendsOf(sends._sum),
+    hardBounced: outcomes._sum.hardBounced ?? 0,
+    complained: outcomes._sum.complained ?? 0,
   };
 }
 
@@ -294,19 +315,29 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
       id: true,
       name: true,
       sent: true,
+      delivered: true,
+      bounced: true,
       hardBounced: true,
       complained: true,
+      createdAt: true,
     },
   });
   if (!campaign) return;
 
-  // After an admin resumes or unblocks the team, only what happened since
-  // counts. Campaigns that hadn't sent yet have no baseline and count fully.
-  const baseline = reset?.campaignBaselines[campaign.id];
+  // After an admin resume or unblock, campaigns that had already sent aren't
+  // judged on their totals again; the team's rolling window still applies.
+  if (
+    reset &&
+    campaign.createdAt < reset.createdAt &&
+    !reset.unsentCampaignIds.includes(campaign.id)
+  ) {
+    return;
+  }
+
   const verdict = judgeCounts({
-    sent: campaign.sent - (baseline?.sent ?? 0),
-    hardBounced: campaign.hardBounced - (baseline?.hardBounced ?? 0),
-    complained: campaign.complained - (baseline?.complained ?? 0),
+    sent: sendsOf(campaign),
+    hardBounced: campaign.hardBounced,
+    complained: campaign.complained,
   });
   if (verdict.level === "ok") return;
 
