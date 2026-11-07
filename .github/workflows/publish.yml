@@ -36,6 +36,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # GitHub-hosted runners have ~14 GB free; the web image needs more headroom
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h /
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
