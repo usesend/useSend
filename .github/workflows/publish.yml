@@ -21,8 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - warp-ubuntu-latest-x64-2x
-          - warp-ubuntu-latest-arm64-2x
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
         app:
           - name: usesend
             dockerfile: ./docker/Dockerfile
@@ -54,7 +54,7 @@ jobs:
 
       - name: Build the docker image
         env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
+          BUILD_PLATFORM: ${{ matrix.os == 'ubuntu-24.04-arm' && 'arm64' || 'amd64' }}
           APP: ${{ matrix.app.name }}
           DOCKER_FILE: ${{ matrix.app.dockerfile }}
           CONTEXT: ${{ matrix.app.context }}
@@ -78,7 +78,7 @@ jobs:
       - name: Push the docker image to DockerHub
         run: docker push --all-tags "usesend/$APP-$BUILD_PLATFORM"
         env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
+          BUILD_PLATFORM: ${{ matrix.os == 'ubuntu-24.04-arm' && 'arm64' || 'amd64' }}
           APP: ${{ matrix.app.name }}
           DOCKER_FILE: ${{ matrix.app.dockerfile }}
           CONTEXT: ${{ matrix.app.context }}
@@ -86,7 +86,7 @@ jobs:
       - name: Push the docker image to GitHub Container Registry
         run: docker push --all-tags "ghcr.io/usesend/$APP-$BUILD_PLATFORM"
         env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
+          BUILD_PLATFORM: ${{ matrix.os == 'ubuntu-24.04-arm' && 'arm64' || 'amd64' }}
           APP: ${{ matrix.app.name }}
 
   create_and_publish_manifest:
