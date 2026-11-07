@@ -59,9 +59,9 @@ export const env = createEnv({
     ADMIN_EMAIL: z.string().optional(),
     FOUNDER_EMAIL: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
-    // Bounce/complaint rules (cloud only): "alert" only posts to Discord,
-    // "enforce" also pauses or blocks teams, "off" disables them.
-    SENDING_RULES_MODE: z.enum(["off", "alert", "enforce"]).default("alert"),
+    // Bounce/complaint rules (cloud only): "enforce" pauses or blocks teams,
+    // emails them and posts to Discord; "alert" only posts; "off" disables.
+    SENDING_RULES_MODE: z.enum(["off", "alert", "enforce"]).default("enforce"),
     REDIS_URL: z.string(),
     REDIS_KEY_PREFIX: z.string().default(""),
     S3_COMPATIBLE_ACCESS_KEY: z.string().optional(),
@@ -85,9 +85,9 @@ export const env = createEnv({
       .default(process.env.NEXT_PUBLIC_IS_CLOUD === "true" ? "false" : "true")
       .transform((str) => str === "true"),
     EMAIL_CLEANUP_DAYS: z
-        .string()
-        .optional()
-        .transform((str) => (str ? parseInt(str, 10) : undefined)),
+      .string()
+      .optional()
+      .transform((str) => (str ? parseInt(str, 10) : undefined)),
   },
 
   /**
@@ -116,8 +116,10 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     GITHUB_ID: process.env.GITHUB_ID,
     GITHUB_SECRET: process.env.GITHUB_SECRET,
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
+    AWS_ACCESS_KEY_ID:
+      process.env.AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY,
+    AWS_SECRET_ACCESS_KEY:
+      process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_KEY,
     USESEND_API_KEY: process.env.USESEND_API_KEY,
     UNSEND_API_KEY: process.env.UNSEND_API_KEY,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
@@ -151,8 +153,7 @@ export const env = createEnv({
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     CONTACT_BOOK_ID: process.env.CONTACT_BOOK_ID,
-    WEBHOOK_ALLOW_PRIVATE_URLS:
-      process.env.WEBHOOK_ALLOW_PRIVATE_URLS,
+    WEBHOOK_ALLOW_PRIVATE_URLS: process.env.WEBHOOK_ALLOW_PRIVATE_URLS,
     EMAIL_CLEANUP_DAYS: process.env.EMAIL_CLEANUP_DAYS,
   },
   /**

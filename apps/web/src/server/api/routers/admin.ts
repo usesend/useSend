@@ -14,6 +14,7 @@ import { toPlainHtml } from "~/server/utils/email-content";
 import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 import { TeamService } from "~/server/service/team-service";
 import { WaitlistService } from "~/server/service/waitlist-service";
+import { campaignBaselines } from "~/server/service/sending-rules-service";
 
 const waitlistUserSelection = {
   id: true,
@@ -437,6 +438,13 @@ export const adminRouter = createTRPCRouter({
         }
 
         const actions: Prisma.TeamActionCreateManyInput[] = [];
+        const resets =
+          (existing.isBlocked && !data.isBlocked) ||
+          (Boolean(existing.sendingPausedAt) && !sendingPaused);
+        // Only bounces after a reset count against the team's campaigns.
+        const resetDetails = resets
+          ? { campaignBaselines: await campaignBaselines(tx, teamId) }
+          : undefined;
         if (existing.isBlocked !== data.isBlocked) {
           actions.push({
             teamId,
@@ -445,6 +453,7 @@ export const adminRouter = createTRPCRouter({
             reason: data.isBlocked
               ? "Blocked by an admin"
               : "Unblocked by an admin",
+            details: data.isBlocked ? undefined : resetDetails,
           });
         }
         if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
@@ -455,6 +464,7 @@ export const adminRouter = createTRPCRouter({
             reason: sendingPaused
               ? "Paused by an admin"
               : "Resumed by an admin",
+            details: sendingPaused ? undefined : resetDetails,
           });
         }
 

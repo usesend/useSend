@@ -22,14 +22,72 @@ function toDateString(date: Date) {
   return date.toISOString().split("T")[0] as string;
 }
 
-/** When an admin last resumed or unblocked the team, if ever. */
-async function lastResetAt(teamId: number) {
-  const reset = await db.teamAction.findFirst({
+type Client = Prisma.TransactionClient | typeof db;
+
+/** The last time an admin resumed or unblocked the team, with each campaign's totals at that moment. */
+type Reset = {
+  id: string;
+  createdAt: Date;
+  campaignBaselines: Record<string, SendingCounts>;
+} | null;
+
+async function lastReset(teamId: number, client: Client = db): Promise<Reset> {
+  const reset = await client.teamAction.findFirst({
     where: { teamId, action: { in: ["RESUME", "UNBLOCK"] } },
     orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
+    select: { id: true, createdAt: true, details: true },
   });
-  return reset?.createdAt ?? null;
+  if (!reset) return null;
+  const details = reset.details as {
+    campaignBaselines?: Record<string, SendingCounts>;
+  } | null;
+  return {
+    id: reset.id,
+    createdAt: reset.createdAt,
+    campaignBaselines: details?.campaignBaselines ?? {},
+  };
+}
+
+/**
+ * Snapshot of recent campaigns' totals, stored on an admin resume or unblock
+ * so only bounces and complaints after it count against those campaigns.
+ */
+export async function campaignBaselines(
+  client: Client,
+  teamId: number,
+): Promise<Record<string, SendingCounts>> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const campaigns = await client.campaign.findMany({
+    where: { teamId, sent: { gt: 0 }, updatedAt: { gte: since } },
+    select: { id: true, sent: true, hardBounced: true, complained: true },
+    orderBy: { updatedAt: "desc" },
+    take: 500,
+  });
+  return Object.fromEntries(
+    campaigns.map((campaign) => [
+      campaign.id,
+      {
+        sent: campaign.sent,
+        hardBounced: campaign.hardBounced,
+        complained: campaign.complained,
+      },
+    ]),
+  );
+}
+
+/**
+ * Locks the team row and confirms no admin reset happened since this check
+ * started, so a check computed before an unblock can't re-block on old counts.
+ * The admin settings update takes the same lock.
+ */
+async function resetUnchanged(
+  tx: Prisma.TransactionClient,
+  teamId: number,
+  seen: Reset,
+) {
+  await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+  const latest = await lastReset(teamId, tx);
+  return (latest?.id ?? null) === (seen?.id ?? null);
 }
 
 /** Notices shouldn't hold up SES event processing, or fail it. */
@@ -43,15 +101,13 @@ function inBackground(task: Promise<unknown>, what: string) {
  * First day counted for the team's rolling window. After an admin resumes or
  * unblocks a team, days up to and including that day no longer count.
  */
-async function windowStart(teamId: number) {
+function windowStart(reset: Reset) {
   const start = new Date();
   start.setUTCDate(start.getUTCDate() - (SENDING_RULES.windowDays - 1));
   let from = toDateString(start);
 
-  const lastReset = await lastResetAt(teamId);
-
-  if (lastReset) {
-    const dayAfter = new Date(lastReset);
+  if (reset) {
+    const dayAfter = new Date(reset.createdAt);
     dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
     const resetFrom = toDateString(dayAfter);
     if (resetFrom > from) from = resetFrom;
@@ -60,8 +116,11 @@ async function windowStart(teamId: number) {
   return from;
 }
 
-async function teamCounts(teamId: number): Promise<SendingCounts> {
-  const from = await windowStart(teamId);
+async function teamCounts(
+  teamId: number,
+  reset: Reset,
+): Promise<SendingCounts> {
+  const from = windowStart(reset);
   const result = await db.dailyEmailUsage.aggregate({
     where: { teamId, date: { gte: from } },
     _sum: { sent: true, hardBounced: true, complained: true },
@@ -110,11 +169,19 @@ async function emailTeam(teamId: number, subject: string, text: string) {
     .map((teamUser) => teamUser.user?.email)
     .filter((email): email is string => Boolean(email));
 
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     recipients.map((to) =>
       sendMail(to, subject, text, toPlainHtml(text), "hey@usesend.com"),
     ),
   );
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      logger.error(
+        { err: result.reason, teamId },
+        "[SendingRules]: Team email failed",
+      );
+    }
+  });
 }
 
 async function notify(message: string) {
@@ -129,6 +196,7 @@ async function actOnTeam(
   teamId: number,
   verdict: Exclude<Verdict, { level: "ok" }>,
   details: Prisma.InputJsonValue,
+  reset: Reset,
 ) {
   const label = await teamLabel(teamId);
 
@@ -150,6 +218,8 @@ async function actOnTeam(
   // Conditional updates make this safe when many events arrive at once:
   // only the first one changes the team and sends the notices.
   const acted = await db.$transaction(async (tx) => {
+    if (!(await resetUnchanged(tx, teamId, reset))) return false;
+
     const { count } =
       verdict.level === "block"
         ? await tx.team.updateMany({
@@ -217,7 +287,7 @@ async function actOnTeam(
   }
 }
 
-async function checkCampaign(teamId: number, campaignId: string) {
+async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
   const campaign = await db.campaign.findFirst({
     where: { id: campaignId, teamId },
     select: {
@@ -226,20 +296,17 @@ async function checkCampaign(teamId: number, campaignId: string) {
       sent: true,
       hardBounced: true,
       complained: true,
-      createdAt: true,
     },
   });
   if (!campaign) return;
 
-  // After an admin resumes or unblocks the team, older campaigns' totals
-  // don't count again; the team's rolling window still applies.
-  const lastReset = await lastResetAt(teamId);
-  if (lastReset && campaign.createdAt < lastReset) return;
-
+  // After an admin resumes or unblocks the team, only what happened since
+  // counts. Campaigns that hadn't sent yet have no baseline and count fully.
+  const baseline = reset?.campaignBaselines[campaign.id];
   const verdict = judgeCounts({
-    sent: campaign.sent,
-    hardBounced: campaign.hardBounced,
-    complained: campaign.complained,
+    sent: campaign.sent - (baseline?.sent ?? 0),
+    hardBounced: campaign.hardBounced - (baseline?.hardBounced ?? 0),
+    complained: campaign.complained - (baseline?.complained ?? 0),
   });
   if (verdict.level === "ok") return;
 
@@ -253,6 +320,7 @@ async function checkCampaign(teamId: number, campaignId: string) {
         reason: `${verdict.reason} on campaign "${campaign.name}"`,
       },
       details,
+      reset,
     );
     return;
   }
@@ -289,6 +357,8 @@ async function checkCampaign(teamId: number, campaignId: string) {
   }
 
   const acted = await db.$transaction(async (tx) => {
+    if (!(await resetUnchanged(tx, teamId, reset))) return false;
+
     const { count } = await tx.campaign.updateMany({
       where: { id: campaign.id, status: { in: ["RUNNING", "SCHEDULED"] } },
       data: { status: "PAUSED" },
@@ -323,8 +393,8 @@ async function checkCampaign(teamId: number, campaignId: string) {
 
 /**
  * Runs after every hard bounce and complaint (cloud only). Pauses or blocks
- * the team or campaign when its rates cross the limits, or only alerts when
- * SENDING_RULES_MODE is "alert".
+ * the team or campaign when its rates cross the limits, emails the team and
+ * posts to Discord. SENDING_RULES_MODE "alert" only posts; "off" disables it.
  */
 export async function checkSendingHealth(params: {
   teamId: number;
@@ -334,6 +404,7 @@ export async function checkSendingHealth(params: {
   if (!env.NEXT_PUBLIC_IS_CLOUD || env.SENDING_RULES_MODE === "off") return;
 
   const { teamId, campaignId } = params;
+  const reset = await lastReset(teamId);
 
   if (params.spamTrap) {
     await actOnTeam(
@@ -344,17 +415,18 @@ export async function checkSendingHealth(params: {
           "an email reached a spam trap, an address found only on bought, scraped or old lists",
       },
       { scope: "spamTrap", campaignId: campaignId ?? null },
+      reset,
     );
     return;
   }
 
   if (campaignId) {
-    await checkCampaign(teamId, campaignId);
+    await checkCampaign(teamId, campaignId, reset);
   }
 
-  const counts = await teamCounts(teamId);
+  const counts = await teamCounts(teamId, reset);
   const verdict = judgeCounts(counts);
   if (verdict.level !== "ok") {
-    await actOnTeam(teamId, verdict, { scope: "team", ...counts });
+    await actOnTeam(teamId, verdict, { scope: "team", ...counts }, reset);
   }
 }
