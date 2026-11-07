@@ -412,6 +412,40 @@ export async function sendBulkEmails(
     });
   }
 
+  // Enforce domain-restricted API keys on every sender before any email
+  // records (including suppressed ones) are created
+  const apiKeyCache = new Map<
+    number,
+    Awaited<ReturnType<typeof db.apiKey.findUnique>>
+  >();
+  for (const { apiKeyId, from, teamId } of emailContents) {
+    if (!apiKeyId) {
+      continue;
+    }
+
+    if (!apiKeyCache.has(apiKeyId)) {
+      apiKeyCache.set(
+        apiKeyId,
+        await db.apiKey.findUnique({
+          where: { id: apiKeyId },
+          include: { domain: true },
+        }),
+      );
+    }
+
+    const apiKey = apiKeyCache.get(apiKeyId);
+    if (!apiKey) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "Invalid API key",
+      });
+    }
+
+    if (apiKey.domainId) {
+      await validateApiKeyDomainAccess(from, teamId, apiKey);
+    }
+  }
+
   // Load every referenced template up front so an unknown one fails the
   // request before any email records are created
   const templateCache = new Map<string, LoadedTemplate>();

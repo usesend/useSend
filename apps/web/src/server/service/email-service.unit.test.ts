@@ -5,9 +5,13 @@ const {
   mockQueueEmail,
   mockQueueBulk,
   mockValidateDomainFromEmail,
+  mockValidateApiKeyDomainAccess,
   mockCheckMultipleEmails,
 } = vi.hoisted(() => ({
   mockDb: {
+    apiKey: {
+      findUnique: vi.fn(),
+    },
     template: {
       findUnique: vi.fn(),
     },
@@ -21,6 +25,7 @@ const {
   mockQueueEmail: vi.fn(),
   mockQueueBulk: vi.fn(),
   mockValidateDomainFromEmail: vi.fn(),
+  mockValidateApiKeyDomainAccess: vi.fn(),
   mockCheckMultipleEmails: vi.fn(),
 }));
 
@@ -37,7 +42,7 @@ vi.mock("~/server/service/email-queue-service", () => ({
 
 vi.mock("~/server/service/domain-service", () => ({
   validateDomainFromEmail: mockValidateDomainFromEmail,
-  validateApiKeyDomainAccess: vi.fn(),
+  validateApiKeyDomainAccess: mockValidateApiKeyDomainAccess,
 }));
 
 vi.mock("~/server/service/suppression-service", () => ({
@@ -263,6 +268,68 @@ describe("email-service templates", () => {
 
       expect(mockDb.email.create).not.toHaveBeenCalled();
       expect(mockQueueBulk).not.toHaveBeenCalled();
+    });
+    it("rejects the batch before creating emails when a domain-restricted key sends from another domain", async () => {
+      const restrictedKey = { id: 11, domainId: 5, domain: { name: "a.com" } };
+      mockDb.apiKey.findUnique.mockResolvedValue(restrictedKey);
+      mockCheckMultipleEmails.mockResolvedValue({ "b@example.com": true });
+      mockValidateApiKeyDomainAccess.mockImplementation(async (from: string) => {
+        if (!from.endsWith("@a.com")) {
+          throw new UnsendApiError({
+            code: "FORBIDDEN",
+            message: "API key does not have access to domain",
+          });
+        }
+        return { id: 5, region: "us-east-1" };
+      });
+
+      await expect(
+        sendBulkEmails([
+          {
+            to: "a@example.com",
+            from: "hello@a.com",
+            subject: "Hi",
+            html: "<p>Hi</p>",
+            teamId: 1,
+            apiKeyId: 11,
+          },
+          {
+            to: "b@example.com",
+            from: "hello@b.com",
+            subject: "Hi",
+            html: "<p>Hi</p>",
+            teamId: 1,
+            apiKeyId: 11,
+          },
+        ]),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      expect(mockDb.apiKey.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockValidateApiKeyDomainAccess).toHaveBeenCalledWith(
+        "hello@b.com",
+        1,
+        restrictedKey,
+      );
+      expect(mockDb.email.create).not.toHaveBeenCalled();
+      expect(mockQueueBulk).not.toHaveBeenCalled();
+    });
+
+    it("does not add a domain check for unrestricted keys", async () => {
+      mockDb.apiKey.findUnique.mockResolvedValue({ id: 12, domainId: null });
+
+      await sendBulkEmails([
+        {
+          to: "a@example.com",
+          from: "hello@example.com",
+          subject: "Hi",
+          html: "<p>Hi</p>",
+          teamId: 1,
+          apiKeyId: 12,
+        },
+      ]);
+
+      expect(mockValidateApiKeyDomainAccess).not.toHaveBeenCalled();
+      expect(mockDb.email.create).toHaveBeenCalledTimes(1);
     });
   });
 });

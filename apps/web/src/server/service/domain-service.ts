@@ -619,7 +619,13 @@ export async function deleteDomain(id: number) {
     throw new Error("Error in deleting domain");
   }
 
-  const deletedRecord = await db.domain.delete({ where: { id } });
+  // API keys restricted to this domain would otherwise fall back to
+  // domainId = null (onDelete: SetNull) and become unrestricted team keys.
+  // Revoke them together with the domain instead.
+  const [, deletedRecord] = await db.$transaction([
+    db.apiKey.deleteMany({ where: { domainId: id } }),
+    db.domain.delete({ where: { id } }),
+  ]);
   try {
     await clearDomainVerificationState(id);
   } catch (error) {
