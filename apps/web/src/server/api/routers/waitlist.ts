@@ -10,6 +10,7 @@ import {
   waitlistSubmissionSchema,
 } from "~/app/wait-list/schema";
 import { escapeHtml } from "~/server/utils/email-content";
+import { WaitlistService } from "~/server/service/waitlist-service";
 
 const RATE_LIMIT_WINDOW_SECONDS = 60 * 60 * 6; // 6 hours
 const RATE_LIMIT_MAX_ATTEMPTS = 3;
@@ -61,29 +62,46 @@ export const waitlistRouter = createTRPCRouter({
       }
       await pipeline.exec();
 
+      if (!user.email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Your account has no email address",
+        });
+      }
+
+      const application = await WaitlistService.saveApplication(
+        { id: user.id, email: user.email },
+        input,
+      );
+
       const typesLabel = input.emailTypes
         .map((type) => EMAIL_TYPE_LABEL[type])
         .join(", ");
 
       const escapedDescription = escapeHtml(input.description);
       const escapedDomain = escapeHtml(input.domain);
+      const escapedWebsite = escapeHtml(application.website);
+      const escapedListSource = escapeHtml(input.listSource);
       const escapedEmailVolume = escapeHtml(input.emailVolume);
       const subject = `Waitlist request from ${user.email ?? "unknown user"}`;
 
       const textBody = `A waitlisted user submitted a request:\n\nEmail: ${
         user.email ?? "Unknown"
-      }\nDomain: ${input.domain}\nInterested emails: ${typesLabel}\nExpected sending volume: ${
+      }\nWebsite: ${application.website}\nDomain: ${input.domain}\nInterested emails: ${typesLabel}\nExpected sending volume: ${
         input.emailVolume
-      }\n\nDescription:\n${input.description}`;
+      }\n\nHow people join the list:\n${input.listSource}\n\nDescription:\n${input.description}`;
 
       const htmlBody = `
         <p>A waitlisted user submitted a request.</p>
         <ul>
           <li><strong>Email:</strong> ${escapeHtml(user.email ?? "Unknown")}</li>
+          <li><strong>Website:</strong> ${escapedWebsite}</li>
           <li><strong>Domain:</strong> ${escapedDomain}</li>
           <li><strong>Interested emails:</strong> ${escapeHtml(typesLabel)}</li>
           <li><strong>Expected sending volume:</strong> ${escapedEmailVolume}</li>
         </ul>
+        <p><strong>How people join the list</strong></p>
+        <p style="white-space: pre-wrap;">${escapedListSource}</p>
         <p><strong>Description</strong></p>
         <p style="white-space: pre-wrap;">${escapedDescription}</p>
       `;

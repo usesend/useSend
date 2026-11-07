@@ -38,9 +38,11 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
   const form = useForm<WaitlistSubmissionInput>({
     resolver: zodResolver(waitlistSubmissionSchema),
     defaultValues: {
+      website: "",
       domain: "",
       emailTypes: [],
       emailVolume: "",
+      listSource: "",
       description: "",
     },
   });
@@ -76,6 +78,25 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
         className="space-y-6"
         noValidate
       >
+        <FormField
+          control={form.control}
+          name="website"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Website</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="https://acme.com"
+                  autoComplete="url"
+                  {...field}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="domain"
@@ -157,6 +178,25 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
                 <Textarea
                   rows={3}
                   placeholder="e.g., Around 400 transactional emails per day and 5,000 marketing emails per month"
+                  {...field}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="listSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>How do people end up on your email list?</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={3}
+                  placeholder="e.g., They sign up for our app, or subscribe on our blog"
                   {...field}
                   value={field.value}
                 />

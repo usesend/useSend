@@ -12,6 +12,8 @@ import { UseSend } from "usesend-js";
 import { isCloud } from "~/utils/common";
 import { toPlainHtml } from "~/server/utils/email-content";
 import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
+import { TeamService } from "~/server/service/team-service";
+import { WaitlistService } from "~/server/service/waitlist-service";
 
 const waitlistUserSelection = {
   id: true,
@@ -39,6 +41,7 @@ const teamAdminSelection = {
   apiRateLimit: true,
   dailyEmailLimit: true,
   isBlocked: true,
+  freePlanAllowed: true,
   billingEmail: true,
   createdAt: true,
   teamUsers: {
@@ -167,6 +170,10 @@ export const adminRouter = createTRPCRouter({
         data: { isWaitlisted: input.isWaitlisted },
         select: waitlistUserSelection,
       });
+
+      if (existingUser.isWaitlisted && !input.isWaitlisted) {
+        await WaitlistService.setStatus(input.userId, "APPROVED");
+      }
 
       const founderEmail = env.FOUNDER_EMAIL ?? undefined;
       const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
@@ -317,6 +324,8 @@ export const adminRouter = createTRPCRouter({
         throw new Error("Failed to send waitlist rejection email");
       }
 
+      await WaitlistService.setStatus(user.id, "REJECTED");
+
       return { sent: true };
     }),
 
@@ -389,6 +398,7 @@ export const adminRouter = createTRPCRouter({
         apiRateLimit: z.number().int().min(1).max(10_000),
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
+        freePlanAllowed: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
       }),
     )
@@ -400,6 +410,9 @@ export const adminRouter = createTRPCRouter({
         data,
         select: teamAdminSelection,
       });
+
+      // Sending reads the cached team, so refresh it for blocks to apply now.
+      await TeamService.refreshTeamCache(teamId);
 
       return updatedTeam;
     }),
