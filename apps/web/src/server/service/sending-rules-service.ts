@@ -22,6 +22,23 @@ function toDateString(date: Date) {
   return date.toISOString().split("T")[0] as string;
 }
 
+/** When an admin last resumed or unblocked the team, if ever. */
+async function lastResetAt(teamId: number) {
+  const reset = await db.teamAction.findFirst({
+    where: { teamId, action: { in: ["RESUME", "UNBLOCK"] } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  return reset?.createdAt ?? null;
+}
+
+/** Notices shouldn't hold up SES event processing, or fail it. */
+function inBackground(task: Promise<unknown>, what: string) {
+  void task.catch((error: unknown) =>
+    logger.error({ err: error }, `[SendingRules]: ${what} failed`),
+  );
+}
+
 /**
  * First day counted for the team's rolling window. After an admin resumes or
  * unblocks a team, days up to and including that day no longer count.
@@ -31,14 +48,10 @@ async function windowStart(teamId: number) {
   start.setUTCDate(start.getUTCDate() - (SENDING_RULES.windowDays - 1));
   let from = toDateString(start);
 
-  const lastReset = await db.teamAction.findFirst({
-    where: { teamId, action: { in: ["RESUME", "UNBLOCK"] } },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
+  const lastReset = await lastResetAt(teamId);
 
   if (lastReset) {
-    const dayAfter = new Date(lastReset.createdAt);
+    const dayAfter = new Date(lastReset);
     dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
     const resetFrom = toDateString(dayAfter);
     if (resetFrom > from) from = resetFrom;
@@ -127,57 +140,79 @@ async function actOnTeam(
       `Would ${verdict.level}: ${verdict.reason}`,
       details,
     );
-    await notify(
-      `[alert only] Would ${verdict.level} ${label}: ${verdict.reason}`,
+    inBackground(
+      notify(`[alert only] Would ${verdict.level} ${label}: ${verdict.reason}`),
+      "Discord alert",
     );
     return;
   }
 
   // Conditional updates make this safe when many events arrive at once:
   // only the first one changes the team and sends the notices.
-  const { count } =
-    verdict.level === "block"
-      ? await db.team.updateMany({
-          where: { id: teamId, isBlocked: false },
-          data: { isBlocked: true },
-        })
-      : await db.team.updateMany({
-          where: { id: teamId, isBlocked: false, sendingPausedAt: null },
-          data: { sendingPausedAt: new Date() },
-        });
-  if (count === 0) return;
+  const acted = await db.$transaction(async (tx) => {
+    const { count } =
+      verdict.level === "block"
+        ? await tx.team.updateMany({
+            where: { id: teamId, isBlocked: false },
+            data: { isBlocked: true },
+          })
+        : await tx.team.updateMany({
+            where: { id: teamId, isBlocked: false, sendingPausedAt: null },
+            data: { sendingPausedAt: new Date() },
+          });
+    if (count === 0) return false;
 
-  await db.campaign.updateMany({
-    where: { teamId, status: { in: ["RUNNING", "SCHEDULED"] } },
-    data: { status: "PAUSED" },
+    await tx.campaign.updateMany({
+      where: { teamId, status: { in: ["RUNNING", "SCHEDULED"] } },
+      data: { status: "PAUSED" },
+    });
+    await tx.teamAction.create({
+      data: {
+        teamId,
+        action: verdict.level === "block" ? "BLOCK" : "PAUSE",
+        actor: "rules",
+        reason: verdict.reason,
+        details,
+      },
+    });
+    return true;
   });
-  await TeamService.refreshTeamCache(teamId);
-  await recordAction(
-    teamId,
-    verdict.level === "block" ? "BLOCK" : "PAUSE",
-    verdict.reason,
-    details,
-  );
+  if (!acted) return;
 
-  const team = await db.team.findUnique({
-    where: { id: teamId },
-    select: { name: true },
-  });
-  const name = team?.name ?? "there";
+  try {
+    await TeamService.refreshTeamCache(teamId);
+  } catch (error) {
+    // The cache expires within 2 minutes anyway.
+    logger.error(
+      { err: error, teamId },
+      "[SendingRules]: Cache refresh failed",
+    );
+  }
+
+  const name = label.replace(/ \(#\d+\)$/, "");
 
   if (verdict.level === "block") {
-    await notify(`Blocked ${label}: ${verdict.reason}`);
-    await emailTeam(
-      teamId,
-      "useSend: sending is blocked on your account",
-      `Hi ${name} team,\n\nWe've blocked sending on your useSend account because ${verdict.reason}.\n\nEmails won't go out until we've reviewed the account with you. Reply to this email to talk to us.\n\nuseSend`,
+    inBackground(
+      notify(`Blocked ${label}: ${verdict.reason}`),
+      "Discord alert",
+    );
+    inBackground(
+      emailTeam(
+        teamId,
+        "useSend: sending is blocked on your account",
+        `Hi ${name} team,\n\nWe've blocked sending on your useSend account because ${verdict.reason}.\n\nEmails won't go out until we've reviewed the account with you. Reply to this email to talk to us.\n\nuseSend`,
+      ),
+      "Team email",
     );
   } else {
-    await notify(`Paused ${label}: ${verdict.reason}`);
-    await emailTeam(
-      teamId,
-      "useSend: we paused sending on your account",
-      `Hi ${name} team,\n\nWe paused sending on your useSend account because ${verdict.reason} over the last ${SENDING_RULES.windowDays} days.\n\nThis usually means some addresses on your list are old, mistyped, or never signed up to hear from you. Please remove them, then reply to this email and we'll turn sending back on.\n\nWhile sending is paused, new emails fail instead of going out.\n\nuseSend`,
+    inBackground(notify(`Paused ${label}: ${verdict.reason}`), "Discord alert");
+    inBackground(
+      emailTeam(
+        teamId,
+        "useSend: we paused sending on your account",
+        `Hi ${name} team,\n\nWe paused sending on your useSend account because ${verdict.reason} over the last ${SENDING_RULES.windowDays} days.\n\nThis usually means some addresses on your list are old, mistyped, or never signed up to hear from you. Please remove them, then reply to this email and we'll turn sending back on.\n\nWhile sending is paused, new emails fail instead of going out.\n\nuseSend`,
+      ),
+      "Team email",
     );
   }
 }
@@ -191,11 +226,21 @@ async function checkCampaign(teamId: number, campaignId: string) {
       sent: true,
       hardBounced: true,
       complained: true,
+      createdAt: true,
     },
   });
   if (!campaign) return;
 
-  const verdict = judgeCounts(campaign);
+  // After an admin resumes or unblocks the team, older campaigns' totals
+  // don't count again; the team's rolling window still applies.
+  const lastReset = await lastResetAt(teamId);
+  if (lastReset && campaign.createdAt < lastReset) return;
+
+  const verdict = judgeCounts({
+    sent: campaign.sent,
+    hardBounced: campaign.hardBounced,
+    complained: campaign.complained,
+  });
   if (verdict.level === "ok") return;
 
   const details = { scope: "campaign", campaignId: campaign.id };
@@ -234,31 +279,45 @@ async function checkCampaign(teamId: number, campaignId: string) {
       `Would pause campaign "${campaign.name}": ${verdict.reason}`,
       details,
     );
-    await notify(
-      `[alert only] Would pause campaign "${campaign.name}" of ${label}: ${verdict.reason}`,
+    inBackground(
+      notify(
+        `[alert only] Would pause campaign "${campaign.name}" of ${label}: ${verdict.reason}`,
+      ),
+      "Discord alert",
     );
     return;
   }
 
-  const { count } = await db.campaign.updateMany({
-    where: { id: campaign.id, status: { in: ["RUNNING", "SCHEDULED"] } },
-    data: { status: "PAUSED" },
+  const acted = await db.$transaction(async (tx) => {
+    const { count } = await tx.campaign.updateMany({
+      where: { id: campaign.id, status: { in: ["RUNNING", "SCHEDULED"] } },
+      data: { status: "PAUSED" },
+    });
+    if (count === 0) return false;
+    await tx.teamAction.create({
+      data: {
+        teamId,
+        action: "PAUSE",
+        actor: "rules",
+        reason: `Paused campaign "${campaign.name}": ${verdict.reason}`,
+        details,
+      },
+    });
+    return true;
   });
-  if (count === 0) return;
+  if (!acted) return;
 
-  await recordAction(
-    teamId,
-    "PAUSE",
-    `Paused campaign "${campaign.name}": ${verdict.reason}`,
-    details,
+  inBackground(
+    notify(`Paused campaign "${campaign.name}" of ${label}: ${verdict.reason}`),
+    "Discord alert",
   );
-  await notify(
-    `Paused campaign "${campaign.name}" of ${label}: ${verdict.reason}`,
-  );
-  await emailTeam(
-    teamId,
-    `useSend: we paused your campaign "${campaign.name}"`,
-    `Hi there,\n\nWe paused your campaign "${campaign.name}" because ${verdict.reason}.\n\nPlease check where these contacts came from before you resume it. If it keeps going and gets worse, we'll have to block sending on your account.\n\nuseSend`,
+  inBackground(
+    emailTeam(
+      teamId,
+      `useSend: we paused your campaign "${campaign.name}"`,
+      `Hi there,\n\nWe paused your campaign "${campaign.name}" because ${verdict.reason}.\n\nPlease check where these contacts came from before you resume it. If it keeps going and gets worse, we'll have to block sending on your account.\n\nuseSend`,
+    ),
+    "Team email",
   );
 }
 
