@@ -48,6 +48,7 @@ const updateSchema = z.object({
   apiRateLimit: z.coerce.number().int().min(1).max(10_000),
   dailyEmailLimit: z.coerce.number().int().min(0).max(10_000_000),
   isBlocked: z.boolean(),
+  freePlanAllowed: z.boolean(),
   plan: z.enum(["FREE", "BASIC"]),
 });
 
@@ -68,6 +69,7 @@ export default function AdminTeamsPage() {
       apiRateLimit: 1,
       dailyEmailLimit: 0,
       isBlocked: false,
+      freePlanAllowed: false,
       plan: "FREE",
     },
   });
@@ -78,6 +80,7 @@ export default function AdminTeamsPage() {
         apiRateLimit: team.apiRateLimit,
         dailyEmailLimit: team.dailyEmailLimit,
         isBlocked: team.isBlocked,
+        freePlanAllowed: team.freePlanAllowed,
         plan: team.plan,
       });
     }
@@ -113,6 +116,7 @@ export default function AdminTeamsPage() {
         apiRateLimit: updated.apiRateLimit,
         dailyEmailLimit: updated.dailyEmailLimit,
         isBlocked: updated.isBlocked,
+        freePlanAllowed: updated.freePlanAllowed,
         plan: updated.plan,
       });
       toast.success("Team settings updated");
@@ -338,6 +342,30 @@ export default function AdminTeamsPage() {
                           />
                           <span className="text-sm text-muted-foreground">
                             {field.value ? "Team is blocked" : "Team is active"}
+                          </span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={updateForm.control}
+                  name="freePlanAllowed"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Free plan</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={updateTeam.isPending}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {field.value
+                              ? "Can send on the free plan"
+                              : "Needs a paid plan to send"}
                           </span>
                         </div>
                       </FormControl>

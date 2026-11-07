@@ -8,6 +8,7 @@ import {
 } from "@usesend/ui/src/sidebar";
 import { useIsMobile } from "@usesend/ui/src/hooks/use-mobile";
 import { UpgradeModal } from "~/components/payments/UpgradeModal";
+import { SendingStatusBanner } from "~/components/SendingStatusBanner";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
@@ -38,6 +39,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             {isMobile ? (
               <SidebarTrigger className="h-5 w-5 text-muted-foreground" />
             ) : null}
+            <SendingStatusBanner />
             {children}
           </main>
         </SidebarInset>

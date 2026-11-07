@@ -158,6 +158,16 @@ export class LimitService {
       };
     }
 
+    // Teams created after paid-only signups need a plan to send. Strict
+    // `=== false` so a team cached before this field existed isn't caught.
+    if (getActivePlan(team) === "FREE" && team.freePlanAllowed === false) {
+      return {
+        isLimitReached: true,
+        limit: 0,
+        reason: LimitReason.EMAIL_PLAN_REQUIRED,
+      };
+    }
+
     // Enforce daily sending limit (team-specific)
     const usage = await withCache(
       `usage:this-month:${teamId}`,

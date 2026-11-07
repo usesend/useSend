@@ -91,6 +91,34 @@ model User {
   sessions         Session[]
   teamUsers        TeamUser[]
   webhookEndpoints Webhook[]
+  waitlistApplication WaitlistApplication?
+}
+
+enum WaitlistStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// What a waitlisted user told us about themselves. Reviewed before they get access.
+model WaitlistApplication {
+  id          String         @id @default(cuid())
+  userId      Int            @unique
+  email       String
+  website     String
+  domain      String
+  emailTypes  String[]
+  emailVolume String
+  listSource  String
+  description String
+  status      WaitlistStatus @default(PENDING)
+  reviewedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
 }
 
 enum Plan {
@@ -112,6 +140,8 @@ model Team {
   isVerified       Boolean           @default(false)
   dailyEmailLimit  Int               @default(10000)
   isBlocked        Boolean           @default(false)
+  /// Teams created before paid-only signups may keep sending on the free plan.
+  freePlanAllowed  Boolean           @default(false)
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]
