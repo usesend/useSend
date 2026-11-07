@@ -422,36 +422,42 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { teamId, sendingPaused, ...data } = input;
 
-      const existing = await db.team.findUnique({
-        where: { id: teamId },
-        select: { isBlocked: true, sendingPausedAt: true },
-      });
-      if (!existing) {
-        throw new Error("Team not found");
-      }
-
       const actor = `admin:${ctx.session.user.email ?? ctx.session.user.id}`;
-      const actions: Prisma.TeamActionCreateManyInput[] = [];
-      if (existing.isBlocked !== data.isBlocked) {
-        actions.push({
-          teamId,
-          actor,
-          action: data.isBlocked ? "BLOCK" : "UNBLOCK",
-          reason: data.isBlocked
-            ? "Blocked by an admin"
-            : "Unblocked by an admin",
-        });
-      }
-      if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
-        actions.push({
-          teamId,
-          actor,
-          action: sendingPaused ? "PAUSE" : "RESUME",
-          reason: sendingPaused ? "Paused by an admin" : "Resumed by an admin",
-        });
-      }
 
       const updatedTeam = await db.$transaction(async (tx) => {
+        // Lock the row so a concurrent pause or block by the sending rules
+        // can't be overwritten without being logged.
+        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+        const existing = await tx.team.findUnique({
+          where: { id: teamId },
+          select: { isBlocked: true, sendingPausedAt: true },
+        });
+        if (!existing) {
+          throw new Error("Team not found");
+        }
+
+        const actions: Prisma.TeamActionCreateManyInput[] = [];
+        if (existing.isBlocked !== data.isBlocked) {
+          actions.push({
+            teamId,
+            actor,
+            action: data.isBlocked ? "BLOCK" : "UNBLOCK",
+            reason: data.isBlocked
+              ? "Blocked by an admin"
+              : "Unblocked by an admin",
+          });
+        }
+        if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
+          actions.push({
+            teamId,
+            actor,
+            action: sendingPaused ? "PAUSE" : "RESUME",
+            reason: sendingPaused
+              ? "Paused by an admin"
+              : "Resumed by an admin",
+          });
+        }
+
         const team = await tx.team.update({
           where: { id: teamId },
           data: {
@@ -462,6 +468,17 @@ export const adminRouter = createTRPCRouter({
           },
           select: teamAdminSelection,
         });
+
+        const stopsSending =
+          (data.isBlocked && !existing.isBlocked) ||
+          (sendingPaused && !existing.sendingPausedAt);
+        if (stopsSending) {
+          await tx.campaign.updateMany({
+            where: { teamId, status: { in: ["RUNNING", "SCHEDULED"] } },
+            data: { status: "PAUSED" },
+          });
+        }
+
         if (actions.length > 0) {
           await tx.teamAction.createMany({ data: actions });
         }

@@ -13,6 +13,7 @@ const {
     SENDING_RULES_MODE: "enforce" as "off" | "alert" | "enforce",
   },
   mockDb: {
+    $transaction: vi.fn(),
     team: { findUnique: vi.fn(), updateMany: vi.fn() },
     campaign: { findFirst: vi.fn(), updateMany: vi.fn() },
     teamAction: { findFirst: vi.fn(), create: vi.fn() },
@@ -58,6 +59,11 @@ import {
   isSpamTrapBounce,
   judgeCounts,
 } from "~/server/service/sending-rules-service";
+
+/** Lets the notices that run in the background finish. */
+async function flush() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function usage(sent: number, hardBounced: number, complained = 0) {
   mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
@@ -138,6 +144,9 @@ describe("checkSendingHealth", () => {
     redisStore.clear();
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
     mockEnv.SENDING_RULES_MODE = "enforce";
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: typeof mockDb) => unknown) => fn(mockDb),
+    );
     mockDb.team.findUnique.mockResolvedValue({ name: "Acme" });
     mockDb.team.updateMany.mockResolvedValue({ count: 1 });
     mockDb.campaign.updateMany.mockResolvedValue({ count: 1 });
@@ -156,7 +165,9 @@ describe("checkSendingHealth", () => {
     usage(1000, 30);
 
     await checkSendingHealth({ teamId: 1 });
+    await flush();
 
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(mockDb.team.updateMany).toHaveBeenCalledWith({
       where: { id: 1, isBlocked: false, sendingPausedAt: null },
       data: { sendingPausedAt: expect.any(Date) },
@@ -221,6 +232,7 @@ describe("checkSendingHealth", () => {
 
     await checkSendingHealth({ teamId: 1 });
     await checkSendingHealth({ teamId: 1 });
+    await flush();
 
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
@@ -242,9 +254,11 @@ describe("checkSendingHealth", () => {
       sent: 400,
       hardBounced: 20,
       complained: 0,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
     });
 
     await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
+    await flush();
 
     expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
       where: { id: "cmp_1", status: { in: ["RUNNING", "SCHEDULED"] } },
@@ -261,6 +275,7 @@ describe("checkSendingHealth", () => {
       sent: 400,
       hardBounced: 20,
       complained: 0,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
       args.where.details ? { id: "act_1" } : null,
@@ -269,6 +284,38 @@ describe("checkSendingHealth", () => {
     await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
 
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("doesn't let an old campaign re-block a team an admin unblocked", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({
+      id: "cmp_1",
+      name: "Old blast",
+      sent: 400,
+      hardBounced: 200,
+      complained: 0,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
+    });
+    mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
+      args.where.action?.in
+        ? { createdAt: new Date("2026-11-05T00:00:00Z") }
+        : null,
+    );
+
+    await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
+
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps processing when a notice fails", async () => {
+    usage(1000, 30);
+    mockSendToDiscord.mockRejectedValue(new Error("discord down"));
+    mockSendMail.mockRejectedValue(new Error("smtp down"));
+
+    await expect(checkSendingHealth({ teamId: 1 })).resolves.toBeUndefined();
+    await flush();
+
+    expect(mockDb.teamAction.create).toHaveBeenCalledTimes(1);
   });
 
   it("ignores days up to an admin resume", async () => {
