@@ -69,6 +69,8 @@ function getCampaigns(app: PublicAPIApp) {
 
 		const whereConditions: Prisma.CampaignWhereInput = {
 			teamId: team.id,
+			// Domain-restricted API keys only see campaigns sent from that domain
+			...(team.apiKey.domainId ? { domainId: team.apiKey.domainId } : {}),
 		};
 
 		if (statusParam) {

@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { PublicAPIApp } from "~/server/public-api/hono";
+import { assertCampaignInApiKeyScope } from "~/server/public-api/api-key-scope";
 import {
   resumeCampaign,
 } from "~/server/service/campaign-service";
@@ -39,6 +40,7 @@ function resumeCampaignHandle(app: PublicAPIApp) {
   app.openapi(route, async (c) => {
     const team = c.var.team;
     const campaignId = c.req.param("campaignId");
+    await assertCampaignInApiKeyScope(team, campaignId);
 
     await resumeCampaign({
       campaignId,
