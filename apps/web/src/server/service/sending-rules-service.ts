@@ -60,7 +60,7 @@ export async function unsentCampaignIds(
   teamId: number,
 ): Promise<string[]> {
   const campaigns = await client.campaign.findMany({
-    where: { teamId, sent: 0, status: { not: "SENT" } },
+    where: { teamId, sent: 0, acceptedSends: 0, status: { not: "SENT" } },
     select: { id: true },
     orderBy: { createdAt: "desc" },
     take: 1000,
