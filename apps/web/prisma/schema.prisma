@@ -168,10 +168,9 @@ model SendingCohort {
   teamId      Int
   /// YYYY-MM-DD (UTC) the emails were sent
   date        String
-  sent        Int      @default(0)
-  hardBounced Int      @default(0)
-  complained  Int      @default(0)
-  createdAt   DateTime @default(now())
+  sent        Int    @default(0)
+  hardBounced Int    @default(0)
+  complained  Int    @default(0)
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
@@ -338,6 +337,9 @@ model Email {
   contactId    String?
   inReplyToId  String?
   headers      String?
+  /// Day (YYYY-MM-DD, UTC) this email was counted as sent for the sending
+  /// rules. Its bounces and complaints are filed under the same day.
+  cohortDate   String?
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
@@ -448,6 +450,8 @@ model Campaign {
   bounced            Int            @default(0)
   hardBounced        Int            @default(0)
   complained         Int            @default(0)
+  /// Emails handed to SES, counted at send time for the sending rules.
+  acceptedSends      Int            @default(0)
   isApi              Boolean        @default(false)
   status             CampaignStatus @default(DRAFT)
   batchSize          Int            @default(500)

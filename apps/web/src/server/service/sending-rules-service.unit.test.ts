@@ -255,6 +255,7 @@ describe("checkSendingHealth", () => {
       sent: 400,
       delivered: 380,
       bounced: 20,
+      acceptedSends: 0,
       hardBounced: 20,
       complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
@@ -278,6 +279,7 @@ describe("checkSendingHealth", () => {
       sent: 400,
       delivered: 380,
       bounced: 20,
+      acceptedSends: 0,
       hardBounced: 20,
       complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
@@ -291,6 +293,26 @@ describe("checkSendingHealth", () => {
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
 
+  it("counts campaign sends at send time, not when SES reports them", async () => {
+    // 10 bounces processed before the Send events for 10,000 accepted emails.
+    mockDb.campaign.findFirst.mockResolvedValue({
+      id: "cmp_1",
+      name: "Big send",
+      sent: 10,
+      delivered: 0,
+      bounced: 10,
+      acceptedSends: 10_000,
+      hardBounced: 10,
+      complained: 0,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
+    });
+
+    await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
+
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
   it("doesn't judge an already-sent campaign on old totals after an unblock", async () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
@@ -298,6 +320,7 @@ describe("checkSendingHealth", () => {
       sent: 100_000,
       delivered: 99_000,
       bounced: 0,
+      acceptedSends: 0,
       hardBounced: 0,
       complained: 3,
       createdAt: new Date("2026-11-01T00:00:00Z"),
@@ -325,6 +348,7 @@ describe("checkSendingHealth", () => {
       sent: 400,
       delivered: 200,
       bounced: 200,
+      acceptedSends: 0,
       hardBounced: 200,
       complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),

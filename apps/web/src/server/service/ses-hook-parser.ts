@@ -316,7 +316,7 @@ export async function parseSesHook(data: SesEvent) {
 
   if (outcome && !isDuplicateOutcome) {
     try {
-      await recordOutcome(email.teamId, new Date(data.mail.timestamp), outcome);
+      await recordOutcome(email, outcome);
       await checkSendingHealth({
         teamId: email.teamId,
         campaignId: email.campaignId,
