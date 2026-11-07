@@ -14,8 +14,9 @@ const {
   },
   mockDb: {
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
     team: { findUnique: vi.fn(), updateMany: vi.fn() },
-    campaign: { findFirst: vi.fn(), updateMany: vi.fn() },
+    campaign: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
     teamAction: { findFirst: vi.fn(), create: vi.fn() },
     dailyEmailUsage: { aggregate: vi.fn() },
   },
@@ -286,25 +287,75 @@ describe("checkSendingHealth", () => {
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
 
-  it("doesn't let an old campaign re-block a team an admin unblocked", async () => {
+  it("only counts a campaign's bounces since an admin unblock", async () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Old blast",
-      sent: 400,
-      hardBounced: 200,
+      sent: 500,
+      hardBounced: 202,
       complained: 0,
-      createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
       args.where.action?.in
-        ? { createdAt: new Date("2026-11-05T00:00:00Z") }
+        ? {
+            id: "reset_1",
+            createdAt: new Date("2026-11-05T00:00:00Z"),
+            details: {
+              campaignBaselines: {
+                cmp_1: { sent: 400, hardBounced: 200, complained: 0 },
+              },
+            },
+          }
         : null,
     );
 
     await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
 
+    // 2 bounces out of 100 since the unblock: fine.
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still checks a draft that first sends after an unblock", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({
+      id: "cmp_draft",
+      name: "Draft",
+      sent: 400,
+      hardBounced: 200,
+      complained: 0,
+    });
+    mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
+      args.where.action?.in
+        ? {
+            id: "reset_1",
+            createdAt: new Date("2026-11-05T00:00:00Z"),
+            details: { campaignBaselines: {} },
+          }
+        : null,
+    );
+
+    await checkSendingHealth({ teamId: 1, campaignId: "cmp_draft" });
+
+    expect(mockDb.team.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, isBlocked: false },
+      data: { isBlocked: true },
+    });
+  });
+
+  it("doesn't re-block on old counts when an admin unblocked mid-check", async () => {
+    usage(1000, 0, 4);
+    // No reset when the check starts; one appears before it acts.
+    mockDb.teamAction.findFirst.mockResolvedValueOnce(null).mockResolvedValue({
+      id: "reset_new",
+      createdAt: new Date(),
+      details: null,
+    });
+
+    await checkSendingHealth({ teamId: 1 });
+
+    expect(mockDb.$queryRaw).toHaveBeenCalled();
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.teamAction.create).not.toHaveBeenCalled();
   });
 
   it("keeps processing when a notice fails", async () => {
