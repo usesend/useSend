@@ -17,6 +17,7 @@ const {
   mockRecordOutcome: vi.fn(),
   mockDb: {
     $executeRaw: vi.fn(),
+    $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     email: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -289,7 +290,23 @@ describe("parseSesHook sending rules", () => {
     expect(mockRecordOutcome).not.toHaveBeenCalled();
   });
 
-  it("gives the claim back if saving the counts fails, so a retry counts it", async () => {
+  it("writes both usage counters in one transaction", async () => {
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockDb.$transaction.mock.calls[0]?.[0]).toHaveLength(2);
+  });
+
+  it("keeps the claim if the rule counter fails, so it can't count twice", async () => {
+    mockRecordOutcome.mockRejectedValueOnce(new Error("db busy"));
+
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockReleaseOutcome).not.toHaveBeenCalled();
+    expect(mockDb.emailEvent.create).toHaveBeenCalled();
+  });
+
+  it("gives the claim back if saving the counts fails, so a replay counts it", async () => {
     mockDb.dailyEmailUsage.upsert.mockRejectedValue(new Error("db busy"));
 
     await expect(

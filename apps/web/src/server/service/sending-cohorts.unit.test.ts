@@ -53,7 +53,9 @@ describe("sending cohorts", () => {
     mockDb.$transaction.mockResolvedValue([]);
   });
 
-  afterEach(() => {});
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   function freezeDate() {
     vi.useFakeTimers();
