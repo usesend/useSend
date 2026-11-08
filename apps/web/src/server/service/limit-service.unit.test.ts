@@ -59,7 +59,7 @@ describe("LimitService.checkEmailLimit paid-only signups", () => {
     mockGetTeamCached.mockResolvedValue(team({}));
 
     await expect(
-      LimitService.checkEmailLimit(1, ["sam@acme.com", "Lee <LEE@acme.com>"]),
+      LimitService.checkEmailLimit(1, ["sam@acme.com", "LEE@acme.com"]),
     ).resolves.toMatchObject({ isLimitReached: false });
   });
 

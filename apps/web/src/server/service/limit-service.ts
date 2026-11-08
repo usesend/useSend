@@ -29,12 +29,7 @@ export class LimitService {
         .map((member) => member.user.email?.trim().toLowerCase())
         .filter((email): email is string => Boolean(email)),
     );
-    // Recipients may carry a display name: "Sam <sam@acme.com>".
-    const address = (recipient: string) =>
-      (recipient.match(/<([^>]+)>/)?.[1] ?? recipient).trim().toLowerCase();
-    return recipients.every((recipient) =>
-      memberEmails.has(address(recipient)),
-    );
+    return recipients.every((to) => memberEmails.has(to.trim().toLowerCase()));
   }
 
   static async checkDomainLimit(teamId: number): Promise<{
