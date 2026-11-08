@@ -1,6 +1,7 @@
 import { Rocket } from "lucide-react";
 
 import { getServerAuthSession } from "~/server/auth";
+import { db } from "~/server/db";
 import { WaitListForm } from "./waitlist-form";
 import { redirect } from "next/navigation";
 
@@ -12,6 +13,9 @@ export default async function WaitListPage() {
   }
 
   const userEmail = session.user.email ?? "";
+  const application = await db.waitlistApplication.findUnique({
+    where: { userId: session.user.id },
+  });
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
@@ -28,7 +32,34 @@ export default async function WaitListPage() {
           </div>
         </div>
 
-        <WaitListForm userEmail={userEmail} />
+        {application ? (
+          <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm">
+            <p className="font-medium">We got your application.</p>
+            <p className="mt-1 text-muted-foreground">
+              We&apos;ll email you at {userEmail} once we&apos;ve reviewed it.
+              You can update your answers below.
+            </p>
+          </div>
+        ) : null}
+
+        <WaitListForm
+          userEmail={userEmail}
+          initialValues={
+            application
+              ? {
+                  website: application.website,
+                  emailTypes: application.emailTypes.filter(
+                    (type): type is "transactional" | "marketing" =>
+                      type === "transactional" || type === "marketing",
+                  ),
+                  emailVolume: application.emailVolume,
+                  listSource: application.listSource,
+                  description: application.description,
+                }
+              : undefined
+          }
+          isUpdate={Boolean(application)}
+        />
       </div>
     </div>
   );

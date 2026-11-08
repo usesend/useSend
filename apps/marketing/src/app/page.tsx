@@ -57,7 +57,7 @@ function Hero() {
         </div>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Open source • Self-host in minutes • Free tier
+          Open source • Self-host for free • $10 a month on cloud
         </p>
 
         <div className="mt-12 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-4">
@@ -346,21 +346,20 @@ function Features() {
 // CodeExample moved to a dedicated client component in ~/components/CodeExample
 
 function Pricing() {
-  const freePerks = [
-    "Send up to 3000 emails per month",
-    "Send up to 100 emails per day",
-    "Can have 1 contact book",
-    "Can have 1 domain",
-    "Can have 1 team member",
+  const selfHostPerks = [
+    "Open source, run it on your own servers",
+    "Sends through your own AWS SES account",
+    "You pay AWS directly, about $0.10 per 1,000 emails",
+    "Unlimited domains, contact books and team members",
+    "Set up in minutes with Docker or Railway",
   ];
 
-  const paidPerks = [
-    "$10 monthly usage credits",
-    "Send transactional emails at $0.0004 per email",
-    "Send marketing emails at $0.001 per email",
-    "Can have unlimited contact books",
-    "Can have unlimited domains",
-    "Can have unlimited team members",
+  const cloudPerks = [
+    "Includes 25,000 transactional or 10,000 marketing emails a month",
+    "Then $0.40 per 1,000 transactional and $1 per 1,000 marketing emails",
+    "Unlimited domains, contact books and team members",
+    "We run it for you",
+    "Cancel anytime",
   ];
 
   return (
@@ -377,16 +376,20 @@ function Pricing() {
 
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
           <PricingCard
-            title="Free"
+            title="Self-host"
             price="$0"
-            note="per month"
-            perks={freePerks}
+            note="free forever"
+            perks={selfHostPerks}
+            cta="Self-hosting guide"
+            href="https://docs.usesend.com/self-hosting/overview"
           />
           <PricingCard
-            title="Paid"
+            title="Cloud"
             price="$10"
-            note="minimum usage per month"
-            perks={paidPerks}
+            note="a month, then pay as you go"
+            perks={cloudPerks}
+            cta="Get started"
+            href={APP_URL}
           />
         </div>
 
@@ -403,9 +406,18 @@ type PricingCardProps = {
   price: string;
   note: string;
   perks: string[];
+  cta: string;
+  href: string;
 };
 
-function PricingCard({ title, price, note, perks }: PricingCardProps) {
+function PricingCard({
+  title,
+  price,
+  note,
+  perks,
+  cta,
+  href,
+}: PricingCardProps) {
   return (
     <div className="rounded-[18px] bg-primary/20 p-1">
       <div className="h-full rounded-[14px] bg-primary/20 p-0.5 shadow-sm">
@@ -423,12 +435,8 @@ function PricingCard({ title, price, note, perks }: PricingCardProps) {
           </ul>
           <div className="mt-auto pt-6">
             <Button className="">
-              <a
-                href="https://app.usesend.com"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Get started
+              <a href={href} target="_blank" rel="noopener noreferrer">
+                {cta}
               </a>
             </Button>
           </div>

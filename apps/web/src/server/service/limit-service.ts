@@ -17,6 +17,21 @@ function getActivePlan(team: { plan: Plan; isActive: boolean }): Plan {
 }
 
 export class LimitService {
+  /** True when every recipient is a member of the team (a test send to themselves). */
+  static async onlyToTeamMembers(teamId: number, recipients: string[]) {
+    if (recipients.length === 0) return false;
+    const members = await db.teamUser.findMany({
+      where: { teamId },
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmails = new Set(
+      members
+        .map((member) => member.user.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    );
+    return recipients.every((to) => memberEmails.has(to.trim().toLowerCase()));
+  }
+
   static async checkDomainLimit(teamId: number): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -136,7 +151,10 @@ export class LimitService {
   // - Sends "warning" emails when nearing daily/monthly limits (rate-limited in TeamService)
   // - Sends "limit reached" notifications when limits are exceeded (rate-limited in TeamService)
   // - Teams with inactive subscriptions are treated like FREE plans for monthly limit alerts
-  static async checkEmailLimit(teamId: number): Promise<{
+  static async checkEmailLimit(
+    teamId: number,
+    recipients: string[] = [],
+  ): Promise<{
     isLimitReached: boolean;
     limit: number;
     reason?: LimitReason;
@@ -155,6 +173,21 @@ export class LimitService {
         isLimitReached: true,
         limit: 0,
         reason: LimitReason.EMAIL_BLOCKED,
+      };
+    }
+
+    // Teams created after paid-only signups need to pay to send, except test
+    // emails to their own members. Strict `=== false` so a team cached before
+    // this field existed isn't caught.
+    if (
+      getActivePlan(team) === "FREE" &&
+      team.freePlanAllowed === false &&
+      !(await LimitService.onlyToTeamMembers(teamId, recipients))
+    ) {
+      return {
+        isLimitReached: true,
+        limit: 0,
+        reason: LimitReason.EMAIL_PLAN_REQUIRED,
       };
     }
 

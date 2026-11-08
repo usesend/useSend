@@ -24,23 +24,33 @@ import {
 } from "./schema";
 import { api } from "~/trpc/react";
 import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 type WaitListFormProps = {
   userEmail: string;
+  initialValues?: WaitlistSubmissionInput;
+  isUpdate?: boolean;
 };
 
-const EMAIL_TYPE_LABEL: Record<(typeof WAITLIST_EMAIL_TYPES)[number], string> = {
-  transactional: "Transactional",
-  marketing: "Marketing",
-};
+const EMAIL_TYPE_LABEL: Record<(typeof WAITLIST_EMAIL_TYPES)[number], string> =
+  {
+    transactional: "Transactional",
+    marketing: "Marketing",
+  };
 
-export function WaitListForm({ userEmail }: WaitListFormProps) {
+export function WaitListForm({
+  userEmail,
+  initialValues,
+  isUpdate = false,
+}: WaitListFormProps) {
+  const router = useRouter();
   const form = useForm<WaitlistSubmissionInput>({
     resolver: zodResolver(waitlistSubmissionSchema),
-    defaultValues: {
-      domain: "",
+    defaultValues: initialValues ?? {
+      website: "",
       emailTypes: [],
       emailVolume: "",
+      listSource: "",
       description: "",
     },
   });
@@ -48,9 +58,11 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const submitRequest = api.waitlist.submitRequest.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, values) => {
       toast.success("Thanks! We'll reach out shortly.");
-      form.reset();
+      form.reset(values);
+      // Shows the "we got your application" note.
+      router.refresh();
     },
     onError: (error) => {
       toast.error(error.message ?? "Something went wrong");
@@ -78,14 +90,14 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
       >
         <FormField
           control={form.control}
-          name="domain"
+          name="website"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Primary domain</FormLabel>
+              <FormLabel>Website</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="acme.com"
-                  autoComplete="off"
+                  placeholder="https://acme.com"
+                  autoComplete="url"
                   {...field}
                   value={field.value}
                 />
@@ -108,7 +120,7 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
           render={({ field }) => {
             const selected = field.value ?? [];
             const handleToggle = (
-              option: (typeof WAITLIST_EMAIL_TYPES)[number]
+              option: (typeof WAITLIST_EMAIL_TYPES)[number],
             ) => {
               if (selected.includes(option)) {
                 field.onChange(selected.filter((value) => value !== option));
@@ -168,6 +180,25 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
 
         <FormField
           control={form.control}
+          name="listSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>How do people end up on your email list?</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={3}
+                  placeholder="e.g., They sign up for our app, or subscribe on our blog"
+                  {...field}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
@@ -209,6 +240,8 @@ export function WaitListForm({ userEmail }: WaitListFormProps) {
                 <>
                   <Spinner className="mr-2 h-4 w-4" /> Sending...
                 </>
+              ) : isUpdate ? (
+                "Update application"
               ) : (
                 "Request Access"
               )}

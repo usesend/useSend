@@ -81,6 +81,8 @@ export default function AdminWaitlistPage() {
   const rejectWaitlist = api.admin.rejectWaitlistUser.useMutation({
     onSuccess: () => {
       toast.success("Rejection email sent");
+      // Refresh so the application shows as rejected.
+      if (userResult?.email) findUser.mutate({ email: userResult.email });
     },
     onError: (error) => {
       toast.error(error.message ?? "Unable to send rejection email");
@@ -115,7 +117,11 @@ export default function AdminWaitlistPage() {
     <div className="space-y-6">
       <div className="rounded-lg border p-6 shadow-sm">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4"
+            noValidate
+          >
             <FormField
               control={form.control}
               name="email"
@@ -160,7 +166,9 @@ export default function AdminWaitlistPage() {
               <p className="text-sm text-muted-foreground">Email</p>
               <p className="text-base font-medium">{userResult.email}</p>
             </div>
-            <Badge variant={userResult.isWaitlisted ? "destructive" : "outline"}>
+            <Badge
+              variant={userResult.isWaitlisted ? "destructive" : "outline"}
+            >
               {userResult.isWaitlisted ? "Waitlisted" : "Active"}
             </Badge>
           </div>
@@ -178,6 +186,69 @@ export default function AdminWaitlistPage() {
                 })}
               </p>
             </div>
+          </div>
+
+          <div className="space-y-3 border-t pt-4 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">Application</p>
+              {userResult.waitlistApplication ? (
+                <Badge variant="outline">
+                  {userResult.waitlistApplication.status.toLowerCase()} ·
+                  submitted{" "}
+                  {formatDistanceToNow(
+                    new Date(userResult.waitlistApplication.updatedAt),
+                    { addSuffix: true },
+                  )}
+                </Badge>
+              ) : null}
+            </div>
+            {userResult.waitlistApplication ? (
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Website</dt>
+                  <dd>
+                    <a
+                      href={userResult.waitlistApplication.website}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="underline"
+                    >
+                      {userResult.waitlistApplication.website}
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Email types</dt>
+                  <dd className="capitalize">
+                    {userResult.waitlistApplication.emailTypes.join(", ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Volume</dt>
+                  <dd className="whitespace-pre-wrap">
+                    {userResult.waitlistApplication.emailVolume}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">
+                    How people join their list
+                  </dt>
+                  <dd className="whitespace-pre-wrap">
+                    {userResult.waitlistApplication.listSource}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">What they'll send</dt>
+                  <dd className="whitespace-pre-wrap">
+                    {userResult.waitlistApplication.description}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-muted-foreground">
+                No application yet. They haven't filled in the waitlist form.
+              </p>
+            )}
           </div>
 
           <div className="space-y-4 border-t pt-4">
@@ -204,7 +275,8 @@ export default function AdminWaitlistPage() {
               <div>
                 <p className="text-sm font-medium">Reject waitlist request</p>
                 <p className="text-sm text-muted-foreground">
-                  Send the applicant a rejection email without changing their waitlist status.
+                  Send the applicant a rejection email and mark their
+                  application rejected. They stay on the waitlist.
                 </p>
               </div>
               <Button

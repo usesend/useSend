@@ -10,6 +10,9 @@ type Team = {
   createdAt: Date;
   updatedAt: Date;
   plan: "FREE" | "BASIC";
+  isActive: boolean;
+  isBlocked: boolean;
+  freePlanAllowed: boolean;
   stripeCustomerId?: string | null;
   billingEmail?: string | null;
 };
