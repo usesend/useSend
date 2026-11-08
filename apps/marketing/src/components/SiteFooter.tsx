@@ -1,168 +1,28 @@
-import Image from "next/image";
 import Link from "next/link";
-// Replaced StatusBadge with external status badge image
-
-const REPO = "usesend/usesend";
-const REPO_URL = `https://github.com/${REPO}`;
-const APP_URL = "https://app.usesend.com";
 
 export function SiteFooter() {
   return (
-    <footer className="py-10 border-t border-border">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <div className="flex items-center gap-2 sm:w-56">
-            <Image
-              src="/logo-squircle.png"
-              alt="useSend"
-              width={24}
-              height={24}
-            />
-            <span className="text-primary font-mono">useSend</span>
-          </div>
-
-          <div className="sm:ml-auto flex items-start gap-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-12 gap-y-2 text-sm">
-              <div>
-                <div className="text-xs uppercase tracking-wider mb-2">
-                  Product
-                </div>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li>
-                    <a
-                      href={APP_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Dashboard
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href={REPO_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      GitHub
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://docs.usesend.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Docs
-                    </a>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <div className="text-xs uppercase tracking-wider  mb-2">
-                  Contact
-                </div>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li>
-                    <a
-                      href="mailto:hey@usesend.com"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Email
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://x.com/useSend_com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      X (Twitter)
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://www.linkedin.com/company/use-send/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      LinkedIn
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://discord.com/invite/BU8n8pJv8S"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Discord
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://bsky.app/profile/usesend.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Bluesky
-                    </a>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <div className="text-xs uppercase tracking-wider mb-2">
-                  Company
-                </div>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li>
-                    <Link
-                      href="/privacy"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Privacy
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/terms"
-                      className="hover:text-foreground text-xs"
-                    >
-                      Terms
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <a
-              href="https://status.usesend.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Service status"
-              title="Service status"
-              className="inline-flex items-center"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://status.usesend.com/api/badge/2/status?upColor=30D9BD&style=plastic"
-                alt="Service status"
-                className="h-5"
-              />
-            </a>
-          </div>
+    <footer className="border-t border-slate-200 bg-white py-10 dark:border-slate-800 dark:bg-[#080d18]">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 sm:px-8 md:flex-row md:items-center md:justify-between">
+        <div>
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-xs font-bold text-cyan-300 dark:bg-cyan-300 dark:text-slate-950">O</span>
+            <span className="font-semibold tracking-tight text-slate-950 dark:text-white">OTP-AUTH</span>
+          </Link>
+          <p className="mt-3 max-w-sm text-xs leading-6 text-slate-500 dark:text-slate-400">
+            Developer email infrastructure for authentication, transactional
+            messaging and sender identity.
+          </p>
         </div>
-
-        <div className="mt-6 text-xs text-muted-foreground mx-auto text-center">
-          © {new Date().getFullYear()} useSend. All rights reserved.
+        <div className="flex flex-wrap gap-x-7 gap-y-3 text-xs font-medium text-slate-500 dark:text-slate-400">
+          <Link href="/#api" className="transition hover:text-slate-950 dark:hover:text-white">Platform</Link>
+          <Link href="/#senders" className="transition hover:text-slate-950 dark:hover:text-white">Sender identity</Link>
+          <Link href="/#workflow" className="transition hover:text-slate-950 dark:hover:text-white">Workflow</Link>
+          <a href="https://github.com/Abhilash-nallam/otp_auth" target="_blank" rel="noopener noreferrer" className="transition hover:text-slate-950 dark:hover:text-white">GitHub</a>
         </div>
+      </div>
+      <div className="mx-auto mt-8 max-w-7xl border-t border-slate-100 px-6 pt-6 text-[11px] text-slate-400 dark:border-slate-800 sm:px-8">
+        © {new Date().getFullYear()} OTP-AUTH. All rights reserved.
       </div>
     </footer>
   );
