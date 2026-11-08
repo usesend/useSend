@@ -18,8 +18,7 @@ import {
 import { WaitlistService } from "~/server/service/waitlist-service";
 
 const validInput = {
-  website: "acme.com/about",
-  domain: "Mail.Acme.com",
+  website: "www.Acme.com/about",
   emailTypes: ["transactional" as const],
   emailVolume: "About 500 a day",
   listSource: "People sign up for our app",
@@ -65,8 +64,8 @@ describe("waitlist applications", () => {
     expect(call.create).toMatchObject({
       userId: 7,
       email: "founder@acme.com",
-      website: "https://acme.com/about",
-      domain: "mail.acme.com",
+      website: "https://www.acme.com/about",
+      domain: "acme.com",
       listSource: "People sign up for our app",
       status: "PENDING",
     });

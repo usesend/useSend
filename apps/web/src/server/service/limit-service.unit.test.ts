@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnv, mockGetTeamCached } = vi.hoisted(() => ({
+const { mockEnv, mockGetTeamCached, mockTeamUsers } = vi.hoisted(() => ({
   mockEnv: { NEXT_PUBLIC_IS_CLOUD: true },
   mockGetTeamCached: vi.fn(),
+  mockTeamUsers: vi.fn(),
 }));
 
 vi.mock("~/env", () => ({ env: mockEnv }));
-vi.mock("~/server/db", () => ({ db: {} }));
+vi.mock("~/server/db", () => ({
+  db: { teamUser: { findMany: mockTeamUsers } },
+}));
 vi.mock("~/server/logger/log", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -46,6 +49,26 @@ describe("LimitService.checkEmailLimit paid-only signups", () => {
   beforeEach(() => {
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
     mockGetTeamCached.mockReset();
+    mockTeamUsers.mockResolvedValue([
+      { user: { email: "Sam@acme.com" } },
+      { user: { email: "lee@acme.com" } },
+    ]);
+  });
+
+  it("lets a new team send test emails to its own members", async () => {
+    mockGetTeamCached.mockResolvedValue(team({}));
+
+    await expect(
+      LimitService.checkEmailLimit(1, ["sam@acme.com", "Lee <LEE@acme.com>"]),
+    ).resolves.toMatchObject({ isLimitReached: false });
+  });
+
+  it("still stops a new team emailing anyone else", async () => {
+    mockGetTeamCached.mockResolvedValue(team({}));
+
+    await expect(
+      LimitService.checkEmailLimit(1, ["sam@acme.com", "someone@else.com"]),
+    ).resolves.toMatchObject({ reason: LimitReason.EMAIL_PLAN_REQUIRED });
   });
 
   it("stops a new team on the free plan from sending", async () => {

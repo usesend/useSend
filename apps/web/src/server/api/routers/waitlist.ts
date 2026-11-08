@@ -86,15 +86,14 @@ export const waitlistRouter = createTRPCRouter({
         .join(", ");
 
       const escapedDescription = escapeHtml(input.description);
-      const escapedDomain = escapeHtml(input.domain);
-      const escapedWebsite = escapeHtml(application.website);
+            const escapedWebsite = escapeHtml(application.website);
       const escapedListSource = escapeHtml(input.listSource);
       const escapedEmailVolume = escapeHtml(input.emailVolume);
       const subject = `Waitlist request from ${user.email ?? "unknown user"}`;
 
       const textBody = `A waitlisted user submitted a request:\n\nEmail: ${
         user.email ?? "Unknown"
-      }\nWebsite: ${application.website}\nDomain: ${input.domain}\nInterested emails: ${typesLabel}\nExpected sending volume: ${
+      }\nWebsite: ${application.website}\nInterested emails: ${typesLabel}\nExpected sending volume: ${
         input.emailVolume
       }\n\nHow people join the list:\n${input.listSource}\n\nDescription:\n${input.description}`;
 
@@ -103,7 +102,6 @@ export const waitlistRouter = createTRPCRouter({
         <ul>
           <li><strong>Email:</strong> ${escapeHtml(user.email ?? "Unknown")}</li>
           <li><strong>Website:</strong> ${escapedWebsite}</li>
-          <li><strong>Domain:</strong> ${escapedDomain}</li>
           <li><strong>Interested emails:</strong> ${escapeHtml(typesLabel)}</li>
           <li><strong>Expected sending volume:</strong> ${escapedEmailVolume}</li>
         </ul>

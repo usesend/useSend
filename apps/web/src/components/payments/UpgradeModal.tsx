@@ -39,7 +39,7 @@ export const UpgradeModal = () => {
                 [LimitReason.WEBHOOK]:
                   "You've reached the webhook limit for your current plan.",
                 [LimitReason.EMAIL_PLAN_REQUIRED]:
-                  "Pick a plan to start sending emails.",
+                  "Start sending for $10 a month.",
                 [LimitReason.EMAIL_BLOCKED]:
                   "You've reached the email sending limit for your current plan.",
                 [LimitReason.EMAIL_DAILY_LIMIT_REACHED]:

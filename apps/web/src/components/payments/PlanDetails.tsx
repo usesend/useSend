@@ -1,5 +1,5 @@
 import { Plan } from "@prisma/client";
-import { PLAN_PERKS } from "~/lib/constants/payments";
+import { PAY_AS_YOU_GO, PLAN_PERKS } from "~/lib/constants/payments";
 import { isEntitledSubscriptionStatus } from "~/lib/subscription-status";
 import { CheckCircle2 } from "lucide-react";
 import { api } from "~/trpc/react";
@@ -26,12 +26,13 @@ export const PlanDetails = () => {
   if (!isEntitled && currentTeam.freePlanAllowed === false) {
     return (
       <div>
-        <div className="text-lg">No plan yet</div>
+        <div className="text-lg">Pay as you go</div>
         <div className="text-muted-foreground text-sm">
-          Upgrade to Basic to start sending. Basic includes:
+          {PAY_AS_YOU_GO.price}. Your emails start sending once you&apos;re set
+          up.
         </div>
         <ul className="mt-4 space-y-3">
-          {PLAN_PERKS.BASIC.map((perk, index) => (
+          {PAY_AS_YOU_GO.details.map((perk, index) => (
             <li key={index} className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-green flex-shrink-0" />
               <span className="text-sm">{perk}</span>

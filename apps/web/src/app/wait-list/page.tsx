@@ -48,7 +48,6 @@ export default async function WaitListPage() {
             application
               ? {
                   website: application.website,
-                  domain: application.domain,
                   emailTypes: application.emailTypes.filter(
                     (type): type is "transactional" | "marketing" =>
                       type === "transactional" || type === "marketing",

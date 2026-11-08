@@ -48,7 +48,6 @@ export function WaitListForm({
     resolver: zodResolver(waitlistSubmissionSchema),
     defaultValues: initialValues ?? {
       website: "",
-      domain: "",
       emailTypes: [],
       emailVolume: "",
       listSource: "",
@@ -99,25 +98,6 @@ export function WaitListForm({
                 <Input
                   placeholder="https://acme.com"
                   autoComplete="url"
-                  {...field}
-                  value={field.value}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="domain"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Primary domain</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="acme.com"
-                  autoComplete="off"
                   {...field}
                   value={field.value}
                 />

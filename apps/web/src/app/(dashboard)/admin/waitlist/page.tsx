@@ -216,10 +216,6 @@ export default function AdminWaitlistPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Sending domain</dt>
-                  <dd>{userResult.waitlistApplication.domain}</dd>
-                </div>
-                <div>
                   <dt className="text-muted-foreground">Email types</dt>
                   <dd className="capitalize">
                     {userResult.waitlistApplication.emailTypes.join(", ")}

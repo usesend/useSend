@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@usesend/ui/src/button";
+import { PAY_AS_YOU_GO } from "~/lib/constants/payments";
+import { UpgradeButton } from "~/components/payments/UpgradeButton";
 import { useTeam } from "~/providers/team-context";
 import { isCloud } from "~/utils/common";
 
@@ -28,15 +28,13 @@ export function SendingStatusBanner() {
     return (
       <div className="mb-6 flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-medium">Pick a plan to start sending.</p>
+          <p className="font-medium">Start sending for {PAY_AS_YOU_GO.price}</p>
           <p className="mt-1 text-muted-foreground">
-            You can set up domains and API keys now. Emails go out once
-            you&apos;re on a plan.
+            {PAY_AS_YOU_GO.includes}, then you only pay for what you send. Until
+            then, you can send test emails to yourself.
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/settings/billing">Choose a plan</Link>
-        </Button>
+        <UpgradeButton className="mt-0 shrink-0" />
       </div>
     );
   }
