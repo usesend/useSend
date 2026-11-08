@@ -486,16 +486,10 @@ export const adminRouter = createTRPCRouter({
           });
         }
 
-        const team = await tx.team.update({
-          where: { id: teamId },
-          data: {
-            ...data,
-            sendingPausedAt: sendingPaused
-              ? (existing.sendingPausedAt ?? new Date())
-              : null,
-          },
-          select: teamAdminSelection,
-        });
+        // Log first, so the team returned below includes the new actions.
+        if (actions.length > 0) {
+          await tx.teamAction.createMany({ data: actions });
+        }
 
         const stopsSending =
           (data.isBlocked && !existing.isBlocked) ||
@@ -507,9 +501,17 @@ export const adminRouter = createTRPCRouter({
           });
         }
 
-        if (actions.length > 0) {
-          await tx.teamAction.createMany({ data: actions });
-        }
+        const team = await tx.team.update({
+          where: { id: teamId },
+          data: {
+            ...data,
+            sendingPausedAt: sendingPaused
+              ? (existing.sendingPausedAt ?? new Date())
+              : null,
+          },
+          select: teamAdminSelection,
+        });
+
         return team;
       });
 
