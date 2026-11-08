@@ -58,7 +58,7 @@ function OidcProvider(options: {
     profile(profile) {
       return {
         id: profile.sub,
-        email: profile.email ?? null,
+        email: profile.email?.toLowerCase() ?? null,
         name: profile.name ?? profile.preferred_username ?? null,
         image: profile.picture ?? null,
       } as never;

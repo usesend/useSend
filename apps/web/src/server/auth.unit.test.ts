@@ -167,7 +167,7 @@ describe("authOptions", () => {
       const profile = getOidcProvider()!.profile!(
         {
           sub: "zitadel-user-1",
-          email: "owner@example.com",
+          email: "Owner@Example.com",
           email_verified: true,
           name: "Owner",
           picture: "https://auth.example.com/avatar.png",

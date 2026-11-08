@@ -71,7 +71,8 @@ OIDC_NAME="Company SSO"
 
 Endpoints are discovered from `<OIDC_ISSUER>/.well-known/openid-configuration`.
 The provider must return `email_verified: true`; sign-ins with an unverified
-email are rejected. The usual registration rules still apply: the first user
+email are rejected, and the email is stored in lowercase. The usual registration
+rules still apply: the first user
 can register, later users need a team invitation.
   </Step>
   <Step title="Database & Redis">
