@@ -21,6 +21,19 @@ const waitlistUserSelection = {
   name: true,
   isWaitlisted: true,
   createdAt: true,
+  waitlistApplication: {
+    select: {
+      website: true,
+      domain: true,
+      emailTypes: true,
+      emailVolume: true,
+      listSource: true,
+      description: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } as const;
 
 function formatDisplayNameFromEmail(email: string) {

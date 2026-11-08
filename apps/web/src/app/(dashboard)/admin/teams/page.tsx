@@ -311,7 +311,11 @@ export default function AdminTeamsPage() {
                       <FormControl>
                         <Select
                           value={field.value}
-                          onValueChange={field.onChange}
+                          // Radix Select can report "" when the form resets,
+                          // which wiped the plan and broke every save.
+                          onValueChange={(value) => {
+                            if (value) field.onChange(value);
+                          }}
                           disabled={updateTeam.isPending}
                         >
                           <SelectTrigger>

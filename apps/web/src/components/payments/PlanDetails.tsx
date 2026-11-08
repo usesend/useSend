@@ -22,6 +22,26 @@ export const PlanDetails = () => {
     subscriptionQuery.data?.status,
   );
 
+  // New teams can't send on the free plan, so don't show it as their plan.
+  if (!isEntitled && currentTeam.freePlanAllowed === false) {
+    return (
+      <div>
+        <div className="text-lg">No plan yet</div>
+        <div className="text-muted-foreground text-sm">
+          Upgrade to Basic to start sending. Basic includes:
+        </div>
+        <ul className="mt-4 space-y-3">
+          {PLAN_PERKS.BASIC.map((perk, index) => (
+            <li key={index} className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green flex-shrink-0" />
+              <span className="text-sm">{perk}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="capitalize text-lg">
