@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdapterUser } from "next-auth/adapters";
+import type { OAuthConfig } from "next-auth/providers/oauth";
 
 const mocks = vi.hoisted(() => {
   const env = {
     GITHUB_ID: "github-client-id",
     GITHUB_SECRET: "github-client-secret",
+    OIDC_ISSUER: "https://auth.example.com/",
+    OIDC_CLIENT_ID: "oidc-client-id",
+    OIDC_CLIENT_SECRET: "oidc-client-secret",
+    OIDC_NAME: "Example SSO",
     NEXT_PUBLIC_IS_CLOUD: true,
   };
 
@@ -134,6 +139,112 @@ describe("authOptions", () => {
         clientSecret: "github-client-secret",
         issuer: "https://github.com/login/oauth",
       },
+    });
+  });
+
+  describe("OIDC provider", () => {
+    const getOidcProvider = () =>
+      authOptions.providers.find((provider) => provider.id === "oidc") as
+        | (OAuthConfig<Record<string, unknown>> & { options?: unknown })
+        | undefined;
+
+    it("discovers endpoints from the issuer and uses PKCE", () => {
+      expect(getOidcProvider()).toMatchObject({
+        id: "oidc",
+        name: "Example SSO",
+        type: "oauth",
+        wellKnown: "https://auth.example.com/.well-known/openid-configuration",
+        issuer: "https://auth.example.com",
+        clientId: "oidc-client-id",
+        clientSecret: "oidc-client-secret",
+        idToken: true,
+        checks: ["pkce", "state"],
+        authorization: { params: { scope: "openid email profile" } },
+      });
+    });
+
+    it("maps the OIDC profile to a user", () => {
+      const profile = getOidcProvider()!.profile!(
+        {
+          sub: "zitadel-user-1",
+          email: "owner@example.com",
+          email_verified: true,
+          name: "Owner",
+          picture: "https://auth.example.com/avatar.png",
+        },
+        {},
+      );
+
+      expect(profile).toEqual({
+        id: "zitadel-user-1",
+        email: "owner@example.com",
+        name: "Owner",
+        image: "https://auth.example.com/avatar.png",
+      });
+    });
+
+    it("rejects OIDC sign-ins whose email is not verified", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+
+      await expect(
+        authOptions.callbacks!.signIn!({
+          user: newUser,
+          account: {
+            provider: "oidc",
+            providerAccountId: "zitadel-user-1",
+            type: "oauth",
+          },
+          profile: { email: newUser.email, email_verified: false },
+        } as never),
+      ).resolves.toBe(false);
+      expect(mocks.userFindFirst).not.toHaveBeenCalled();
+    });
+
+    it("applies the registration policy to verified OIDC sign-ins", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+      mocks.userFindFirst.mockResolvedValue({ id: 1 });
+
+      await expect(
+        authOptions.callbacks!.signIn!({
+          user: newUser,
+          account: {
+            provider: "oidc",
+            providerAccountId: "zitadel-user-2",
+            type: "oauth",
+          },
+          profile: { email: newUser.email, email_verified: true },
+        } as never),
+      ).resolves.toBe(false);
+
+      mocks.userFindFirst.mockResolvedValue(null);
+
+      await expect(
+        authOptions.callbacks!.signIn!({
+          user: newUser,
+          account: {
+            provider: "oidc",
+            providerAccountId: "zitadel-user-2",
+            type: "oauth",
+          },
+          profile: { email: newUser.email, email_verified: true },
+        } as never),
+      ).resolves.toBe(true);
+    });
+
+    it("keeps GitHub sign-ins independent of the OIDC email check", async () => {
+      mocks.env.NEXT_PUBLIC_IS_CLOUD = false;
+
+      await expect(
+        authOptions.callbacks!.signIn!({
+          user: newUser,
+          account: {
+            provider: "github",
+            providerAccountId: "github-user-1",
+            type: "oauth",
+          },
+          profile: { email: newUser.email },
+        } as never),
+      ).resolves.toBe(true);
     });
   });
 

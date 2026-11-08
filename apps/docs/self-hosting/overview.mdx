@@ -52,6 +52,27 @@ GITHUB_SECRET="<your-github-client-secret>"
 ```
 
   <Info>If you want email/password login, please help us out with the [code](https://github.com/usesend/usesend) </Info>  
+
+### OpenID Connect (optional)
+
+Instead of (or as well as) GitHub, you can sign in through any OpenID Connect
+provider such as Zitadel, Keycloak or Authentik. Create a confidential web
+application (authorization code flow) with this redirect URI:
+
+Callback URL : `https://<your-usesend-instance>/api/auth/callback/oidc`
+
+```env
+OIDC_ISSUER="https://<your-identity-provider>"
+OIDC_CLIENT_ID="<your-oidc-client-id>"
+OIDC_CLIENT_SECRET="<your-oidc-client-secret>"
+# Optional, label of the login button (defaults to "SSO")
+OIDC_NAME="Company SSO"
+```
+
+Endpoints are discovered from `<OIDC_ISSUER>/.well-known/openid-configuration`.
+The provider must return `email_verified: true`; sign-ins with an unverified
+email are rejected. The usual registration rules still apply: the first user
+can register, later users need a team invitation.
   </Step>
   <Step title="Database & Redis">
   useSend uses Postgres as a database and Redis as a queue. You need to create a new database and add the following environment variables.
