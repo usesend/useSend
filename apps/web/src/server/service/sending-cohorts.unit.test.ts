@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockEnv, mockDb, redisStore, mockRedisSet } = vi.hoisted(() => {
   const redisStore = new Set<string>();
@@ -51,11 +51,17 @@ describe("sending cohorts", () => {
     redisStore.clear();
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
     mockDb.$transaction.mockResolvedValue([]);
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-11-09T10:00:00Z"));
   });
 
+  afterEach(() => {});
+
+  function freezeDate() {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-09T10:00:00Z"));
+  }
+
   it("counts the send and marks the email in one transaction", async () => {
+    freezeDate();
     await saveSentEmail({ id: "e1", teamId: 3, campaignId: "c1" }, sent);
 
     const ops = mockDb.$transaction.mock.calls[0]?.[0];
@@ -77,10 +83,10 @@ describe("sending cohorts", () => {
       where: { id: "e1" },
       data: { ...sent, cohortDate: "2026-11-09" },
     });
-    vi.useRealTimers();
   });
 
   it("still saves the email, unmarked, if counting fails", async () => {
+    freezeDate();
     mockDb.$transaction.mockRejectedValue(new Error("db busy"));
 
     await saveSentEmail({ id: "e1", teamId: 3, campaignId: null }, sent);
@@ -89,11 +95,9 @@ describe("sending cohorts", () => {
       where: { id: "e1" },
       data: sent,
     });
-    vi.useRealTimers();
   });
 
   it("files an outcome under the day its email was counted", async () => {
-    vi.useRealTimers();
     await expect(
       recordOutcome(
         { teamId: 3, campaignId: "c1", cohortDate: "2026-11-09" },
@@ -114,7 +118,6 @@ describe("sending cohorts", () => {
   });
 
   it("skips outcomes of emails whose send wasn't counted", async () => {
-    vi.useRealTimers();
     await expect(
       recordOutcome(
         { teamId: 3, campaignId: null, cohortDate: null },
@@ -126,21 +129,26 @@ describe("sending cohorts", () => {
   });
 
   it("claims each outcome once per email", async () => {
-    vi.useRealTimers();
-    await expect(claimOutcome("email_1", "complained")).resolves.toBe(true);
-    await expect(claimOutcome("email_1", "complained")).resolves.toBe(false);
-    await expect(claimOutcome("email_1", "hardBounced")).resolves.toBe(true);
+    await expect(claimOutcome("email_1", "complained")).resolves.toBe(
+      "claimed",
+    );
+    await expect(claimOutcome("email_1", "complained")).resolves.toBe(
+      "duplicate",
+    );
+    await expect(claimOutcome("email_1", "hardBounced")).resolves.toBe(
+      "claimed",
+    );
   });
 
-  it("doesn't count the event if Redis is unavailable", async () => {
-    vi.useRealTimers();
+  it("reports when Redis can't check for duplicates", async () => {
     mockRedisSet.mockRejectedValueOnce(new Error("redis down"));
 
-    await expect(claimOutcome("email_2", "complained")).resolves.toBe(false);
+    await expect(claimOutcome("email_2", "complained")).resolves.toBe(
+      "unavailable",
+    );
   });
 
   it("only saves the email on self-hosted", async () => {
-    vi.useRealTimers();
     mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
 
     await saveSentEmail({ id: "e1", teamId: 3, campaignId: null }, sent);

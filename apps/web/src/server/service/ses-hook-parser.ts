@@ -33,7 +33,7 @@ import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
 import { checkSendingHealth } from "./sending-rules-service";
 import { isSpamTrapBounce } from "./sending-rules";
-import { claimOutcome, recordOutcome } from "./sending-cohorts";
+import { claimOutcome, recordOutcome, releaseOutcome } from "./sending-cohorts";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -214,81 +214,90 @@ export async function parseSesHook(data: SesEvent) {
     : mailStatus === EmailStatus.COMPLAINED
       ? ("complained" as const)
       : null;
-  const isDuplicateOutcome = outcome
-    ? !(await claimOutcome(email.id, outcome))
-    : false;
+  const claim = outcome ? await claimOutcome(email.id, outcome) : null;
+  // "unavailable" (Redis failed) still updates the dashboards, as before;
+  // only a confirmed duplicate is skipped.
+  const isDuplicateOutcome = claim === "duplicate";
 
-  if (
-    !isDuplicateEngagement &&
-    !isDuplicateOutcome &&
-    [
-      "DELIVERED",
-      "OPENED",
-      "CLICKED",
-      "BOUNCED",
-      "COMPLAINED",
-      "SENT",
-    ].includes(mailStatus)
-  ) {
-    logger.info("Updating daily email usage");
-    const updateField = mailStatus.toLowerCase();
-
-    await db.dailyEmailUsage.upsert({
-      where: {
-        teamId_domainId_date_type: {
-          teamId: email.teamId,
-          domainId: email.domainId ?? 0,
-          date: today,
-          type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
-        },
-      },
-      create: {
-        teamId: email.teamId,
-        domainId: email.domainId ?? 0,
-        date: today,
-        type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
-        delivered: updateField === "delivered" ? 1 : 0,
-        opened: updateField === "opened" ? 1 : 0,
-        clicked: updateField === "clicked" ? 1 : 0,
-        bounced: updateField === "bounced" ? 1 : 0,
-        complained: updateField === "complained" ? 1 : 0,
-        sent: updateField === "sent" ? 1 : 0,
-        hardBounced: isHardBounced ? 1 : 0,
-      },
-      update: {
-        [updateField]: {
-          increment: 1,
-        },
-        ...(isHardBounced ? { hardBounced: { increment: 1 } } : {}),
-      },
-    });
-
+  try {
     if (
-      isHardBounced ||
-      updateField === "complained" ||
-      updateField === "delivered"
+      !isDuplicateEngagement &&
+      !isDuplicateOutcome &&
+      [
+        "DELIVERED",
+        "OPENED",
+        "CLICKED",
+        "BOUNCED",
+        "COMPLAINED",
+        "SENT",
+      ].includes(mailStatus)
     ) {
-      logger.info("Updating cumulated metrics");
-      const cumulatedField = isHardBounced ? "hardBounced" : updateField;
-      await db.cumulatedMetrics.upsert({
+      logger.info("Updating daily email usage");
+      const updateField = mailStatus.toLowerCase();
+
+      await db.dailyEmailUsage.upsert({
         where: {
-          teamId_domainId: {
+          teamId_domainId_date_type: {
             teamId: email.teamId,
             domainId: email.domainId ?? 0,
-          },
-        },
-        update: {
-          [cumulatedField]: {
-            increment: BigInt(1),
+            date: today,
+            type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
           },
         },
         create: {
           teamId: email.teamId,
           domainId: email.domainId ?? 0,
-          [cumulatedField]: BigInt(1),
+          date: today,
+          type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
+          delivered: updateField === "delivered" ? 1 : 0,
+          opened: updateField === "opened" ? 1 : 0,
+          clicked: updateField === "clicked" ? 1 : 0,
+          bounced: updateField === "bounced" ? 1 : 0,
+          complained: updateField === "complained" ? 1 : 0,
+          sent: updateField === "sent" ? 1 : 0,
+          hardBounced: isHardBounced ? 1 : 0,
+        },
+        update: {
+          [updateField]: {
+            increment: 1,
+          },
+          ...(isHardBounced ? { hardBounced: { increment: 1 } } : {}),
         },
       });
+
+      if (
+        isHardBounced ||
+        updateField === "complained" ||
+        updateField === "delivered"
+      ) {
+        logger.info("Updating cumulated metrics");
+        const cumulatedField = isHardBounced ? "hardBounced" : updateField;
+        await db.cumulatedMetrics.upsert({
+          where: {
+            teamId_domainId: {
+              teamId: email.teamId,
+              domainId: email.domainId ?? 0,
+            },
+          },
+          update: {
+            [cumulatedField]: {
+              increment: BigInt(1),
+            },
+          },
+          create: {
+            teamId: email.teamId,
+            domainId: email.domainId ?? 0,
+            [cumulatedField]: BigInt(1),
+          },
+        });
+      }
     }
+  } catch (error) {
+    // Let the queue's retry count this event instead of finding it claimed.
+    if (outcome && claim === "claimed") {
+      await releaseOutcome(email.id, outcome);
+    }
+    throw error;
   }
 
   if (email.campaignId) {
@@ -314,9 +323,18 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
-  if (outcome && !isDuplicateOutcome) {
+  // Rule counters only for an event we know we haven't counted before.
+  if (outcome && claim === "claimed") {
     try {
       await recordOutcome(email, outcome);
+    } catch (error) {
+      await releaseOutcome(email.id, outcome);
+      logger.error(
+        { err: error, teamId: email.teamId },
+        "[SesHookParser]: Counting the outcome failed",
+      );
+    }
+    try {
       await checkSendingHealth({
         teamId: email.teamId,
         campaignId: email.campaignId,

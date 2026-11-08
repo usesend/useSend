@@ -61,24 +61,43 @@ export async function saveSentEmail(
   }
 }
 
+export type OutcomeClaim = "claimed" | "duplicate" | "unavailable";
+
+function outcomeKey(emailId: string, outcome: Outcome) {
+  return redisKey(`ses-outcome:${emailId}:${outcome}`);
+}
+
 /**
  * Claims a hard bounce or complaint for an email, so a repeated SES event
- * counts once. Atomic across workers. If Redis fails it doesn't count the
- * event: undercounting can't wrongly pause anyone.
+ * counts once. Atomic across workers. "unavailable" means Redis failed: the
+ * caller still updates dashboards but not the sending-rule counters, since
+ * undercounting can't wrongly pause anyone.
  */
-export async function claimOutcome(emailId: string, outcome: Outcome) {
+export async function claimOutcome(
+  emailId: string,
+  outcome: Outcome,
+): Promise<OutcomeClaim> {
   try {
     const claimed = await getRedis().set(
-      redisKey(`ses-outcome:${emailId}:${outcome}`),
+      outcomeKey(emailId, outcome),
       "1",
       "EX",
       OUTCOME_CLAIM_SECONDS,
       "NX",
     );
-    return claimed === "OK";
+    return claimed === "OK" ? "claimed" : "duplicate";
   } catch (error) {
     logger.warn({ err: error, emailId }, "[SendingCohorts]: claim failed");
-    return false;
+    return "unavailable";
+  }
+}
+
+/** Gives a claim back when the work it guarded failed, so a retry can redo it. */
+export async function releaseOutcome(emailId: string, outcome: Outcome) {
+  try {
+    await getRedis().del(outcomeKey(emailId, outcome));
+  } catch (error) {
+    logger.warn({ err: error, emailId }, "[SendingCohorts]: release failed");
   }
 }
 

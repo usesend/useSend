@@ -9,7 +9,9 @@ const {
   mockCheckSendingHealth,
   mockClaimOutcome,
   mockRecordOutcome,
+  mockReleaseOutcome,
 } = vi.hoisted(() => ({
+  mockReleaseOutcome: vi.fn(),
   mockCheckSendingHealth: vi.fn(),
   mockClaimOutcome: vi.fn(),
   mockRecordOutcome: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("~/server/service/webhook-service", () => ({
 vi.mock("~/server/service/sending-cohorts", () => ({
   claimOutcome: mockClaimOutcome,
   recordOutcome: mockRecordOutcome,
+  releaseOutcome: mockReleaseOutcome,
 }));
 
 vi.mock("~/server/service/sending-rules-service", () => ({
@@ -211,7 +214,7 @@ describe("parseSesHook sending rules", () => {
     mockDb.dailyEmailUsage.upsert.mockResolvedValue({});
     mockDb.cumulatedMetrics.upsert.mockResolvedValue({});
     mockWebhookEmit.mockResolvedValue(undefined);
-    mockClaimOutcome.mockResolvedValue(true);
+    mockClaimOutcome.mockResolvedValue("claimed");
   });
 
   function bounceEvent(diagnosticCode: string): SesEvent {
@@ -267,7 +270,7 @@ describe("parseSesHook sending rules", () => {
   });
 
   it("counts a repeated hard bounce only once", async () => {
-    mockClaimOutcome.mockResolvedValue(false);
+    mockClaimOutcome.mockResolvedValue("duplicate");
 
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
@@ -275,6 +278,25 @@ describe("parseSesHook sending rules", () => {
     expect(mockRecordOutcome).not.toHaveBeenCalled();
     expect(mockCheckSendingHealth).not.toHaveBeenCalled();
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
+  });
+
+  it("still updates dashboards when Redis can't check for duplicates", async () => {
+    mockClaimOutcome.mockResolvedValue("unavailable");
+
+    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
+
+    expect(mockDb.dailyEmailUsage.upsert).toHaveBeenCalled();
+    expect(mockRecordOutcome).not.toHaveBeenCalled();
+  });
+
+  it("gives the claim back if saving the counts fails, so a retry counts it", async () => {
+    mockDb.dailyEmailUsage.upsert.mockRejectedValue(new Error("db busy"));
+
+    await expect(
+      parseSesHook(bounceEvent("550 5.1.1 user unknown")),
+    ).rejects.toThrow("db busy");
+
+    expect(mockReleaseOutcome).toHaveBeenCalledWith(email.id, "hardBounced");
   });
 
   it("doesn't run on opens", async () => {
