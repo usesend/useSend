@@ -7,7 +7,7 @@ import { isCloud } from "~/utils/common";
 
 /** Tells the team, at the top of every page, when its emails can't go out. */
 export function SendingStatusBanner() {
-  const { currentTeam } = useTeam();
+  const { currentTeam, currentIsAdmin } = useTeam();
 
   if (!isCloud() || !currentTeam) return null;
 
@@ -32,9 +32,10 @@ export function SendingStatusBanner() {
           <p className="mt-1 text-muted-foreground">
             {PAY_AS_YOU_GO.includes}, then you only pay for what you send. Until
             then, you can send test emails to yourself.
+            {currentIsAdmin ? null : " Ask a team admin to set up billing."}
           </p>
         </div>
-        <UpgradeButton className="mt-0 shrink-0" />
+        {currentIsAdmin ? <UpgradeButton className="mt-0 shrink-0" /> : null}
       </div>
     );
   }

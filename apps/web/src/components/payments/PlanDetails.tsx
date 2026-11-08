@@ -23,7 +23,9 @@ export const PlanDetails = () => {
   );
 
   // New teams can't send on the free plan, so don't show it as their plan.
-  if (!isEntitled && currentTeam.freePlanAllowed === false) {
+  // Same test as the sending gate: on the free plan, or the paid plan lapsed.
+  const onFreePlan = currentTeam.plan === "FREE" || !currentTeam.isActive;
+  if (onFreePlan && currentTeam.freePlanAllowed === false) {
     return (
       <div>
         <div className="text-lg">Pay as you go</div>

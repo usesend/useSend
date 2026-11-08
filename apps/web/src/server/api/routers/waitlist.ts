@@ -37,6 +37,14 @@ export const waitlistRouter = createTRPCRouter({
         });
       }
 
+      if (!user.email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Your account has no email address",
+        });
+      }
+      const userEmail = user.email;
+
       const founderEmail = env.FOUNDER_EMAIL ?? env.ADMIN_EMAIL;
 
       if (!founderEmail) {
@@ -69,15 +77,8 @@ export const waitlistRouter = createTRPCRouter({
       }
       await pipeline.exec();
 
-      if (!user.email) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Your account has no email address",
-        });
-      }
-
       const application = await WaitlistService.saveApplication(
-        { id: user.id, email: user.email },
+        { id: user.id, email: userEmail },
         input,
       );
 

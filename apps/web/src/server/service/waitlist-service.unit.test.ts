@@ -72,6 +72,27 @@ describe("waitlist applications", () => {
     expect(call.update).toMatchObject({ status: "PENDING", reviewedAt: null });
   });
 
+  it("records the outcome on the transaction it's given", async () => {
+    const tx = { waitlistApplication: { updateMany: vi.fn() } };
+
+    await WaitlistService.setStatus(7, "REJECTED", tx as never);
+
+    expect(tx.waitlistApplication.updateMany).toHaveBeenCalledWith({
+      where: { userId: 7 },
+      data: { status: "REJECTED", reviewedAt: expect.any(Date) },
+    });
+    expect(mockDb.waitlistApplication.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("clears the review date when put back in review", async () => {
+    await WaitlistService.setStatus(7, "PENDING");
+
+    expect(mockDb.waitlistApplication.updateMany).toHaveBeenCalledWith({
+      where: { userId: 7 },
+      data: { status: "PENDING", reviewedAt: null },
+    });
+  });
+
   it("records the review outcome", async () => {
     await WaitlistService.setStatus(7, "APPROVED");
 

@@ -187,6 +187,11 @@ export const adminRouter = createTRPCRouter({
 
         if (existingUser.isWaitlisted && !input.isWaitlisted) {
           await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+          // Re-read so the admin page shows the approved application.
+          return tx.user.findUniqueOrThrow({
+            where: { id: input.userId },
+            select: waitlistUserSelection,
+          });
         }
 
         return user;

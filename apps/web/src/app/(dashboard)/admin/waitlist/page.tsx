@@ -81,6 +81,8 @@ export default function AdminWaitlistPage() {
   const rejectWaitlist = api.admin.rejectWaitlistUser.useMutation({
     onSuccess: () => {
       toast.success("Rejection email sent");
+      // Refresh so the application shows as rejected.
+      if (userResult?.email) findUser.mutate({ email: userResult.email });
     },
     onError: (error) => {
       toast.error(error.message ?? "Unable to send rejection email");
@@ -273,8 +275,8 @@ export default function AdminWaitlistPage() {
               <div>
                 <p className="text-sm font-medium">Reject waitlist request</p>
                 <p className="text-sm text-muted-foreground">
-                  Send the applicant a rejection email without changing their
-                  waitlist status.
+                  Send the applicant a rejection email and mark their
+                  application rejected. They stay on the waitlist.
                 </p>
               </div>
               <Button
