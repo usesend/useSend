@@ -100,6 +100,15 @@ describe("replyToFeedback", () => {
     });
   });
 
+  it("keeps a decision made by hand while the send was finishing", async () => {
+    ctx.db.feedbackReply.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      replyToFeedback("fb_1", input, ctx.deps),
+    ).rejects.toBeInstanceOf(ReplyNotSendingError);
+    expect(ctx.db.feedback.update).not.toHaveBeenCalled();
+  });
+
   it("doesn't send a reply that was already sent", async () => {
     ctx.db.feedbackReply.findUnique.mockResolvedValueOnce(
       reply({ deliveryStatus: "SENT" }),
