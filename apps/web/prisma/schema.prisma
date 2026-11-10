@@ -92,6 +92,7 @@ model User {
   teamUsers        TeamUser[]
   webhookEndpoints Webhook[]
   waitlistApplication WaitlistApplication?
+  feedback         Feedback[]
 }
 
 enum WaitlistStatus {
@@ -155,6 +156,7 @@ model Team {
   suppressionList  SuppressionList[]
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
+  feedback         Feedback[]
 }
 
 model TeamInvite {
@@ -539,4 +541,61 @@ model WebhookCall {
 
   @@index([teamId, webhookId, status])
   @@index([createdAt(sort: Desc)])
+}
+
+enum FeedbackStatus {
+  OPEN
+  REPLIED
+  CLOSED
+}
+
+/// Feedback sent from the dashboard's Feedback button. Deleted with the user.
+model Feedback {
+  id         String          @id @default(cuid())
+  userId     Int?
+  /// The team they were using when they sent it
+  teamId     Int?
+  /// The sender's email, name and team name when they sent it
+  email      String
+  name       String?
+  teamName   String?
+  message    String
+  /// `web`, or `import` for feedback copied from the old feedback emails
+  source     String
+  /// Sent by the dashboard once per draft, so a retried submit doesn't save it twice
+  clientKey  String?         @unique
+  /// Only set on imported feedback
+  externalId String?         @unique
+  status     FeedbackStatus  @default(OPEN)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  user       User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team       Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  replies    FeedbackReply[]
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum FeedbackReplyStatus {
+  /// Being sent, or it's unknown whether it went
+  SENDING
+  SENT
+  FAILED
+}
+
+/// A reply emailed to whoever sent the feedback.
+model FeedbackReply {
+  id             String              @id @default(cuid())
+  feedbackId     String
+  message        String
+  /// One per reply: sending again with the same key never sends a second email
+  idempotencyKey String              @unique
+  deliveryStatus FeedbackReplyStatus @default(SENDING)
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  feedback       Feedback            @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([feedbackId])
 }
