@@ -65,3 +65,40 @@ describe("GET /api/admin/feedback", () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe("admin API bodies", () => {
+  beforeEach(() => {
+    mockEnv.ADMIN_API_TOKEN = TOKEN;
+  });
+
+  it("stops reading a body past the limit, even without a length header", async () => {
+    const { adminApiRoute } = await import("~/server/admin-api");
+    const handler = vi.fn(async () => ({ ok: true }));
+    const route = adminApiRoute(handler, { maxBodyBytes: 10 });
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        if (pulled > 100) return controller.close();
+        controller.enqueue(new TextEncoder().encode("xxxxxxxx"));
+      },
+    });
+
+    const response = await route(
+      new Request("http://localhost/api/admin/x", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          "content-type": "application/json",
+        },
+        body,
+        // @ts-expect-error Node needs this for a streamed body
+        duplex: "half",
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(handler).not.toHaveBeenCalled();
+    expect(pulled).toBeLessThan(10);
+  });
+});

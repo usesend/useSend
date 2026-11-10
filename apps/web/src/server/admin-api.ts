@@ -33,13 +33,28 @@ export function json(status: number, body: unknown) {
   return Response.json(body, { status, headers: HEADERS });
 }
 
+/** Reads a JSON body, stopping as soon as it's past `maxBytes`. */
 async function readJsonBody(req: Request, maxBytes: number) {
   const declared = Number(req.headers.get("content-length") ?? 0);
   if (declared > maxBytes) throw new AdminApiError(413, "Body too large");
-  const text = await req.text();
-  if (Buffer.byteLength(text) > maxBytes) {
-    throw new AdminApiError(413, "Body too large");
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (req.body) {
+    const reader = req.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new AdminApiError(413, "Body too large");
+      }
+      chunks.push(value);
+    }
   }
+
+  const text = Buffer.concat(chunks).toString("utf8");
   if (text.trim() === "") return undefined;
   try {
     return JSON.parse(text) as unknown;
