@@ -6,8 +6,10 @@ vi.mock("~/server/logger/log", () => ({
 }));
 vi.mock("~/server/mailer", () => {
   class MailNotSentError extends Error {}
+  class MailUncertainError extends Error {}
   return {
     MailNotSentError,
+    MailUncertainError,
     sendFeedbackReply: vi.fn(),
     sendFeedbackNotification: vi.fn(),
   };
@@ -16,10 +18,14 @@ vi.mock("~/server/mailer", () => {
 import {
   IdempotencyConflictError,
   MailNotSentError,
-  REPLY_RETRY_WINDOW_MS,
-  ReplyNeedsCheckError,
+  MailUncertainError,
+  ReplyInProgressError,
+  ReplyNotSendingError,
+  ReplyStillSendingError,
+  SETTLE_AFTER_MS,
   importFeedback,
   replyToFeedback,
+  settleReply,
 } from "~/server/service/feedback-admin";
 
 const feedback = {
@@ -35,6 +41,8 @@ function reply(overrides: Record<string, unknown> = {}) {
     message: "Thanks!",
     idempotencyKey: "key-123456",
     deliveryStatus: "SENDING",
+    attemptId: "att_1",
+    attemptStartedAt: new Date(),
     sentAt: null,
     createdAt: new Date(),
     ...overrides,
@@ -42,24 +50,26 @@ function reply(overrides: Record<string, unknown> = {}) {
 }
 
 function setup() {
-  const db = {
+  const db: any = {
     feedback: {
       findUnique: vi.fn(async () => feedback),
       update: vi.fn(async () => feedback),
     },
     feedbackReply: {
       findUnique: vi.fn(async () => null as unknown),
-      findUniqueOrThrow: vi.fn(),
+      findFirst: vi.fn(async () => null as unknown),
+      findUniqueOrThrow: vi.fn(async () => reply({ deliveryStatus: "SENT" })),
       create: vi.fn(async () => reply()),
-      update: vi.fn(async () =>
-        reply({ deliveryStatus: "SENT", sentAt: new Date() }),
-      ),
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
-    $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
+  db.$transaction = vi.fn(async (arg: unknown) =>
+    typeof arg === "function"
+      ? arg(db)
+      : Promise.all(arg as Promise<unknown>[]),
+  );
   const send = vi.fn(async () => ({ emailId: "em_1" }));
-  return { db, send, deps: { db: db as any, send } };
+  return { db, send, deps: { db, send } };
 }
 
 const input = { message: "Thanks!", idempotencyKey: "key-123456" };
@@ -70,7 +80,7 @@ describe("replyToFeedback", () => {
     ctx = setup();
   });
 
-  it("emails the reply with the reply's id as the idempotency key, then marks it sent", async () => {
+  it("claims the reply, emails it, then marks it sent by this attempt only", async () => {
     const result = await replyToFeedback("fb_1", input, ctx.deps);
 
     expect(ctx.send).toHaveBeenCalledWith({
@@ -80,6 +90,10 @@ describe("replyToFeedback", () => {
       idempotencyKey: "feedback-reply:rep_1",
     });
     expect(result.sent).toBe(true);
+    expect(ctx.db.feedbackReply.updateMany).toHaveBeenCalledWith({
+      where: { id: "rep_1", attemptId: "att_1", deliveryStatus: "SENDING" },
+      data: expect.objectContaining({ deliveryStatus: "SENT" }),
+    });
     expect(ctx.db.feedback.update).toHaveBeenCalledWith({
       where: { id: "fb_1" },
       data: { status: "REPLIED" },
@@ -97,27 +111,39 @@ describe("replyToFeedback", () => {
     expect(ctx.send).not.toHaveBeenCalled();
   });
 
-  it("retries a failed or unconfirmed reply with the same idempotency key", async () => {
+  it("never resends a reply that's sending or may have been sent", async () => {
+    ctx.db.feedbackReply.findUnique.mockResolvedValueOnce(reply());
+
+    await expect(
+      replyToFeedback("fb_1", input, ctx.deps),
+    ).rejects.toBeInstanceOf(ReplyInProgressError);
+    expect(ctx.send).not.toHaveBeenCalled();
+  });
+
+  it("claims a failed reply again before retrying it", async () => {
     ctx.db.feedbackReply.findUnique.mockResolvedValueOnce(
       reply({ deliveryStatus: "FAILED" }),
     );
 
     await replyToFeedback("fb_1", input, ctx.deps);
 
+    expect(ctx.db.feedbackReply.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "rep_1", deliveryStatus: "FAILED" },
+      data: expect.objectContaining({ deliveryStatus: "SENDING" }),
+    });
     expect(ctx.db.feedbackReply.create).not.toHaveBeenCalled();
-    expect(ctx.send).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: "feedback-reply:rep_1" }),
-    );
+    expect(ctx.send).toHaveBeenCalledTimes(1);
   });
 
-  it("won't retry an unconfirmed reply older than the API remembers keys", async () => {
-    ctx.db.feedbackReply.findUnique.mockResolvedValueOnce(
-      reply({ createdAt: new Date(Date.now() - REPLY_RETRY_WINDOW_MS - 1000) }),
+  it("doesn't send when another request claimed the failed reply first", async () => {
+    ctx.db.feedbackReply.findUnique.mockResolvedValue(
+      reply({ deliveryStatus: "FAILED" }),
     );
+    ctx.db.feedbackReply.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
       replyToFeedback("fb_1", input, ctx.deps),
-    ).rejects.toBeInstanceOf(ReplyNeedsCheckError);
+    ).rejects.toBeInstanceOf(ReplyInProgressError);
     expect(ctx.send).not.toHaveBeenCalled();
   });
 
@@ -131,16 +157,99 @@ describe("replyToFeedback", () => {
     ).rejects.toBeInstanceOf(IdempotencyConflictError);
   });
 
-  it("marks the reply failed, only if still sending, when the email isn't accepted", async () => {
-    ctx.send.mockRejectedValueOnce(new MailNotSentError("rate limited"));
+  it("marks the reply failed when it certainly wasn't sent", async () => {
+    ctx.send.mockRejectedValueOnce(new MailNotSentError("RATE_LIMITED"));
 
     await expect(
       replyToFeedback("fb_1", input, ctx.deps),
     ).rejects.toBeInstanceOf(MailNotSentError);
     expect(ctx.db.feedbackReply.updateMany).toHaveBeenCalledWith({
-      where: { id: "rep_1", deliveryStatus: "SENDING" },
+      where: { id: "rep_1", attemptId: "att_1", deliveryStatus: "SENDING" },
       data: { deliveryStatus: "FAILED" },
     });
+    expect(ctx.db.feedback.update).not.toHaveBeenCalled();
+  });
+
+  it("leaves the reply sending when it may have gone out", async () => {
+    ctx.send.mockRejectedValueOnce(new MailUncertainError("TypeError"));
+
+    await expect(
+      replyToFeedback("fb_1", input, ctx.deps),
+    ).rejects.toBeInstanceOf(MailUncertainError);
+    expect(ctx.db.feedbackReply.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("treats an unexpected error as possibly sent", async () => {
+    ctx.send.mockRejectedValueOnce(new Error("boom"));
+
+    await expect(
+      replyToFeedback("fb_1", input, ctx.deps),
+    ).rejects.toBeInstanceOf(MailUncertainError);
+    expect(ctx.db.feedbackReply.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("settleReply", () => {
+  let ctx: ReturnType<typeof setup>;
+  const old = () => new Date(Date.now() - SETTLE_AFTER_MS - 1000);
+  beforeEach(() => {
+    ctx = setup();
+  });
+
+  it("records a checked reply as sent", async () => {
+    ctx.db.feedbackReply.findFirst.mockResolvedValueOnce(
+      reply({ attemptStartedAt: old() }),
+    );
+
+    await settleReply("fb_1", "rep_1", "SENT", ctx.db);
+
+    expect(ctx.db.feedbackReply.updateMany).toHaveBeenCalledWith({
+      where: { id: "rep_1", deliveryStatus: "SENDING", attemptId: "att_1" },
+      data: expect.objectContaining({ deliveryStatus: "SENT" }),
+    });
+    expect(ctx.db.feedback.update).toHaveBeenCalled();
+  });
+
+  it("lets a checked, unsent reply be sent again", async () => {
+    ctx.db.feedbackReply.findFirst.mockResolvedValueOnce(
+      reply({ attemptStartedAt: old() }),
+    );
+
+    await settleReply("fb_1", "rep_1", "FAILED", ctx.db);
+
+    expect(ctx.db.feedbackReply.updateMany).toHaveBeenCalledWith({
+      where: { id: "rep_1", deliveryStatus: "SENDING", attemptId: "att_1" },
+      data: { deliveryStatus: "FAILED" },
+    });
+  });
+
+  it("waits until the attempt is old enough", async () => {
+    ctx.db.feedbackReply.findFirst.mockResolvedValueOnce(reply());
+
+    await expect(
+      settleReply("fb_1", "rep_1", "FAILED", ctx.db),
+    ).rejects.toBeInstanceOf(ReplyStillSendingError);
+  });
+
+  it("only settles a reply that's still sending", async () => {
+    ctx.db.feedbackReply.findFirst.mockResolvedValueOnce(
+      reply({ deliveryStatus: "SENT", attemptStartedAt: old() }),
+    );
+
+    await expect(
+      settleReply("fb_1", "rep_1", "FAILED", ctx.db),
+    ).rejects.toBeInstanceOf(ReplyNotSendingError);
+  });
+
+  it("refuses when a newer attempt took the reply meanwhile", async () => {
+    ctx.db.feedbackReply.findFirst.mockResolvedValueOnce(
+      reply({ attemptStartedAt: old() }),
+    );
+    ctx.db.feedbackReply.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      settleReply("fb_1", "rep_1", "SENT", ctx.db),
+    ).rejects.toBeInstanceOf(ReplyNotSendingError);
     expect(ctx.db.feedback.update).not.toHaveBeenCalled();
   });
 });

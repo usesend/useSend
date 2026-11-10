@@ -30,6 +30,8 @@ CREATE TABLE "FeedbackReply" (
     "message" TEXT NOT NULL,
     "idempotencyKey" TEXT NOT NULL,
     "deliveryStatus" "FeedbackReplyStatus" NOT NULL DEFAULT 'SENDING',
+    "attemptId" TEXT,
+    "attemptStartedAt" TIMESTAMP(3),
     "sentAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

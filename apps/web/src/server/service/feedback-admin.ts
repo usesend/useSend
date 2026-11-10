@@ -1,8 +1,18 @@
-import { FeedbackStatus, type Prisma, type PrismaClient } from "@prisma/client";
+import {
+  FeedbackStatus,
+  type FeedbackReply,
+  type Prisma,
+  type PrismaClient,
+} from "@prisma/client";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { db as defaultDb } from "~/server/db";
-import { MailNotSentError, sendFeedbackReply } from "~/server/mailer";
+import {
+  MailNotSentError,
+  MailUncertainError,
+  sendFeedbackReply,
+} from "~/server/mailer";
 import { isUniqueViolation } from "~/server/service/feedback-service";
 
 /**
@@ -15,18 +25,25 @@ const IMPORTED_MESSAGE_MAX = 50_000;
 const REPLY_MAX = 20_000;
 const IMPORT_OPEN_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Reserving a reply retries this often when another request changes it meanwhile. */
+const RESERVE_ATTEMPTS = 3;
+
 /**
- * useSend's API remembers an idempotency key for 24 hours. A reply still
- * unconfirmed after this long can't be retried safely by key alone: it may
- * have gone out, so it needs a person to check.
+ * A reply stuck in SENDING this long after its attempt started is treated as
+ * abandoned, and an operator may settle it after checking whether it arrived.
  */
-export const REPLY_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
+export const SETTLE_AFTER_MS = 10 * 60 * 1000;
 
 export class FeedbackNotFoundError extends Error {}
 export class IdempotencyConflictError extends Error {}
-/** An unconfirmed reply too old to retry by key: check whether it arrived. */
-export class ReplyNeedsCheckError extends Error {}
-export { MailNotSentError };
+/** A reply with this key is being sent, or it's unknown whether it went. */
+export class ReplyInProgressError extends Error {}
+export class ReplyNotFoundError extends Error {}
+/** Only a SENDING reply can be settled by hand. */
+export class ReplyNotSendingError extends Error {}
+/** Its send attempt started less than `SETTLE_AFTER_MS` ago. */
+export class ReplyStillSendingError extends Error {}
+export { MailNotSentError, MailUncertainError };
 
 export const listFeedbackQuery = z.object({
   status: z.nativeEnum(FeedbackStatus).optional(),
@@ -36,6 +53,10 @@ export const listFeedbackQuery = z.object({
 });
 
 export const statusBody = z.object({ status: z.nativeEnum(FeedbackStatus) });
+
+export const settleReplyBody = z.object({
+  deliveryStatus: z.enum(["SENT", "FAILED"]),
+});
 
 export const replyBody = z.object({
   message: z.string().trim().min(1).max(REPLY_MAX),
@@ -139,6 +160,12 @@ export async function setFeedbackStatus(
 
 type ReplyDeps = { db: PrismaClient; send: typeof sendFeedbackReply };
 
+/** A new attempt to send a reply: only the attempt holding a SENDING reply may complete it. */
+const newAttempt = () => ({
+  attemptId: randomUUID(),
+  attemptStartedAt: new Date(),
+});
+
 function replyEmail(feedbackMessage: string, reply: string) {
   const quoted = feedbackMessage
     .split("\n")
@@ -150,15 +177,82 @@ function replyEmail(feedbackMessage: string, reply: string) {
   };
 }
 
+type Reservation =
+  | { kind: "claimed"; reply: FeedbackReply }
+  | { kind: "sent"; reply: FeedbackReply };
+
+/**
+ * Claims the reply with this key for sending, or finds that it was sent. Each
+ * step is one atomic write (the unique key on insert, a conditional update
+ * from FAILED), so only one attempt ever holds a reply in SENDING.
+ */
+async function reserveReply(
+  db: PrismaClient,
+  feedbackId: string,
+  input: z.infer<typeof replyBody>,
+): Promise<Reservation> {
+  for (let i = 0; i < RESERVE_ATTEMPTS; i++) {
+    const existing = await db.feedbackReply.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+
+    if (!existing) {
+      try {
+        const reply = await db.feedbackReply.create({
+          data: {
+            feedbackId,
+            message: input.message,
+            idempotencyKey: input.idempotencyKey,
+            ...newAttempt(),
+          },
+        });
+        return { kind: "claimed", reply };
+      } catch (error) {
+        // Another request with the same key saved it first: look again.
+        if (isUniqueViolation(error, "idempotencyKey")) continue;
+        throw error;
+      }
+    }
+
+    // A key stands for one message: an edited reply needs a new key.
+    if (
+      existing.feedbackId !== feedbackId ||
+      existing.message !== input.message
+    ) {
+      throw new IdempotencyConflictError();
+    }
+    if (existing.deliveryStatus === "SENT") {
+      return { kind: "sent", reply: existing };
+    }
+    if (existing.deliveryStatus === "SENDING") {
+      throw new ReplyInProgressError();
+    }
+
+    // FAILED: it certainly wasn't sent, so claim it to send again.
+    const attempt = newAttempt();
+    const { count } = await db.feedbackReply.updateMany({
+      where: { id: existing.id, deliveryStatus: "FAILED" },
+      data: { deliveryStatus: "SENDING", ...attempt },
+    });
+    if (count === 1) {
+      return {
+        kind: "claimed",
+        reply: { ...existing, deliveryStatus: "SENDING", ...attempt },
+      };
+    }
+  }
+  throw new ReplyInProgressError();
+}
+
 /**
  * Emails a reply to whoever sent the feedback and records it, at most once per
  * `idempotencyKey`.
  *
- * The reply is saved as SENDING, then sent through useSend's API with the
- * reply's id as the idempotency key, so retrying a reply that may or may not
- * have gone out returns the first send instead of sending again. On success
- * the reply is SENT and the feedback REPLIED; on failure it's FAILED and the
- * same key can be retried.
+ * The reply is claimed as SENDING first, then sent outside any transaction.
+ * Sent: the reply is SENT and the feedback REPLIED. Certainly not sent: it's
+ * FAILED and the same key can be retried. Unknown (e.g. the connection
+ * dropped): it stays SENDING and is never resent automatically; someone checks
+ * whether it arrived and settles it with `settleReply`.
  */
 export async function replyToFeedback(
   feedbackId: string,
@@ -168,40 +262,17 @@ export async function replyToFeedback(
   const feedback = await db.feedback.findUnique({ where: { id: feedbackId } });
   if (!feedback) throw new FeedbackNotFoundError();
 
-  let reply = await db.feedbackReply.findUnique({
-    where: { idempotencyKey: input.idempotencyKey },
-  });
-  if (!reply) {
-    try {
-      reply = await db.feedbackReply.create({
-        data: {
-          feedbackId,
-          message: input.message,
-          idempotencyKey: input.idempotencyKey,
-        },
-      });
-    } catch (error) {
-      // Another request with the same key saved it first.
-      if (!isUniqueViolation(error, "idempotencyKey")) throw error;
-      reply = await db.feedbackReply.findUniqueOrThrow({
-        where: { idempotencyKey: input.idempotencyKey },
-      });
-    }
+  const reservation = await reserveReply(db, feedbackId, input);
+  if (reservation.kind === "sent") {
+    return { reply: reservation.reply, sent: false };
   }
-
-  // A key stands for one message: an edited reply needs a new key.
-  if (reply.feedbackId !== feedbackId || reply.message !== input.message) {
-    throw new IdempotencyConflictError();
-  }
-  if (reply.deliveryStatus === "SENT") {
-    return { reply, sent: false };
-  }
-  if (
-    reply.deliveryStatus === "SENDING" &&
-    Date.now() - reply.createdAt.getTime() > REPLY_RETRY_WINDOW_MS
-  ) {
-    throw new ReplyNeedsCheckError();
-  }
+  const { reply } = reservation;
+  // Only this attempt may record the outcome.
+  const mine = {
+    id: reply.id,
+    attemptId: reply.attemptId,
+    deliveryStatus: "SENDING" as const,
+  };
 
   const email = replyEmail(feedback.message, reply.message);
   try {
@@ -212,27 +283,82 @@ export async function replyToFeedback(
       idempotencyKey: `feedback-reply:${reply.id}`,
     });
   } catch (error) {
-    // Only from SENDING: a concurrent attempt that already succeeded wins.
-    await db.feedbackReply.updateMany({
-      where: { id: reply.id, deliveryStatus: "SENDING" },
-      data: { deliveryStatus: "FAILED" },
-    });
-    throw error instanceof MailNotSentError
+    if (error instanceof MailNotSentError) {
+      await db.feedbackReply.updateMany({
+        where: mine,
+        data: { deliveryStatus: "FAILED" },
+      });
+      throw error;
+    }
+    // It may have gone out: leave it SENDING for a person to check.
+    throw error instanceof MailUncertainError
       ? error
-      : new MailNotSentError("Sending the reply failed");
+      : new MailUncertainError("Unknown");
   }
 
-  const [sent] = await db.$transaction([
-    db.feedbackReply.update({
-      where: { id: reply.id },
-      data: { deliveryStatus: "SENT", sentAt: new Date() },
+  const sentAt = new Date();
+  await db.$transaction([
+    db.feedbackReply.updateMany({
+      where: mine,
+      data: { deliveryStatus: "SENT", sentAt },
     }),
     db.feedback.update({
       where: { id: feedbackId },
       data: { status: "REPLIED" },
     }),
   ]);
-  return { reply: sent, sent: true };
+  return {
+    reply: { ...reply, deliveryStatus: "SENT" as const, sentAt },
+    sent: true,
+  };
+}
+
+/**
+ * Settles a reply stuck in SENDING, after checking whether the email arrived:
+ * SENT records it as sent, FAILED lets the same key be sent again. Never done
+ * automatically, and only once its attempt is at least `SETTLE_AFTER_MS` old.
+ */
+export async function settleReply(
+  feedbackId: string,
+  replyId: string,
+  deliveryStatus: "SENT" | "FAILED",
+  db: PrismaClient = defaultDb,
+) {
+  const reply = await db.feedbackReply.findFirst({
+    where: { id: replyId, feedbackId },
+  });
+  if (!reply) throw new ReplyNotFoundError();
+  if (reply.deliveryStatus !== "SENDING") throw new ReplyNotSendingError();
+  const startedAt = reply.attemptStartedAt ?? reply.createdAt;
+  if (Date.now() - startedAt.getTime() < SETTLE_AFTER_MS) {
+    throw new ReplyStillSendingError();
+  }
+
+  const where = {
+    id: reply.id,
+    deliveryStatus: "SENDING" as const,
+    attemptId: reply.attemptId,
+  };
+  if (deliveryStatus === "SENT") {
+    await db.$transaction(async (tx) => {
+      const { count } = await tx.feedbackReply.updateMany({
+        where,
+        data: { deliveryStatus: "SENT", sentAt: new Date() },
+      });
+      if (count === 0) throw new ReplyNotSendingError();
+      await tx.feedback.update({
+        where: { id: feedbackId },
+        data: { status: "REPLIED" },
+      });
+    });
+  } else {
+    const { count } = await db.feedbackReply.updateMany({
+      where,
+      data: { deliveryStatus: "FAILED" },
+    });
+    if (count === 0) throw new ReplyNotSendingError();
+  }
+  return db.feedbackReply.findUniqueOrThrow({ where: { id: reply.id } });
 }
 
 /**

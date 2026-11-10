@@ -578,9 +578,10 @@ model Feedback {
 }
 
 enum FeedbackReplyStatus {
-  /// Being sent, or it's unknown whether it went
+  /// Being sent, or it's unknown whether it went: never resent automatically
   SENDING
   SENT
+  /// Certainly not sent, so it's safe to send again
   FAILED
 }
 
@@ -592,6 +593,9 @@ model FeedbackReply {
   /// One per reply: sending again with the same key never sends a second email
   idempotencyKey String              @unique
   deliveryStatus FeedbackReplyStatus @default(SENDING)
+  /// The send attempt holding it while SENDING: only that attempt may complete it
+  attemptId        String?
+  attemptStartedAt DateTime?
   sentAt         DateTime?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt

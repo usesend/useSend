@@ -20,7 +20,7 @@ const getClient = () => {
 export async function sendSignUpEmail(
   email: string,
   token: string,
-  url: string
+  url: string,
 ) {
   const { host } = new URL(url);
 
@@ -47,7 +47,7 @@ export async function sendSignUpEmail(
 export async function sendTeamInviteEmail(
   email: string,
   url: string,
-  teamName: string
+  teamName: string,
 ) {
   const { host } = new URL(url);
 
@@ -89,7 +89,7 @@ export async function sendMail(
   text: string,
   html: string,
   replyTo?: string,
-  fromOverride?: string
+  fromOverride?: string,
 ) {
   if (isSelfHosted()) {
     logger.info("Sending email using self hosted");
@@ -114,9 +114,11 @@ export async function sendMail(
     const availableDomains = domains.map((d) => d.name);
     const domain = domains[0];
 
-    const candidateFroms = [fromOverride, env.FROM_EMAIL, `hello@${domain.name}`].filter(
-      (value): value is string => Boolean(value)
-    );
+    const candidateFroms = [
+      fromOverride,
+      env.FROM_EMAIL,
+      `hello@${domain.name}`,
+    ].filter((value): value is string => Boolean(value));
 
     const selectedFrom =
       candidateFroms.find((address) => {
@@ -150,7 +152,7 @@ export async function sendMail(
     } else {
       logger.error(
         { code: resp.error?.code, message: resp.error?.message },
-        "Error sending email using usesend"
+        "Error sending email using usesend",
       );
     }
   } else {
@@ -169,7 +171,9 @@ export async function sendFeedbackNotification(feedback: {
   message: string;
 }) {
   if (!env.FOUNDER_EMAIL) {
-    logger.warn("[Feedback]: FOUNDER_EMAIL not configured, not emailing feedback");
+    logger.warn(
+      "[Feedback]: FOUNDER_EMAIL not configured, not emailing feedback",
+    );
     return;
   }
 
@@ -185,13 +189,27 @@ export async function sendFeedbackNotification(feedback: {
   );
 }
 
-/** The reply email was not accepted. Safe to try again with the same key. */
+/** The reply email was certainly not sent. Safe to send again. */
 export class MailNotSentError extends Error {}
 
+/** It's unknown whether the reply email went out, e.g. the connection dropped. */
+export class MailUncertainError extends Error {}
+
+/** API errors returned before anything is sent. */
+const NOT_SENT_CODES = new Set([
+  "BAD_REQUEST",
+  "UNAUTHORIZED",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "METHOD_NOT_ALLOWED",
+  "RATE_LIMITED",
+]);
+
 /**
- * Emails a reply to someone's feedback through useSend's own API. The
- * idempotency key makes a retry within 24 hours return the first send instead
- * of sending a second email. Throws `MailNotSentError` when it isn't accepted.
+ * Emails a reply to someone's feedback through useSend's own API, with an
+ * idempotency key as extra protection against a second send. Throws
+ * `MailNotSentError` when it certainly wasn't sent and `MailUncertainError`
+ * when it may have been.
  */
 export async function sendFeedbackReply(params: {
   to: string;
@@ -218,13 +236,15 @@ export async function sendFeedbackReply(params: {
       { idempotencyKey: params.idempotencyKey },
     );
   } catch (error) {
-    throw new MailNotSentError(
-      error instanceof Error ? error.name : "Sending the reply failed",
+    // The request may have reached the API before the connection failed.
+    throw new MailUncertainError(
+      error instanceof Error ? error.name : "Unknown",
     );
   }
 
-  if (!response.data) {
-    throw new MailNotSentError(response.error?.code ?? "Sending the reply failed");
-  }
-  return { emailId: response.data.emailId };
+  if (response.data) return { emailId: response.data.emailId };
+  const code = response.error?.code ?? "UNKNOWN";
+  throw NOT_SENT_CODES.has(code)
+    ? new MailNotSentError(code)
+    : new MailUncertainError(code);
 }
