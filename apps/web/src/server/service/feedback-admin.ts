@@ -297,16 +297,18 @@ export async function replyToFeedback(
   }
 
   const sentAt = new Date();
-  await db.$transaction([
-    db.feedbackReply.updateMany({
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.feedbackReply.updateMany({
       where: mine,
       data: { deliveryStatus: "SENT", sentAt },
-    }),
-    db.feedback.update({
+    });
+    // Someone settled this attempt by hand meanwhile: their decision stands.
+    if (count === 0) throw new ReplyNotSendingError();
+    await tx.feedback.update({
       where: { id: feedbackId },
       data: { status: "REPLIED" },
-    }),
-  ]);
+    });
+  });
   return {
     reply: { ...reply, deliveryStatus: "SENT" as const, sentAt },
     sent: true,

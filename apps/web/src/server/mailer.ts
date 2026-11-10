@@ -206,6 +206,16 @@ const NOT_SENT_CODES = new Set([
 ]);
 
 /**
+ * The API's error code. The SDK returns API errors either as `{ code }` or
+ * still wrapped as `{ error: { code } }`, so read both.
+ */
+function errorCode(error: unknown): string | undefined {
+  const outer = error as { code?: unknown; error?: { code?: unknown } } | null;
+  const code = outer?.code ?? outer?.error?.code;
+  return typeof code === "string" ? code : undefined;
+}
+
+/**
  * Emails a reply to someone's feedback through useSend's own API, with an
  * idempotency key as extra protection against a second send. Throws
  * `MailNotSentError` when it certainly wasn't sent and `MailUncertainError`
@@ -243,7 +253,7 @@ export async function sendFeedbackReply(params: {
   }
 
   if (response.data) return { emailId: response.data.emailId };
-  const code = response.error?.code ?? "UNKNOWN";
+  const code = errorCode(response.error) ?? "UNKNOWN";
   throw NOT_SENT_CODES.has(code)
     ? new MailNotSentError(code)
     : new MailUncertainError(code);

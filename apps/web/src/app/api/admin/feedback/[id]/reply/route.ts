@@ -5,6 +5,7 @@ import {
   MailNotSentError,
   MailUncertainError,
   ReplyInProgressError,
+  ReplyNotSendingError,
   replyBody,
   replyToFeedback,
 } from "~/server/service/feedback-admin";
@@ -45,6 +46,12 @@ export const POST = adminApiRoute(async ({ body, params }) => {
       throw new AdminApiError(
         409,
         "This reply is being sent, or it may have been sent; check whether it arrived before settling it",
+      );
+    }
+    if (error instanceof ReplyNotSendingError) {
+      throw new AdminApiError(
+        409,
+        "This reply was settled by hand while it was sending; that decision stands",
       );
     }
     if (error instanceof MailUncertainError) {
