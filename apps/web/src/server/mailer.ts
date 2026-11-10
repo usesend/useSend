@@ -6,7 +6,7 @@ import { getDomains } from "./service/domain-service";
 import { sendEmail } from "./service/email-service";
 import { logger } from "./logger/log";
 import { renderOtpEmail, renderTeamInviteEmail } from "./email-templates";
-import { toPlainHtml } from "./utils/email-content";
+import { toPlainHtml } from "~/server/utils/email-content";
 
 let usesend: UseSend | undefined;
 
