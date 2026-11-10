@@ -59,6 +59,8 @@ export const env = createEnv({
     ADMIN_EMAIL: z.string().optional(),
     FOUNDER_EMAIL: z.string().optional(),
     DISCORD_WEBHOOK_URL: z.string().optional(),
+    /** Bearer token for the internal admin API (/api/admin). The API is off when unset. */
+    ADMIN_API_TOKEN: z.string().min(32).optional(),
     REDIS_URL: z.string(),
     REDIS_KEY_PREFIX: z.string().default(""),
     S3_COMPATIBLE_ACCESS_KEY: z.string().optional(),
@@ -131,6 +133,7 @@ export const env = createEnv({
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     FOUNDER_EMAIL: process.env.FOUNDER_EMAIL,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
+    ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN || undefined,
     REDIS_URL: process.env.REDIS_URL,
     REDIS_KEY_PREFIX: process.env.REDIS_KEY_PREFIX,
     FROM_EMAIL: process.env.FROM_EMAIL,

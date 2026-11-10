@@ -6,6 +6,7 @@ import { getDomains } from "./service/domain-service";
 import { sendEmail } from "./service/email-service";
 import { logger } from "./logger/log";
 import { renderOtpEmail, renderTeamInviteEmail } from "./email-templates";
+import { toPlainHtml } from "./utils/email-content";
 
 let usesend: UseSend | undefined;
 
@@ -155,4 +156,75 @@ export async function sendMail(
   } else {
     throw new Error("USESEND_API_KEY/UNSEND_API_KEY not found");
   }
+}
+
+/** Emails the founder about new feedback. Errors are the caller's to log. */
+export async function sendFeedbackNotification(feedback: {
+  id: string;
+  email: string;
+  name: string | null;
+  userId: number | null;
+  teamId: number | null;
+  teamName: string | null;
+  message: string;
+}) {
+  if (!env.FOUNDER_EMAIL) {
+    logger.warn("[Feedback]: FOUNDER_EMAIL not configured, not emailing feedback");
+    return;
+  }
+
+  const team = feedback.teamName ?? "Unknown team";
+  const text = `New feedback received\n\nFrom: ${feedback.name ?? "Unknown"} (${feedback.email})\nUser ID: ${feedback.userId ?? "Unknown"}\nTeam: ${team} (ID: ${feedback.teamId ?? "Unknown"})\nFeedback ID: ${feedback.id}\n\nMessage:\n${feedback.message}`;
+
+  await sendMail(
+    env.FOUNDER_EMAIL,
+    `Product feedback from ${team}`,
+    text,
+    toPlainHtml(text),
+    feedback.email,
+  );
+}
+
+/** The reply email was not accepted. Safe to try again with the same key. */
+export class MailNotSentError extends Error {}
+
+/**
+ * Emails a reply to someone's feedback through useSend's own API. The
+ * idempotency key makes a retry within 24 hours return the first send instead
+ * of sending a second email. Throws `MailNotSentError` when it isn't accepted.
+ */
+export async function sendFeedbackReply(params: {
+  to: string;
+  subject: string;
+  text: string;
+  idempotencyKey: string;
+}) {
+  const from = env.FOUNDER_EMAIL ?? env.FROM_EMAIL;
+  if (!(env.USESEND_API_KEY ?? env.UNSEND_API_KEY) || !from) {
+    throw new MailNotSentError("Replies need UNSEND_API_KEY and FOUNDER_EMAIL");
+  }
+
+  let response: Awaited<ReturnType<UseSend["emails"]["send"]>>;
+  try {
+    response = await getClient().emails.send(
+      {
+        to: params.to,
+        from,
+        replyTo: from,
+        subject: params.subject,
+        text: params.text,
+        html: toPlainHtml(params.text),
+      },
+      { idempotencyKey: params.idempotencyKey },
+    );
+  } catch (error) {
+    throw new MailNotSentError(
+      error instanceof Error ? error.name : "Sending the reply failed",
+    );
+  }
+
+  if (!response.data) {
+    throw new MailNotSentError(response.error?.code ?? "Sending the reply failed");
+  }
+  return { emailId: response.data.emailId };
 }
