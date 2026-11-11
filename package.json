@@ -45,7 +45,7 @@
   },
   "packageManager": "pnpm@11.11.0",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=24.22.3 <25 || >=26.13.1"
   },
   "dependencies": {
     "turbo": "^2.11.10"
