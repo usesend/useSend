@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs a pinned official Node.js build into /app/.node for Nixpacks builds
-# and links it into /usr/bin
+# and links it, plus corepack's pnpm, into /usr/bin
 # (Railway and Coolify). Nixpacks' own Node comes from a nixpkgs snapshot that
 # lags security releases by days or months, so we pin the release ourselves.
 # To update: change NODE_VERSION and both hashes from
@@ -28,5 +28,12 @@ tar -xJf "$TMP/$TARBALL" -C "$DEST" --strip-components=1
 
 # On the default PATH, so both build steps and the running server use it.
 ln -sf "$DEST/bin/node" "$DEST/bin/npm" "$DEST/bin/npx" /usr/bin/
+
+# pnpm through corepack, also on the default PATH, so any install command
+# (ours, or a platform override like Coolify's) finds it. The pnpm version
+# comes from package.json's packageManager.
+npm install -g corepack@0.34.5 >/dev/null
+ln -sf "$DEST/bin/corepack" /usr/bin/corepack
+corepack enable --install-directory /usr/bin
 
 node -v
