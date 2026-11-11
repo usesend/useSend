@@ -1,2 +1,18 @@
+# Railway (app) and Coolify (SMTP server) build with Nixpacks. Its Node comes
+# from a nixpkgs snapshot that lags Node security releases (24.10.0 as of Nov
+# 2026), so Node isn't taken from Nix: docker/nixpacks/install-node.sh installs
+# a pinned official release instead, used for both the build and the server.
+# Update the version and hashes in that script with each Node security release.
+[phases.setup]
+nixPkgs = ["openssl"]
+
+[phases.node]
+dependsOn = ["setup"]
+cmds = ["bash docker/nixpacks/install-node.sh"]
+
 [phases.install]
-cmds = ["npm install -g corepack@0.34.5 && corepack enable", "pnpm i --frozen-lockfile"]
+dependsOn = ["node"]
+cmds = [
+  "npm install -g corepack@0.34.5 && ln -sf /app/.node/bin/corepack /usr/bin/corepack && corepack enable --install-directory /usr/bin",
+  "pnpm i --frozen-lockfile",
+]
