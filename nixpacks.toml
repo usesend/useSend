@@ -9,6 +9,8 @@ nixPkgs = ["openssl"]
 [phases.node]
 dependsOn = ["setup"]
 cmds = ["bash docker/nixpacks/install-node.sh"]
+# Only the script, so code changes don't redownload Node.
+onlyIncludeFiles = ["docker/nixpacks/install-node.sh"]
 
 [phases.install]
 dependsOn = ["node"]
