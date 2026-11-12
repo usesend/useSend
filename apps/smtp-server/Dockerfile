@@ -1,45 +1,45 @@
-# Stage 1: Build stage
+# SMTP proxy image. Build from the repository root so dependencies come from
+# the monorepo lockfile:
+#   docker build -f apps/smtp-server/Dockerfile .
+# Update the Node version with each Node security release (and .nvmrc).
+
+# --- Build stage
 FROM node:22.23.5-alpine3.24 AS builder
 
-# Install pnpm (package manager) globally
-RUN npm install -g pnpm@11.11.0
+# pnpm at the version in package.json's packageManager
+RUN npm install -g corepack@0.34.5 && corepack enable
 
-# Set working directory for the application
-WORKDIR /app
+WORKDIR /repo
 
-# Copy configuration files first
-COPY package.json pnpm-workspace.yaml tsconfig.json tsup.config.ts ./
+# Workspace manifests and the lockfile first, so the install layer is cached
+# until dependencies change.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/smtp-server/package.json apps/smtp-server/package.json
+RUN pnpm install --frozen-lockfile --filter smtp-server
 
-# Install dependencies (including devDependencies)
-RUN pnpm install
+# Only what the build needs, never local files like .env or node_modules
+COPY apps/smtp-server/src apps/smtp-server/src
+COPY apps/smtp-server/tsconfig.json apps/smtp-server/tsup.config.ts apps/smtp-server/
+RUN pnpm --filter smtp-server run build
 
-# Copy the source code
-COPY src/ ./src/
+# Reinstall with only production dependencies, still from the lockfile.
+RUN rm -rf node_modules apps/smtp-server/node_modules \
+  && pnpm install --frozen-lockfile --prod --filter smtp-server
 
-# Build the application
-RUN pnpm run build
-
-
-# Remove development dependencies to reduce size
-RUN pnpm prune --prod
-
-# Stage 2: Production stage
+# --- Production stage
 FROM node:22.23.5-alpine3.24 AS production
 
-# Set working directory in the final image
+# Same layout as the repo: pnpm links the app's dependencies from the root
+# node_modules/.pnpm store.
 WORKDIR /app
+COPY --from=builder /repo/node_modules ./node_modules
+COPY --from=builder /repo/apps/smtp-server/node_modules ./apps/smtp-server/node_modules
+COPY --from=builder /repo/apps/smtp-server/package.json ./apps/smtp-server/package.json
+COPY --from=builder /repo/apps/smtp-server/dist ./apps/smtp-server/dist
 
-# Copy necessary files from the builder stage: production node_modules, build output, and package definition
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy only the necessary files from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./package.json
-
-
-# Expose SMTP ports (standard SMTP, SMTPS, and alternative ports)
+# Runs from /app, as before this layout, so a mounted /app/.env still loads.
+# 25 and 587: STARTTLS. 465: implicit TLS. 2465 and 2587: alternates for
+# networks that block the standard ports.
 EXPOSE 25 465 587 2465 2587
 
-
-# Run the SMTP server
-CMD ["node", "dist/server.js"]
+CMD ["node", "apps/smtp-server/dist/server.js"]
