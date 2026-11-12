@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM node:22-alpine AS builder
+FROM node:22.23.5-alpine3.24 AS builder
 
 # Install pnpm (package manager) globally
 RUN npm install -g pnpm@11.11.0
@@ -24,7 +24,7 @@ RUN pnpm run build
 RUN pnpm prune --prod
 
 # Stage 2: Production stage
-FROM node:22-alpine AS production
+FROM node:22.23.5-alpine3.24 AS production
 
 # Set working directory in the final image
 WORKDIR /app
