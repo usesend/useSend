@@ -105,6 +105,12 @@ Railway provides the quickest way to spin up useSend. Read the [Railway self-hos
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com/deploy/usesend?utm_medium=integration&utm_source=docs&utm_campaign=usesend)
 
+## Self Hosting with ZopDay
+
+Run useSend on managed ZopCloud or in an AWS or GCP account you already own:
+
+[![Deploy to ZopDay](https://zop.dev/deploytozopday-inkhard.svg)](https://zop.dev/zopday/app/deploy?image=usesend/usesend:latest&port=3000&name=usesend&utm_source=github&utm_medium=one_click&utm_content=usesend)
+
 ## Star History
 
 <a href="https://star-history.com/#usesend/usesend&Date">
