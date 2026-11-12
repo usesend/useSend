@@ -17,7 +17,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/smtp-server/package.json apps/smtp-server/package.json
 RUN pnpm install --frozen-lockfile --filter smtp-server
 
-COPY apps/smtp-server/ apps/smtp-server/
+# Only what the build needs, never local files like .env or node_modules
+COPY apps/smtp-server/src apps/smtp-server/src
+COPY apps/smtp-server/tsconfig.json apps/smtp-server/tsup.config.ts apps/smtp-server/
 RUN pnpm --filter smtp-server run build
 
 # Reinstall with only production dependencies, still from the lockfile.
@@ -35,10 +37,9 @@ COPY --from=builder /repo/apps/smtp-server/node_modules ./apps/smtp-server/node_
 COPY --from=builder /repo/apps/smtp-server/package.json ./apps/smtp-server/package.json
 COPY --from=builder /repo/apps/smtp-server/dist ./apps/smtp-server/dist
 
-WORKDIR /app/apps/smtp-server
-
+# Runs from /app, as before this layout, so a mounted /app/.env still loads.
 # 25 and 587: STARTTLS. 465: implicit TLS. 2465 and 2587: alternates for
 # networks that block the standard ports.
 EXPOSE 25 465 587 2465 2587
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "apps/smtp-server/dist/server.js"]
