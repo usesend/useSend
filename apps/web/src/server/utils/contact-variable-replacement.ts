@@ -114,7 +114,8 @@ export function replaceContactVariables(
         return contactValue;
       }
 
-      return fallback ?? "";
+      // The regex lets whitespace before `}}` fall into the fallback capture
+      return fallback?.trim() ?? "";
     },
   );
 }
