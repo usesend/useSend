@@ -194,7 +194,7 @@ export default function AdminWaitlistPage() {
               {userResult.waitlistApplication ? (
                 <Badge variant="outline">
                   {userResult.waitlistApplication.status.toLowerCase()} ·
-                  submitted{" "}
+                  updated{" "}
                   {formatDistanceToNow(
                     new Date(userResult.waitlistApplication.updatedAt),
                     { addSuffix: true },

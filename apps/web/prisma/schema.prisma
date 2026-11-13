@@ -79,18 +79,18 @@ model VerificationToken {
 }
 
 model User {
-  id               Int        @id @default(autoincrement())
-  name             String?
-  email            String?    @unique
-  emailVerified    DateTime?
-  image            String?
-  isBetaUser       Boolean    @default(false)
-  isWaitlisted     Boolean    @default(false)
-  createdAt        DateTime   @default(now())
-  accounts         Account[]
-  sessions         Session[]
-  teamUsers        TeamUser[]
-  webhookEndpoints Webhook[]
+  id                  Int                  @id @default(autoincrement())
+  name                String?
+  email               String?              @unique
+  emailVerified       DateTime?
+  image               String?
+  isBetaUser          Boolean              @default(false)
+  isWaitlisted        Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  accounts            Account[]
+  sessions            Session[]
+  teamUsers           TeamUser[]
+  webhookEndpoints    Webhook[]
   waitlistApplication WaitlistApplication?
 }
 
@@ -142,6 +142,8 @@ model Team {
   isBlocked        Boolean           @default(false)
   /// Teams created before paid-only signups may keep sending on the free plan.
   freePlanAllowed  Boolean           @default(false)
+  /// Set when sending is paused (e.g. bounce rate too high). Cleared on resume.
+  sendingPausedAt  DateTime?
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]
@@ -155,6 +157,48 @@ model Team {
   suppressionList  SuppressionList[]
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
+  actions          TeamAction[]
+  sendingCohorts   SendingCohort[]
+}
+
+/// Emails a team sent each day, with the hard bounces and complaints those
+/// same emails caused (filed under the day they were sent). Used by the
+/// sending rules, so rates always compare matching sends and outcomes.
+model SendingCohort {
+  teamId      Int
+  /// YYYY-MM-DD (UTC) the emails were sent
+  date        String
+  sent        Int    @default(0)
+  hardBounced Int    @default(0)
+  complained  Int    @default(0)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, date])
+}
+
+enum TeamActionType {
+  ALERT
+  PAUSE
+  RESUME
+  BLOCK
+  UNBLOCK
+}
+
+/// Every pause, block and alert on a team, by the sending rules, an admin or the Guard.
+model TeamAction {
+  id        String         @id @default(cuid())
+  teamId    Int
+  action    TeamActionType
+  /// "rules", "guard" or "admin:<email>"
+  actor     String
+  reason    String
+  details   Json?
+  createdAt DateTime       @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
 }
 
 model TeamInvite {
@@ -293,6 +337,9 @@ model Email {
   contactId    String?
   inReplyToId  String?
   headers      String?
+  /// Day (YYYY-MM-DD, UTC) this email was counted as sent for the sending
+  /// rules. Its bounces and complaints are filed under the same day.
+  cohortDate   String?
   team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   emailEvents  EmailEvent[]
 
@@ -380,37 +427,42 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id                 String         @id @default(cuid())
-  name               String
-  teamId             Int
-  from               String
-  cc                 String[]
-  bcc                String[]
-  replyTo            String[]
-  domainId           Int
-  subject            String
-  previewText        String?
-  html               String?
-  content            String?
-  contactBookId      String?
-  scheduledAt        DateTime?
-  total              Int            @default(0)
-  sent               Int            @default(0)
-  delivered          Int            @default(0)
-  opened             Int            @default(0)
-  clicked            Int            @default(0)
-  unsubscribed       Int            @default(0)
-  bounced            Int            @default(0)
-  hardBounced        Int            @default(0)
-  complained         Int            @default(0)
-  isApi              Boolean        @default(false)
-  status             CampaignStatus @default(DRAFT)
-  batchSize          Int            @default(500)
-  batchWindowMinutes Int            @default(0)
-  lastCursor         String?
-  lastSentAt         DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  name                String
+  teamId              Int
+  from                String
+  cc                  String[]
+  bcc                 String[]
+  replyTo             String[]
+  domainId            Int
+  subject             String
+  previewText         String?
+  html                String?
+  content             String?
+  contactBookId       String?
+  scheduledAt         DateTime?
+  total               Int            @default(0)
+  sent                Int            @default(0)
+  delivered           Int            @default(0)
+  opened              Int            @default(0)
+  clicked             Int            @default(0)
+  unsubscribed        Int            @default(0)
+  bounced             Int            @default(0)
+  hardBounced         Int            @default(0)
+  complained          Int            @default(0)
+  /// For the sending rules: emails counted as sent (marked with a cohort
+  /// day), and the hard bounces and complaints of those same emails.
+  acceptedSends       Int            @default(0)
+  acceptedHardBounced Int            @default(0)
+  acceptedComplained  Int            @default(0)
+  isApi               Boolean        @default(false)
+  status              CampaignStatus @default(DRAFT)
+  batchSize           Int            @default(500)
+  batchWindowMinutes  Int            @default(0)
+  lastCursor          String?
+  lastSentAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
