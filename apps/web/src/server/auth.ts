@@ -10,6 +10,7 @@ import GitHubProvider from "next-auth/providers/github";
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
 import { Provider } from "next-auth/providers/index";
+import type { OAuthConfig } from "next-auth/providers/oauth";
 
 import { sendSignUpEmail } from "~/server/mailer";
 import { env } from "~/env";
@@ -17,6 +18,53 @@ import { db } from "~/server/db";
 import { isPlatformAdmin } from "~/server/platform-admin";
 
 const GITHUB_OAUTH_ISSUER = "https://github.com/login/oauth";
+
+export const OIDC_PROVIDER_ID = "oidc";
+
+interface OidcProfile extends Record<string, unknown> {
+  sub: string;
+  email?: string | null;
+  email_verified?: boolean;
+  name?: string | null;
+  preferred_username?: string | null;
+  picture?: string | null;
+}
+
+/**
+ * Generic OpenID Connect provider (Zitadel, Keycloak, Authentik, ...).
+ * Endpoints come from the issuer's discovery document.
+ */
+function OidcProvider(options: {
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  name?: string;
+}): OAuthConfig<OidcProfile> {
+  const issuer = options.issuer.replace(/\/+$/, "");
+
+  return {
+    id: OIDC_PROVIDER_ID,
+    name: options.name || "SSO",
+    type: "oauth",
+    wellKnown: `${issuer}/.well-known/openid-configuration`,
+    issuer,
+    clientId: options.clientId,
+    clientSecret: options.clientSecret,
+    idToken: true,
+    checks: ["pkce", "state"],
+    authorization: { params: { scope: "openid email profile" } },
+    // Safe because sign-in is rejected unless the issuer verified the email.
+    allowDangerousEmailAccountLinking: true,
+    profile(profile) {
+      return {
+        id: profile.sub,
+        email: profile.email?.toLowerCase() ?? null,
+        name: profile.name ?? profile.preferred_username ?? null,
+        image: profile.picture ?? null,
+      } as never;
+    },
+  };
+}
 
 /**
  * PostgreSQL advisory-lock namespace for self-hosted user creation.
@@ -154,6 +202,17 @@ function getProviders() {
     );
   }
 
+  if (env.OIDC_ISSUER && env.OIDC_CLIENT_ID && env.OIDC_CLIENT_SECRET) {
+    providers.push(
+      OidcProvider({
+        issuer: env.OIDC_ISSUER,
+        clientId: env.OIDC_CLIENT_ID,
+        clientSecret: env.OIDC_CLIENT_SECRET,
+        name: env.OIDC_NAME,
+      }),
+    );
+  }
+
   if (env.FROM_EMAIL) {
     providers.push(
       EmailProvider({
@@ -182,8 +241,16 @@ function getProviders() {
  */
 export const authOptions: NextAuthOptions = {
   callbacks: {
-    signIn: async ({ user, account }) =>
-      canRegisterSelfHostedUser(user.email, account),
+    signIn: async ({ user, account, profile }) => {
+      if (
+        account?.provider === OIDC_PROVIDER_ID &&
+        (profile as OidcProfile | undefined)?.email_verified !== true
+      ) {
+        return false;
+      }
+
+      return canRegisterSelfHostedUser(user.email, account);
+    },
     session: async ({ session, user }) => ({
       ...session,
       user: {
