@@ -1,8 +1,17 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tsconfigPaths()],
+  resolve: {
+    // Tests use the SDK's source, so they don't need a built package.
+    alias: {
+      "usesend-js": fileURLToPath(
+        new URL("../../packages/sdk/index.ts", import.meta.url),
+      ),
+    },
+  },
   test: {
     environment: "node",
     globals: true,
