@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Github, Mail } from "iconoir-react";
 
-const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/discussions";
+const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/issues/new";
 
 export function SiteFooter() {
   return (
