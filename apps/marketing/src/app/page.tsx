@@ -99,13 +99,15 @@ export default function Page() {
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="#workflow"
+                href="/signup"
                 className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
               >
                 Start building <span className="ml-2">→</span>
               </Link>
               <Link
-                href="#api"
+                href="https://github.com/Abhilash-nallam/otp_auth/tree/otp-auth/ui-v2/apps/docs"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white/70 px-6 py-3.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100 dark:hover:border-slate-500"
               >
                 Explore the platform <span className="ml-2">↗</span>
@@ -243,8 +245,8 @@ export default function Page() {
             <h2 className="mx-auto mt-5 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Give your application an email layer it can grow with.</h2>
             <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-slate-300">Explore the platform, understand the integration flow and build on a foundation designed around sender identity and delivery visibility.</p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="#workflow" className="rounded-xl bg-cyan-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">Start building →</Link>
-              <Link href="#api" className="rounded-xl border border-slate-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10">Explore capabilities</Link>
+              <Link href="/signup" className="rounded-xl bg-cyan-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">Start building →</Link>
+              <Link href="https://github.com/Abhilash-nallam/otp_auth/tree/otp-auth/ui-v2/apps/docs" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10">Explore capabilities</Link>
             </div>
           </div>
         </div>
