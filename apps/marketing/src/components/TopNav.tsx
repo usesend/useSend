@@ -10,7 +10,7 @@ const links = [
   { label: "Workflow", href: "/#workflow" },
 ];
 
-const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/discussions";
+const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/issues/new";
 
 export function TopNav() {
   const [open, setOpen] = useState(false);
