@@ -10,7 +10,7 @@ const links = [
   { label: "Workflow", href: "/#workflow" },
 ];
 
-const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/issues/new";
+const contactUrl = "https://github.com/Abhilash-nallam/otp_auth";
 
 export function TopNav() {
   const [open, setOpen] = useState(false);
@@ -35,12 +35,12 @@ export function TopNav() {
             </Link>
           ))}
           <Link href={contactUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-slate-600 transition hover:text-cyan-700 dark:text-slate-300 dark:hover:text-cyan-300">
-            Contact / demo
+            Project on GitHub
           </Link>
-          <Link href="/login" className="text-sm font-semibold text-slate-700 transition hover:text-cyan-700 dark:text-slate-200 dark:hover:text-cyan-300">
+          <Link href="/#workflow" className="text-sm font-semibold text-slate-700 transition hover:text-cyan-700 dark:text-slate-200 dark:hover:text-cyan-300">
             Sign in
           </Link>
-          <Link href="/signup" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200">
+          <Link href="/#workflow" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200">
             Start building <ArrowUpRight className="h-4 w-4" />
           </Link>
         </nav>
@@ -65,13 +65,13 @@ export function TopNav() {
               </Link>
             ))}
             <Link href={contactUrl} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
-              Contact / demo
+              Project on GitHub
             </Link>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <Link href="/login" onClick={() => setOpen(false)} className="rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-100">
+              <Link href="/#workflow" onClick={() => setOpen(false)} className="rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-100">
                 Sign in
               </Link>
-              <Link href="/signup" onClick={() => setOpen(false)} className="rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white dark:bg-cyan-300 dark:text-slate-950">
+              <Link href="/#workflow" onClick={() => setOpen(false)} className="rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white dark:bg-cyan-300 dark:text-slate-950">
                 Start building
               </Link>
             </div>
