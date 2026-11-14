@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Github, Mail } from "iconoir-react";
 
-const contactUrl = "https://github.com/Abhilash-nallam/otp_auth/issues/new";
+const contactUrl = "https://github.com/Abhilash-nallam/otp_auth";
 
 export function SiteFooter() {
   return (
@@ -32,7 +32,7 @@ export function SiteFooter() {
             <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Connect</h2>
             <div className="mt-4 flex flex-col items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
               <a href={contactUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 transition hover:text-cyan-700 dark:hover:text-cyan-300">
-                <Mail className="h-4 w-4" /> Contact / request a demo <ArrowUpRight className="h-3.5 w-3.5" />
+                <Mail className="h-4 w-4" /> View project repository <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
               <a href="https://github.com/Abhilash-nallam/otp_auth" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 transition hover:text-cyan-700 dark:hover:text-cyan-300">
                 <Github className="h-4 w-4" /> GitHub <ArrowUpRight className="h-3.5 w-3.5" />
