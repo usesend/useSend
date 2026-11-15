@@ -1,6 +1,12 @@
 "use client";
 
-import { type KeyboardEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@usesend/ui/src/button";
 import {
   Dialog,
@@ -34,6 +40,9 @@ const FeedbackSchema = z.object({
 export function FeedbackDialog({ trigger }: { trigger?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
+  // Resending the same text (a double click, a retry after an error) reuses
+  // its key, so it's saved once; edited text gets a new key.
+  const draftKey = useRef<{ text: string; key: string } | null>(null);
 
   const form = useForm<z.infer<typeof FeedbackSchema>>({
     resolver: zodResolver(FeedbackSchema),
@@ -45,6 +54,7 @@ export function FeedbackDialog({ trigger }: { trigger?: ReactNode }) {
   const feedbackMutation = api.feedback.send.useMutation({
     onSuccess: () => {
       toast.success("Thanks for sharing your feedback!");
+      draftKey.current = null;
       form.reset();
       setOpen(false);
     },
@@ -69,7 +79,12 @@ export function FeedbackDialog({ trigger }: { trigger?: ReactNode }) {
   }
 
   function onSubmit(values: z.infer<typeof FeedbackSchema>) {
-    feedbackMutation.mutate({ message: values.message.trim() });
+    if (feedbackMutation.isPending) return;
+    const message = values.message.trim();
+    if (draftKey.current?.text !== message) {
+      draftKey.current = { text: message, key: crypto.randomUUID() };
+    }
+    feedbackMutation.mutate({ message, clientKey: draftKey.current.key });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
