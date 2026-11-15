@@ -30,6 +30,8 @@ export async function register() {
       );
 
       await initDomainVerificationJob();
+
+      await import("~/server/jobs/webhook-cleanup-job");
     }
 
     if (isEmailCleanupEnabled()) {
