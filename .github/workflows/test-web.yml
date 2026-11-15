@@ -4,11 +4,25 @@ on:
   pull_request:
     paths:
       - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".nvmrc"
+      - ".github/workflows/test-web.yml"
   push:
     branches:
       - main
     paths:
       - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".nvmrc"
+      - ".github/workflows/test-web.yml"
 
 jobs:
   web-tests:
@@ -61,7 +75,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Same Node as production (Railway reads .nvmrc too)
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies
@@ -72,6 +87,14 @@ jobs:
 
       - name: Type check
         run: pnpm --filter=web typecheck
+
+      # Next.js checks route handler signatures and page exports only during
+      # a production build, which the typecheck doesn't cover.
+      - name: Production build
+        run: pnpm build:editor && pnpm build:web
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NEXT_PUBLIC_IS_CLOUD: "true"
 
       - name: Prepare test database schema
         run: pnpm --filter=web test:integration:prepare
