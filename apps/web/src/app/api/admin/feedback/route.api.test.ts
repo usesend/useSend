@@ -24,6 +24,7 @@ vi.mock("~/server/mailer", () => ({
 import { GET } from "~/app/api/admin/feedback/route";
 
 const TOKEN = "t".repeat(40);
+const ctx = { params: Promise.resolve({}) };
 const request = (auth?: string, query = "") =>
   new Request(`http://localhost/api/admin/feedback${query}`, {
     headers: auth ? { authorization: auth } : {},
@@ -38,13 +39,13 @@ describe("GET /api/admin/feedback", () => {
 
   it("doesn't exist when no admin token is configured", async () => {
     mockEnv.ADMIN_API_TOKEN = undefined;
-    const response = await GET(request(`Bearer ${TOKEN}`));
+    const response = await GET(request(`Bearer ${TOKEN}`), ctx);
     expect(response.status).toBe(404);
     expect(mockListFeedback).not.toHaveBeenCalled();
   });
 
   it("refuses a wrong token", async () => {
-    const response = await GET(request("Bearer wrong-token"));
+    const response = await GET(request("Bearer wrong-token"), ctx);
     expect(response.status).toBe(401);
     expect(mockListFeedback).not.toHaveBeenCalled();
   });
@@ -52,6 +53,7 @@ describe("GET /api/admin/feedback", () => {
   it("lists feedback with the right token", async () => {
     const response = await GET(
       request(`Bearer ${TOKEN}`, "?status=OPEN&limit=5"),
+      ctx,
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -61,7 +63,7 @@ describe("GET /api/admin/feedback", () => {
   });
 
   it("answers 400 for a bad query", async () => {
-    const response = await GET(request(`Bearer ${TOKEN}`, "?limit=900"));
+    const response = await GET(request(`Bearer ${TOKEN}`, "?limit=900"), ctx);
     expect(response.status).toBe(400);
   });
 });
@@ -95,6 +97,7 @@ describe("admin API bodies", () => {
         // @ts-expect-error Node needs this for a streamed body
         duplex: "half",
       }),
+      ctx,
     );
 
     expect(response.status).toBe(413);
