@@ -83,7 +83,8 @@ export function adminApiRoute(
   handler: Handler,
   { maxBodyBytes = DEFAULT_MAX_BODY_BYTES } = {},
 ) {
-  return async (req: Request, context?: { params?: Promise<Params> }) => {
+  // Next.js requires the route context argument (params is always a Promise).
+  return async (req: Request, context: { params: Promise<Params> }) => {
     if (!env.ADMIN_API_TOKEN) return json(404, { error: "Not found" });
     if (
       !isAdminAuthorized(req.headers.get("authorization"), env.ADMIN_API_TOKEN)
@@ -100,7 +101,7 @@ export function adminApiRoute(
         }
         body = await readJsonBody(req, maxBodyBytes);
       }
-      const params = (await context?.params) ?? {};
+      const params = (await context.params) ?? {};
       const result = await handler({ req, body, params });
       return result instanceof Response ? result : json(200, result);
     } catch (error) {
