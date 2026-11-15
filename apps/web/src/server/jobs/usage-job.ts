@@ -1,6 +1,5 @@
 import { Queue, Worker } from "bullmq";
 import { db } from "~/server/db";
-import { env } from "~/env";
 import { getUsageDate, getUsageUnits } from "~/lib/usage";
 import { sendUsageToStripe } from "~/server/billing/usage";
 import { getRedis, BULL_PREFIX } from "~/server/redis";
@@ -80,7 +79,7 @@ const worker = new Worker(
 await usageQueue.upsertJobScheduler(
   "daily-usage-report",
   {
-    pattern: "0 */12 * * *", // Run every 12 hours (at 00:00, 12:00 UTC)
+    pattern: "0 0 * * *", // Run daily at 00:00 UTC
     tz: "UTC",
   },
   {
