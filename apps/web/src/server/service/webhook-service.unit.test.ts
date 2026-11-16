@@ -809,6 +809,46 @@ describe("WebhookService.retryCall", () => {
     expect(mockQueueAdd).not.toHaveBeenCalled();
   });
 
+  it("puts the call back as it was when it can't be queued", async () => {
+    const failedCall = {
+      id: "call_123",
+      teamId: 77,
+      status: WebhookCallStatus.FAILED,
+      attempt: 6,
+      nextAttemptAt: null,
+      lastError: "HTTP 500",
+      responseStatus: 500,
+      responseTimeMs: 120,
+      responseText: "oops",
+    };
+    mockDb.webhookCall.findFirst.mockResolvedValue(failedCall);
+    mockQueueGetJob.mockResolvedValue({
+      getState: vi.fn().mockResolvedValue("failed"),
+      retry: vi.fn().mockRejectedValue(new Error("Missing key for job")),
+    });
+
+    await expect(
+      WebhookService.retryCall({ callId: "call_123", teamId: 77 }),
+    ).rejects.toThrow("Missing key for job");
+
+    expect(mockDb.webhookCall.update).toHaveBeenNthCalledWith(1, {
+      where: { id: "call_123" },
+      data: resetRow,
+    });
+    expect(mockDb.webhookCall.update).toHaveBeenNthCalledWith(2, {
+      where: { id: "call_123" },
+      data: {
+        status: WebhookCallStatus.FAILED,
+        attempt: 6,
+        nextAttemptAt: null,
+        lastError: "HTTP 500",
+        responseStatus: 500,
+        responseTimeMs: 120,
+        responseText: "oops",
+      },
+    });
+  });
+
   it("rejects a retry for a call that is not on the team", async () => {
     mockDb.webhookCall.findFirst.mockResolvedValue(null);
 

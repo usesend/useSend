@@ -203,7 +203,25 @@ export class WebhookService {
       },
     });
 
-    await WebhookQueueService.requeueCall(call.id, params.teamId);
+    try {
+      await WebhookQueueService.requeueCall(call.id, params.teamId);
+    } catch (error) {
+      // Nothing was queued: put the call back as it was, so it still shows as
+      // failed and can be retried again from the dashboard.
+      await db.webhookCall.update({
+        where: { id: call.id },
+        data: {
+          status: call.status,
+          attempt: call.attempt,
+          nextAttemptAt: call.nextAttemptAt,
+          lastError: call.lastError,
+          responseStatus: call.responseStatus,
+          responseTimeMs: call.responseTimeMs,
+          responseText: call.responseText,
+        },
+      });
+      throw error;
+    }
 
     return call.id;
   }
