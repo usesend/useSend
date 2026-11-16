@@ -41,3 +41,6 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages_dir: packages/python-sdk/dist
+          # Publish only distributions that are not on PyPI yet, so a push that
+          # does not bump the package version does not fail on a duplicate file.
+          skip-existing: true
