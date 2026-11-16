@@ -32,14 +32,15 @@ vi.mock("~/server/jobs/campaign-scheduler-job", () => ({
   CampaignSchedulerService: { start: mocks.start },
 }));
 
-vi.mock("~/server/jobs/webhook-cleanup-job", () => {
-  flags.webhookCleanupImported = true;
-  return {};
-});
-
 describe("instrumentation register", () => {
   beforeEach(() => {
     vi.resetModules();
+    // Registered fresh for every test: a factory registered once with vi.mock
+    // is cached, so later imports wouldn't record that the job was loaded.
+    vi.doMock("~/server/jobs/webhook-cleanup-job", () => {
+      flags.webhookCleanupImported = true;
+      return {};
+    });
     flags.webhookCleanupImported = false;
     flags.isCloud = true;
     vi.stubEnv("NEXT_RUNTIME", "nodejs");
