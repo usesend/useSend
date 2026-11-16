@@ -335,6 +335,21 @@ describe("CampaignBatchService", () => {
       });
     });
 
+    it("does not pause if the failed batch was cleared in the meantime", async () => {
+      // queueBatch sees the old failed job, then a reschedule clears it before
+      // the pause: the second look finds no job.
+      mockQueueGetJob
+        .mockResolvedValueOnce(failedJob(25 * 60 * 60))
+        .mockResolvedValueOnce(undefined);
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+    });
+
     it("does not pause when it couldn't read the campaign first", async () => {
       mockDb.campaign.findUnique.mockRejectedValue(new Error("db timeout"));
       mockQueueGetJob.mockResolvedValue(failedJob(25 * 60 * 60));

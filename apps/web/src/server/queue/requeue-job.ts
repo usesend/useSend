@@ -71,7 +71,11 @@ export async function requeueJob<DataOrJob>(
     }
 
     if (finishedState === "failed") {
-      const failedForMs = Date.now() - (existing.finishedOn ?? 0);
+      // finishedOn is missing if the job was fetched while still running and
+      // failed just after: treat that as a fresh failure, never an old one.
+      const failedForMs = existing.finishedOn
+        ? Date.now() - existing.finishedOn
+        : 0;
       if (
         options.retryFailedAfterMs !== undefined &&
         failedForMs < options.retryFailedAfterMs

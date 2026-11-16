@@ -1248,6 +1248,11 @@ export class CampaignBatchService {
     });
   }
 
+  static async hasFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    return Boolean(job && (await job.isFailed()));
+  }
+
   /** Removes a kept failed batch job for a campaign, if there is one. */
   static async clearFailedBatch(campaignId: string) {
     const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
@@ -1325,7 +1330,15 @@ export class CampaignBatchService {
       );
     }
 
-    if (result === "failed-too-long-ago" && seenUpdatedAt) {
+    if (
+      result === "failed-too-long-ago" &&
+      seenUpdatedAt &&
+      // Check again right before pausing: resume, schedule and send clear the
+      // failed batch, and that must win. (A clear landing in the moment between
+      // this check and the update below can still pause the campaign; that is
+      // safe, as nothing is sent, and the owner can resume it.)
+      (await this.hasFailedBatch(campaignId))
+    ) {
       // Pause in the database, not just skip: BullMQ deletes the failed job
       // after 30 days, and the campaign would then restart on the next tick.
       // The updatedAt check guards against undoing a resume or reschedule
