@@ -16,6 +16,11 @@ export type RequeueResult = "retried" | "added" | "already-queued";
  *
  * Use it only where a job is deliberately run again (for example a user pressing
  * Retry), not on hot paths: it costs an extra Redis round trip.
+ *
+ * The result says what this call did, not that the job will run: if the job
+ * changes state at the same moment (another retry, or the 30-day cleanup),
+ * `retry()` throws, and the caller should let the user try again. It does not
+ * repair queue data that is out of sync.
  */
 export async function requeueJob<Data>(
   queue: Queue<Data>,

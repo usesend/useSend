@@ -13,6 +13,8 @@ const describeIntegration = integrationEnabled ? describe : describe.skip;
 
 const QUEUE_NAME = "requeue-job-integration";
 const PREFIX = "requeue-job-test";
+// Each test polls the queue a few times; leave room for a slow CI runner.
+const TEST_TIMEOUT_MS = 15_000;
 
 type Data = { callId: string };
 
@@ -73,76 +75,101 @@ describeIntegration("requeueJob with real BullMQ and Redis", () => {
     await closeIntegrationConnections();
   });
 
-  it("runs a failed job again with its attempts reset, where a plain add() does nothing", async () => {
-    startWorker();
-    await queue.add("call_1", { callId: "call_1" }, { jobId: "call_1" });
-    await waitFor(async () => (await stateOf("call_1")) === "failed");
-    expect(attempts).toEqual([1, 2]);
+  it(
+    "runs a failed job again with its attempts reset, where a plain add() does nothing",
+    async () => {
+      startWorker();
+      await queue.add("call_1", { callId: "call_1" }, { jobId: "call_1" });
+      await waitFor(async () => (await stateOf("call_1")) === "failed");
+      expect(attempts).toEqual([1, 2]);
 
-    // The bug: the failed job is kept under the same id, so add() is ignored.
-    await queue.add("call_1", { callId: "call_1" }, { jobId: "call_1" });
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(attempts).toEqual([1, 2]);
-    expect(await stateOf("call_1")).toBe("failed");
+      // The bug: the failed job is kept under the same id, so add() is ignored.
+      await queue.add("call_1", { callId: "call_1" }, { jobId: "call_1" });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toEqual([1, 2]);
+      expect(await stateOf("call_1")).toBe("failed");
 
-    shouldFail = false;
-    await expect(
-      requeueJob(queue, "call_1", { callId: "call_1" }, { jobId: "call_1" }),
-    ).resolves.toBe("retried");
+      shouldFail = false;
+      await expect(
+        requeueJob(queue, "call_1", { callId: "call_1" }, { jobId: "call_1" }),
+      ).resolves.toBe("retried");
 
-    // Completed jobs are removed (removeOnComplete), so the job disappears.
-    await waitFor(async () => (await stateOf("call_1")) === "missing");
-    expect(attempts).toEqual([1, 2, 1]);
-  });
+      // Completed jobs are removed (removeOnComplete), so the job disappears.
+      await waitFor(async () => (await stateOf("call_1")) === "missing");
+      expect(attempts).toEqual([1, 2, 1]);
+    },
+    TEST_TIMEOUT_MS,
+  );
 
-  it("adds a new job when none exists", async () => {
-    shouldFail = false;
-    startWorker();
+  it(
+    "adds a new job when none exists",
+    async () => {
+      shouldFail = false;
+      startWorker();
 
-    await expect(
-      requeueJob(queue, "call_2", { callId: "call_2" }, { jobId: "call_2" }),
-    ).resolves.toBe("added");
+      await expect(
+        requeueJob(queue, "call_2", { callId: "call_2" }, { jobId: "call_2" }),
+      ).resolves.toBe("added");
 
-    await waitFor(async () => attempts.length === 1);
-    await waitFor(async () => (await stateOf("call_2")) === "missing");
-    expect(attempts).toEqual([1]);
-  });
+      await waitFor(async () => attempts.length === 1);
+      await waitFor(async () => (await stateOf("call_2")) === "missing");
+      expect(attempts).toEqual([1]);
+    },
+    TEST_TIMEOUT_MS,
+  );
 
-  it("leaves a job that is waiting for its next attempt alone", async () => {
-    startWorker();
-    await queue.add(
-      "call_3",
-      { callId: "call_3" },
-      { jobId: "call_3", backoff: { type: "fixed", delay: 60_000 } },
-    );
-    await waitFor(async () => (await stateOf("call_3")) === "delayed");
+  it(
+    "leaves a job that is waiting for its next attempt alone",
+    async () => {
+      startWorker();
+      await queue.add(
+        "call_3",
+        { callId: "call_3" },
+        { jobId: "call_3", backoff: { type: "fixed", delay: 60_000 } },
+      );
+      await waitFor(async () => (await stateOf("call_3")) === "delayed");
 
-    await expect(
-      requeueJob(queue, "call_3", { callId: "call_3" }, { jobId: "call_3" }),
-    ).resolves.toBe("already-queued");
+      await expect(
+        requeueJob(queue, "call_3", { callId: "call_3" }, { jobId: "call_3" }),
+      ).resolves.toBe("already-queued");
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(attempts).toEqual([1]);
-    expect(await stateOf("call_3")).toBe("delayed");
-  });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toEqual([1]);
+      expect(await stateOf("call_3")).toBe("delayed");
+    },
+    TEST_TIMEOUT_MS,
+  );
 
-  it("leaves a running job alone and never runs it twice at once", async () => {
-    let release: () => void = () => undefined;
-    const running = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    startWorker(() => running);
+  it(
+    "leaves a running job alone and never runs it twice at once",
+    async () => {
+      let release: () => void = () => undefined;
+      const running = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      startWorker(() => running);
 
-    await queue.add("call_4", { callId: "call_4" }, { jobId: "call_4" });
-    await waitFor(async () => (await stateOf("call_4")) === "active");
+      // Always let the job finish, so closing the worker can't hang the suite.
+      try {
+        await queue.add("call_4", { callId: "call_4" }, { jobId: "call_4" });
+        await waitFor(async () => (await stateOf("call_4")) === "active");
 
-    await expect(
-      requeueJob(queue, "call_4", { callId: "call_4" }, { jobId: "call_4" }),
-    ).resolves.toBe("already-queued");
+        await expect(
+          requeueJob(
+            queue,
+            "call_4",
+            { callId: "call_4" },
+            { jobId: "call_4" },
+          ),
+        ).resolves.toBe("already-queued");
+      } finally {
+        release();
+      }
 
-    release();
-    await waitFor(async () => (await stateOf("call_4")) === "missing");
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(attempts).toEqual([1]);
-  });
+      await waitFor(async () => (await stateOf("call_4")) === "missing");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toEqual([1]);
+    },
+    TEST_TIMEOUT_MS,
+  );
 });
