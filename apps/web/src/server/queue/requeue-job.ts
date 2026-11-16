@@ -62,8 +62,10 @@ export async function requeueJob<DataOrJob>(
         : null;
 
     if (!finishedState) {
-      // Still waiting, delayed or running: it will run anyway, and add() would
-      // be ignored for this id.
+      // Still waiting, delayed or running: it will run anyway. add() is still
+      // called, in case the job finished and was removed during the checks
+      // above: BullMQ ignores it while a job with this id exists.
+      await (queue as Queue).add(name, data, opts);
       return "already-queued";
     }
 

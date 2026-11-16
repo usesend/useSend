@@ -27,6 +27,7 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
       contact: {
         findUnique: vi.fn(),
         findMany: vi.fn(),
+        count: vi.fn(),
       },
       contactBook: {
         findUnique: vi.fn(),
@@ -134,6 +135,7 @@ import {
   CampaignBatchService,
   recordCampaignContactFailure,
   resumeCampaign,
+  scheduleCampaign,
   subscribeContact,
   unsubscribeContact,
 } from "~/server/service/campaign-service";
@@ -269,11 +271,14 @@ describe("CampaignBatchService", () => {
       retry: vi.fn().mockResolvedValue(undefined),
     });
 
+    const seenUpdatedAt = new Date("2026-11-16T10:00:00Z");
+
     beforeEach(() => {
       mockDb.campaign.findUnique.mockResolvedValue({
         lastSentAt: null,
         batchWindowMinutes: 0,
         status: "RUNNING",
+        updatedAt: seenUpdatedAt,
       });
     });
 
@@ -319,13 +324,27 @@ describe("CampaignBatchService", () => {
 
       expect(job.retry).not.toHaveBeenCalled();
       expect(mockQueueAdd).not.toHaveBeenCalled();
+      // Only if nothing changed the campaign since it was read (e.g. a resume).
       expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
         where: {
           id: "campaign_1",
           status: { in: ["SCHEDULED", "RUNNING"] },
+          updatedAt: seenUpdatedAt,
         },
         data: { status: "PAUSED" },
       });
+    });
+
+    it("does not pause when it couldn't read the campaign first", async () => {
+      mockDb.campaign.findUnique.mockRejectedValue(new Error("db timeout"));
+      mockQueueGetJob.mockResolvedValue(failedJob(25 * 60 * 60));
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
     });
 
     it("does not queue a second copy of a batch that is still running", async () => {
@@ -342,8 +361,49 @@ describe("CampaignBatchService", () => {
       });
 
       expect(job.retry).not.toHaveBeenCalled();
-      expect(mockQueueAdd).not.toHaveBeenCalled();
+      // add() is still sent with the same job id, in case the job finished
+      // during the checks; BullMQ ignores it while the job exists (see the
+      // requeueJob integration tests).
+      expect(mockQueueAdd).toHaveBeenCalledWith(
+        "campaign-campaign_1",
+        { campaignId: "campaign_1", teamId: 7 },
+        expect.objectContaining({ jobId: "campaign-batch-campaign_1" }),
+      );
     });
+  });
+});
+
+describe("scheduleCampaign", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      status: "PAUSED",
+      contactBookId: "book_1",
+      content: null,
+      html: '<p>Hi <a href="{{unsend_unsubscribe_url}}">Unsubscribe</a></p>',
+    });
+    mockDb.contact.count.mockResolvedValue(3);
+    mockDb.campaign.update.mockResolvedValue({});
+  });
+
+  it("clears a batch that failed long ago, so the campaign isn't paused again", async () => {
+    const job = {
+      isFailed: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    mockQueueGetJob.mockResolvedValue(job);
+
+    await scheduleCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(job.remove).toHaveBeenCalled();
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "campaign_1" },
+        data: expect.objectContaining({ status: "SCHEDULED" }),
+      }),
+    );
   });
 });
 
@@ -465,6 +525,40 @@ describe("campaign batch worker, re-running a batch that failed part-way", () =>
       "email_contact_3",
     ]);
     expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { lastCursor: "contact_3", lastSentAt: expect.any(Date) },
+    });
+  });
+
+  it("never emails anyone twice when a batch fails after sending and runs again", async () => {
+    // A stand-in for the database: remembers which contacts got their email.
+    const linked = new Set<string>();
+    mockDb.campaignEmail.findMany.mockImplementation(async ({ where }: any) =>
+      where.contactId.in
+        .filter((id: string) => linked.has(id))
+        .map((contactId: string) => ({ contactId })),
+    );
+    mockDb.campaignEmail.create.mockImplementation(async ({ data }: any) => {
+      linked.add(data.contactId);
+      return {};
+    });
+    // The first run fails at the very end, when saving its progress.
+    mockDb.campaign.update
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockResolvedValue({});
+
+    const job = { data: { campaignId: "campaign_1", teamId: 7 } };
+    await expect(capturedBatchHandler.handler(job)).rejects.toThrow(
+      "connection reset",
+    );
+    expect(mockQueueEmail).toHaveBeenCalledTimes(3);
+
+    // The retry starts from the same (unsaved) position.
+    await capturedBatchHandler.handler(job);
+
+    expect(mockQueueEmail).toHaveBeenCalledTimes(3);
+    expect(mockDb.email.create).toHaveBeenCalledTimes(3);
+    expect(mockDb.campaign.update).toHaveBeenLastCalledWith({
       where: { id: "campaign_1" },
       data: { lastCursor: "contact_3", lastSentAt: expect.any(Date) },
     });

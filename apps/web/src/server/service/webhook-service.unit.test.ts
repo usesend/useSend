@@ -811,7 +811,13 @@ describe("WebhookService.retryCall", () => {
     await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
 
     expect(delayedJob.retry).not.toHaveBeenCalled();
-    expect(mockQueueAdd).not.toHaveBeenCalled();
+    // Same job id: BullMQ ignores the add while the job exists (see the
+    // requeueJob integration tests).
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_123",
+      { callId: "call_123", teamId: 77 },
+      { jobId: "call_123" },
+    );
   });
 
   it("puts the call back as it was when it can't be queued", async () => {
