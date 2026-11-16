@@ -207,9 +207,15 @@ export class WebhookService {
       await WebhookQueueService.requeueCall(call.id, params.teamId);
     } catch (error) {
       // Nothing was queued: put the call back as it was, so it still shows as
-      // failed and can be retried again from the dashboard.
-      await db.webhookCall.update({
-        where: { id: call.id },
+      // failed and can be retried again from the dashboard. Only undo our own
+      // reset (PENDING, attempt 0): once a worker picks the call up it sets
+      // attempt >= 1, and its result must not be overwritten.
+      await db.webhookCall.updateMany({
+        where: {
+          id: call.id,
+          status: WebhookCallStatus.PENDING,
+          attempt: 0,
+        },
         data: {
           status: call.status,
           attempt: call.attempt,

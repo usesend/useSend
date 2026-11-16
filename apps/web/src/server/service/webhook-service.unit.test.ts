@@ -32,6 +32,7 @@ const {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
   mockLimitService: {
@@ -754,6 +755,8 @@ describe("WebhookService.retryCall", () => {
     mockDb.webhookCall.update.mockReset();
     mockQueueAdd.mockReset();
     mockQueueGetJob.mockReset();
+    mockDb.webhookCall.updateMany.mockReset();
+    mockDb.webhookCall.updateMany.mockResolvedValue({ count: 1 });
 
     mockDb.webhookCall.findFirst.mockResolvedValue({
       id: "call_123",
@@ -835,8 +838,13 @@ describe("WebhookService.retryCall", () => {
       where: { id: "call_123" },
       data: resetRow,
     });
-    expect(mockDb.webhookCall.update).toHaveBeenNthCalledWith(2, {
-      where: { id: "call_123" },
+    expect(mockDb.webhookCall.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.webhookCall.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "call_123",
+        status: WebhookCallStatus.PENDING,
+        attempt: 0,
+      },
       data: {
         status: WebhookCallStatus.FAILED,
         attempt: 6,
