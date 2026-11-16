@@ -16,6 +16,7 @@ import {
   WEBHOOK_DISPATCH_QUEUE,
 } from "../queue/queue-constants";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { requeueJob } from "../queue/requeue-job";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
 import { withPlanLimitLock } from "./plan-limit-lock";
@@ -86,6 +87,20 @@ export class WebhookQueueService {
         callId,
         teamId,
       },
+      { jobId: callId },
+    );
+  }
+
+  /**
+   * Queues a call again when a user presses Retry. A plain add() would do
+   * nothing after the call used up its attempts, because the failed job is kept
+   * under the same id (see requeueJob).
+   */
+  public static async requeueCall(callId: string, teamId: number) {
+    return requeueJob(
+      this.queue,
+      callId,
+      { callId, teamId },
       { jobId: callId },
     );
   }
@@ -188,7 +203,7 @@ export class WebhookService {
       },
     });
 
-    await WebhookQueueService.enqueueCall(call.id, params.teamId);
+    await WebhookQueueService.requeueCall(call.id, params.teamId);
 
     return call.id;
   }

@@ -7,6 +7,7 @@ const {
   mockLimitService,
   mockLogger,
   mockQueueAdd,
+  mockQueueGetJob,
   mockRedis,
   mockTxWebhookUpdate,
 } = vi.hoisted(() => ({
@@ -43,6 +44,7 @@ const {
     warn: vi.fn(),
   },
   mockQueueAdd: vi.fn(),
+  mockQueueGetJob: vi.fn(),
   mockRedis: {
     eval: vi.fn(),
     set: vi.fn(),
@@ -53,6 +55,7 @@ const {
 vi.mock("bullmq", () => ({
   Queue: class {
     public add = mockQueueAdd;
+    public getJob = mockQueueGetJob;
   },
   Worker: class {
     public on = vi.fn();
@@ -732,5 +735,110 @@ describe("WebhookService.emit domain filters", () => {
     });
     expect(mockDb.webhookCall.create).toHaveBeenCalledTimes(2);
     expect(mockQueueAdd).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("WebhookService.retryCall", () => {
+  const resetRow = {
+    status: WebhookCallStatus.PENDING,
+    attempt: 0,
+    nextAttemptAt: null,
+    lastError: null,
+    responseStatus: null,
+    responseTimeMs: null,
+    responseText: null,
+  };
+
+  beforeEach(() => {
+    mockDb.webhookCall.findFirst.mockReset();
+    mockDb.webhookCall.update.mockReset();
+    mockQueueAdd.mockReset();
+    mockQueueGetJob.mockReset();
+
+    mockDb.webhookCall.findFirst.mockResolvedValue({
+      id: "call_123",
+      teamId: 77,
+    });
+    mockDb.webhookCall.update.mockResolvedValue({});
+    mockQueueAdd.mockResolvedValue(undefined);
+  });
+
+  it("moves a call's failed job back to the queue with its attempts reset", async () => {
+    const failedJob = {
+      getState: vi.fn().mockResolvedValue("failed"),
+      retry: vi.fn().mockResolvedValue(undefined),
+    };
+    mockQueueGetJob.mockResolvedValue(failedJob);
+
+    await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
+
+    expect(mockDb.webhookCall.update).toHaveBeenCalledWith({
+      where: { id: "call_123" },
+      data: resetRow,
+    });
+    expect(mockQueueGetJob).toHaveBeenCalledWith("call_123");
+    expect(failedJob.retry).toHaveBeenCalledWith("failed", {
+      resetAttemptsMade: true,
+      resetAttemptsStarted: true,
+    });
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("queues the call when no job is kept for it", async () => {
+    mockQueueGetJob.mockResolvedValue(undefined);
+
+    await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_123",
+      { callId: "call_123", teamId: 77 },
+      { jobId: "call_123" },
+    );
+  });
+
+  it("leaves a call that is already queued or running alone", async () => {
+    const delayedJob = {
+      getState: vi.fn().mockResolvedValue("delayed"),
+      retry: vi.fn(),
+    };
+    mockQueueGetJob.mockResolvedValue(delayedJob);
+
+    await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
+
+    expect(delayedJob.retry).not.toHaveBeenCalled();
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("rejects a retry for a call that is not on the team", async () => {
+    mockDb.webhookCall.findFirst.mockResolvedValue(null);
+
+    await expect(
+      WebhookService.retryCall({ callId: "missing", teamId: 77 }),
+    ).rejects.toThrow("Webhook call not found");
+
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
+    expect(mockQueueAdd).not.toHaveBeenCalled();
+  });
+
+  it("does not look up existing jobs for new calls", async () => {
+    mockDb.webhook.findMany.mockResolvedValue([
+      { id: "wh_1", teamId: 77, status: WebhookStatus.ACTIVE },
+    ]);
+    mockDb.webhookCall.create.mockResolvedValue({ id: "call_new" });
+
+    await WebhookService.emit(77, "contact.created", {
+      id: "contact_1",
+      email: "test@example.com",
+      contactBookId: "book_1",
+      subscribed: true,
+      properties: {},
+      firstName: null,
+      lastName: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(mockQueueAdd).toHaveBeenCalledTimes(1);
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
   });
 });
