@@ -36,8 +36,9 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   };
 });
 
-const { mockQueueAdd } = vi.hoisted(() => ({
+const { mockQueueAdd, mockQueueGetJob } = vi.hoisted(() => ({
   mockQueueAdd: vi.fn(),
+  mockQueueGetJob: vi.fn(),
 }));
 
 vi.mock("~/server/db", () => ({
@@ -61,8 +62,11 @@ vi.mock("~/server/service/contact-service", () => ({
 vi.mock("bullmq", () => ({
   Queue: class {
     add = mockQueueAdd;
+    getJob = mockQueueGetJob;
   },
-  Worker: class {},
+  Worker: class {
+    on = vi.fn();
+  },
 }));
 
 vi.mock("~/server/redis", () => ({
@@ -99,6 +103,7 @@ vi.mock("~/server/logger/log", () => ({
 import {
   CampaignBatchService,
   recordCampaignContactFailure,
+  resumeCampaign,
   subscribeContact,
   unsubscribeContact,
 } from "~/server/service/campaign-service";
@@ -224,6 +229,122 @@ describe("CampaignBatchService", () => {
       { campaignId: "campaign_1", teamId: 7 },
       expect.objectContaining({ jobId: "campaign-batch-campaign_1" }),
     );
+  });
+
+  describe("after a batch failed", () => {
+    const failedJob = (failedSecondsAgo: number) => ({
+      getState: vi.fn().mockResolvedValue("failed"),
+      finishedOn: Date.now() - failedSecondsAgo * 1000,
+      retry: vi.fn().mockResolvedValue(undefined),
+    });
+
+    beforeEach(() => {
+      mockDb.campaign.findUnique.mockResolvedValue({
+        lastSentAt: null,
+        batchWindowMinutes: 0,
+        status: "RUNNING",
+      });
+    });
+
+    it("retries the batch a minute later, with its attempts reset", async () => {
+      const job = failedJob(61);
+      mockQueueGetJob.mockResolvedValue(job);
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(mockQueueGetJob).toHaveBeenCalledWith("campaign-batch-campaign_1");
+      expect(job.retry).toHaveBeenCalledWith("failed", {
+        resetAttemptsMade: true,
+        resetAttemptsStarted: true,
+      });
+      expect(mockQueueAdd).not.toHaveBeenCalled();
+    });
+
+    it("waits before retrying a batch that just failed", async () => {
+      const job = failedJob(10);
+      mockQueueGetJob.mockResolvedValue(job);
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(job.retry).not.toHaveBeenCalled();
+      expect(mockQueueAdd).not.toHaveBeenCalled();
+    });
+
+    it("does not restart a campaign whose batch failed over a day ago", async () => {
+      const job = failedJob(25 * 60 * 60);
+      mockQueueGetJob.mockResolvedValue(job);
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(job.retry).not.toHaveBeenCalled();
+      expect(mockQueueAdd).not.toHaveBeenCalled();
+    });
+
+    it("does not queue a second copy of a batch that is still running", async () => {
+      const job = {
+        getState: vi.fn().mockResolvedValue("active"),
+        retry: vi.fn(),
+      };
+      mockQueueGetJob.mockResolvedValue(job);
+
+      await CampaignBatchService.queueBatch({
+        campaignId: "campaign_1",
+        teamId: 7,
+      });
+
+      expect(job.retry).not.toHaveBeenCalled();
+      expect(mockQueueAdd).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("resumeCampaign", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      scheduledAt: null,
+    });
+    mockDb.campaign.update.mockResolvedValue({});
+  });
+
+  it("clears a failed batch so the scheduler can continue the campaign", async () => {
+    const job = {
+      isFailed: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    mockQueueGetJob.mockResolvedValue(job);
+
+    await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockQueueGetJob).toHaveBeenCalledWith("campaign-batch-campaign_1");
+    expect(job.remove).toHaveBeenCalled();
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { status: "RUNNING" },
+    });
+  });
+
+  it("leaves a batch that is still running alone", async () => {
+    const job = {
+      isFailed: vi.fn().mockResolvedValue(false),
+      remove: vi.fn(),
+    };
+    mockQueueGetJob.mockResolvedValue(job);
+
+    await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(job.remove).not.toHaveBeenCalled();
   });
 });
 

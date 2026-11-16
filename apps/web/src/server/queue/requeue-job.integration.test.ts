@@ -102,6 +102,76 @@ describeIntegration("requeueJob with real BullMQ and Redis", () => {
   );
 
   it(
+    "waits before retrying a job that failed moments ago, then retries it",
+    async () => {
+      startWorker();
+      await queue.add(
+        "batch_1",
+        { callId: "batch_1" },
+        { jobId: "batch_1", attempts: 1 },
+      );
+      await waitFor(async () => (await stateOf("batch_1")) === "failed");
+      expect(attempts).toEqual([1]);
+
+      shouldFail = false;
+      await expect(
+        requeueJob(
+          queue,
+          "batch_1",
+          { callId: "batch_1" },
+          { jobId: "batch_1" },
+          { retryFailedAfterMs: 60_000 },
+        ),
+      ).resolves.toBe("failed-too-recently");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toEqual([1]);
+      expect(await stateOf("batch_1")).toBe("failed");
+
+      await expect(
+        requeueJob(
+          queue,
+          "batch_1",
+          { callId: "batch_1" },
+          { jobId: "batch_1" },
+          { retryFailedAfterMs: 0 },
+        ),
+      ).resolves.toBe("retried");
+      await waitFor(async () => (await stateOf("batch_1")) === "missing");
+      expect(attempts).toEqual([1, 1]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "leaves a job that failed too long ago alone",
+    async () => {
+      startWorker();
+      await queue.add(
+        "batch_2",
+        { callId: "batch_2" },
+        { jobId: "batch_2", attempts: 1 },
+      );
+      await waitFor(async () => (await stateOf("batch_2")) === "failed");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      shouldFail = false;
+      await expect(
+        requeueJob(
+          queue,
+          "batch_2",
+          { callId: "batch_2" },
+          { jobId: "batch_2" },
+          { maxFailedAgeMs: 10 },
+        ),
+      ).resolves.toBe("failed-too-long-ago");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(attempts).toEqual([1]);
+      expect(await stateOf("batch_2")).toBe("failed");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     "adds a new job when none exists",
     async () => {
       shouldFail = false;

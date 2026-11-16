@@ -17,6 +17,7 @@ import {
 } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { requeueJob } from "../queue/requeue-job";
 import { SuppressionService } from "./suppression-service";
 import { UnsendApiError } from "../public-api/api-error";
 import {
@@ -521,6 +522,10 @@ export async function resumeCampaign({
       message: "Campaign not found",
     });
   }
+
+  // Resuming is an explicit choice, so it also clears a batch that failed long
+  // ago and that the scheduler no longer retries on its own.
+  await CampaignBatchService.clearFailedBatch(campaignId);
 
   if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
     await db.campaign.update({
@@ -1058,6 +1063,16 @@ export async function updateCampaignAnalytics(
 
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 
+// A failed batch is retried by the scheduler after a short wait, so a batch
+// that keeps failing doesn't run on every 1.5s scheduler tick.
+const CAMPAIGN_BATCH_RETRY_AFTER_MS = 60 * 1000;
+// A batch that failed longer ago than this is not retried automatically, so an
+// old campaign never starts sending again by surprise. Resuming it does.
+const CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS = 24 * 60 * 60 * 1000;
+
+const campaignBatchJobId = (campaignId: string) =>
+  `campaign-batch-${campaignId}`;
+
 export class CampaignBatchService {
   private static batchQueue = new Queue<CampaignBatchJob>(
     CAMPAIGN_BATCH_QUEUE,
@@ -1212,6 +1227,27 @@ export class CampaignBatchService {
     },
   );
 
+  static {
+    this.worker.on("failed", (job, err) => {
+      logger.error(
+        { err, campaignId: job?.data?.campaignId, jobId: job?.id },
+        "[CampaignBatchService]: Campaign batch failed; the scheduler will retry it",
+      );
+    });
+  }
+
+  /** Removes a kept failed batch job for a campaign, if there is one. */
+  static async clearFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    if (job && (await job.isFailed())) {
+      await job.remove();
+      logger.info(
+        { campaignId },
+        "[CampaignBatchService]: Cleared a failed batch on resume",
+      );
+    }
+  }
+
   static async queueBatch({
     campaignId,
     teamId,
@@ -1246,10 +1282,24 @@ export class CampaignBatchService {
       );
     }
 
-    await this.batchQueue.add(
+    // A plain add() would do nothing after a failed batch: BullMQ keeps the
+    // failed job under this fixed id for 30 days, and the campaign would stop.
+    const result = await requeueJob(
+      this.batchQueue,
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch-${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      { jobId: campaignBatchJobId(campaignId), ...DEFAULT_QUEUE_OPTIONS },
+      {
+        retryFailedAfterMs: CAMPAIGN_BATCH_RETRY_AFTER_MS,
+        maxFailedAgeMs: CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS,
+      },
     );
+
+    if (result === "retried") {
+      logger.warn(
+        { campaignId },
+        "[CampaignBatchService]: Retrying a failed campaign batch",
+      );
+    }
   }
 }
