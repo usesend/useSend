@@ -368,10 +368,6 @@ export async function sendCampaign(id: string) {
     where: { contactBookId: campaign.contactBookId, subscribed: true },
   });
 
-  // Sending is an explicit choice: clear a batch that failed long ago, so the
-  // scheduler doesn't pause the campaign again because of it.
-  await CampaignBatchService.clearFailedBatch(id);
-
   // Mark as scheduled (or keep running if already running), set totals and scheduledAt if not set
   await db.campaign.update({
     where: { id },
@@ -382,6 +378,11 @@ export async function sendCampaign(id: string) {
       lastCursor: campaign.lastCursor ?? null,
     },
   });
+
+  // Sending is an explicit choice: clear a batch that failed long ago, so the
+  // scheduler doesn't pause the campaign because of it (after the update, as
+  // in scheduleCampaign).
+  await CampaignBatchService.clearFailedBatch(id);
 
   // Kick off first batch immediately (idempotent by jobId)
   await CampaignBatchService.queueBatch({
@@ -469,10 +470,6 @@ export async function scheduleCampaign({
   const shouldResetCursor =
     campaign.status === "DRAFT" || campaign.status === "SENT";
 
-  // Scheduling is an explicit choice: clear a batch that failed long ago, so
-  // the scheduler doesn't pause the campaign again because of it.
-  await CampaignBatchService.clearFailedBatch(campaign.id);
-
   await db.campaign.update({
     where: { id: campaign.id },
     data: {
@@ -483,6 +480,12 @@ export async function scheduleCampaign({
       ...(shouldResetCursor ? { lastCursor: null } : {}),
     },
   });
+
+  // Scheduling is an explicit choice: clear a batch that failed long ago, so
+  // the scheduler doesn't pause the campaign because of it. This runs after the
+  // new schedule is saved, so the scheduler can't start an early batch in
+  // between. If it fails, the worst case is the campaign gets paused, not sent.
+  await CampaignBatchService.clearFailedBatch(campaign.id);
 
   return { ok: true };
 }
@@ -1265,7 +1268,8 @@ export class CampaignBatchService {
     teamId?: number;
   }) {
     // When the campaign was last changed, read before looking at the queue.
-    // Pausing below only applies if nothing changed it since (e.g. a resume).
+    // Pausing below only applies if updatedAt is unchanged since, an optimistic
+    // guard against undoing a resume or reschedule made at the same moment.
     let seenUpdatedAt: Date | undefined;
 
     // Defensive check: avoid enqueue if window not elapsed (scheduler already enforces)
@@ -1324,8 +1328,8 @@ export class CampaignBatchService {
     if (result === "failed-too-long-ago" && seenUpdatedAt) {
       // Pause in the database, not just skip: BullMQ deletes the failed job
       // after 30 days, and the campaign would then restart on the next tick.
-      // The updatedAt check keeps this from undoing a resume or reschedule
-      // that happened while we were looking at the queue.
+      // The updatedAt check guards against undoing a resume or reschedule
+      // made while we were looking at the queue.
       const paused = await db.campaign.updateMany({
         where: {
           id: campaignId,

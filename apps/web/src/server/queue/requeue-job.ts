@@ -37,10 +37,11 @@ export type RequeueOptions = {
  * Retry, or a scheduler continuing work), not on hot paths: it costs an extra
  * Redis round trip.
  *
- * The result says what this call did, not that the job will run: if the job
- * changes state at the same moment (another retry, or the 30-day cleanup),
- * `retry()` throws, and the caller should let the user try again. It does not
- * repair queue data that is out of sync.
+ * The result is a best-effort description, not a delivery guarantee
+ * ("already-queued" means an existing job was kept, or a vanished one was
+ * re-added). If the job changes state at the same moment (another retry, or
+ * the 30-day cleanup), `retry()` throws, and the caller should let the user
+ * try again. It does not repair queue data that is out of sync.
  */
 export async function requeueJob<DataOrJob>(
   queue: Queue<DataOrJob>,

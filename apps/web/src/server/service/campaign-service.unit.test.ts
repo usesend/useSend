@@ -404,6 +404,11 @@ describe("scheduleCampaign", () => {
         data: expect.objectContaining({ status: "SCHEDULED" }),
       }),
     );
+    // The new schedule is saved before the failed batch is cleared, so the
+    // scheduler can't start an early batch in between.
+    expect(mockDb.campaign.update.mock.invocationCallOrder[0]).toBeLessThan(
+      job.remove.mock.invocationCallOrder[0]!,
+    );
   });
 });
 
