@@ -80,6 +80,11 @@ export class WebhookQueueService {
   }
 
   public static async enqueueCall(callId: string, teamId: number) {
+    // BullMQ ignores add() when a job with the same id already exists, in any state.
+    // DEFAULT_QUEUE_OPTIONS keeps failed jobs for 30 days, so a retry that reuses the
+    // call id as the job id finds the retained failed job and adds nothing. remove()
+    // clears it first (it returns 0 for a locked or missing job), so the retry is queued.
+    await this.queue.remove(callId);
     await this.queue.add(
       callId,
       {

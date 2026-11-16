@@ -7,6 +7,7 @@ const {
   mockLimitService,
   mockLogger,
   mockQueueAdd,
+  mockQueueRemove,
   mockRedis,
   mockTxWebhookUpdate,
 } = vi.hoisted(() => ({
@@ -43,6 +44,7 @@ const {
     warn: vi.fn(),
   },
   mockQueueAdd: vi.fn(),
+  mockQueueRemove: vi.fn(),
   mockRedis: {
     eval: vi.fn(),
     set: vi.fn(),
@@ -53,6 +55,7 @@ const {
 vi.mock("bullmq", () => ({
   Queue: class {
     public add = mockQueueAdd;
+    public remove = mockQueueRemove;
   },
   Worker: class {
     public on = vi.fn();
@@ -94,7 +97,10 @@ vi.mock("~/server/redis", () => ({
   redisKey: (key: string) => key,
 }));
 
-import { WebhookService } from "~/server/service/webhook-service";
+import {
+  WebhookQueueService,
+  WebhookService,
+} from "~/server/service/webhook-service";
 
 function buildCall(overrides?: {
   consecutiveFailures?: number;
@@ -154,6 +160,7 @@ describe("WebhookService documented behavior", () => {
     mockLogger.warn.mockReset();
     mockLimitService.checkWebhookLimit.mockReset();
     mockQueueAdd.mockReset();
+    mockQueueRemove.mockReset();
     mockRedis.eval.mockReset();
     mockRedis.set.mockReset();
     mockTxWebhookUpdate.mockReset();
@@ -166,6 +173,7 @@ describe("WebhookService documented behavior", () => {
     mockRedis.set.mockResolvedValue("OK");
     mockRedis.eval.mockResolvedValue(1);
     mockQueueAdd.mockResolvedValue(undefined);
+    mockQueueRemove.mockResolvedValue(1);
     mockDb.webhookCall.update.mockResolvedValue({});
     mockDb.webhook.update.mockResolvedValue({
       id: "wh_123",
@@ -567,11 +575,13 @@ describe("WebhookService.emit domain filters", () => {
     mockDb.webhook.findMany.mockReset();
     mockDb.webhookCall.create.mockReset();
     mockQueueAdd.mockReset();
+    mockQueueRemove.mockReset();
 
     mockDb.webhookCall.create.mockImplementation(async ({ data }: any) => ({
       id: `call_${data.webhookId}`,
     }));
     mockQueueAdd.mockResolvedValue(undefined);
+    mockQueueRemove.mockResolvedValue(1);
   });
 
   it("does not apply domain filtering when the event has no domain context", async () => {
@@ -732,5 +742,71 @@ describe("WebhookService.emit domain filters", () => {
     });
     expect(mockDb.webhookCall.create).toHaveBeenCalledTimes(2);
     expect(mockQueueAdd).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("WebhookQueueService.enqueueCall retry behavior", () => {
+  beforeEach(() => {
+    mockDb.webhookCall.findFirst.mockReset();
+    mockDb.webhookCall.update.mockReset();
+    mockQueueAdd.mockReset();
+    mockQueueRemove.mockReset();
+
+    mockDb.webhookCall.update.mockResolvedValue({});
+    mockQueueAdd.mockResolvedValue(undefined);
+    mockQueueRemove.mockResolvedValue(1);
+  });
+
+  it("clears a retained failed job before re-enqueueing", async () => {
+    await WebhookQueueService.enqueueCall("call_123", 77);
+
+    expect(mockQueueRemove).toHaveBeenCalledWith("call_123");
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_123",
+      { callId: "call_123", teamId: 77 },
+      { jobId: "call_123" },
+    );
+    expect(mockQueueRemove.mock.invocationCallOrder[0]).toBeLessThan(
+      mockQueueAdd.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("redelivers a failed call when retryCall runs", async () => {
+    mockDb.webhookCall.findFirst.mockResolvedValue({
+      id: "call_123",
+      teamId: 77,
+    });
+
+    await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
+
+    expect(mockDb.webhookCall.update).toHaveBeenCalledWith({
+      where: { id: "call_123" },
+      data: {
+        status: WebhookCallStatus.PENDING,
+        attempt: 0,
+        nextAttemptAt: null,
+        lastError: null,
+        responseStatus: null,
+        responseTimeMs: null,
+        responseText: null,
+      },
+    });
+    expect(mockQueueRemove).toHaveBeenCalledWith("call_123");
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_123",
+      { callId: "call_123", teamId: 77 },
+      { jobId: "call_123" },
+    );
+  });
+
+  it("rejects a retry for a call that is not on the team", async () => {
+    mockDb.webhookCall.findFirst.mockResolvedValue(null);
+
+    await expect(
+      WebhookService.retryCall({ callId: "missing", teamId: 77 }),
+    ).rejects.toThrow("Webhook call not found");
+
+    expect(mockQueueRemove).not.toHaveBeenCalled();
+    expect(mockQueueAdd).not.toHaveBeenCalled();
   });
 });
