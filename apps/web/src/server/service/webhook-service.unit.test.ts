@@ -768,7 +768,8 @@ describe("WebhookService.retryCall", () => {
 
   it("moves a call's failed job back to the queue with its attempts reset", async () => {
     const failedJob = {
-      getState: vi.fn().mockResolvedValue("failed"),
+      isFailed: vi.fn().mockResolvedValue(true),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn().mockResolvedValue(undefined),
     };
     mockQueueGetJob.mockResolvedValue(failedJob);
@@ -801,7 +802,8 @@ describe("WebhookService.retryCall", () => {
 
   it("leaves a call that is already queued or running alone", async () => {
     const delayedJob = {
-      getState: vi.fn().mockResolvedValue("delayed"),
+      isFailed: vi.fn().mockResolvedValue(false),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn(),
     };
     mockQueueGetJob.mockResolvedValue(delayedJob);
@@ -809,7 +811,13 @@ describe("WebhookService.retryCall", () => {
     await WebhookService.retryCall({ callId: "call_123", teamId: 77 });
 
     expect(delayedJob.retry).not.toHaveBeenCalled();
-    expect(mockQueueAdd).not.toHaveBeenCalled();
+    // Same job id: BullMQ ignores the add while the job exists (see the
+    // requeueJob integration tests).
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "call_123",
+      { callId: "call_123", teamId: 77 },
+      { jobId: "call_123" },
+    );
   });
 
   it("puts the call back as it was when it can't be queued", async () => {
@@ -826,7 +834,8 @@ describe("WebhookService.retryCall", () => {
     };
     mockDb.webhookCall.findFirst.mockResolvedValue(failedCall);
     mockQueueGetJob.mockResolvedValue({
-      getState: vi.fn().mockResolvedValue("failed"),
+      isFailed: vi.fn().mockResolvedValue(true),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn().mockRejectedValue(new Error("Missing key for job")),
     });
 

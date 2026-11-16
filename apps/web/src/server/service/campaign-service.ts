@@ -17,6 +17,7 @@ import {
 } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { requeueJob } from "../queue/requeue-job";
 import { SuppressionService } from "./suppression-service";
 import { UnsendApiError } from "../public-api/api-error";
 import {
@@ -378,6 +379,11 @@ export async function sendCampaign(id: string) {
     },
   });
 
+  // Sending is an explicit choice: clear a batch that failed long ago, so the
+  // scheduler doesn't pause the campaign because of it (after the update, as
+  // in scheduleCampaign).
+  await CampaignBatchService.clearFailedBatch(id);
+
   // Kick off first batch immediately (idempotent by jobId)
   await CampaignBatchService.queueBatch({
     campaignId: id,
@@ -475,6 +481,12 @@ export async function scheduleCampaign({
     },
   });
 
+  // Scheduling is an explicit choice: clear a batch that failed long ago, so
+  // the scheduler doesn't pause the campaign because of it. This runs after the
+  // new schedule is saved, so the scheduler can't start an early batch in
+  // between. If it fails, the worst case is the campaign gets paused, not sent.
+  await CampaignBatchService.clearFailedBatch(campaign.id);
+
   return { ok: true };
 }
 
@@ -521,6 +533,10 @@ export async function resumeCampaign({
       message: "Campaign not found",
     });
   }
+
+  // Resuming is an explicit choice, so it also clears a batch that failed long
+  // ago and that the scheduler no longer retries on its own.
+  await CampaignBatchService.clearFailedBatch(campaignId);
 
   if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
     await db.campaign.update({
@@ -1058,6 +1074,17 @@ export async function updateCampaignAnalytics(
 
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 
+// A failed batch is retried by the scheduler after a short wait, so a batch
+// that keeps failing doesn't run on every 1.5s scheduler tick.
+const CAMPAIGN_BATCH_RETRY_AFTER_MS = 60 * 1000;
+// A batch that failed longer ago than this is not retried automatically, so an
+// old campaign never starts sending again by surprise: the campaign is paused
+// instead, and its owner can resume it.
+const CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS = 24 * 60 * 60 * 1000;
+
+const campaignBatchJobId = (campaignId: string) =>
+  `campaign-batch-${campaignId}`;
+
 export class CampaignBatchService {
   private static batchQueue = new Queue<CampaignBatchJob>(
     CAMPAIGN_BATCH_QUEUE,
@@ -1212,6 +1239,32 @@ export class CampaignBatchService {
     },
   );
 
+  static {
+    this.worker.on("failed", (job, err) => {
+      logger.error(
+        { err, campaignId: job?.data?.campaignId, jobId: job?.id },
+        "[CampaignBatchService]: Campaign batch failed; the scheduler retries it after a minute if the campaign is still running",
+      );
+    });
+  }
+
+  static async hasFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    return Boolean(job && (await job.isFailed()));
+  }
+
+  /** Removes a kept failed batch job for a campaign, if there is one. */
+  static async clearFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    if (job && (await job.isFailed())) {
+      await job.remove();
+      logger.info(
+        { campaignId },
+        "[CampaignBatchService]: Cleared a failed batch on resume",
+      );
+    }
+  }
+
   static async queueBatch({
     campaignId,
     teamId,
@@ -1219,13 +1272,24 @@ export class CampaignBatchService {
     campaignId: string;
     teamId?: number;
   }) {
+    // When the campaign was last changed, read before looking at the queue.
+    // Pausing below only applies if updatedAt is unchanged since, an optimistic
+    // guard against undoing a resume or reschedule made at the same moment.
+    let seenUpdatedAt: Date | undefined;
+
     // Defensive check: avoid enqueue if window not elapsed (scheduler already enforces)
     try {
       const campaign = await db.campaign.findUnique({
         where: { id: campaignId },
-        select: { lastSentAt: true, batchWindowMinutes: true, status: true },
+        select: {
+          lastSentAt: true,
+          batchWindowMinutes: true,
+          status: true,
+          updatedAt: true,
+        },
       });
       if (!campaign) return;
+      seenUpdatedAt = campaign.updatedAt;
       if (campaign.status === "PAUSED" || campaign.status === "SENT") return;
       const windowMin = campaign.batchWindowMinutes ?? 0;
       if (windowMin > 0 && campaign.lastSentAt) {
@@ -1246,10 +1310,53 @@ export class CampaignBatchService {
       );
     }
 
-    await this.batchQueue.add(
+    // A plain add() would do nothing after a failed batch: BullMQ keeps the
+    // failed job under this fixed id for 30 days, and the campaign would stop.
+    const result = await requeueJob(
+      this.batchQueue,
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch-${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      { jobId: campaignBatchJobId(campaignId), ...DEFAULT_QUEUE_OPTIONS },
+      {
+        retryFailedAfterMs: CAMPAIGN_BATCH_RETRY_AFTER_MS,
+        maxFailedAgeMs: CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS,
+      },
     );
+
+    if (result === "retried") {
+      logger.warn(
+        { campaignId },
+        "[CampaignBatchService]: Retrying a failed campaign batch",
+      );
+    }
+
+    if (
+      result === "failed-too-long-ago" &&
+      seenUpdatedAt &&
+      // Check again right before pausing: resume, schedule and send clear the
+      // failed batch, and that must win. (A clear landing in the moment between
+      // this check and the update below can still pause the campaign; that is
+      // safe, as nothing is sent, and the owner can resume it.)
+      (await this.hasFailedBatch(campaignId))
+    ) {
+      // Pause in the database, not just skip: BullMQ deletes the failed job
+      // after 30 days, and the campaign would then restart on the next tick.
+      // The updatedAt check guards against undoing a resume or reschedule
+      // made while we were looking at the queue.
+      const paused = await db.campaign.updateMany({
+        where: {
+          id: campaignId,
+          status: { in: ["SCHEDULED", "RUNNING"] },
+          updatedAt: seenUpdatedAt,
+        },
+        data: { status: "PAUSED" },
+      });
+      if (paused.count > 0) {
+        logger.warn(
+          { campaignId },
+          "[CampaignBatchService]: Paused a campaign whose batch failed over a day ago; resume it to continue",
+        );
+      }
+    }
   }
 }
