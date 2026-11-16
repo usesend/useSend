@@ -1246,10 +1246,26 @@ export class CampaignBatchService {
       );
     }
 
+    const jobId = `campaign-batch-${campaignId}`;
+
+    // BullMQ ignores add() when a job with this exact id already exists, in any state.
+    // DEFAULT_QUEUE_OPTIONS keeps a failed job for 30 days, so a batch that threw once
+    // leaves a FAILED job under this fixed id and turns every later add() into a silent
+    // no-op: the scheduler can then never advance the campaign past that batch. Clear a
+    // retained finished job first so the next batch is queued. A job that is still active
+    // or waiting is left in place, which keeps one batch in flight per campaign.
+    const existingJob = await this.batchQueue.getJob(jobId);
+    if (existingJob) {
+      const state = await existingJob.getState();
+      if (state === "completed" || state === "failed") {
+        await this.batchQueue.remove(jobId);
+      }
+    }
+
     await this.batchQueue.add(
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch-${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      { jobId, ...DEFAULT_QUEUE_OPTIONS },
     );
   }
 }

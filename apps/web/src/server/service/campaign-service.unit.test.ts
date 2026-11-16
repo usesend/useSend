@@ -36,8 +36,10 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   };
 });
 
-const { mockQueueAdd } = vi.hoisted(() => ({
+const { mockQueueAdd, mockQueueGetJob, mockQueueRemove } = vi.hoisted(() => ({
   mockQueueAdd: vi.fn(),
+  mockQueueGetJob: vi.fn(),
+  mockQueueRemove: vi.fn(),
 }));
 
 vi.mock("~/server/db", () => ({
@@ -61,6 +63,8 @@ vi.mock("~/server/service/contact-service", () => ({
 vi.mock("bullmq", () => ({
   Queue: class {
     add = mockQueueAdd;
+    getJob = mockQueueGetJob;
+    remove = mockQueueRemove;
   },
   Worker: class {},
 }));
@@ -224,6 +228,53 @@ describe("CampaignBatchService", () => {
       { campaignId: "campaign_1", teamId: 7 },
       expect.objectContaining({ jobId: "campaign-batch-campaign_1" }),
     );
+  });
+
+  it("clears a retained failed batch job before enqueueing the next one", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      lastSentAt: null,
+      batchWindowMinutes: 0,
+      status: "RUNNING",
+    });
+    mockQueueGetJob.mockResolvedValue({
+      getState: vi.fn().mockResolvedValue("failed"),
+    });
+    mockQueueRemove.mockResolvedValue(1);
+
+    await CampaignBatchService.queueBatch({
+      campaignId: "campaign_1",
+      teamId: 7,
+    });
+
+    expect(mockQueueGetJob).toHaveBeenCalledWith("campaign-batch-campaign_1");
+    expect(mockQueueRemove).toHaveBeenCalledWith("campaign-batch-campaign_1");
+    expect(mockQueueRemove.mock.invocationCallOrder[0]).toBeLessThan(
+      mockQueueAdd.mock.invocationCallOrder[0]!,
+    );
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "campaign-campaign_1",
+      { campaignId: "campaign_1", teamId: 7 },
+      expect.objectContaining({ jobId: "campaign-batch-campaign_1" }),
+    );
+  });
+
+  it("keeps a batch job that is still active or waiting", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      lastSentAt: null,
+      batchWindowMinutes: 0,
+      status: "RUNNING",
+    });
+    mockQueueGetJob.mockResolvedValue({
+      getState: vi.fn().mockResolvedValue("active"),
+    });
+
+    await CampaignBatchService.queueBatch({
+      campaignId: "campaign_1",
+      teamId: 7,
+    });
+
+    expect(mockQueueRemove).not.toHaveBeenCalled();
+    expect(mockQueueAdd).toHaveBeenCalledTimes(1);
   });
 });
 
