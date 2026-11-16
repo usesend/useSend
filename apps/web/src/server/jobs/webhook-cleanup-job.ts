@@ -22,6 +22,10 @@ const MAX_RUN_MS = 10 * 60 * 1000;
 // Per batch: give up rather than wait on a lock or a slow statement.
 const BATCH_LOCK_TIMEOUT = "5s";
 const BATCH_STATEMENT_TIMEOUT = "60s";
+// Prisma's own interactive-transaction limits (its default timeout is 5s,
+// which would cut a slow batch off first): room for the two statements above,
+// and a short wait for a connection.
+const BATCH_TRANSACTION_OPTIONS = { timeout: 130_000, maxWait: 2_000 };
 const LOG_PROGRESS_EVERY_BATCHES = 50;
 
 // Only calls that are finished. A call that is pending or in progress (for
@@ -69,7 +73,7 @@ async function deleteBatch(cutoff: Date, batchSize: number) {
     });
 
     return { selected: rows.length, deleted: result.count };
-  });
+  }, BATCH_TRANSACTION_OPTIONS);
 }
 
 export async function deleteOldWebhookCalls({

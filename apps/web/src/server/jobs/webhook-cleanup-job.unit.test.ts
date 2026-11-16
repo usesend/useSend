@@ -87,8 +87,13 @@ describe("deleteOldWebhookCalls", () => {
     expect(mockTx.webhookCall.deleteMany).toHaveBeenNthCalledWith(1, {
       where: { id: { in: ["call_0", "call_1", "call_2"] }, ...oldAndFinished },
     });
-    // Each batch runs in its own transaction with lock and statement timeouts.
+    // Each batch runs in its own transaction with lock and statement timeouts,
+    // and Prisma's transaction limit set above them (its default is 5s).
     expect(mockDb.$transaction).toHaveBeenCalledTimes(3);
+    expect(mockDb.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 130_000,
+      maxWait: 2_000,
+    });
     expect(mockTx.$executeRawUnsafe).toHaveBeenCalledWith(
       "SET LOCAL lock_timeout = '5s'",
     );
