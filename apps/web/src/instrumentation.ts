@@ -31,8 +31,12 @@ export async function register() {
 
       await initDomainVerificationJob();
 
-      // Deletes webhook calls older than 30 days, in small batches, nightly.
-      await import("~/server/jobs/webhook-cleanup-job");
+      // Deletes finished webhook calls older than 30 days, in small batches,
+      // nightly. Cloud only: self-hosted installs keep their history until
+      // there's a setting to opt in.
+      if (isCloud()) {
+        await import("~/server/jobs/webhook-cleanup-job");
+      }
     }
 
     if (isEmailCleanupEnabled()) {

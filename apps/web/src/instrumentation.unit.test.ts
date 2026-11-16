@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const flags = vi.hoisted(() => ({ webhookCleanupImported: false }));
+const flags = vi.hoisted(() => ({
+  webhookCleanupImported: false,
+  isCloud: true,
+}));
 
 const mocks = vi.hoisted(() => ({
   init: vi.fn().mockResolvedValue(undefined),
@@ -9,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/utils/common", () => ({
-  isCloud: () => true,
+  isCloud: () => flags.isCloud,
   isEmailCleanupEnabled: () => false,
 }));
 
@@ -38,6 +41,7 @@ describe("instrumentation register", () => {
   beforeEach(() => {
     vi.resetModules();
     flags.webhookCleanupImported = false;
+    flags.isCloud = true;
     vi.stubEnv("NEXT_RUNTIME", "nodejs");
     vi.stubEnv("REDIS_URL", "redis://127.0.0.1:6380/15");
   });
@@ -52,6 +56,13 @@ describe("instrumentation register", () => {
     expect(mocks.init).toHaveBeenCalledTimes(1);
     expect(mocks.initDomain).toHaveBeenCalledTimes(1);
     expect(flags.webhookCleanupImported).toBe(true);
+  });
+
+  it("does not start the webhook cleanup job on self-hosted installs", async () => {
+    flags.isCloud = false;
+    const { register } = await import("~/instrumentation");
+    await register();
+    expect(flags.webhookCleanupImported).toBe(false);
   });
 
   it("does not start the webhook cleanup job without a Redis URL", async () => {
