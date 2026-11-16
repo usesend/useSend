@@ -768,7 +768,8 @@ describe("WebhookService.retryCall", () => {
 
   it("moves a call's failed job back to the queue with its attempts reset", async () => {
     const failedJob = {
-      getState: vi.fn().mockResolvedValue("failed"),
+      isFailed: vi.fn().mockResolvedValue(true),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn().mockResolvedValue(undefined),
     };
     mockQueueGetJob.mockResolvedValue(failedJob);
@@ -801,7 +802,8 @@ describe("WebhookService.retryCall", () => {
 
   it("leaves a call that is already queued or running alone", async () => {
     const delayedJob = {
-      getState: vi.fn().mockResolvedValue("delayed"),
+      isFailed: vi.fn().mockResolvedValue(false),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn(),
     };
     mockQueueGetJob.mockResolvedValue(delayedJob);
@@ -826,7 +828,8 @@ describe("WebhookService.retryCall", () => {
     };
     mockDb.webhookCall.findFirst.mockResolvedValue(failedCall);
     mockQueueGetJob.mockResolvedValue({
-      getState: vi.fn().mockResolvedValue("failed"),
+      isFailed: vi.fn().mockResolvedValue(true),
+      isCompleted: vi.fn().mockResolvedValue(false),
       retry: vi.fn().mockRejectedValue(new Error("Missing key for job")),
     });
 

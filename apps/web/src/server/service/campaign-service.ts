@@ -1067,7 +1067,8 @@ type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 // that keeps failing doesn't run on every 1.5s scheduler tick.
 const CAMPAIGN_BATCH_RETRY_AFTER_MS = 60 * 1000;
 // A batch that failed longer ago than this is not retried automatically, so an
-// old campaign never starts sending again by surprise. Resuming it does.
+// old campaign never starts sending again by surprise: the campaign is paused
+// instead, and its owner can resume it.
 const CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS = 24 * 60 * 60 * 1000;
 
 const campaignBatchJobId = (campaignId: string) =>
@@ -1231,7 +1232,7 @@ export class CampaignBatchService {
     this.worker.on("failed", (job, err) => {
       logger.error(
         { err, campaignId: job?.data?.campaignId, jobId: job?.id },
-        "[CampaignBatchService]: Campaign batch failed; the scheduler will retry it",
+        "[CampaignBatchService]: Campaign batch failed; the scheduler retries it after a minute if the campaign is still running",
       );
     });
   }
@@ -1300,6 +1301,21 @@ export class CampaignBatchService {
         { campaignId },
         "[CampaignBatchService]: Retrying a failed campaign batch",
       );
+    }
+
+    if (result === "failed-too-long-ago") {
+      // Pause in the database, not just skip: BullMQ deletes the failed job
+      // after 30 days, and the campaign would then restart on the next tick.
+      const paused = await db.campaign.updateMany({
+        where: { id: campaignId, status: { in: ["SCHEDULED", "RUNNING"] } },
+        data: { status: "PAUSED" },
+      });
+      if (paused.count > 0) {
+        logger.warn(
+          { campaignId },
+          "[CampaignBatchService]: Paused a campaign whose batch failed over a day ago; resume it to continue",
+        );
+      }
     }
   }
 }

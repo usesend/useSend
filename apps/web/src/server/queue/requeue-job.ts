@@ -52,9 +52,22 @@ export async function requeueJob<DataOrJob>(
   const existing = await queue.getJob(opts.jobId);
 
   if (existing) {
-    const state = await existing.getState();
+    // isFailed() and isCompleted() are single ZSCORE lookups. getState() would
+    // also scan the wait and active lists, which is too costly for callers that
+    // run on every scheduler tick.
+    const finishedState = (await existing.isFailed())
+      ? "failed"
+      : (await existing.isCompleted())
+        ? "completed"
+        : null;
 
-    if (state === "failed") {
+    if (!finishedState) {
+      // Still waiting, delayed or running: it will run anyway, and add() would
+      // be ignored for this id.
+      return "already-queued";
+    }
+
+    if (finishedState === "failed") {
       const failedForMs = Date.now() - (existing.finishedOn ?? 0);
       if (
         options.retryFailedAfterMs !== undefined &&
@@ -70,17 +83,11 @@ export async function requeueJob<DataOrJob>(
       }
     }
 
-    if (state === "failed" || state === "completed") {
-      await existing.retry(state, {
-        resetAttemptsMade: true,
-        resetAttemptsStarted: true,
-      });
-      return "retried";
-    }
-
-    if (state !== "unknown") {
-      return "already-queued";
-    }
+    await existing.retry(finishedState, {
+      resetAttemptsMade: true,
+      resetAttemptsStarted: true,
+    });
+    return "retried";
   }
 
   // Queue's name and data generics are wider than this helper needs.

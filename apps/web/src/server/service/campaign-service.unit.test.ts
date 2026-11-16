@@ -26,19 +26,45 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
       ),
       contact: {
         findUnique: vi.fn(),
+        findMany: vi.fn(),
+      },
+      contactBook: {
+        findUnique: vi.fn(),
+      },
+      domain: {
+        findUnique: vi.fn(),
       },
       campaign: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      campaignEmail: {
+        findMany: vi.fn(),
+        create: vi.fn(),
+      },
+      email: {
+        create: vi.fn(),
       },
     },
     mockUpdateContactSubscription: vi.fn(),
   };
 });
 
-const { mockQueueAdd, mockQueueGetJob } = vi.hoisted(() => ({
+const {
+  mockQueueAdd,
+  mockQueueGetJob,
+  capturedBatchHandler,
+  mockCheckSuppressions,
+  mockQueueEmail,
+} = vi.hoisted(() => ({
   mockQueueAdd: vi.fn(),
   mockQueueGetJob: vi.fn(),
+  capturedBatchHandler: {
+    handler: null as any,
+  },
+  mockCheckSuppressions: vi.fn(),
+  mockQueueEmail: vi.fn(),
 }));
 
 vi.mock("~/server/db", () => ({
@@ -66,6 +92,10 @@ vi.mock("bullmq", () => ({
   },
   Worker: class {
     on = vi.fn();
+    constructor(queueName: string, handler: any) {
+      if (queueName === "campaign-batch")
+        capturedBatchHandler.handler = handler;
+    }
   },
 }));
 
@@ -75,7 +105,7 @@ vi.mock("~/server/redis", () => ({
 }));
 
 vi.mock("~/server/service/email-queue-service", () => ({
-  EmailQueueService: {},
+  EmailQueueService: { queueEmail: mockQueueEmail },
 }));
 
 vi.mock("~/server/queue/bullmq-context", () => ({
@@ -83,7 +113,7 @@ vi.mock("~/server/queue/bullmq-context", () => ({
 }));
 
 vi.mock("~/server/service/suppression-service", () => ({
-  SuppressionService: {},
+  SuppressionService: { checkMultipleEmails: mockCheckSuppressions },
 }));
 
 vi.mock("~/server/service/domain-service", () => ({
@@ -233,7 +263,8 @@ describe("CampaignBatchService", () => {
 
   describe("after a batch failed", () => {
     const failedJob = (failedSecondsAgo: number) => ({
-      getState: vi.fn().mockResolvedValue("failed"),
+      isFailed: vi.fn().mockResolvedValue(true),
+      isCompleted: vi.fn().mockResolvedValue(false),
       finishedOn: Date.now() - failedSecondsAgo * 1000,
       retry: vi.fn().mockResolvedValue(undefined),
     });
@@ -276,9 +307,10 @@ describe("CampaignBatchService", () => {
       expect(mockQueueAdd).not.toHaveBeenCalled();
     });
 
-    it("does not restart a campaign whose batch failed over a day ago", async () => {
+    it("pauses a campaign whose batch failed over a day ago instead of restarting it", async () => {
       const job = failedJob(25 * 60 * 60);
       mockQueueGetJob.mockResolvedValue(job);
+      mockDb.campaign.updateMany.mockResolvedValue({ count: 1 });
 
       await CampaignBatchService.queueBatch({
         campaignId: "campaign_1",
@@ -287,11 +319,19 @@ describe("CampaignBatchService", () => {
 
       expect(job.retry).not.toHaveBeenCalled();
       expect(mockQueueAdd).not.toHaveBeenCalled();
+      expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "campaign_1",
+          status: { in: ["SCHEDULED", "RUNNING"] },
+        },
+        data: { status: "PAUSED" },
+      });
     });
 
     it("does not queue a second copy of a batch that is still running", async () => {
       const job = {
-        getState: vi.fn().mockResolvedValue("active"),
+        isFailed: vi.fn().mockResolvedValue(false),
+        isCompleted: vi.fn().mockResolvedValue(false),
         retry: vi.fn(),
       };
       mockQueueGetJob.mockResolvedValue(job);
@@ -345,6 +385,89 @@ describe("resumeCampaign", () => {
     await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
 
     expect(job.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps the campaign paused if the failed batch can't be cleared", async () => {
+    mockQueueGetJob.mockResolvedValue({
+      isFailed: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockRejectedValue(new Error("Job is locked")),
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Job is locked");
+
+    expect(mockDb.campaign.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("campaign batch worker, re-running a batch that failed part-way", () => {
+  const contacts = ["contact_1", "contact_2", "contact_3"].map((id) => ({
+    id,
+    email: `${id}@example.com`,
+    firstName: null,
+    lastName: null,
+    properties: {},
+    contactBookId: "book_1",
+    subscribed: true,
+  }));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      contactBookId: "book_1",
+      domainId: 3,
+      status: "RUNNING",
+      scheduledAt: null,
+      batchSize: 500,
+      lastCursor: null,
+      content: null,
+      html: "<p>Hello</p>",
+      from: "news@example.com",
+      subject: "Hello",
+      replyTo: [],
+      cc: [],
+      bcc: [],
+      previewText: null,
+    });
+    mockDb.contact.findMany.mockResolvedValue(contacts);
+    mockDb.contactBook.findUnique.mockResolvedValue({ variables: [] });
+    mockDb.domain.findUnique.mockResolvedValue({ id: 3, region: "us-east-1" });
+    // The failed run already emailed contact_1 before it stopped.
+    mockDb.campaignEmail.findMany.mockResolvedValue([
+      { contactId: "contact_1" },
+    ]);
+    mockCheckSuppressions.mockResolvedValue({});
+    mockDb.email.create.mockImplementation(async ({ data }: any) => ({
+      id: `email_${data.contactId}`,
+    }));
+    mockDb.campaignEmail.create.mockResolvedValue({});
+    mockDb.campaign.update.mockResolvedValue({});
+    mockQueueEmail.mockResolvedValue(undefined);
+  });
+
+  it("emails only the contacts that weren't emailed yet, once each, then moves on", async () => {
+    expect(capturedBatchHandler.handler).toBeTypeOf("function");
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockDb.email.create).toHaveBeenCalledTimes(2);
+    expect(
+      mockDb.email.create.mock.calls.map(([arg]: any) => arg.data.contactId),
+    ).toEqual(["contact_2", "contact_3"]);
+    expect(mockQueueEmail).toHaveBeenCalledTimes(2);
+    expect(mockQueueEmail.mock.calls.map(([emailId]) => emailId)).toEqual([
+      "email_contact_2",
+      "email_contact_3",
+    ]);
+    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { lastCursor: "contact_3", lastSentAt: expect.any(Date) },
+    });
   });
 });
 
