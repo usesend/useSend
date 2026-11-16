@@ -23,6 +23,39 @@ type QueueEmailJob = TeamJob<{
   isBulk?: boolean;
 }>;
 
+// A queued email is retried when SES refuses the send for a transient reason,
+// so a brief throttle or server error does not lose the mail. Terminal errors
+// (an invalid from address, a rejected recipient) are recorded as FAILED at once.
+const EMAIL_MAX_ATTEMPTS = 3;
+const EMAIL_BASE_BACKOFF_MS = 5_000;
+
+const EMAIL_JOB_OPTIONS = {
+  ...DEFAULT_QUEUE_OPTIONS,
+  attempts: EMAIL_MAX_ATTEMPTS,
+  backoff: { type: "exponential", delay: EMAIL_BASE_BACKOFF_MS },
+};
+
+/**
+ * Whether a send failed for a reason that can clear on its own: SES refused
+ * the send for the account send rate, or the AWS SDK marked the error
+ * transient (a 5xx or a connection error). SES did not accept the message, so
+ * the queue can try again. Any other error is terminal.
+ */
+function isRetryableSendError(error: any): boolean {
+  if (
+    error?.name === "TooManyRequestsException" ||
+    error?.name === "ThrottlingException" ||
+    error?.name === "Throttling"
+  ) {
+    return true;
+  }
+  if (error?.$retryable) {
+    return true;
+  }
+  const status = error?.$metadata?.httpStatusCode;
+  return typeof status === "number" && (status === 429 || status >= 500);
+}
+
 function createQueueAndWorker(region: string, quota: number, suffix: string) {
   const connection = getRedis();
 
@@ -140,7 +173,7 @@ export class EmailQueueService {
         isBulk,
         teamId,
       },
-      { jobId: emailId, delay, ...DEFAULT_QUEUE_OPTIONS }
+      { jobId: emailId, delay, ...EMAIL_JOB_OPTIONS }
     );
   }
 
@@ -231,7 +264,7 @@ export class EmailQueueService {
         opts: {
           jobId: job.emailId, // Use emailId as jobId
           delay: job.delay,
-          ...DEFAULT_QUEUE_OPTIONS, // Apply default options (attempts, backoff)
+          ...EMAIL_JOB_OPTIONS, // Retries a transient send failure
         },
       }));
 
@@ -464,6 +497,21 @@ async function executeEmail(job: QueueEmailJob) {
       data: { sesEmailId: messageId, text, attachments: null, headers: null },
     });
   } catch (error: any) {
+    const attempt = job.attemptsMade + 1;
+    const attempts = job.opts.attempts ?? 1;
+
+    // A transient send failure is thrown back to the queue while the job has
+    // attempts left, so the queue retries the email after its backoff. The
+    // email is recorded as FAILED only when the error is terminal or this was
+    // the last attempt.
+    if (isRetryableSendError(error) && attempt < attempts) {
+      logger.warn(
+        { emailId: email.id, attempt, attempts, err: error },
+        `[EmailQueueService]: Transient send failure, the queue will retry the email`,
+      );
+      throw error;
+    }
+
     await db.emailEvent.create({
       data: {
         emailId: email.id,
