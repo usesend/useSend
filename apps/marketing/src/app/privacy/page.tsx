@@ -135,6 +135,12 @@ export default function PrivacyPage() {
             and legal compliance. Aggregated analytics do not identify
             individuals.
           </p>
+          <p className="text-muted-foreground">
+            The content of emails you send through useSend (HTML, text,
+            attachments and headers) is kept for at least 90 days after sending
+            and then deleted. Delivery status, events and analytics are kept for as long
+            as your account exists.
+          </p>
         </section>
 
         <section className="space-y-3 mb-8">
