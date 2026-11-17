@@ -300,6 +300,11 @@ model Email {
 
   @@index([campaignId, contactId])
   @@index([createdAt(sort: Desc)])
+  // A team's emails, newest first: the dashboard email list and search, the
+  // public API's GET /emails (and its count), and the email export.
+  @@index([teamId, createdAt(sort: Desc)])
+  // The same, filtered by domain (domain-restricted API keys, domain filter).
+  @@index([teamId, domainId, createdAt(sort: Desc)])
 }
 
 model CampaignEmail {
