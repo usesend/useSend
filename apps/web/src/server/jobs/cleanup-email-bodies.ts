@@ -22,12 +22,13 @@ import { isEmailCleanupEnabled } from "~/utils/common";
  * Built for a large table on a nearly full disk:
  * - Walks forward by createdAt and remembers how far it got, so each night
  *   reads only emails it hasn't looked at yet.
- * - Emails it looked at but couldn't clear yet go on a "pending" list that is
- *   checked again (by id) on later nights.
+ * - Emails it looked at but couldn't clear yet go on a "pending" list, keyed
+ *   by when each one becomes eligible, and are checked again (by id) once due.
  * - Clears at most MAX_ROWS_PER_RUN a night, in small batches, each a short
  *   transaction with lock and statement timeouts.
- * - Leaves vacuuming to autovacuum, which is tuned for "Email" in a migration
- *   so it runs after each night's changes and the freed space is reused.
+ * - Leaves vacuuming to autovacuum, which a migration tunes to visit "Email"
+ *   sooner (after ~2% of rows change), so freed space is usually reusable by
+ *   the next night.
  * - Doesn't change updatedAt (the campaign page sorts recent emails by it).
  */
 
@@ -50,15 +51,24 @@ const BATCH_TRANSACTION_OPTIONS = { timeout: 130_000, maxWait: 2_000 };
 
 /** Emails created before this position have all been looked at. */
 export const WATERMARK_KEY = "email-body-cleanup:cleaned-before";
-/** Ids of emails looked at but not clearable yet. */
+/**
+ * Emails looked at but not clearable yet: a sorted set of ids, scored by the
+ * time each should be checked again. Lives in the same Redis as BullMQ, which
+ * requires maxmemory-policy noeviction, so it isn't evicted on its own.
+ */
 export const PENDING_KEY = "email-body-cleanup:pending";
+// Scheduled or queued emails have no known eligibility time: look again daily.
+const RECHECK_UNKNOWN_MS = DAY_MS;
 
 export type Position = { createdAt: Date; id: string };
 
 export type PendingStore = {
-  list: (limit: number) => Promise<string[]>;
-  add: (ids: string[]) => Promise<void>;
+  /** Ids due for a check at `now`, oldest due first. */
+  due: (now: number, limit: number) => Promise<string[]>;
+  /** Check these ids again at the given times. */
+  schedule: (entries: { id: string; at: number }[]) => Promise<void>;
   remove: (ids: string[]) => Promise<void>;
+  size: () => Promise<number>;
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -83,9 +93,10 @@ async function withBatchTimeouts<T>(fn: (tx: Tx) => Promise<T>) {
 
 /**
  * Clears the content of the given emails if they're eligible, and returns how
- * many were cleared and which still have content (not eligible yet).
+ * many were cleared and, for the ones that still have content, when to check
+ * them again.
  */
-async function clearEligible(tx: Tx, ids: string[], cutoff: Date) {
+async function clearEligible(tx: Tx, ids: string[], cutoff: Date, now: number) {
   const cleared = await tx.$executeRaw`
     UPDATE "Email"
     SET html = NULL, text = NULL, attachments = NULL, headers = NULL
@@ -97,13 +108,26 @@ async function clearEligible(tx: Tx, ids: string[], cutoff: Date) {
       AND (html IS NOT NULL OR text IS NOT NULL
            OR attachments IS NOT NULL OR headers IS NOT NULL)
   `;
-  const stillWithContent = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "Email"
+  const stillWithContent = await tx.$queryRaw<
+    { id: string; latestStatus: string; anchor: Date }[]
+  >`
+    SELECT id, "latestStatus"::text AS "latestStatus",
+      GREATEST("createdAt", "updatedAt", COALESCE("scheduledAt", "createdAt")) AS anchor
+    FROM "Email"
     WHERE id IN (${Prisma.join(ids)})
       AND (html IS NOT NULL OR text IS NOT NULL
            OR attachments IS NOT NULL OR headers IS NOT NULL)
   `;
-  return { cleared, notYet: stillWithContent.map((row) => row.id) };
+  const retentionMs = now - cutoff.getTime();
+  const notYet = stillWithContent.map((row) => ({
+    id: row.id,
+    at:
+      row.latestStatus === "SCHEDULED" || row.latestStatus === "QUEUED"
+        ? now + RECHECK_UNKNOWN_MS
+        : // A minute's margin so it's past the cutoff when checked.
+          Math.max(row.anchor.getTime() + retentionMs + 60_000, now + 60_000),
+  }));
+  return { cleared, notYet };
 }
 
 /** Looks at the next emails older than the cutoff, after `after`. */
@@ -111,6 +135,7 @@ async function clearNextBatch(
   cutoff: Date,
   after: Position | null,
   size: number,
+  now: number,
 ) {
   return withBatchTimeouts(async (tx) => {
     // Keyset over the createdAt index: no rescans of emails already looked at.
@@ -127,12 +152,18 @@ async function clearNextBatch(
       LIMIT ${size}
     `;
     if (rows.length === 0) {
-      return { looked: 0, cleared: 0, notYet: [] as string[], last: null };
+      return {
+        looked: 0,
+        cleared: 0,
+        notYet: [] as { id: string; at: number }[],
+        last: null,
+      };
     }
     const { cleared, notYet } = await clearEligible(
       tx,
       rows.map((row) => row.id),
       cutoff,
+      now,
     );
     return {
       looked: rows.length,
@@ -141,27 +172,6 @@ async function clearNextBatch(
       last: rows[rows.length - 1]!,
     };
   });
-}
-
-/** Checks emails skipped on earlier nights again, by id. */
-async function clearPending(
-  cutoff: Date,
-  pending: PendingStore,
-  limits: typeof CLEANUP_LIMITS,
-) {
-  const ids = await pending.list(limits.maxPendingPerRun);
-  let cleared = 0;
-  for (let i = 0; i < ids.length; i += limits.batchSize) {
-    const chunk = ids.slice(i, i + limits.batchSize);
-    const result = await withBatchTimeouts((tx) =>
-      clearEligible(tx, chunk, cutoff),
-    );
-    cleared += result.cleared;
-    // Keep only the ones that still have content; drop cleared or deleted ones.
-    const keep = new Set(result.notYet);
-    await pending.remove(chunk.filter((id) => !keep.has(id)));
-  }
-  return { checked: ids.length, cleared };
 }
 
 export async function clearOldEmailBodies({
@@ -182,40 +192,64 @@ export async function clearOldEmailBodies({
   now?: () => number;
 }) {
   const startedAt = now();
-  const pendingResult = await clearPending(cutoff, pending, limits);
-
-  let position = startAfter;
   let looked = 0;
-  let cleared = pendingResult.cleared;
+  let cleared = 0;
   let batches = 0;
-  const result = (finished: boolean) => ({
+  let pendingChecked = 0;
+  let pendingCleared = 0;
+  let position = startAfter;
+  // One budget for both phases: rows cleared and time.
+  const budgetLeft = () => {
+    const outOfTime = batches > 0 && now() - startedAt >= limits.maxRunMs;
+    return outOfTime ? 0 : Math.max(0, limits.maxRowsPerRun - cleared);
+  };
+  const result = async (finished: boolean) => ({
     looked,
     cleared,
     batches,
-    pendingChecked: pendingResult.checked,
-    pendingCleared: pendingResult.cleared,
+    pendingChecked,
+    pendingCleared,
+    pendingLeft: await pending.size(),
     finished,
     elapsedMs: now() - startedAt,
   });
 
-  for (;;) {
-    const remaining = limits.maxRowsPerRun - cleared;
-    if (
-      remaining <= 0 ||
-      (batches > 0 && now() - startedAt >= limits.maxRunMs)
-    ) {
-      return result(false);
-    }
+  // 1. Emails skipped on earlier nights that are now due for a check.
+  const dueIds = await pending.due(now(), limits.maxPendingPerRun);
+  for (let i = 0; i < dueIds.length;) {
+    const size = Math.min(limits.batchSize, budgetLeft());
+    if (size === 0) return result(false);
+    const chunk = dueIds.slice(i, i + size);
+    i += chunk.length;
+    const checkedAt = now();
+    const batch = await withBatchTimeouts((tx) =>
+      clearEligible(tx, chunk, cutoff, checkedAt),
+    );
+    batches += 1;
+    pendingChecked += chunk.length;
+    pendingCleared += batch.cleared;
+    cleared += batch.cleared;
+    // Reschedule the ones still not clearable; drop cleared or deleted ones.
+    await pending.schedule(batch.notYet);
+    const keep = new Set(batch.notYet.map((entry) => entry.id));
+    await pending.remove(chunk.filter((id) => !keep.has(id)));
+    await sleep(limits.pauseMs);
+  }
 
+  // 2. Emails not looked at yet, oldest first.
+  for (;;) {
     // Never look at more rows than the nightly cap has left, so it holds exactly.
-    const size = Math.min(limits.batchSize, remaining);
-    const batch = await clearNextBatch(cutoff, position, size);
+    const size = Math.min(limits.batchSize, budgetLeft());
+    if (size === 0) return result(false);
+
+    const batch = await clearNextBatch(cutoff, position, size, now());
     if (!batch.last) return result(true);
 
     looked += batch.looked;
     cleared += batch.cleared;
     batches += 1;
-    if (batch.notYet.length > 0) await pending.add(batch.notYet);
+    // Save the skipped ones before moving the watermark past them.
+    if (batch.notYet.length > 0) await pending.schedule(batch.notYet);
     position = batch.last;
     await saveProgress(position);
 
@@ -261,13 +295,19 @@ if (isEmailCleanupEnabled()) {
           await redis.set(watermarkKey, JSON.stringify(position));
         },
         pending: {
-          list: (limit) => redis.srandmember(pendingKey, limit),
-          add: async (ids) => {
-            if (ids.length) await redis.sadd(pendingKey, ...ids);
+          due: (at, limit) =>
+            redis.zrangebyscore(pendingKey, "-inf", at, "LIMIT", 0, limit),
+          schedule: async (entries) => {
+            if (!entries.length) return;
+            await redis.zadd(
+              pendingKey,
+              ...entries.flatMap((entry) => [entry.at, entry.id]),
+            );
           },
           remove: async (ids) => {
-            if (ids.length) await redis.srem(pendingKey, ...ids);
+            if (ids.length) await redis.zrem(pendingKey, ...ids);
           },
+          size: () => redis.zcard(pendingKey),
         },
       });
 

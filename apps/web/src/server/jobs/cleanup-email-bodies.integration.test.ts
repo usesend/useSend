@@ -32,13 +32,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS);
 const LONG_AGO = new Date("2025-06-01T00:00:00Z");
 
-function memoryPending(): PendingStore & { ids: Set<string> } {
-  const ids = new Set<string>();
+function memoryPending(): PendingStore & { ids: Map<string, number> } {
+  const ids = new Map<string, number>();
   return {
     ids,
-    list: async (limit) => [...ids].slice(0, limit),
-    add: async (more) => more.forEach((id) => ids.add(id)),
+    due: async (now, limit) =>
+      [...ids.entries()]
+        .filter(([, at]) => at <= now)
+        .sort((a, b) => a[1] - b[1])
+        .slice(0, limit)
+        .map(([id]) => id),
+    schedule: async (entries) =>
+      entries.forEach((entry) => ids.set(entry.id, entry.at)),
     remove: async (gone) => gone.forEach((id) => ids.delete(id)),
+    size: async () => ids.size,
   };
 }
 
@@ -158,7 +165,7 @@ describeIntegration("email content cleanup against postgres", () => {
     }
   });
 
-  it("checks skipped emails again on later nights and clears them once eligible", async () => {
+  it("checks skipped emails again once they're due, and clears them then", async () => {
     const late = await createEmail("sent-late", {
       created: daysAgo(120),
       updated: daysAgo(10),
@@ -166,29 +173,55 @@ describeIntegration("email content cleanup against postgres", () => {
     await createEmail("old", { created: daysAgo(130) });
     const pending = memoryPending();
     let position: Position | null = null;
-    const run = () =>
+    const runAt = (clock: number) =>
       clearOldEmailBodies({
-        cutoff,
+        cutoff: retentionCutoff(90, clock),
         startAfter: position,
         saveProgress: async (p) => {
           position = p;
         },
         pending,
         limits: fast,
+        now: () => clock,
       });
 
-    await run();
+    await runAt(Date.now());
     expect((await contentOf(late)).html).not.toBeNull();
-    expect([...pending.ids]).toEqual([late]);
+    // Due 90 days after it was sent, not before.
+    const dueAt = pending.ids.get(late)!;
+    expect(dueAt).toBeGreaterThan(Date.now() + 79 * DAY_MS);
+    expect(dueAt).toBeLessThan(Date.now() + 81 * DAY_MS);
 
-    // 80 days later it was sent over 90 days ago. (Simulated by moving its
-    // update time back rather than the clock forward.)
-    await db.$executeRaw`UPDATE "Email" SET "updatedAt" = ${daysAgo(91)} WHERE id = ${late}`;
-    const second = await run();
+    // 70 days later: not due yet, not checked.
+    const early = await runAt(Date.now() + 70 * DAY_MS);
+    expect(early.pendingChecked).toBe(0);
+    expect((await contentOf(late)).html).not.toBeNull();
 
-    expect(second).toMatchObject({ pendingChecked: 1, pendingCleared: 1 });
+    // 81 days later it was sent over 90 days ago.
+    const later = await runAt(Date.now() + 81 * DAY_MS);
+    expect(later).toMatchObject({ pendingChecked: 1, pendingCleared: 1 });
     expect((await contentOf(late)).html).toBeNull();
     expect(pending.ids.size).toBe(0);
+  });
+
+  it("keeps the recheck pass within the nightly cap", async () => {
+    const pending = memoryPending();
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++)
+      ids.push(await createEmail(`p-${i}`, { created: daysAgo(100) }));
+    await pending.schedule(ids.map((id) => ({ id, at: 0 })));
+
+    const result = await clearOldEmailBodies({
+      cutoff,
+      startAfter: { createdAt: new Date(), id: "zzz" }, // nothing new to scan
+      saveProgress: async () => undefined,
+      pending,
+      limits: { ...fast, maxRowsPerRun: 2 },
+    });
+
+    expect(result).toMatchObject({ cleared: 2, finished: false });
+    expect(await clearedCount()).toBe(2);
+    expect(pending.ids.size).toBe(3);
   });
 
   it("doesn't skip emails that share a creation time across batches", async () => {
@@ -253,6 +286,7 @@ describeIntegration("email content cleanup against postgres", () => {
     expect(second.finished).toBe(true);
     expect(await clearedCount()).toBe(4);
     expect(pending.ids.size).toBe(4);
+    expect(second.pendingLeft).toBe(4);
   });
 
   it("does nothing when no email is old enough", async () => {
