@@ -82,9 +82,9 @@ Add the following environment variables.
 
   </Step>
   <Step title="Email content retention (optional)">
-  By default, stored email content stays in the database forever. To bound database growth, set `EMAIL_CLEANUP_DAYS` to a positive number of days. A daily job (midnight UTC) then clears the `text`, `html`, `attachments` and `headers` values for emails older than the cutoff. Delivery status and event history are kept, and the dashboard explains that the content was removed. Scheduled and queued emails keep their content until they're sent.
+  By default, stored email content stays in the database forever. To bound database growth, set `EMAIL_CLEANUP_DAYS` to a positive number of days. A daily job (midnight UTC) then clears the `text`, `html`, `attachments` and `headers` values of emails sent more than that many days ago. Delivery status and event history are kept, and the dashboard explains that the content was removed. Scheduled and queued emails keep their content until they're sent.
 
-  The job clears up to 100,000 emails a night in small batches, then vacuums the `Email` table so the freed space is reused. If you turn it on for an existing database, older emails are cleared over several nights. This doesn't shrink the database files on disk; it stops them from growing.
+  The job clears up to 100,000 emails a night in small batches. If you turn it on for an existing database, older emails are cleared over several nights. Autovacuum then makes the freed space reusable, which slows how fast the database grows; it usually doesn't shrink the files on disk.
 
 ```env
 EMAIL_CLEANUP_DAYS=30
