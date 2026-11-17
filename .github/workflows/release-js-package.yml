@@ -41,5 +41,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check whether this version is already published
+        id: version-check
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "usesend-js@$version" version >/dev/null 2>&1; then
+            echo "already-published=true" >> "$GITHUB_OUTPUT"
+            echo "usesend-js@$version is already on the registry; skipping publish."
+          else
+            echo "already-published=false" >> "$GITHUB_OUTPUT"
+            echo "usesend-js@$version is not on the registry; publishing."
+          fi
+
       - name: Publish
+        if: steps.version-check.outputs.already-published == 'false'
         run: pnpm publish-sdk
