@@ -94,6 +94,8 @@ export default function EmailDetails({ emailId }: { emailId: string }) {
             <EmailPreview
               html={emailQuery.data?.html}
               text={emailQuery.data?.text}
+              createdAt={emailQuery.data?.createdAt}
+              contentRetentionDays={emailQuery.data?.contentRetentionDays}
             />
           </motion.div>
         </div>
@@ -138,12 +140,25 @@ export default function EmailDetails({ emailId }: { emailId: string }) {
   );
 }
 
+function isPastRetention(
+  createdAt: Date | string | null | undefined,
+  days: number | null | undefined,
+) {
+  if (!createdAt || !days) return false;
+  const ageMs = Date.now() - new Date(createdAt).getTime();
+  return ageMs >= days * 24 * 60 * 60 * 1000;
+}
+
 const EmailPreview = ({
   html,
   text,
+  createdAt,
+  contentRetentionDays,
 }: {
   html: string | null | undefined;
   text: string | null | undefined;
+  createdAt?: Date | string | null;
+  contentRetentionDays?: number | null;
 }) => {
   const [show, setShow] = useState(false);
 
@@ -166,8 +181,10 @@ const EmailPreview = ({
   if (!srcDoc) {
     return (
       <div className="dark:bg-slate-200 h-[350px] overflow-visible rounded border-t flex items-center justify-center">
-        <span className="text-sm text-muted-foreground dark:text-slate-500">
-          No content to preview
+        <span className="text-sm text-muted-foreground dark:text-slate-500 px-6 text-center">
+          {isPastRetention(createdAt, contentRetentionDays)
+            ? `Email content is removed ${contentRetentionDays} days after sending. Its status and events are kept.`
+            : "No content to preview"}
         </span>
       </div>
     );
@@ -306,10 +323,7 @@ const getErrorMessage = (data: SesBounce) => {
   if (data.bounceType === "Permanent") {
     return BOUNCE_ERROR_MESSAGES[data.bounceType][
       data.bounceSubType as
-        | "General"
-        | "NoEmail"
-        | "Suppressed"
-        | "OnAccountSuppressionList"
+        "General" | "NoEmail" | "Suppressed" | "OnAccountSuppressionList"
     ];
   } else if (data.bounceType === "Transient") {
     return BOUNCE_ERROR_MESSAGES[data.bounceType][

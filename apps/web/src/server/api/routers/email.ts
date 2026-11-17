@@ -11,6 +11,7 @@ import {
   teamProcedure,
 } from "~/server/api/trpc";
 import { db } from "~/server/db";
+import { env } from "~/env";
 import { cancelEmail, updateEmail } from "~/server/service/email-service";
 
 const statuses = Object.values(EmailStatus) as [EmailStatus];
@@ -246,7 +247,10 @@ export const emailRouter = createTRPCRouter({
       },
     });
 
-    return email;
+    if (!email) return email;
+
+    // Email content (html, text) is cleared after this many days, when set.
+    return { ...email, contentRetentionDays: env.EMAIL_CLEANUP_DAYS ?? null };
   }),
 
   cancelEmail: emailProcedure.mutation(async ({ input }) => {
