@@ -21,6 +21,7 @@ overrides:
   pnpm@<11.11.0: 11.11.0
   postcss-selector-parser@<6.1.5: 6.1.5
   postcss@>=8.0.0 <8.5.30: 8.5.30
+  prosemirror-model: 1.25.12
   prosemirror-view@>=1.0.0 <1.42.6: 1.42.6
   qs@>=6.7.0 <6.16.1: 6.16.1
   react-router-dom@>=7.0.0 <7.18.4: 7.18.4
@@ -6619,7 +6620,7 @@ packages:
   prosemirror-trailing-node@3.0.0:
     resolution: {integrity: sha512-xiun5/3q0w5eRnGYfNlW1uU9W6x5MoFKWwq/0TIRgt09lv7Hcser2QYV8t4muXbEr+Fwo0geYn79Xs4GKywrRQ==}
     peerDependencies:
-      prosemirror-model: ^1.22.1
+      prosemirror-model: 1.25.12
       prosemirror-state: ^1.4.2
       prosemirror-view: 1.42.6
 
