@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   isStarNudgeDismissed,
   dismissStarNudge,
+  isFeedbackActive,
   triggerStarNudge,
   STAR_NUDGE_STORAGE_KEY,
   FEEDBACK_ACTIVE_SESSION_KEY,
@@ -88,6 +89,25 @@ describe("star-nudge utility", () => {
 
     triggerStarNudge(500);
     vi.advanceTimersByTime(600);
+
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("isFeedbackActive returns false by default and true when flagged", () => {
+    expect(isFeedbackActive()).toBe(false);
+    sessionStorageMock[FEEDBACK_ACTIVE_SESSION_KEY] = "true";
+    expect(isFeedbackActive()).toBe(true);
+  });
+
+  it("triggerStarNudge does not trigger toast if feedback opens during the delay", () => {
+    triggerStarNudge(1000);
+
+    // Feedback opens at 400ms, while timer is pending
+    vi.advanceTimersByTime(400);
+    sessionStorageMock[FEEDBACK_ACTIVE_SESSION_KEY] = "true";
+
+    // Advance past the remaining time
+    vi.advanceTimersByTime(700);
 
     expect(toast).not.toHaveBeenCalled();
   });
