@@ -6,6 +6,7 @@ import React from "react";
 import { toast } from "@usesend/ui/src/toaster";
 import { SendHorizonal } from "lucide-react";
 import type { DomainWithDnsRecords } from "~/types/domain";
+import { triggerStarNudge } from "~/lib/star-nudge";
 // Removed dialog and example code. Clicking the button now sends the email directly.
 
 export const SendTestMail: React.FC<{ domain: DomainWithDnsRecords }> = ({
@@ -25,6 +26,7 @@ export const SendTestMail: React.FC<{ domain: DomainWithDnsRecords }> = ({
         onSuccess: () => {
           utils.domain.domains.invalidate();
           toast.success(`Test email sent`);
+          triggerStarNudge();
         },
         onError: (err) => {
           toast.error(err.message || "Failed to send test email");
