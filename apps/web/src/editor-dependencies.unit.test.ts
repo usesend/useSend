@@ -15,7 +15,8 @@ import { describe, expect, it } from "vitest";
 const SINGLE_COPY = ["prosemirror-model", "prosemirror-state", "prosemirror-transform", "prosemirror-view"];
 
 function lockfileVersions(lockfile: string, name: string) {
-  const packages = lockfile.slice(lockfile.indexOf("\npackages:\n"), lockfile.indexOf("\nsnapshots:\n"));
+  const normalized = lockfile.replace(/\r\n/g, "\n");
+  const packages = normalized.slice(normalized.indexOf("\npackages:\n"), normalized.indexOf("\nsnapshots:\n"));
   const escaped = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   const pattern = new RegExp(`^  '?${escaped}@([^:'(]+)'?:`, "gm");
   return [...packages.matchAll(pattern)].map((match) => match[1]);

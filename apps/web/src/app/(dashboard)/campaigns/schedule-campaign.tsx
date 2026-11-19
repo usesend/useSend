@@ -23,6 +23,7 @@ import { Calendar } from "@usesend/ui/src/calendar";
 import { Campaign } from "@prisma/client";
 import { format } from "date-fns";
 import { Spinner } from "@usesend/ui/src/spinner";
+import { triggerStarNudge } from "~/lib/star-nudge";
 
 export const ScheduleCampaign: React.FC<{
   campaign: Partial<Campaign> & { id: string };
@@ -82,6 +83,7 @@ export const ScheduleCampaign: React.FC<{
           setError(null);
           toast.success("Campaign scheduled");
           onScheduled?.();
+          triggerStarNudge();
         },
         onError: (error) => {
           setError(error.message || "Failed to schedule campaign");
