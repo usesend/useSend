@@ -1,10 +1,9 @@
--- Only adds columns and tables: no table is rewritten, so this runs in
--- milliseconds. Adding columns to "Team", "Email" and "Campaign" still needs a
--- brief exclusive lock on each, held until COMMIT. Give up after 3s per lock
--- rather than queue behind a long query and hold up sending. On failure the
--- whole transaction rolls back, the old deployment keeps serving, and the
--- migration can be marked rolled back and retried. Avoid deploying while the
--- nightly cleanup runs (00:00-00:05 UTC).
+-- Adds the paused state to "Team" and a log of team actions. Nothing is
+-- rewritten, so this runs in milliseconds, but adding the column needs a brief
+-- exclusive lock on "Team", held until COMMIT. Give up after 3s rather than
+-- queue behind a long query and hold up sending. On failure the transaction
+-- rolls back, the old deployment keeps serving, and the migration can be
+-- marked rolled back and retried.
 BEGIN;
 SET LOCAL lock_timeout = '3s';
 
@@ -13,25 +12,6 @@ CREATE TYPE "TeamActionType" AS ENUM ('ALERT', 'PAUSE', 'RESUME', 'BLOCK', 'UNBL
 
 -- AlterTable
 ALTER TABLE "Team" ADD COLUMN     "sendingPausedAt" TIMESTAMP(3);
-
--- AlterTable
-ALTER TABLE "Email" ADD COLUMN     "cohortDate" TEXT;
-
--- AlterTable
-ALTER TABLE "Campaign" ADD COLUMN     "acceptedComplained" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "acceptedHardBounced" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "acceptedSends" INTEGER NOT NULL DEFAULT 0;
-
--- CreateTable
-CREATE TABLE "SendingCohort" (
-    "teamId" INTEGER NOT NULL,
-    "date" TEXT NOT NULL,
-    "sent" INTEGER NOT NULL DEFAULT 0,
-    "hardBounced" INTEGER NOT NULL DEFAULT 0,
-    "complained" INTEGER NOT NULL DEFAULT 0,
-
-    CONSTRAINT "SendingCohort_pkey" PRIMARY KEY ("teamId","date")
-);
 
 -- CreateTable
 CREATE TABLE "TeamAction" (
@@ -48,9 +28,6 @@ CREATE TABLE "TeamAction" (
 
 -- CreateIndex
 CREATE INDEX "TeamAction_teamId_createdAt_idx" ON "TeamAction"("teamId", "createdAt");
-
--- AddForeignKey
-ALTER TABLE "SendingCohort" ADD CONSTRAINT "SendingCohort_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TeamAction" ADD CONSTRAINT "TeamAction_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE ON UPDATE CASCADE;

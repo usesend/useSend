@@ -68,7 +68,7 @@ export async function unsentCampaignIds(
   teamId: number,
 ): Promise<string[]> {
   const campaigns = await client.campaign.findMany({
-    where: { teamId, sent: 0, acceptedSends: 0, status: { not: "SENT" } },
+    where: { teamId, sent: 0, status: { not: "SENT" } },
     select: { id: true },
     orderBy: { createdAt: "desc" },
     take: 1000,
@@ -118,18 +118,17 @@ function windowStart(days: number, reset: Reset) {
 }
 
 /**
- * Emails the team sent over the last 7 days, and the hard bounces and
- * complaints those same emails caused, whenever they arrived.
+ * The team's sends, hard bounces and complaints over the last 7 days, from the
+ * same daily usage counters the dashboard shows.
  */
 async function teamCounts(
   teamId: number,
   reset: Reset,
 ): Promise<SendingCounts> {
-  const result = await db.sendingCohort.aggregate({
+  const result = await db.dailyEmailUsage.aggregate({
     where: {
       teamId,
       date: { gte: windowStart(SENDING_RULES.windowDays, reset) },
-      sent: { gt: 0 },
     },
     _sum: { sent: true, hardBounced: true, complained: true },
   });
@@ -301,9 +300,9 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
     select: {
       id: true,
       name: true,
-      acceptedSends: true,
-      acceptedHardBounced: true,
-      acceptedComplained: true,
+      sent: true,
+      hardBounced: true,
+      complained: true,
       createdAt: true,
     },
   });
@@ -319,12 +318,11 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
     return;
   }
 
-  // Only emails counted when we handed them to SES, and the bounces and
-  // complaints of those same emails, like the team check.
+  // The campaign's own counters, as shown on its page.
   const verdict = judgeCounts({
-    sent: campaign.acceptedSends,
-    hardBounced: campaign.acceptedHardBounced,
-    complained: campaign.acceptedComplained,
+    sent: campaign.sent,
+    hardBounced: campaign.hardBounced,
+    complained: campaign.complained,
   });
   if (verdict.level === "ok") return;
 

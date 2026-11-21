@@ -18,7 +18,7 @@ const {
     team: { findUnique: vi.fn(), updateMany: vi.fn() },
     campaign: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
     teamAction: { findFirst: vi.fn(), create: vi.fn() },
-    sendingCohort: { aggregate: vi.fn() },
+    dailyEmailUsage: { aggregate: vi.fn() },
   },
   redisStore: new Set<string>(),
   mockSendToDiscord: vi.fn(),
@@ -67,7 +67,7 @@ async function flush() {
 }
 
 function usage(sent: number, hardBounced: number, complained = 0) {
-  mockDb.sendingCohort.aggregate.mockResolvedValue({
+  mockDb.dailyEmailUsage.aggregate.mockResolvedValue({
     _sum: { sent, hardBounced, complained },
   });
 }
@@ -224,7 +224,7 @@ describe("checkSendingHealth", () => {
       where: { id: 1, isBlocked: false },
       data: { isBlocked: true },
     });
-    expect(mockDb.sendingCohort.aggregate).not.toHaveBeenCalled();
+    expect(mockDb.dailyEmailUsage.aggregate).not.toHaveBeenCalled();
   });
 
   it("only alerts, once a day, in alert mode", async () => {
@@ -252,9 +252,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "November news",
-      acceptedSends: 400,
-      acceptedHardBounced: 20,
-      acceptedComplained: 0,
+      sent: 400,
+      hardBounced: 20,
+      complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
 
@@ -273,9 +273,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "November news",
-      acceptedSends: 400,
-      acceptedHardBounced: 20,
-      acceptedComplained: 0,
+      sent: 400,
+      hardBounced: 20,
+      complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
@@ -287,15 +287,13 @@ describe("checkSendingHealth", () => {
     expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
 
-  it("counts campaign sends at send time, not when SES reports them", async () => {
-    // 10 bounces against 10,000 emails counted when SES accepted them,
-    // even though SES has only reported 10 sends so far.
+  it("leaves a campaign alone while its rates are healthy", async () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Big send",
-      acceptedSends: 10_000,
-      acceptedHardBounced: 10,
-      acceptedComplained: 0,
+      sent: 10_000,
+      hardBounced: 10,
+      complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
 
@@ -309,9 +307,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_1",
       name: "Old blast",
-      acceptedSends: 100_000,
-      acceptedHardBounced: 0,
-      acceptedComplained: 3,
+      sent: 100_000,
+      hardBounced: 0,
+      complained: 3,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
@@ -334,9 +332,9 @@ describe("checkSendingHealth", () => {
     mockDb.campaign.findFirst.mockResolvedValue({
       id: "cmp_draft",
       name: "Draft",
-      acceptedSends: 400,
-      acceptedHardBounced: 200,
-      acceptedComplained: 0,
+      sent: 400,
+      hardBounced: 200,
+      complained: 0,
       createdAt: new Date("2026-11-01T00:00:00Z"),
     });
     mockDb.teamAction.findFirst.mockImplementation(async (args: any) =>
@@ -357,13 +355,18 @@ describe("checkSendingHealth", () => {
     });
   });
 
-  it("compares sends with the bounces and complaints they caused", async () => {
+  it("reads the team's last 7 days of daily usage", async () => {
     await checkSendingHealth({ teamId: 1 });
 
-    const where = mockDb.sendingCohort.aggregate.mock.calls[0]?.[0].where;
-    expect(where.teamId).toBe(1);
-    // Only days we counted sends for; outcomes filed under their send day.
-    expect(where.sent).toEqual({ gt: 0 });
+    const sixDaysAgo = new Date();
+    sixDaysAgo.setUTCDate(sixDaysAgo.getUTCDate() - 6);
+    expect(mockDb.dailyEmailUsage.aggregate).toHaveBeenCalledWith({
+      where: {
+        teamId: 1,
+        date: { gte: sixDaysAgo.toISOString().split("T")[0] },
+      },
+      _sum: { sent: true, hardBounced: true, complained: true },
+    });
   });
 
   it("doesn't re-block on old counts when an admin unblocked mid-check", async () => {
@@ -401,12 +404,11 @@ describe("checkSendingHealth", () => {
 
     const tomorrow = new Date(resumedAt);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    expect(mockDb.sendingCohort.aggregate).toHaveBeenCalledWith(
+    expect(mockDb.dailyEmailUsage.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           teamId: 1,
           date: { gte: tomorrow.toISOString().split("T")[0] },
-          sent: { gt: 0 },
         },
       }),
     );
@@ -453,9 +455,9 @@ describe("checkSendingHealth", () => {
       mockDb.campaign.findFirst.mockResolvedValue({
         id: "cmp_1",
         name: "November news",
-        acceptedSends: 400,
-        acceptedHardBounced: 20,
-        acceptedComplained: 0,
+        sent: 400,
+        hardBounced: 20,
+        complained: 0,
         createdAt: new Date("2026-11-01T00:00:00Z"),
       });
       await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
@@ -466,9 +468,9 @@ describe("checkSendingHealth", () => {
       mockDb.campaign.findFirst.mockResolvedValue({
         id: "cmp_1",
         name: "November news",
-        acceptedSends: 400,
-        acceptedHardBounced: 40,
-        acceptedComplained: 0,
+        sent: 400,
+        hardBounced: 40,
+        complained: 0,
         createdAt: new Date("2026-11-01T00:00:00Z"),
       });
       await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
@@ -486,6 +488,6 @@ describe("checkSendingHealth", () => {
     await checkSendingHealth({ teamId: 1, spamTrap: true });
 
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
-    expect(mockDb.sendingCohort.aggregate).not.toHaveBeenCalled();
+    expect(mockDb.dailyEmailUsage.aggregate).not.toHaveBeenCalled();
   });
 });

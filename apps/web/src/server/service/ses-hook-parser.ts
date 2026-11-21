@@ -34,7 +34,7 @@ import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
 import { checkSendingHealth } from "./sending-rules-service";
 import { isSpamTrapBounce } from "./sending-rules";
-import { claimOutcome, recordOutcome, releaseOutcome } from "./sending-cohorts";
+import { claimOutcome, releaseOutcome } from "./ses-outcome-claims";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -333,18 +333,9 @@ export async function parseSesHook(data: SesEvent) {
     }
   }
 
-  // Rule counters only for an event we know we haven't counted before.
+  // Check the sending rules once per new hard bounce or complaint, after the
+  // counters above include it. A repeat of the same event doesn't re-run them.
   if (outcome && claim === "claimed") {
-    try {
-      await recordOutcome(email, outcome);
-    } catch (error) {
-      // Keep the claim: if the write did commit, releasing it could count the
-      // outcome twice. Undercounting can't wrongly pause anyone.
-      logger.error(
-        { err: error, teamId: email.teamId },
-        "[SesHookParser]: Counting the outcome failed",
-      );
-    }
     try {
       await checkSendingHealth({
         teamId: email.teamId,

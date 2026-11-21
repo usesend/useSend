@@ -8,13 +8,11 @@ const {
   mockWebhookEmit,
   mockCheckSendingHealth,
   mockClaimOutcome,
-  mockRecordOutcome,
   mockReleaseOutcome,
 } = vi.hoisted(() => ({
   mockReleaseOutcome: vi.fn(),
   mockCheckSendingHealth: vi.fn(),
   mockClaimOutcome: vi.fn(),
-  mockRecordOutcome: vi.fn(),
   mockDb: {
     $executeRaw: vi.fn(),
     $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -58,9 +56,8 @@ vi.mock("~/server/service/webhook-service", () => ({
   },
 }));
 
-vi.mock("~/server/service/sending-cohorts", () => ({
+vi.mock("~/server/service/ses-outcome-claims", () => ({
   claimOutcome: mockClaimOutcome,
-  recordOutcome: mockRecordOutcome,
   releaseOutcome: mockReleaseOutcome,
 }));
 
@@ -260,13 +257,12 @@ describe("parseSesHook sending rules", () => {
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
 
-  it("files the bounce against its email's counted send", async () => {
+  it("checks the rules after the usage counters include the bounce", async () => {
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
     expect(mockClaimOutcome).toHaveBeenCalledWith(email.id, "hardBounced");
-    expect(mockRecordOutcome).toHaveBeenCalledWith(
-      expect.objectContaining({ id: email.id, teamId: 7 }),
-      "hardBounced",
+    expect(mockDb.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCheckSendingHealth.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -276,7 +272,6 @@ describe("parseSesHook sending rules", () => {
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
     expect(mockDb.dailyEmailUsage.upsert).not.toHaveBeenCalled();
-    expect(mockRecordOutcome).not.toHaveBeenCalled();
     expect(mockCheckSendingHealth).not.toHaveBeenCalled();
     expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
@@ -287,7 +282,7 @@ describe("parseSesHook sending rules", () => {
     await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
 
     expect(mockDb.dailyEmailUsage.upsert).toHaveBeenCalled();
-    expect(mockRecordOutcome).not.toHaveBeenCalled();
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
   });
 
   it("writes both usage counters in one transaction", async () => {
@@ -295,15 +290,6 @@ describe("parseSesHook sending rules", () => {
 
     expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(mockDb.$transaction.mock.calls[0]?.[0]).toHaveLength(2);
-  });
-
-  it("keeps the claim if the rule counter fails, so it can't count twice", async () => {
-    mockRecordOutcome.mockRejectedValueOnce(new Error("db busy"));
-
-    await parseSesHook(bounceEvent("550 5.1.1 user unknown"));
-
-    expect(mockReleaseOutcome).not.toHaveBeenCalled();
-    expect(mockDb.emailEvent.create).toHaveBeenCalled();
   });
 
   it("gives the claim back if saving the counts fails, so a replay counts it", async () => {
