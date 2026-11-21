@@ -534,6 +534,17 @@ export async function resumeCampaign({
     });
   }
 
+  const team = await db.team.findUnique({
+    where: { id: teamId },
+    select: { isBlocked: true, sendingPausedAt: true },
+  });
+  if (team?.isBlocked || team?.sendingPausedAt) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: "Sending is paused on your account, so campaigns can't resume",
+    });
+  }
+
   // Resuming is an explicit choice, so it also clears a batch that failed long
   // ago and that the scheduler no longer retries on its own.
   await CampaignBatchService.clearFailedBatch(campaignId);

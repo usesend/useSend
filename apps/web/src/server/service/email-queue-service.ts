@@ -10,6 +10,7 @@ import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
+import { saveSentEmail } from "./sending-cohorts";
 import {
   BUILT_IN_CONTACT_VARIABLES,
   replaceContactVariables,
@@ -458,10 +459,13 @@ async function executeEmail(job: QueueEmailJob) {
       `[EmailQueueService]: Email sent`
     );
 
-    // Delete attachments and headers after sending the email
-    await db.email.update({
-      where: { id: email.id },
-      data: { sesEmailId: messageId, text, attachments: null, headers: null },
+    // Delete attachments and headers after sending the email. On cloud this
+    // also counts the send for the sending rules.
+    await saveSentEmail(email, {
+      sesEmailId: messageId,
+      text,
+      attachments: null,
+      headers: null,
     });
   } catch (error: any) {
     await db.emailEvent.create({
