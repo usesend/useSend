@@ -1,7 +1,7 @@
 -- All changes below only add columns or tables, so they finish instantly, but
 -- adding a column to "Email" and "Campaign" needs a brief lock. Give up after
 -- 10s rather than queue behind a long query and hold up sending; the deploy
--- then fails (the old version keeps serving) and can simply be retried.
+-- then fails (the old version keeps serving); mark it rolled back and retry.
 SET lock_timeout = '10s';
 
 -- CreateEnum

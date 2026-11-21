@@ -35,6 +35,9 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
       domain: {
         findUnique: vi.fn(),
       },
+      team: {
+        findUnique: vi.fn(),
+      },
       campaign: {
         findUnique: vi.fn(),
         update: vi.fn(),
@@ -435,7 +438,38 @@ describe("resumeCampaign", () => {
       teamId: 7,
       scheduledAt: null,
     });
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: null,
+    });
     mockDb.campaign.update.mockResolvedValue({});
+  });
+
+  it("won't resume while sending is paused on the team", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: new Date(),
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Sending is paused");
+
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
+    expect(mockDb.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("won't resume while the team is blocked", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: true,
+      sendingPausedAt: null,
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Sending is paused");
+
+    expect(mockDb.campaign.update).not.toHaveBeenCalled();
   });
 
   it("clears a failed batch so the scheduler can continue the campaign", async () => {
