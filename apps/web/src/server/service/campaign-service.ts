@@ -6,6 +6,7 @@ import {
   Campaign,
   Contact,
   EmailStatus,
+  Prisma,
   UnsubscribeReason,
 } from "@prisma/client";
 import { EmailQueueService } from "./email-queue-service";
@@ -24,6 +25,7 @@ import {
   validateApiKeyDomainAccess,
   validateDomainFromEmail,
 } from "./domain-service";
+import { getSegmentWhereInput } from "./contact-segment-service";
 import {
   BUILT_IN_CONTACT_VARIABLES,
   createCaseInsensitiveVariableValues,
@@ -32,6 +34,7 @@ import {
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
 import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
+
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -98,6 +101,43 @@ async function prepareCampaignHtml(
   }
 
   throw new Error("No content added for campaign");
+}
+
+async function getCampaignAudienceContext(campaign: Campaign) {
+  if (!campaign.contactBookId) {
+    throw new Error("No contact book found for campaign");
+  }
+
+  const contactBook = await db.contactBook.findUnique({
+    where: { id: campaign.contactBookId },
+    select: { variables: true },
+  });
+
+  if (!contactBook) {
+    throw new Error("Contact book not found");
+  }
+
+  const segmentWhere = await getSegmentWhereInput({
+    contactBookId: campaign.contactBookId,
+    segmentId: campaign.contactSegmentId ?? undefined,
+    variables: contactBook.variables,
+  });
+
+  const contactWhere: Prisma.ContactWhereInput = {
+    contactBookId: campaign.contactBookId,
+    subscribed: true,
+    ...(segmentWhere ?? {}),
+  };
+
+  const allowedVariables = [
+    ...BUILT_IN_CONTACT_VARIABLES,
+    ...contactBook.variables,
+  ];
+
+  return {
+    allowedVariables,
+    contactWhere,
+  };
 }
 
 async function renderCampaignHtmlForContact({
@@ -346,10 +386,6 @@ export async function sendCampaign(id: string) {
   campaign = prepared.campaign;
   const html = prepared.html;
 
-  if (!campaign.contactBookId) {
-    throw new Error("No contact book found for campaign");
-  }
-
   if (!html) {
     throw new Error("No HTML content for campaign");
   }
@@ -363,9 +399,10 @@ export async function sendCampaign(id: string) {
     throw new Error("Campaign must include an unsubscribe link before sending");
   }
 
-  // Count subscribed contacts for total, don't load all into memory
+  const { contactWhere } = await getCampaignAudienceContext(campaign);
+
   const total = await db.contact.count({
-    where: { contactBookId: campaign.contactBookId, subscribed: true },
+    where: contactWhere,
   });
 
   // Mark as scheduled (or keep running if already running), set totals and scheduledAt if not set
@@ -424,13 +461,6 @@ export async function scheduleCampaign({
     });
   }
 
-  if (!campaign.contactBookId) {
-    throw new UnsendApiError({
-      code: "BAD_REQUEST",
-      message: "No contact book found for campaign",
-    });
-  }
-
   if (!html) {
     throw new UnsendApiError({
       code: "BAD_REQUEST",
@@ -449,9 +479,10 @@ export async function scheduleCampaign({
     });
   }
 
-  // Count subscribed contacts for total
+  const { contactWhere } = await getCampaignAudienceContext(campaign);
+
   const total = await db.contact.count({
-    where: { contactBookId: campaign.contactBookId, subscribed: true },
+    where: contactWhere,
   });
 
   if (total === 0) {
@@ -1122,11 +1153,8 @@ export class CampaignBatchService {
       }
 
       const batchSize = campaign.batchSize ?? 500;
-
-      const where = {
-        contactBookId: campaign.contactBookId,
-        subscribed: true,
-      } as const;
+      const { allowedVariables, contactWhere } =
+        await getCampaignAudienceContext(campaign);
       const pagination: any = {
         take: batchSize,
         orderBy: { id: "asc" as const },
@@ -1136,17 +1164,10 @@ export class CampaignBatchService {
         pagination.skip = 1; // do not include the cursor row
       }
 
-      const contacts = await db.contact.findMany({ where, ...pagination });
-
-      const contactBook = await db.contactBook.findUnique({
-        where: { id: campaign.contactBookId },
-        select: { variables: true },
+      const contacts = await db.contact.findMany({
+        where: contactWhere,
+        ...pagination,
       });
-
-      const allowedVariables = [
-        ...BUILT_IN_CONTACT_VARIABLES,
-        ...(contactBook?.variables ?? []),
-      ];
 
       if (contacts.length === 0) {
         // No more contacts -> mark SENT

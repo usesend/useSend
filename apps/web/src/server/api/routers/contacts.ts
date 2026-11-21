@@ -9,6 +9,8 @@ import {
 } from "~/server/api/trpc";
 import * as contactService from "~/server/service/contact-service";
 import * as contactBookService from "~/server/service/contact-book-service";
+import * as contactSegmentService from "~/server/service/contact-segment-service";
+import { contactSegmentDefinitionSchema } from "~/lib/contact-segments";
 
 export const contactsRouter = createTRPCRouter({
   getContactBooks: teamProcedure
@@ -74,15 +76,22 @@ export const contactsRouter = createTRPCRouter({
         page: z.number().optional(),
         subscribed: z.boolean().optional(),
         search: z.string().optional(),
+        segmentId: z.string().optional(),
       }),
     )
-    .query(async ({ ctx: { db }, input }) => {
+    .query(async ({ ctx: { db, contactBook }, input }) => {
       const page = input.page || 1;
       const limit = 30;
       const offset = (page - 1) * limit;
+      const segmentWhere = await contactSegmentService.getSegmentWhereInput({
+        contactBookId: input.contactBookId,
+        segmentId: input.segmentId,
+        variables: contactBook.variables,
+      });
 
       const whereConditions: Prisma.ContactFindManyArgs["where"] = {
         contactBookId: input.contactBookId,
+        ...(segmentWhere ?? {}),
         ...(input.subscribed !== undefined
           ? { subscribed: input.subscribed }
           : {}),
@@ -254,11 +263,19 @@ export const contactsRouter = createTRPCRouter({
       z.object({
         subscribed: z.boolean().optional(),
         search: z.string().optional(),
+        segmentId: z.string().optional(),
       }),
     )
-    .query(async ({ ctx: { db }, input }) => {
+    .query(async ({ ctx: { db, contactBook }, input }) => {
+      const segmentWhere = await contactSegmentService.getSegmentWhereInput({
+        contactBookId: input.contactBookId,
+        segmentId: input.segmentId,
+        variables: contactBook.variables,
+      });
+
       const whereConditions: Prisma.ContactFindManyArgs["where"] = {
         contactBookId: input.contactBookId,
+        ...(segmentWhere ?? {}),
         ...(input.subscribed !== undefined
           ? { subscribed: input.subscribed }
           : {}),
@@ -291,5 +308,50 @@ export const contactsRouter = createTRPCRouter({
       });
 
       return contacts;
+    }),
+
+  listSegments: contactBookProcedure.query(async ({ ctx: { contactBook } }) => {
+    return contactSegmentService.listSegments(contactBook.id);
+  }),
+
+  createSegment: contactBookProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(1),
+        definition: contactSegmentDefinitionSchema,
+      }),
+    )
+    .mutation(async ({ ctx: { contactBook }, input }) => {
+      return contactSegmentService.createSegment({
+        contactBookId: contactBook.id,
+        name: input.name,
+        definition: input.definition,
+      });
+    }),
+
+  updateSegment: contactBookProcedure
+    .input(
+      z.object({
+        segmentId: z.string(),
+        name: z.string().trim().min(1),
+        definition: contactSegmentDefinitionSchema,
+      }),
+    )
+    .mutation(async ({ ctx: { contactBook }, input }) => {
+      return contactSegmentService.updateSegment({
+        segmentId: input.segmentId,
+        contactBookId: contactBook.id,
+        name: input.name,
+        definition: input.definition,
+      });
+    }),
+
+  deleteSegment: contactBookProcedure
+    .input(z.object({ segmentId: z.string() }))
+    .mutation(async ({ ctx: { contactBook }, input }) => {
+      return contactSegmentService.deleteSegment(
+        input.segmentId,
+        contactBook.id,
+      );
     }),
 });
