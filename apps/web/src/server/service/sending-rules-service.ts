@@ -18,6 +18,14 @@ export { isSpamTrapBounce, judgeCounts, SENDING_RULES } from "./sending-rules";
 
 const ALERT_COOLDOWN_SECONDS = 24 * 60 * 60;
 
+/**
+ * Only an explicit "enforce" may pause, block or email a team. Anything else,
+ * including an unset value when env validation is skipped, only alerts.
+ */
+function enforcing() {
+  return env.SENDING_RULES_MODE === "enforce";
+}
+
 function toDateString(date: Date) {
   return date.toISOString().split("T")[0] as string;
 }
@@ -200,7 +208,7 @@ async function actOnTeam(
 ) {
   const label = await teamLabel(teamId);
 
-  if (env.SENDING_RULES_MODE === "alert") {
+  if (!enforcing()) {
     if (!(await claimAlert(`team:${teamId}:${verdict.level}`))) return;
     await recordAction(
       teamId,
@@ -340,7 +348,7 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
   const pausedBefore = await db.teamAction.findFirst({
     where: {
       teamId,
-      action: env.SENDING_RULES_MODE === "alert" ? "ALERT" : "PAUSE",
+      action: enforcing() ? "PAUSE" : "ALERT",
       details: { path: ["campaignId"], equals: campaign.id },
     },
     select: { id: true },
@@ -349,7 +357,7 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
 
   const label = await teamLabel(teamId);
 
-  if (env.SENDING_RULES_MODE === "alert") {
+  if (!enforcing()) {
     if (!(await claimAlert(`campaign:${campaign.id}`))) return;
     await recordAction(
       teamId,
@@ -404,7 +412,8 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
 /**
  * Runs after every hard bounce and complaint (cloud only). Pauses or blocks
  * the team or campaign when its rates cross the limits, emails the team and
- * posts to Discord. SENDING_RULES_MODE "alert" only posts; "off" disables it.
+ * posts to Discord, but only when SENDING_RULES_MODE is "enforce". "off"
+ * disables it; any other value (including unset) only posts alerts.
  */
 export async function checkSendingHealth(params: {
   teamId: number;

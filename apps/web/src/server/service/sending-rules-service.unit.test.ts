@@ -10,7 +10,7 @@ const {
 } = vi.hoisted(() => ({
   mockEnv: {
     NEXT_PUBLIC_IS_CLOUD: true,
-    SENDING_RULES_MODE: "enforce" as "off" | "alert" | "enforce",
+    SENDING_RULES_MODE: "enforce" as "off" | "alert" | "enforce" | undefined,
   },
   mockDb: {
     $transaction: vi.fn(),
@@ -410,6 +410,70 @@ describe("checkSendingHealth", () => {
         },
       }),
     );
+  });
+
+  describe("when the mode isn't set (env validation skipped)", () => {
+    beforeEach(() => {
+      mockEnv.SENDING_RULES_MODE = undefined;
+    });
+
+    async function expectAlertOnly() {
+      await flush();
+      expect(mockDb.$transaction).not.toHaveBeenCalled();
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+      expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+      expect(mockRefreshTeamCache).not.toHaveBeenCalled();
+      expect(mockSendMail).not.toHaveBeenCalled();
+      expect(mockDb.teamAction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: "ALERT" }),
+      });
+      expect(mockSendToDiscord).toHaveBeenCalledWith(
+        expect.stringContaining("[alert only]"),
+      );
+    }
+
+    it("only alerts on a spam trap", async () => {
+      await checkSendingHealth({ teamId: 1, spamTrap: true });
+      await expectAlertOnly();
+    });
+
+    it("only alerts when the team crosses the pause level", async () => {
+      usage(1000, 30);
+      await checkSendingHealth({ teamId: 1 });
+      await expectAlertOnly();
+    });
+
+    it("only alerts when the team crosses the block level", async () => {
+      usage(1000, 0, 4);
+      await checkSendingHealth({ teamId: 1 });
+      await expectAlertOnly();
+    });
+
+    it("only alerts on a campaign over the pause level", async () => {
+      mockDb.campaign.findFirst.mockResolvedValue({
+        id: "cmp_1",
+        name: "November news",
+        acceptedSends: 400,
+        acceptedHardBounced: 20,
+        acceptedComplained: 0,
+        createdAt: new Date("2026-11-01T00:00:00Z"),
+      });
+      await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
+      await expectAlertOnly();
+    });
+
+    it("only alerts on a campaign over the block level", async () => {
+      mockDb.campaign.findFirst.mockResolvedValue({
+        id: "cmp_1",
+        name: "November news",
+        acceptedSends: 400,
+        acceptedHardBounced: 40,
+        acceptedComplained: 0,
+        createdAt: new Date("2026-11-01T00:00:00Z"),
+      });
+      await checkSendingHealth({ teamId: 1, campaignId: "cmp_1" });
+      await expectAlertOnly();
+    });
   });
 
   it("is off on self-hosted and when switched off", async () => {

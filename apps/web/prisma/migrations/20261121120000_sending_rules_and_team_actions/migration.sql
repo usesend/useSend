@@ -1,8 +1,12 @@
--- All changes below only add columns or tables, so they finish instantly, but
--- adding a column to "Email" and "Campaign" needs a brief lock. Give up after
--- 10s rather than queue behind a long query and hold up sending; the deploy
--- then fails (the old version keeps serving); mark it rolled back and retry.
-SET lock_timeout = '10s';
+-- Only adds columns and tables: no table is rewritten, so this runs in
+-- milliseconds. Adding columns to "Team", "Email" and "Campaign" still needs a
+-- brief exclusive lock on each, held until COMMIT. Give up after 3s per lock
+-- rather than queue behind a long query and hold up sending. On failure the
+-- whole transaction rolls back, the old deployment keeps serving, and the
+-- migration can be marked rolled back and retried. Avoid deploying while the
+-- nightly cleanup runs (00:00-00:05 UTC).
+BEGIN;
+SET LOCAL lock_timeout = '3s';
 
 -- CreateEnum
 CREATE TYPE "TeamActionType" AS ENUM ('ALERT', 'PAUSE', 'RESUME', 'BLOCK', 'UNBLOCK');
@@ -51,3 +55,4 @@ ALTER TABLE "SendingCohort" ADD CONSTRAINT "SendingCohort_teamId_fkey" FOREIGN K
 -- AddForeignKey
 ALTER TABLE "TeamAction" ADD CONSTRAINT "TeamAction_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+COMMIT;

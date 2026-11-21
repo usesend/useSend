@@ -10,6 +10,14 @@ import { getRedis, redisKey } from "~/server/redis";
 
 const OUTCOME_CLAIM_SECONDS = 14 * 24 * 60 * 60;
 
+/**
+ * Outcomes are counted only for emails sent within this many days, so a claim
+ * is always still held while its outcome can count: a replay after the claim
+ * expires can't count the same bounce or complaint twice. Later ones are
+ * skipped, which only undercounts. The team window is 7 days anyway.
+ */
+export const OUTCOME_COUNT_DAYS = 13;
+
 export type Outcome = "hardBounced" | "complained";
 
 function day(date: Date) {
@@ -115,6 +123,10 @@ export async function recordOutcome(
   outcome: Outcome,
 ) {
   if (!env.NEXT_PUBLIC_IS_CLOUD || !email.cohortDate) return false;
+
+  const oldest = new Date();
+  oldest.setUTCDate(oldest.getUTCDate() - OUTCOME_COUNT_DAYS);
+  if (email.cohortDate < day(oldest)) return false;
 
   const date = email.cohortDate;
   const campaignField =

@@ -100,6 +100,7 @@ describe("sending cohorts", () => {
   });
 
   it("files an outcome under the day its email was counted", async () => {
+    freezeDate();
     await expect(
       recordOutcome(
         { teamId: 3, campaignId: "c1", cohortDate: "2026-11-09" },
@@ -117,6 +118,24 @@ describe("sending cohorts", () => {
       create: { teamId: 3, date: "2026-11-09", complained: 1 },
       update: { complained: { increment: 1 } },
     });
+  });
+
+  it("skips outcomes of emails sent too long ago to still hold a claim", async () => {
+    freezeDate();
+    await expect(
+      recordOutcome(
+        { teamId: 3, campaignId: "c1", cohortDate: "2026-10-26" },
+        "hardBounced",
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      recordOutcome(
+        { teamId: 3, campaignId: "c1", cohortDate: "2026-10-27" },
+        "hardBounced",
+      ),
+    ).resolves.toBe(true);
+
+    expect(mockDb.sendingCohort.upsert).toHaveBeenCalledTimes(1);
   });
 
   it("skips outcomes of emails whose send wasn't counted", async () => {
