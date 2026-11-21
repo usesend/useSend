@@ -516,6 +516,22 @@ export async function pauseCampaign({
   return { ok: true };
 }
 
+async function assertTeamCanSend(
+  client: Pick<typeof db, "team">,
+  teamId: number,
+) {
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { isBlocked: true, sendingPausedAt: true },
+  });
+  if (team?.isBlocked || team?.sendingPausedAt) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: "Sending is paused on your account, so campaigns can't resume",
+    });
+  }
+}
+
 export async function resumeCampaign({
   campaignId,
   teamId,
@@ -534,32 +550,27 @@ export async function resumeCampaign({
     });
   }
 
-  const team = await db.team.findUnique({
-    where: { id: teamId },
-    select: { isBlocked: true, sendingPausedAt: true },
-  });
-  if (team?.isBlocked || team?.sendingPausedAt) {
-    throw new UnsendApiError({
-      code: "FORBIDDEN",
-      message: "Sending is paused on your account, so campaigns can't resume",
-    });
-  }
+  await assertTeamCanSend(db, teamId);
 
   // Resuming is an explicit choice, so it also clears a batch that failed long
   // ago and that the scheduler no longer retries on its own.
   await CampaignBatchService.clearFailedBatch(campaignId);
 
-  if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
-    await db.campaign.update({
+  const status =
+    campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()
+      ? "SCHEDULED"
+      : "RUNNING";
+
+  // Check again and write the status under the team row lock that pausing and
+  // blocking take, so a pause landing in between can't be overwritten.
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+    await assertTeamCanSend(tx, teamId);
+    await tx.campaign.update({
       where: { id: campaignId },
-      data: { status: "SCHEDULED" },
+      data: { status },
     });
-  } else {
-    await db.campaign.update({
-      where: { id: campaignId },
-      data: { status: "RUNNING" },
-    });
-  }
+  });
 
   return { ok: true };
 }
