@@ -896,6 +896,40 @@ describe("campaign batch worker, re-running a batch that failed part-way", () =>
     expect(mockQueueEmail).not.toHaveBeenCalled();
   });
 
+  it("doesn't start a campaign the Guard stopped while it was being read", async () => {
+    mockDb.campaign.findUnique
+      .mockResolvedValueOnce({
+        ...(await mockDb.campaign.findUnique()),
+        status: "SCHEDULED",
+      })
+      .mockResolvedValueOnce({ status: "PAUSED", guardStoppedAt: new Date() });
+    mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "campaign_1", status: "SCHEDULED", guardStoppedAt: null },
+      data: { status: "RUNNING" },
+    });
+    expect(mockDb.contact.findMany).not.toHaveBeenCalled();
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("skips a campaign marked stopped by the Guard", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      guardStoppedAt: new Date(),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
   it("sends anyway once the wait is over", async () => {
     mockDb.campaign.findUnique.mockResolvedValue({
       ...(await mockDb.campaign.findUnique()),

@@ -157,6 +157,7 @@ describe("listActiveCampaigns", () => {
   });
 
   it("marks new teams and campaigns waiting for review", async () => {
+    mockDb.campaign.findMany.mockResolvedValueOnce([{ id: "c1" }]);
     mockDb.campaign.findMany.mockResolvedValueOnce([
       make("c1", {
         status: "SCHEDULED",
@@ -165,7 +166,7 @@ describe("listActiveCampaigns", () => {
       }),
     ]);
 
-    const page = await listActiveCampaigns({ limit: 25 });
+    const page = await listActiveCampaigns({ limit: 10 });
 
     expect(page.items[0]?.waitingForReview).toBe(true);
     expect(page.items[0]?.team.isNew).toBe(true);
@@ -177,26 +178,34 @@ describe("listActiveCampaigns", () => {
 
   it("pages through campaigns", async () => {
     mockDb.campaign.findMany.mockResolvedValueOnce([
-      make("c1"),
-      make("c2"),
-      make("c3"),
+      { id: "c1" },
+      { id: "c2" },
+      { id: "c3" },
     ]);
+    mockDb.campaign.findMany.mockResolvedValueOnce([make("c1"), make("c2")]);
 
     const page = await listActiveCampaigns({ limit: 2 });
 
     expect(page.items.map((item) => item.id)).toEqual(["c1", "c2"]);
     expect(page.nextCursor).toBe("c2");
-    expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 3 }),
+    expect(mockDb.campaign.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ take: 3, select: { id: true } }),
+    );
+    // Content only for the page, not the extra row.
+    expect(mockDb.campaign.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ where: { id: { in: ["c1", "c2"] } } }),
     );
     expect(page.items[0]?.team.isNew).toBe(false);
   });
 
   it("truncates very large HTML but hashes all of it", async () => {
     const html = "x".repeat(150_000);
+    mockDb.campaign.findMany.mockResolvedValueOnce([{ id: "c1" }]);
     mockDb.campaign.findMany.mockResolvedValueOnce([make("c1", { html })]);
 
-    const item = (await listActiveCampaigns({ limit: 25 })).items[0]!;
+    const item = (await listActiveCampaigns({ limit: 10 })).items[0]!;
 
     expect(item.html?.length).toBe(100_000);
     expect(item.htmlTruncated).toBe(true);

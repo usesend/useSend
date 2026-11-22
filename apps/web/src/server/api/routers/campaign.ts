@@ -173,19 +173,34 @@ export const campaignRouter = createTRPCRouter({
         data.from !== undefined ||
         data.previewText !== undefined ||
         data.replyTo !== undefined;
-      if (
-        changesContent &&
-        (campaignOld.status === "SCHEDULED" || campaignOld.status === "RUNNING")
-      ) {
-        const reviewHoldUntil = await reviewHoldFor(team.id);
-        if (reviewHoldUntil) campaignUpdateData.reviewHoldUntil = reviewHoldUntil;
+      const reviewHoldUntil = changesContent
+        ? await reviewHoldFor(team.id)
+        : null;
+
+      if (!reviewHoldUntil) {
+        return db.campaign.update({
+          where: { id: campaignId },
+          data: campaignUpdateData,
+        });
       }
 
-      const campaign = await db.campaign.update({
-        where: { id: campaignId },
-        data: campaignUpdateData,
+      // Under the Team row lock the Guard's approval takes, decide from the
+      // campaign's current state, so an approval can't slip in between.
+      return db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${team.id} FOR UPDATE`;
+        const current = await tx.campaign.findUnique({
+          where: { id: campaignId },
+          select: { status: true },
+        });
+        const sending =
+          current?.status === "SCHEDULED" || current?.status === "RUNNING";
+        return tx.campaign.update({
+          where: { id: campaignId },
+          data: sending
+            ? { ...campaignUpdateData, reviewHoldUntil }
+            : campaignUpdateData,
+        });
       });
-      return campaign;
     }),
 
   deleteCampaign: campaignProcedure.mutation(async ({ ctx: { team }, input }) => {

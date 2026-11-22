@@ -1307,8 +1307,8 @@ export class CampaignBatchService {
       if (!campaign) return;
       if (!campaign.contactBookId) return;
 
-      // Skip paused campaigns
-      if (campaign.status === "PAUSED") return;
+      // Skip paused campaigns, and ones the Guard stopped
+      if (campaign.status === "PAUSED" || campaign.guardStoppedAt) return;
 
       // A new team's campaign waits for the Guard's check, for a few minutes
       // at most; the scheduler queues it again on its next tick.
@@ -1318,12 +1318,20 @@ export class CampaignBatchService {
       if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now())
         return;
 
-      // First touch moves SCHEDULED -> RUNNING
+      // First touch moves SCHEDULED -> RUNNING, only if nothing paused or
+      // stopped it since it was read above.
       if (campaign.status === "SCHEDULED") {
-        await db.campaign.update({
-          where: { id: campaignId },
+        const { count } = await db.campaign.updateMany({
+          where: { id: campaignId, status: "SCHEDULED", guardStoppedAt: null },
           data: { status: "RUNNING" },
         });
+        if (count === 0) {
+          const current = await db.campaign.findUnique({
+            where: { id: campaignId },
+            select: { status: true, guardStoppedAt: true },
+          });
+          if (current?.status !== "RUNNING" || current.guardStoppedAt) return;
+        }
       }
 
       const batchSize = campaign.batchSize ?? 500;

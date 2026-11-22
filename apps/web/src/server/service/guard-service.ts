@@ -152,18 +152,19 @@ export async function listApplications(
 // --- Campaigns ---
 
 export const campaignsQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(50).default(25),
+  limit: z.coerce.number().int().min(1).max(25).default(10),
   cursor: z.string().min(1).optional(),
 });
 
 /**
  * Campaigns that are sending or about to, ones waiting for review, and ones
- * the Guard stopped, oldest first, a page at a time (`nextCursor`).
+ * the Guard stopped, oldest first, a page at a time (`nextCursor`). Content
+ * is read only for the campaigns on the page.
  */
 export async function listActiveCampaigns(
   query: z.infer<typeof campaignsQuery>,
 ) {
-  const campaigns = await db.campaign.findMany({
+  const rows = await db.campaign.findMany({
     where: {
       OR: [
         { status: { in: ["SCHEDULED", "RUNNING"] } },
@@ -174,6 +175,15 @@ export async function listActiveCampaigns(
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: query.limit + 1,
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    select: { id: true },
+  });
+  const pageIds = rows.slice(0, query.limit).map((row) => row.id);
+  const nextCursor = rows.length > query.limit ? (pageIds.at(-1) ?? null) : null;
+  if (pageIds.length === 0) return { items: [], nextCursor };
+
+  const campaigns = await db.campaign.findMany({
+    where: { id: { in: pageIds } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
       name: true,
@@ -193,9 +203,8 @@ export async function listActiveCampaigns(
     },
   });
 
-  const page = campaigns.slice(0, query.limit);
   return {
-    items: page.map(({ html, team, ...campaign }) => ({
+    items: campaigns.map(({ html, team, ...campaign }) => ({
       ...campaign,
       html: truncate(html, CAMPAIGN_HTML_MAX),
       htmlTruncated: (html?.length ?? 0) > CAMPAIGN_HTML_MAX,
@@ -203,8 +212,7 @@ export async function listActiveCampaigns(
       waitingForReview: isReviewHeld(campaign),
       team: { ...team, isNew: isNewTeam(team) },
     })),
-    nextCursor:
-      campaigns.length > query.limit ? (page.at(-1)?.id ?? null) : null,
+    nextCursor,
   };
 }
 
