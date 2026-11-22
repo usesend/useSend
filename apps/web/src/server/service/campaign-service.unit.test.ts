@@ -10,6 +10,11 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
     },
     campaign: {
       update: vi.fn(),
+      updateMany: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    teamAction: {
+      create: vi.fn(),
     },
     campaignEmail: {
       findUnique: vi.fn(),
@@ -68,7 +73,11 @@ const {
   capturedBatchHandler,
   mockCheckSuppressions,
   mockQueueEmail,
+  mockReviewHoldFor,
+  mockAssertGuardMayAct,
 } = vi.hoisted(() => ({
+  mockReviewHoldFor: vi.fn(),
+  mockAssertGuardMayAct: vi.fn(),
   mockQueueAdd: vi.fn(),
   mockQueueGetJob: vi.fn(),
   capturedBatchHandler: {
@@ -132,6 +141,22 @@ vi.mock("~/server/service/domain-service", () => ({
   validateDomainFromEmail: vi.fn(),
 }));
 
+vi.mock("~/server/service/guard-service", () => ({
+  GUARD_ACTOR: "guard",
+  GuardConflictError: class GuardConflictError extends Error {},
+  GuardNotFoundError: class GuardNotFoundError extends Error {},
+  reviewBody: {},
+  reviewHoldFor: mockReviewHoldFor,
+  assertGuardMayAct: mockAssertGuardMayAct,
+  campaignContentHash: (c: { subject: string; html: string | null }) =>
+    `${c.subject}|${c.html}`,
+  isReviewHeld: (campaign: { reviewHoldUntil?: Date | null }) =>
+    Boolean(
+      campaign.reviewHoldUntil &&
+        campaign.reviewHoldUntil.getTime() > Date.now(),
+    ),
+}));
+
 vi.mock("~/server/logger/log", () => ({
   logger: {
     debug: vi.fn(),
@@ -144,6 +169,7 @@ vi.mock("~/server/logger/log", () => ({
 import {
   CampaignBatchService,
   recordCampaignContactFailure,
+  guardReviewCampaign,
   resumeCampaign,
   scheduleCampaign,
   subscribeContact,
@@ -410,7 +436,35 @@ describe("scheduleCampaign", () => {
       html: '<p>Hi <a href="{{unsend_unsubscribe_url}}">Unsubscribe</a></p>',
     });
     mockDb.contact.count.mockResolvedValue(3);
-    mockDb.campaign.update.mockResolvedValue({});
+    mockTx.campaign.update.mockResolvedValue({});
+    mockTx.campaign.findUnique.mockResolvedValue({ guardStoppedAt: null });
+    mockReviewHoldFor.mockResolvedValue(null);
+  });
+
+  it("won't schedule a campaign the Guard stopped", async () => {
+    mockTx.campaign.findUnique.mockResolvedValue({ guardStoppedAt: new Date() });
+
+    await expect(
+      scheduleCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Our team is reviewing this campaign");
+
+    expect(mockTx.$queryRaw).toHaveBeenCalled();
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("makes a new team's campaign wait for the Guard's check", async () => {
+    const until = new Date(Date.now() + 10 * 60 * 1000);
+    mockReviewHoldFor.mockResolvedValue(until);
+    mockQueueGetJob.mockResolvedValue(null);
+
+    await scheduleCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockReviewHoldFor).toHaveBeenCalledWith(7);
+    expect(mockTx.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reviewHoldUntil: until }),
+      }),
+    );
   });
 
   it("clears a batch that failed long ago, so the campaign isn't paused again", async () => {
@@ -423,7 +477,7 @@ describe("scheduleCampaign", () => {
     await scheduleCampaign({ campaignId: "campaign_1", teamId: 7 });
 
     expect(job.remove).toHaveBeenCalled();
-    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+    expect(mockTx.campaign.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "campaign_1" },
         data: expect.objectContaining({ status: "SCHEDULED" }),
@@ -431,7 +485,7 @@ describe("scheduleCampaign", () => {
     );
     // The new schedule is saved before the failed batch is cleared, so the
     // scheduler can't start an early batch in between.
-    expect(mockDb.campaign.update.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockTx.campaign.update.mock.invocationCallOrder[0]).toBeLessThan(
       job.remove.mock.invocationCallOrder[0]!,
     );
   });
@@ -454,6 +508,8 @@ describe("resumeCampaign", () => {
       sendingPausedAt: null,
     });
     mockTx.campaign.update.mockResolvedValue({});
+    mockTx.campaign.findUnique.mockResolvedValue({ guardStoppedAt: null });
+    mockReviewHoldFor.mockResolvedValue(null);
   });
 
   it("won't resume while sending is paused on the team", async () => {
@@ -470,6 +526,35 @@ describe("resumeCampaign", () => {
     expect(mockTx.campaign.update).not.toHaveBeenCalled();
   });
 
+  it("won't resume a campaign the Guard stopped", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "campaign_1",
+      teamId: 7,
+      scheduledAt: null,
+      guardStoppedAt: new Date(),
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Our team is reviewing this campaign");
+
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("sends a new team's resumed campaign back for the Guard's check", async () => {
+    const until = new Date(Date.now() + 10 * 60 * 1000);
+    mockReviewHoldFor.mockResolvedValue(until);
+    mockQueueGetJob.mockResolvedValue(null);
+
+    await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockTx.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { status: "RUNNING", reviewHoldUntil: until },
+    });
+  });
+
   it("won't resume while the team is blocked", async () => {
     mockDb.team.findUnique.mockResolvedValue({
       isBlocked: true,
@@ -480,6 +565,16 @@ describe("resumeCampaign", () => {
       resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
     ).rejects.toThrow("Sending is paused");
 
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("won't resume if the Guard stops it while resuming", async () => {
+    mockQueueGetJob.mockResolvedValue(null);
+    mockTx.campaign.findUnique.mockResolvedValue({ guardStoppedAt: new Date() });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Our team is reviewing this campaign");
     expect(mockTx.campaign.update).not.toHaveBeenCalled();
   });
 
@@ -514,7 +609,7 @@ describe("resumeCampaign", () => {
     expect(job.remove).toHaveBeenCalled();
     expect(mockTx.campaign.update).toHaveBeenCalledWith({
       where: { id: "campaign_1" },
-      data: { status: "RUNNING" },
+      data: { status: "RUNNING", reviewHoldUntil: null },
     });
   });
 
@@ -541,6 +636,220 @@ describe("resumeCampaign", () => {
     ).rejects.toThrow("Job is locked");
 
     expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("guardReviewCampaign", () => {
+  const updatedAt = new Date("2026-11-22T10:00:00Z");
+  const content = {
+    from: "news@acme.com",
+    replyTo: [],
+    subject: "Launch",
+    previewText: null,
+    html: "<p>Launch</p>",
+  };
+  const hash = "Launch|<p>Launch</p>";
+
+  function campaign(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "cmp_1",
+      teamId: 7,
+      name: "Launch",
+      status: "SCHEDULED",
+      guardStoppedAt: null,
+      reviewHoldUntil: new Date(Date.now() + 5 * 60_000),
+      team: { createdAt: new Date() },
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAssertGuardMayAct.mockImplementation(() => undefined);
+    mockDb.campaign.findUnique.mockResolvedValue(campaign());
+    mockTx.campaign.findUnique.mockResolvedValue({
+      status: "SCHEDULED",
+      updatedAt,
+      guardStoppedAt: null,
+      ...content,
+    });
+    mockTx.campaign.updateMany.mockResolvedValue({ count: 1 });
+    mockTx.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: null,
+    });
+    mockQueueGetJob.mockResolvedValue(null);
+  });
+
+  it("stops a sending campaign, marks it stopped and logs it", async () => {
+    const result = await guardReviewCampaign("cmp_1", {
+      decision: "stop",
+      reason: "bought list",
+    });
+
+    expect(result.status).toBe("PAUSED");
+    expect(mockAssertGuardMayAct).toHaveBeenCalled();
+    expect(mockTx.$queryRaw).toHaveBeenCalled();
+    expect(mockTx.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "cmp_1", status: { in: ["SCHEDULED", "RUNNING"] } },
+      data: {
+        status: "PAUSED",
+        reviewHoldUntil: null,
+        guardStoppedAt: expect.any(Date),
+      },
+    });
+    expect(mockTx.teamAction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "PAUSE",
+        actor: "guard",
+        details: { scope: "campaign", campaignId: "cmp_1", source: "guard" },
+      }),
+    });
+  });
+
+  it("won't stop an established team's campaign unless allowed", async () => {
+    mockAssertGuardMayAct.mockImplementation(() => {
+      throw new Error("The Guard may only act on teams in their first 14 days");
+    });
+
+    await expect(
+      guardReviewCampaign("cmp_1", { decision: "stop", reason: "x" }),
+    ).rejects.toThrow("first 14 days");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("can't stop a campaign that isn't sending", async () => {
+    mockTx.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      guardReviewCampaign("cmp_1", { decision: "stop", reason: "x" }),
+    ).rejects.toThrow("not sending");
+    expect(mockTx.teamAction.create).not.toHaveBeenCalled();
+  });
+
+  it("approving lets a waiting campaign send, if its content is what was reviewed", async () => {
+    const result = await guardReviewCampaign("cmp_1", {
+      decision: "approve",
+      reason: "newsletter",
+      contentHash: hash,
+    });
+
+    expect(result.status).toBe("SCHEDULED");
+    expect(mockTx.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "cmp_1", updatedAt },
+      data: { reviewHoldUntil: null },
+    });
+  });
+
+  it("refuses to approve content that changed since the review", async () => {
+    await expect(
+      guardReviewCampaign("cmp_1", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: "Old|<p>old</p>",
+      }),
+    ).rejects.toThrow("changed since it was reviewed");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses if the Guard stopped it after the first read", async () => {
+    mockTx.campaign.findUnique.mockResolvedValue({
+      status: "PAUSED",
+      updatedAt,
+      guardStoppedAt: new Date(),
+      ...content,
+    });
+
+    await expect(
+      guardReviewCampaign("cmp_1", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: hash,
+      }),
+    ).rejects.toThrow("stopped meanwhile");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses when an edit lands during the approval", async () => {
+    mockTx.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      guardReviewCampaign("cmp_1", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: hash,
+      }),
+    ).rejects.toThrow("changed since it was reviewed");
+  });
+
+  it("approving a stopped campaign restarts it and clears an old failed batch", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ status: "PAUSED", guardStoppedAt: new Date(), reviewHoldUntil: null }),
+    );
+    mockTx.campaign.findUnique.mockResolvedValue({
+      status: "PAUSED",
+      updatedAt,
+      guardStoppedAt: new Date(),
+      ...content,
+    });
+    const job = {
+      isFailed: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    mockQueueGetJob.mockResolvedValue(job);
+
+    const result = await guardReviewCampaign("cmp_1", {
+      decision: "approve",
+      reason: "checked with the customer",
+      contentHash: hash,
+    });
+
+    expect(result.status).toBe("SCHEDULED");
+    expect(job.remove).toHaveBeenCalled();
+    expect(mockTx.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "cmp_1", updatedAt },
+      data: { status: "SCHEDULED", guardStoppedAt: null, reviewHoldUntil: null },
+    });
+  });
+
+  it("won't restart a stopped campaign while its team is paused", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ status: "PAUSED", guardStoppedAt: new Date() }),
+    );
+    mockTx.campaign.findUnique.mockResolvedValue({
+      status: "PAUSED",
+      updatedAt,
+      guardStoppedAt: new Date(),
+      ...content,
+    });
+    mockTx.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: new Date(),
+    });
+
+    await expect(
+      guardReviewCampaign("cmp_1", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: hash,
+      }),
+    ).rejects.toThrow("resume the team first");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("has nothing to do for a campaign that isn't waiting or stopped", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ status: "RUNNING", reviewHoldUntil: null }),
+    );
+
+    const result = await guardReviewCampaign("cmp_1", {
+      decision: "approve",
+      reason: "ok",
+      contentHash: "anything",
+    });
+
+    expect(result.status).toBe("RUNNING");
+    expect(mockTx.$queryRaw).not.toHaveBeenCalled();
   });
 });
 
@@ -589,6 +898,92 @@ describe("campaign batch worker, re-running a batch that failed part-way", () =>
     mockDb.campaignEmail.create.mockResolvedValue({});
     mockDb.campaign.update.mockResolvedValue({});
     mockQueueEmail.mockResolvedValue(undefined);
+  });
+
+  it("doesn't send a campaign that is still waiting for the Guard", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      reviewHoldUntil: new Date(Date.now() + 60_000),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockDb.contact.findMany).not.toHaveBeenCalled();
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("doesn't start a campaign the Guard stopped while it was being read", async () => {
+    mockDb.campaign.findUnique
+      .mockResolvedValueOnce({
+        ...(await mockDb.campaign.findUnique()),
+        status: "SCHEDULED",
+      })
+      .mockResolvedValueOnce({ status: "PAUSED", guardStoppedAt: new Date() });
+    mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "campaign_1",
+        status: "SCHEDULED",
+        guardStoppedAt: null,
+        OR: [{ reviewHoldUntil: null }, { reviewHoldUntil: { lte: expect.any(Date) } }],
+      },
+      data: { status: "RUNNING" },
+    });
+    expect(mockDb.contact.findMany).not.toHaveBeenCalled();
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("doesn't start a campaign that an edit put back on hold meanwhile", async () => {
+    mockDb.campaign.findUnique
+      .mockResolvedValueOnce({
+        ...(await mockDb.campaign.findUnique()),
+        status: "SCHEDULED",
+      })
+      .mockResolvedValueOnce({
+        status: "SCHEDULED",
+        guardStoppedAt: null,
+        reviewHoldUntil: new Date(Date.now() + 60_000),
+      });
+    mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("skips a campaign marked stopped by the Guard", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      guardStoppedAt: new Date(),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends anyway once the wait is over", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      reviewHoldUntil: new Date(Date.now() - 1_000),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockQueueEmail).toHaveBeenCalledTimes(2);
   });
 
   it("emails only the contacts that weren't emailed yet, once each, then moves on", async () => {

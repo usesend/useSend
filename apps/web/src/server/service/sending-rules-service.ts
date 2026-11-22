@@ -346,6 +346,7 @@ async function checkCampaign(teamId: number, campaignId: string, reset: Reset) {
   const pausedBefore = await db.teamAction.findFirst({
     where: {
       teamId,
+      actor: "rules",
       action: enforcing() ? "PAUSE" : "ALERT",
       details: { path: ["campaignId"], equals: campaign.id },
     },

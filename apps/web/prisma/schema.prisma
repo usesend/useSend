@@ -443,6 +443,10 @@ model Campaign {
   batchWindowMinutes Int            @default(0)
   lastCursor         String?
   lastSentAt         DateTime?
+  /// A new team's campaign waits for the Guard's check until this time, then sends anyway.
+  reviewHoldUntil    DateTime?
+  /// Set when the Guard stops the campaign; it can't send again until the Guard approves it.
+  guardStoppedAt     DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
