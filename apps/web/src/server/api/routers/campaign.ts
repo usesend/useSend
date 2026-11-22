@@ -168,6 +168,7 @@ export const campaignRouter = createTRPCRouter({
       // Changing what a sending campaign says sends it back for the Guard's
       // check (new teams only; never clears a hold that's still waiting).
       const changesContent =
+        data.content !== undefined ||
         htmlToSave !== undefined ||
         data.subject !== undefined ||
         data.from !== undefined ||

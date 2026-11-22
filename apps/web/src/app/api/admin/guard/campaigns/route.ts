@@ -7,7 +7,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/admin/guard/campaigns?limit=<1-50>&cursor=<id>
+ * GET /api/admin/guard/campaigns?limit=<1-25, default 10>&cursor=<id>
  * Campaigns sending or about to, waiting for review, or stopped by the Guard,
  * oldest first, with content and `nextCursor` for the next page.
  */

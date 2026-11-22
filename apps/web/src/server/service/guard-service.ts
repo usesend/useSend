@@ -95,14 +95,17 @@ export function campaignContentHash(campaign: {
   subject: string;
   previewText: string | null;
   html: string | null;
+  content: string | null;
 }) {
   const hash = createHash("sha256");
+  // The sender renders `content` when it's set, else `html`: both count.
   for (const part of [
     campaign.from,
     campaign.replyTo.join(","),
     campaign.subject,
     campaign.previewText,
     campaign.html,
+    campaign.content,
   ]) {
     hash.update(`${part ?? ""}\u0000`);
   }
@@ -193,6 +196,7 @@ export async function listActiveCampaigns(
       subject: true,
       previewText: true,
       html: true,
+      content: true,
       total: true,
       sent: true,
       scheduledAt: true,
@@ -204,11 +208,11 @@ export async function listActiveCampaigns(
   });
 
   return {
-    items: campaigns.map(({ html, team, ...campaign }) => ({
+    items: campaigns.map(({ html, content, team, ...campaign }) => ({
       ...campaign,
       html: truncate(html, CAMPAIGN_HTML_MAX),
       htmlTruncated: (html?.length ?? 0) > CAMPAIGN_HTML_MAX,
-      contentHash: campaignContentHash({ ...campaign, html }),
+      contentHash: campaignContentHash({ ...campaign, html, content }),
       waitingForReview: isReviewHeld(campaign),
       team: { ...team, isNew: isNewTeam(team) },
     })),
@@ -321,7 +325,8 @@ export const emailsQuery = z.object({
 
 /**
  * A team's latest emails, for a content check. The recipient list is reduced
- * to domains (the content itself may still mention an address).
+ * to domains (the content itself may still mention an address). Both text and
+ * HTML are returned: for campaign emails, `text` is only the preview text.
  */
 export async function sampleTeamEmails(
   teamId: number,
@@ -353,7 +358,7 @@ export async function sampleTeamEmails(
         ...new Set(to.map((address) => address.split("@")[1] ?? "")),
       ].filter(Boolean),
       text: truncate(text, EMAIL_TEXT_MAX),
-      html: text ? null : truncate(html, EMAIL_TEXT_MAX),
+      html: truncate(html, EMAIL_TEXT_MAX),
     })),
   };
 }

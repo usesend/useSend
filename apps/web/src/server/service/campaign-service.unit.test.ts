@@ -752,6 +752,24 @@ describe("guardReviewCampaign", () => {
     expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
   });
 
+  it("refuses if the Guard stopped it after the first read", async () => {
+    mockTx.campaign.findUnique.mockResolvedValue({
+      status: "PAUSED",
+      updatedAt,
+      guardStoppedAt: new Date(),
+      ...content,
+    });
+
+    await expect(
+      guardReviewCampaign("cmp_1", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: hash,
+      }),
+    ).rejects.toThrow("stopped meanwhile");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
   it("refuses when an edit lands during the approval", async () => {
     mockTx.campaign.updateMany.mockResolvedValue({ count: 0 });
 
@@ -910,10 +928,35 @@ describe("campaign batch worker, re-running a batch that failed part-way", () =>
     });
 
     expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
-      where: { id: "campaign_1", status: "SCHEDULED", guardStoppedAt: null },
+      where: {
+        id: "campaign_1",
+        status: "SCHEDULED",
+        guardStoppedAt: null,
+        OR: [{ reviewHoldUntil: null }, { reviewHoldUntil: { lte: expect.any(Date) } }],
+      },
       data: { status: "RUNNING" },
     });
     expect(mockDb.contact.findMany).not.toHaveBeenCalled();
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("doesn't start a campaign that an edit put back on hold meanwhile", async () => {
+    mockDb.campaign.findUnique
+      .mockResolvedValueOnce({
+        ...(await mockDb.campaign.findUnique()),
+        status: "SCHEDULED",
+      })
+      .mockResolvedValueOnce({
+        status: "SCHEDULED",
+        guardStoppedAt: null,
+        reviewHoldUntil: new Date(Date.now() + 60_000),
+      });
+    mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
     expect(mockQueueEmail).not.toHaveBeenCalled();
   });
 

@@ -125,6 +125,7 @@ describe("campaignContentHash", () => {
       subject: "Hi",
       previewText: null,
       html: "<p>1</p>",
+      content: null as string | null,
     };
     const hash = campaignContentHash(base);
     expect(campaignContentHash({ ...base })).toBe(hash);
@@ -133,6 +134,9 @@ describe("campaignContentHash", () => {
     ).not.toBe(hash);
     expect(campaignContentHash({ ...base, subject: "Hey" })).not.toBe(hash);
     expect(campaignContentHash({ ...base, html: "<p>2</p>" })).not.toBe(hash);
+    expect(campaignContentHash({ ...base, content: '{"doc":1}' })).not.toBe(
+      hash,
+    );
   });
 });
 
@@ -146,6 +150,7 @@ describe("listActiveCampaigns", () => {
     subject: "Hi",
     previewText: null,
     html: "<p>x</p>",
+    content: null,
     total: 1,
     sent: 0,
     scheduledAt: null,
@@ -313,6 +318,7 @@ describe("sampleTeamEmails", () => {
     expect(items[0]).not.toHaveProperty("to");
     expect(items[0]?.toDomains).toEqual(["gmail.com", "corp.io"]);
     expect(items[0]?.text).toBe("Hi there");
-    expect(items[0]?.html).toBeNull();
+    // Campaign emails keep only the preview in text, so HTML comes too.
+    expect(items[0]?.html).toBe("<p>Hi there</p>");
   });
 });

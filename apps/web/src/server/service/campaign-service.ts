@@ -714,9 +714,16 @@ export async function guardReviewCampaign(
         subject: true,
         previewText: true,
         html: true,
+        content: true,
       },
     });
     if (!current) throw new GuardNotFoundError("Campaign not found");
+    // Stopped since it was first read: its old failed batch wasn't cleared.
+    if (current.guardStoppedAt && !campaign.guardStoppedAt) {
+      throw new GuardConflictError(
+        "The campaign was stopped meanwhile; review it again",
+      );
+    }
     if (campaignContentHash(current) !== body.contentHash) {
       throw new GuardConflictError(
         "The campaign changed since it was reviewed; review it again",
@@ -1321,16 +1328,32 @@ export class CampaignBatchService {
       // First touch moves SCHEDULED -> RUNNING, only if nothing paused or
       // stopped it since it was read above.
       if (campaign.status === "SCHEDULED") {
+        const now = new Date();
         const { count } = await db.campaign.updateMany({
-          where: { id: campaignId, status: "SCHEDULED", guardStoppedAt: null },
+          where: {
+            id: campaignId,
+            status: "SCHEDULED",
+            guardStoppedAt: null,
+            OR: [{ reviewHoldUntil: null }, { reviewHoldUntil: { lte: now } }],
+          },
           data: { status: "RUNNING" },
         });
         if (count === 0) {
           const current = await db.campaign.findUnique({
             where: { id: campaignId },
-            select: { status: true, guardStoppedAt: true },
+            select: {
+              status: true,
+              guardStoppedAt: true,
+              reviewHoldUntil: true,
+            },
           });
-          if (current?.status !== "RUNNING" || current.guardStoppedAt) return;
+          if (
+            current?.status !== "RUNNING" ||
+            current.guardStoppedAt ||
+            isReviewHeld(current)
+          ) {
+            return;
+          }
         }
       }
 

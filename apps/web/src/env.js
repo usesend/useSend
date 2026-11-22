@@ -66,10 +66,10 @@ export const env = createEnv({
     SENDING_RULES_MODE: z.enum(["off", "alert", "enforce"]).default("alert"),
     // "true" makes new teams' campaigns wait (up to 10 minutes) for the Guard's
     // check before sending. Anything else, including unset, sends at once.
-    GUARD_REVIEW_NEW_TEAMS: z.enum(["true", "false"]).optional(),
+    GUARD_REVIEW_NEW_TEAMS: z.string().optional(),
     // "all" lets the Guard stop campaigns and pause teams of any age. Anything
     // else, including unset, limits it to teams in their first 14 days.
-    GUARD_ACTIONS: z.enum(["new-teams", "all"]).optional(),
+    GUARD_ACTIONS: z.string().optional(),
     REDIS_URL: z.string(),
     REDIS_KEY_PREFIX: z.string().default(""),
     S3_COMPATIBLE_ACCESS_KEY: z.string().optional(),
