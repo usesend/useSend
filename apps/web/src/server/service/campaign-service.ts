@@ -32,6 +32,11 @@ import {
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
 import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
+import {
+  isReviewHeld,
+  reviewHoldFor,
+  stoppedByGuard,
+} from "~/server/service/guard-service";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -376,6 +381,7 @@ export async function sendCampaign(id: string) {
       total,
       scheduledAt: campaign.scheduledAt ?? new Date(),
       lastCursor: campaign.lastCursor ?? null,
+      reviewHoldUntil: await reviewHoldFor(campaign.teamId),
     },
   });
 
@@ -478,6 +484,8 @@ export async function scheduleCampaign({
       total,
       ...(batchSize ? { batchSize } : {}),
       ...(shouldResetCursor ? { lastCursor: null } : {}),
+      // New teams' campaigns wait for the Guard's check (sends anyway later).
+      reviewHoldUntil: await reviewHoldFor(teamId),
     },
   });
 
@@ -552,6 +560,16 @@ export async function resumeCampaign({
 
   await assertTeamCanSend(db, teamId);
 
+  if (await stoppedByGuard(teamId, campaignId)) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message:
+        "Our team is reviewing this campaign. Write to hey@usesend.com if you have questions.",
+    });
+  }
+
+  const reviewHoldUntil = await reviewHoldFor(teamId);
+
   // Resuming is an explicit choice, so it also clears a batch that failed long
   // ago and that the scheduler no longer retries on its own.
   await CampaignBatchService.clearFailedBatch(campaignId);
@@ -568,7 +586,7 @@ export async function resumeCampaign({
     await assertTeamCanSend(tx, teamId);
     await tx.campaign.update({
       where: { id: campaignId },
-      data: { status },
+      data: { status, reviewHoldUntil },
     });
   });
 
@@ -1130,6 +1148,10 @@ export class CampaignBatchService {
 
       // Skip paused campaigns
       if (campaign.status === "PAUSED") return;
+
+      // A new team's campaign waits for the Guard's check, for a few minutes
+      // at most; the scheduler queues it again on its next tick.
+      if (isReviewHeld(campaign)) return;
 
       // Respect scheduledAt if set
       if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now())

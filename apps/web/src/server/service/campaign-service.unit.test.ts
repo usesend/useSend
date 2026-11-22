@@ -68,7 +68,11 @@ const {
   capturedBatchHandler,
   mockCheckSuppressions,
   mockQueueEmail,
+  mockReviewHoldFor,
+  mockStoppedByGuard,
 } = vi.hoisted(() => ({
+  mockReviewHoldFor: vi.fn(),
+  mockStoppedByGuard: vi.fn(),
   mockQueueAdd: vi.fn(),
   mockQueueGetJob: vi.fn(),
   capturedBatchHandler: {
@@ -130,6 +134,16 @@ vi.mock("~/server/service/suppression-service", () => ({
 vi.mock("~/server/service/domain-service", () => ({
   validateApiKeyDomainAccess: vi.fn(),
   validateDomainFromEmail: vi.fn(),
+}));
+
+vi.mock("~/server/service/guard-service", () => ({
+  reviewHoldFor: mockReviewHoldFor,
+  stoppedByGuard: mockStoppedByGuard,
+  isReviewHeld: (campaign: { reviewHoldUntil?: Date | null }) =>
+    Boolean(
+      campaign.reviewHoldUntil &&
+        campaign.reviewHoldUntil.getTime() > Date.now(),
+    ),
 }));
 
 vi.mock("~/server/logger/log", () => ({
@@ -413,6 +427,21 @@ describe("scheduleCampaign", () => {
     mockDb.campaign.update.mockResolvedValue({});
   });
 
+  it("makes a new team's campaign wait for the Guard's check", async () => {
+    const until = new Date(Date.now() + 10 * 60 * 1000);
+    mockReviewHoldFor.mockResolvedValue(until);
+    mockQueueGetJob.mockResolvedValue(null);
+
+    await scheduleCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockReviewHoldFor).toHaveBeenCalledWith(7);
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reviewHoldUntil: until }),
+      }),
+    );
+  });
+
   it("clears a batch that failed long ago, so the campaign isn't paused again", async () => {
     const job = {
       isFailed: vi.fn().mockResolvedValue(true),
@@ -454,6 +483,8 @@ describe("resumeCampaign", () => {
       sendingPausedAt: null,
     });
     mockTx.campaign.update.mockResolvedValue({});
+    mockStoppedByGuard.mockResolvedValue(false);
+    mockReviewHoldFor.mockResolvedValue(null);
   });
 
   it("won't resume while sending is paused on the team", async () => {
@@ -468,6 +499,30 @@ describe("resumeCampaign", () => {
 
     expect(mockQueueGetJob).not.toHaveBeenCalled();
     expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("won't resume a campaign the Guard stopped", async () => {
+    mockStoppedByGuard.mockResolvedValue(true);
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Our team is reviewing this campaign");
+
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("sends a new team's resumed campaign back for the Guard's check", async () => {
+    const until = new Date(Date.now() + 10 * 60 * 1000);
+    mockReviewHoldFor.mockResolvedValue(until);
+    mockQueueGetJob.mockResolvedValue(null);
+
+    await resumeCampaign({ campaignId: "campaign_1", teamId: 7 });
+
+    expect(mockTx.campaign.update).toHaveBeenCalledWith({
+      where: { id: "campaign_1" },
+      data: { status: "RUNNING", reviewHoldUntil: until },
+    });
   });
 
   it("won't resume while the team is blocked", async () => {
@@ -514,7 +569,7 @@ describe("resumeCampaign", () => {
     expect(job.remove).toHaveBeenCalled();
     expect(mockTx.campaign.update).toHaveBeenCalledWith({
       where: { id: "campaign_1" },
-      data: { status: "RUNNING" },
+      data: { status: "RUNNING", reviewHoldUntil: null },
     });
   });
 
@@ -589,6 +644,33 @@ describe("campaign batch worker, re-running a batch that failed part-way", () =>
     mockDb.campaignEmail.create.mockResolvedValue({});
     mockDb.campaign.update.mockResolvedValue({});
     mockQueueEmail.mockResolvedValue(undefined);
+  });
+
+  it("doesn't send a campaign that is still waiting for the Guard", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      reviewHoldUntil: new Date(Date.now() + 60_000),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockDb.contact.findMany).not.toHaveBeenCalled();
+    expect(mockQueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends anyway once the wait is over", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      ...(await mockDb.campaign.findUnique()),
+      reviewHoldUntil: new Date(Date.now() - 1_000),
+    });
+
+    await capturedBatchHandler.handler({
+      data: { campaignId: "campaign_1", teamId: 7 },
+    });
+
+    expect(mockQueueEmail).toHaveBeenCalledTimes(2);
   });
 
   it("emails only the contacts that weren't emailed yet, once each, then moves on", async () => {

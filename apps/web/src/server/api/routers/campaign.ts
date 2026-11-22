@@ -17,6 +17,7 @@ import {
   getDocumentUploadUrl,
   isStorageConfigured,
 } from "~/server/service/storage-service";
+import { reviewHoldFor } from "~/server/service/guard-service";
 
 const statuses = Object.values(CampaignStatus) as [CampaignStatus];
 
@@ -162,6 +163,21 @@ export const campaignRouter = createTRPCRouter({
 
       if (htmlToSave !== undefined) {
         campaignUpdateData.html = htmlToSave;
+      }
+
+      // Changing what a sending campaign says sends it back for the Guard's
+      // check (new teams only; never clears a hold that's still waiting).
+      const changesContent =
+        htmlToSave !== undefined ||
+        data.subject !== undefined ||
+        data.from !== undefined ||
+        data.previewText !== undefined;
+      if (
+        changesContent &&
+        (campaignOld.status === "SCHEDULED" || campaignOld.status === "RUNNING")
+      ) {
+        const reviewHoldUntil = await reviewHoldFor(team.id);
+        if (reviewHoldUntil) campaignUpdateData.reviewHoldUntil = reviewHoldUntil;
       }
 
       const campaign = await db.campaign.update({
