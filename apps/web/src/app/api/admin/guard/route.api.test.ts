@@ -5,6 +5,7 @@ const { mockEnv, mocks } = vi.hoisted(() => ({
   mocks: {
     listApplications: vi.fn(),
     listActiveCampaigns: vi.fn(),
+    markGuardSeen: vi.fn(),
     guardReviewCampaign: vi.fn(),
     listWatchedTeams: vi.fn(),
     sampleTeamEmails: vi.fn(),
@@ -102,6 +103,7 @@ describe("Guard admin API", () => {
 
   it("pages campaigns", async () => {
     await getCampaigns(get("/api/admin/guard/campaigns?limit=10&cursor=c9"), ctx());
+    expect(mocks.markGuardSeen).toHaveBeenCalled();
     expect(mocks.listActiveCampaigns).toHaveBeenCalledWith({
       limit: 10,
       cursor: "c9",

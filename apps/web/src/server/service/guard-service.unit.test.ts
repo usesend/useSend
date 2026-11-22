@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnv, mockDb, mockRefreshTeamCache } = vi.hoisted(() => ({
-  mockEnv: {
-    NEXT_PUBLIC_IS_CLOUD: true,
-    GUARD_REVIEW_NEW_TEAMS: "true" as string | undefined,
-    GUARD_ACTIONS: undefined as string | undefined,
-  },
+const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
+  mockEnv: { NEXT_PUBLIC_IS_CLOUD: true },
+  mockRedis: { set: vi.fn(), exists: vi.fn() },
   mockDb: {
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -19,6 +16,10 @@ const { mockEnv, mockDb, mockRefreshTeamCache } = vi.hoisted(() => ({
 
 vi.mock("~/env", () => ({ env: mockEnv }));
 vi.mock("~/server/db", () => ({ db: mockDb }));
+vi.mock("~/server/redis", () => ({
+  getRedis: () => mockRedis,
+  redisKey: (key: string) => key,
+}));
 vi.mock("~/server/logger/log", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -31,6 +32,7 @@ import {
   GuardNotFoundError,
   assertGuardMayAct,
   campaignContentHash,
+  markGuardSeen,
   isReviewHeld,
   listActiveCampaigns,
   recordTeamAction,
@@ -43,8 +45,7 @@ const DAY = 24 * 60 * 60 * 1000;
 beforeEach(() => {
   vi.clearAllMocks();
   mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
-  mockEnv.GUARD_REVIEW_NEW_TEAMS = "true";
-  mockEnv.GUARD_ACTIONS = undefined;
+  mockRedis.exists.mockResolvedValue(1);
   mockDb.$transaction.mockImplementation(
     async (fn: (tx: typeof mockDb) => unknown) => fn(mockDb),
   );
@@ -72,20 +73,30 @@ describe("reviewHoldFor", () => {
     await expect(reviewHoldFor(7)).resolves.toBeNull();
   });
 
-  it("doesn't hold anything unless it's switched on", async () => {
+  it("doesn't hold anything while the Guard isn't running", async () => {
     mockDb.team.findUnique.mockResolvedValue({ createdAt: new Date() });
 
-    mockEnv.GUARD_REVIEW_NEW_TEAMS = undefined;
+    mockRedis.exists.mockResolvedValue(0);
     await expect(reviewHoldFor(7)).resolves.toBeNull();
 
-    mockEnv.GUARD_REVIEW_NEW_TEAMS = "false";
+    mockRedis.exists.mockRejectedValue(new Error("redis down"));
     await expect(reviewHoldFor(7)).resolves.toBeNull();
 
-    mockEnv.GUARD_REVIEW_NEW_TEAMS = "true";
+    mockRedis.exists.mockResolvedValue(1);
     mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
     await expect(reviewHoldFor(7)).resolves.toBeNull();
 
     expect(mockDb.team.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("knows the Guard is running for 2 minutes after it checks in", async () => {
+    await markGuardSeen();
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      "guard:last-seen",
+      expect.any(String),
+      "EX",
+      120,
+    );
   });
 });
 
@@ -102,18 +113,13 @@ describe("isReviewHeld", () => {
 });
 
 describe("assertGuardMayAct", () => {
-  it("lets the Guard act only on new teams, unless allowed for all", () => {
+  it("lets the Guard act only on new teams", () => {
     expect(() =>
       assertGuardMayAct({ createdAt: new Date(Date.now() - DAY) }),
     ).not.toThrow();
     expect(() =>
       assertGuardMayAct({ createdAt: new Date(Date.now() - 30 * DAY) }),
     ).toThrow(GuardForbiddenError);
-
-    mockEnv.GUARD_ACTIONS = "all";
-    expect(() =>
-      assertGuardMayAct({ createdAt: new Date(Date.now() - 30 * DAY) }),
-    ).not.toThrow();
   });
 });
 

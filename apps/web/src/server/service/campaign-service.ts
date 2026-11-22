@@ -632,9 +632,8 @@ export async function resumeCampaign({
 
 /**
  * The Guard's decision on a campaign.
- * - stop: pauses a sending campaign and marks it stopped (new teams only,
- *   unless GUARD_ACTIONS is "all"). Nothing can set it sending again until
- *   the Guard approves it.
+ * - stop: pauses a sending campaign and marks it stopped (new teams only).
+ *   Nothing can set it sending again until the Guard approves it.
  * - approve: must name the content fingerprint the Guard reviewed. Lets a
  *   waiting campaign send now, or restarts one the Guard stopped.
  * Both take the Team row lock and re-read the campaign under it.

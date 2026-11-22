@@ -5,6 +5,7 @@ import { z } from "zod";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
+import { getRedis, redisKey } from "~/server/redis";
 import { TeamService } from "~/server/service/team-service";
 
 /**
@@ -14,6 +15,7 @@ import { TeamService } from "~/server/service/team-service";
  * It can never block or resume a team, or delete anything.
  *
  * New teams' campaigns wait for the Guard's check before sending, but only
+ * while the Guard is running (it checks in by listing campaigns), and only
  * for REVIEW_HOLD_MINUTES: if the Guard is down, they send anyway.
  * Approving and stopping campaigns lives in campaign-service
  * (`guardReviewCampaign`), next to the other sending transitions.
@@ -34,9 +36,36 @@ export class GuardNotFoundError extends Error {}
 export class GuardConflictError extends Error {}
 export class GuardForbiddenError extends Error {}
 
-/** Holding new teams' campaigns is on only when explicitly enabled. */
-export function reviewHoldEnabled() {
-  return env.NEXT_PUBLIC_IS_CLOUD && env.GUARD_REVIEW_NEW_TEAMS === "true";
+/** The Guard counts as running if it checked in within this many seconds. */
+const GUARD_ALIVE_SECONDS = 120;
+const GUARD_SEEN_KEY = "guard:last-seen";
+
+/** Called when the Guard lists campaigns: it's running. */
+export async function markGuardSeen() {
+  try {
+    await getRedis().set(
+      redisKey(GUARD_SEEN_KEY),
+      String(Date.now()),
+      "EX",
+      GUARD_ALIVE_SECONDS,
+    );
+  } catch (error) {
+    logger.warn({ err: error }, "[Guard]: Couldn't record check-in");
+  }
+}
+
+/**
+ * New teams' campaigns wait only while the Guard is running (cloud only). If
+ * it isn't, or Redis can't tell, nothing waits.
+ */
+export async function guardIsRunning() {
+  if (!env.NEXT_PUBLIC_IS_CLOUD) return false;
+  try {
+    return (await getRedis().exists(redisKey(GUARD_SEEN_KEY))) === 1;
+  } catch (error) {
+    logger.warn({ err: error }, "[Guard]: Couldn't check if it's running");
+    return false;
+  }
 }
 
 function watchStart(now = Date.now()) {
@@ -47,12 +76,9 @@ export function isNewTeam(team: { createdAt: Date }) {
   return team.createdAt >= watchStart();
 }
 
-/**
- * The Guard may stop campaigns and pause teams only of new teams, unless
- * GUARD_ACTIONS is explicitly "all".
- */
+/** The Guard may stop campaigns and pause teams only of new teams. */
 export function assertGuardMayAct(team: { createdAt: Date }) {
-  if (env.GUARD_ACTIONS === "all" || isNewTeam(team)) return;
+  if (isNewTeam(team)) return;
   throw new GuardForbiddenError(
     "The Guard may only act on teams in their first 14 days",
   );
@@ -60,13 +86,13 @@ export function assertGuardMayAct(team: { createdAt: Date }) {
 
 /**
  * When a campaign of this team should stop waiting for the Guard, or null if
- * it doesn't wait (hold off, or the team is past its watch period).
+ * it doesn't wait (Guard not running, or the team is past its watch period).
  */
 export async function reviewHoldFor(
   teamId: number,
   client: Pick<typeof db, "team"> = db,
 ): Promise<Date | null> {
-  if (!reviewHoldEnabled()) return null;
+  if (!(await guardIsRunning())) return null;
   const team = await client.team.findUnique({
     where: { id: teamId },
     select: { createdAt: true },
@@ -371,7 +397,7 @@ export const teamActionBody = z.object({
 
 /**
  * ALERT only logs. PAUSE stops the team's sending and its campaigns, like an
- * admin pause, for new teams only (unless GUARD_ACTIONS is "all"); an admin
+ * admin pause, for new teams only; an admin
  * resumes it. The Guard can't block or resume.
  */
 export async function recordTeamAction(
