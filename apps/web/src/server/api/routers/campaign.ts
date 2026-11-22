@@ -171,7 +171,8 @@ export const campaignRouter = createTRPCRouter({
         htmlToSave !== undefined ||
         data.subject !== undefined ||
         data.from !== undefined ||
-        data.previewText !== undefined;
+        data.previewText !== undefined ||
+        data.replyTo !== undefined;
       if (
         changesContent &&
         (campaignOld.status === "SCHEDULED" || campaignOld.status === "RUNNING")

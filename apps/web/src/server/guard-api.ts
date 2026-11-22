@@ -1,6 +1,7 @@
 import { AdminApiError, param } from "~/server/admin-api";
 import {
   GuardConflictError,
+  GuardForbiddenError,
   GuardNotFoundError,
 } from "~/server/service/guard-service";
 
@@ -11,6 +12,9 @@ export async function guardCall<T>(call: () => Promise<T>) {
   } catch (error) {
     if (error instanceof GuardNotFoundError) {
       throw new AdminApiError(404, error.message);
+    }
+    if (error instanceof GuardForbiddenError) {
+      throw new AdminApiError(403, error.message);
     }
     if (error instanceof GuardConflictError) {
       throw new AdminApiError(409, error.message);

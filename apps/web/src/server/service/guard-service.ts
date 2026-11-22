@@ -11,10 +11,12 @@ import { TeamService } from "~/server/service/team-service";
  * What the Guard (our separate review service) can read and do, through the
  * internal admin API. It reads applications, campaigns, new teams and their
  * emails; it can approve or stop a campaign, log an alert, and pause a team.
- * It can never block a team or delete anything.
+ * It can never block or resume a team, or delete anything.
  *
  * New teams' campaigns wait for the Guard's check before sending, but only
  * for REVIEW_HOLD_MINUTES: if the Guard is down, they send anyway.
+ * Approving and stopping campaigns lives in campaign-service
+ * (`guardReviewCampaign`), next to the other sending transitions.
  */
 
 /** A team counts as new, and is watched closely, for this many days. */
@@ -23,13 +25,14 @@ export const WATCH_DAYS = 14;
 export const REVIEW_HOLD_MINUTES = 10;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const CAMPAIGN_HTML_MAX = 200_000;
+const CAMPAIGN_HTML_MAX = 100_000;
 const EMAIL_TEXT_MAX = 4_000;
 
 export const GUARD_ACTOR = "guard";
 
 export class GuardNotFoundError extends Error {}
 export class GuardConflictError extends Error {}
+export class GuardForbiddenError extends Error {}
 
 /** Holding new teams' campaigns is on only when explicitly enabled. */
 export function reviewHoldEnabled() {
@@ -38,6 +41,21 @@ export function reviewHoldEnabled() {
 
 function watchStart(now = Date.now()) {
   return new Date(now - WATCH_DAYS * DAY_MS);
+}
+
+export function isNewTeam(team: { createdAt: Date }) {
+  return team.createdAt >= watchStart();
+}
+
+/**
+ * The Guard may stop campaigns and pause teams only of new teams, unless
+ * GUARD_ACTIONS is explicitly "all".
+ */
+export function assertGuardMayAct(team: { createdAt: Date }) {
+  if (env.GUARD_ACTIONS === "all" || isNewTeam(team)) return;
+  throw new GuardForbiddenError(
+    "The Guard may only act on teams in their first 14 days",
+  );
 }
 
 /**
@@ -53,7 +71,7 @@ export async function reviewHoldFor(
     where: { id: teamId },
     select: { createdAt: true },
   });
-  if (!team || team.createdAt < watchStart()) return null;
+  if (!team || !isNewTeam(team)) return null;
   return new Date(Date.now() + REVIEW_HOLD_MINUTES * 60 * 1000);
 }
 
@@ -68,37 +86,27 @@ export function isReviewHeld(
 }
 
 /**
- * A campaign the Guard stopped stays stopped until it's approved (by you,
- * through the Guard), which logs a RESUME for that campaign.
+ * Fingerprint of everything the Guard judges. An approval must name the
+ * fingerprint it reviewed, so it can't approve content changed since.
  */
-export async function stoppedByGuard(teamId: number, campaignId: string) {
-  const stop = await db.teamAction.findFirst({
-    where: {
-      teamId,
-      actor: GUARD_ACTOR,
-      action: "PAUSE",
-      details: { path: ["campaignId"], equals: campaignId },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-  if (!stop) return false;
-  const release = await db.teamAction.findFirst({
-    where: {
-      teamId,
-      action: "RESUME",
-      details: { path: ["campaignId"], equals: campaignId },
-      createdAt: { gt: stop.createdAt },
-    },
-    select: { id: true },
-  });
-  return !release;
-}
-
-function contentHash(parts: Array<string | null | undefined>) {
+export function campaignContentHash(campaign: {
+  from: string;
+  replyTo: string[];
+  subject: string;
+  previewText: string | null;
+  html: string | null;
+}) {
   const hash = createHash("sha256");
-  for (const part of parts) hash.update(`${part ?? ""}\u0000`);
-  return hash.digest("hex").slice(0, 16);
+  for (const part of [
+    campaign.from,
+    campaign.replyTo.join(","),
+    campaign.subject,
+    campaign.previewText,
+    campaign.html,
+  ]) {
+    hash.update(`${part ?? ""}\u0000`);
+  }
+  return hash.digest("hex").slice(0, 32);
 }
 
 function truncate(value: string | null, max: number) {
@@ -122,7 +130,7 @@ export async function listApplications(
       status: query.status,
       ...(query.since ? { createdAt: { gt: query.since } } : {}),
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: query.limit,
     select: {
       id: true,
@@ -143,21 +151,29 @@ export async function listApplications(
 
 // --- Campaigns ---
 
+export const campaignsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+  cursor: z.string().min(1).optional(),
+});
+
 /**
- * Campaigns that are sending or about to, plus ones still waiting for review.
- * `contentHash` changes when the content does, so the Guard can re-check an
- * edited campaign.
+ * Campaigns that are sending or about to, ones waiting for review, and ones
+ * the Guard stopped, oldest first, a page at a time (`nextCursor`).
  */
-export async function listActiveCampaigns() {
+export async function listActiveCampaigns(
+  query: z.infer<typeof campaignsQuery>,
+) {
   const campaigns = await db.campaign.findMany({
     where: {
       OR: [
         { status: { in: ["SCHEDULED", "RUNNING"] } },
         { reviewHoldUntil: { gt: new Date() } },
+        { guardStoppedAt: { not: null } },
       ],
     },
-    orderBy: { createdAt: "asc" },
-    take: 500,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     select: {
       id: true,
       name: true,
@@ -171,128 +187,56 @@ export async function listActiveCampaigns() {
       sent: true,
       scheduledAt: true,
       reviewHoldUntil: true,
+      guardStoppedAt: true,
       createdAt: true,
       team: { select: { id: true, name: true, createdAt: true } },
     },
   });
 
-  const since = watchStart();
+  const page = campaigns.slice(0, query.limit);
   return {
-    items: campaigns.map(({ html, team, ...campaign }) => ({
+    items: page.map(({ html, team, ...campaign }) => ({
       ...campaign,
       html: truncate(html, CAMPAIGN_HTML_MAX),
-      contentHash: contentHash([
-        campaign.from,
-        campaign.subject,
-        campaign.previewText,
-        html,
-      ]),
+      htmlTruncated: (html?.length ?? 0) > CAMPAIGN_HTML_MAX,
+      contentHash: campaignContentHash({ ...campaign, html }),
       waitingForReview: isReviewHeld(campaign),
-      team: { ...team, isNew: team.createdAt >= since },
+      team: { ...team, isNew: isNewTeam(team) },
     })),
+    nextCursor:
+      campaigns.length > query.limit ? (page.at(-1)?.id ?? null) : null,
   };
 }
 
-export const reviewBody = z.object({
-  decision: z.enum(["approve", "stop"]),
-  reason: z.string().trim().min(1).max(2_000),
-});
-
-/**
- * approve: lets a waiting campaign send now, or restarts one the Guard
- * stopped (logged as a RESUME).
- * stop: pauses the campaign and logs it; it stays stopped until approved.
- * Works on any campaign that is sending or about to.
- */
-export async function reviewCampaign(
-  campaignId: string,
-  body: z.infer<typeof reviewBody>,
-) {
-  const campaign = await db.campaign.findUnique({
-    where: { id: campaignId },
-    select: { id: true, teamId: true, status: true, name: true },
-  });
-  if (!campaign) throw new GuardNotFoundError("Campaign not found");
-
-  if (body.decision === "approve") {
-    if (
-      campaign.status === "PAUSED" &&
-      (await stoppedByGuard(campaign.teamId, campaignId))
-    ) {
-      await db.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${campaign.teamId} FOR UPDATE`;
-        const team = await tx.team.findUnique({
-          where: { id: campaign.teamId },
-          select: { isBlocked: true, sendingPausedAt: true },
-        });
-        if (team?.isBlocked || team?.sendingPausedAt) {
-          throw new GuardConflictError(
-            "The team is paused or blocked; resume the team first",
-          );
-        }
-        await tx.campaign.update({
-          where: { id: campaignId },
-          data: { status: "SCHEDULED", reviewHoldUntil: null },
-        });
-        await tx.teamAction.create({
-          data: {
-            teamId: campaign.teamId,
-            action: "RESUME",
-            actor: GUARD_ACTOR,
-            reason: `Approved campaign "${campaign.name}": ${body.reason}`,
-            details: { scope: "campaign", campaignId },
-          },
-        });
-      });
-      return { ok: true, status: "SCHEDULED" };
-    }
-    await db.campaign.update({
-      where: { id: campaignId },
-      data: { reviewHoldUntil: null },
-    });
-    return { ok: true, status: campaign.status };
-  }
-
-  const stopped = await db.$transaction(async (tx) => {
-    // The same Team lock that pausing, blocking and resuming take.
-    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${campaign.teamId} FOR UPDATE`;
-    const { count } = await tx.campaign.updateMany({
-      where: { id: campaignId, status: { in: ["SCHEDULED", "RUNNING"] } },
-      data: { status: "PAUSED", reviewHoldUntil: null },
-    });
-    if (count === 0) return false;
-    await tx.teamAction.create({
-      data: {
-        teamId: campaign.teamId,
-        action: "PAUSE",
-        actor: GUARD_ACTOR,
-        reason: `Stopped campaign "${campaign.name}": ${body.reason}`,
-        details: { scope: "campaign", campaignId },
-      },
-    });
-    return true;
-  });
-  if (!stopped) {
-    throw new GuardConflictError(
-      `Campaign is ${campaign.status.toLowerCase()}, not sending`,
-    );
-  }
-  return { ok: true, status: "PAUSED" };
-}
+export const reviewBody = z.discriminatedUnion("decision", [
+  z.object({
+    decision: z.literal("approve"),
+    reason: z.string().trim().min(1).max(2_000),
+    /** The `contentHash` the Guard reviewed. */
+    contentHash: z.string().min(1).max(64),
+  }),
+  z.object({
+    decision: z.literal("stop"),
+    reason: z.string().trim().min(1).max(2_000),
+  }),
+]);
 
 // --- New teams ---
 
 export const watchQuery = z.object({
   days: z.coerce.number().int().min(1).max(60).default(WATCH_DAYS),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  cursor: z.coerce.number().int().positive().optional(),
 });
 
-/** Teams created in the last `days`, with their sending numbers. */
+/** Teams created in the last `days`, with their sending numbers, paged. */
 export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   const since = new Date(Date.now() - query.days * DAY_MS);
   const teams = await db.team.findMany({
     where: { createdAt: { gte: since } },
-    orderBy: { createdAt: "asc" },
-    take: 500,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     select: {
       id: true,
       name: true,
@@ -317,12 +261,15 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
       },
     },
   });
-  if (teams.length === 0) return { items: [] };
+  const page = teams.slice(0, query.limit);
+  const nextCursor =
+    teams.length > query.limit ? (page.at(-1)?.id ?? null) : null;
+  if (page.length === 0) return { items: [], nextCursor };
 
   const usage = await db.dailyEmailUsage.groupBy({
     by: ["teamId"],
     where: {
-      teamId: { in: teams.map((team) => team.id) },
+      teamId: { in: page.map((team) => team.id) },
       date: { gte: since.toISOString().slice(0, 10) },
     },
     _sum: {
@@ -336,7 +283,7 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   const usageByTeam = new Map(usage.map((row) => [row.teamId, row._sum]));
 
   return {
-    items: teams.map(({ teamUsers, ...team }) => {
+    items: page.map(({ teamUsers, ...team }) => {
       const sums = usageByTeam.get(team.id);
       return {
         ...team,
@@ -355,17 +302,18 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
         },
       };
     }),
+    nextCursor,
   };
 }
 
 export const emailsQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(50).default(20),
+  limit: z.coerce.number().int().min(1).max(20).default(10),
   since: z.coerce.date().optional(),
 });
 
 /**
- * A team's latest emails, for a content check. Recipients are reduced to
- * their domain: the Guard needs the content, not who it went to.
+ * A team's latest emails, for a content check. The recipient list is reduced
+ * to domains (the content itself may still mention an address).
  */
 export async function sampleTeamEmails(
   teamId: number,
@@ -410,20 +358,26 @@ export const teamActionBody = z.object({
 
 /**
  * ALERT only logs. PAUSE stops the team's sending and its campaigns, like an
- * admin pause; an admin resumes it. The Guard can't block or resume.
+ * admin pause, for new teams only (unless GUARD_ACTIONS is "all"); an admin
+ * resumes it. The Guard can't block or resume.
  */
 export async function recordTeamAction(
   teamId: number,
   body: z.infer<typeof teamActionBody>,
 ) {
-  const details = body.details as Prisma.InputJsonValue | undefined;
+  const team = await db.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, createdAt: true },
+  });
+  if (!team) throw new GuardNotFoundError("Team not found");
+
+  // Under "details", so these entries never look like a rules or admin action.
+  const details = {
+    ...(body.details ?? {}),
+    source: GUARD_ACTOR,
+  } as Prisma.InputJsonValue;
 
   if (body.action === "ALERT") {
-    const team = await db.team.findUnique({
-      where: { id: teamId },
-      select: { id: true },
-    });
-    if (!team) throw new GuardNotFoundError("Team not found");
     await db.teamAction.create({
       data: {
         teamId,
@@ -436,12 +390,10 @@ export async function recordTeamAction(
     return { ok: true, changed: false };
   }
 
-  const changed = await db.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw<
-      Array<{ id: number }>
-    >`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
-    if (locked.length === 0) throw new GuardNotFoundError("Team not found");
+  assertGuardMayAct(team);
 
+  const changed = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
     const { count } = await tx.team.updateMany({
       where: { id: teamId, isBlocked: false, sendingPausedAt: null },
       data: { sendingPausedAt: new Date() },

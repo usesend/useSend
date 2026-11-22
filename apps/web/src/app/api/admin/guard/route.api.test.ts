@@ -5,7 +5,7 @@ const { mockEnv, mocks } = vi.hoisted(() => ({
   mocks: {
     listApplications: vi.fn(),
     listActiveCampaigns: vi.fn(),
-    reviewCampaign: vi.fn(),
+    guardReviewCampaign: vi.fn(),
     listWatchedTeams: vi.fn(),
     sampleTeamEmails: vi.fn(),
     recordTeamAction: vi.fn(),
@@ -21,8 +21,12 @@ vi.mock("~/server/service/team-service", () => ({ TeamService: {} }));
 vi.mock("~/server/service/guard-service", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("~/server/service/guard-service")>();
-  return { ...actual, ...mocks };
+  const { guardReviewCampaign: _skip, ...guardMocks } = mocks;
+  return { ...actual, ...guardMocks };
 });
+vi.mock("~/server/service/campaign-service", () => ({
+  guardReviewCampaign: mocks.guardReviewCampaign,
+}));
 
 import { GET as getApplications } from "~/app/api/admin/guard/applications/route";
 import { GET as getCampaigns } from "~/app/api/admin/guard/campaigns/route";
@@ -32,6 +36,7 @@ import { GET as getEmails } from "~/app/api/admin/guard/teams/[id]/emails/route"
 import { POST as postAction } from "~/app/api/admin/guard/teams/[id]/actions/route";
 import {
   GuardConflictError,
+  GuardForbiddenError,
   GuardNotFoundError,
 } from "~/server/service/guard-service";
 
@@ -89,7 +94,55 @@ describe("Guard admin API", () => {
 
   it("lists new teams for 14 days by default", async () => {
     await getTeams(get("/api/admin/guard/teams"), ctx());
-    expect(mocks.listWatchedTeams).toHaveBeenCalledWith({ days: 14 });
+    expect(mocks.listWatchedTeams).toHaveBeenCalledWith({
+      days: 14,
+      limit: 100,
+    });
+  });
+
+  it("pages campaigns", async () => {
+    await getCampaigns(get("/api/admin/guard/campaigns?limit=10&cursor=c9"), ctx());
+    expect(mocks.listActiveCampaigns).toHaveBeenCalledWith({
+      limit: 10,
+      cursor: "c9",
+    });
+  });
+
+  it("needs the reviewed content fingerprint to approve", async () => {
+    const missing = await postReview(
+      post("/api/admin/guard/campaigns/cmp_1/review", {
+        decision: "approve",
+        reason: "ok",
+      }),
+      ctx({ id: "cmp_1" }),
+    );
+    expect(missing.status).toBe(400);
+
+    const ok = await postReview(
+      post("/api/admin/guard/campaigns/cmp_1/review", {
+        decision: "approve",
+        reason: "ok",
+        contentHash: "abc123",
+      }),
+      ctx({ id: "cmp_1" }),
+    );
+    expect(ok.status).toBe(200);
+    expect(mocks.guardReviewCampaign).toHaveBeenCalledWith("cmp_1", {
+      decision: "approve",
+      reason: "ok",
+      contentHash: "abc123",
+    });
+  });
+
+  it("answers 403 when the Guard may not act on that team", async () => {
+    mocks.recordTeamAction.mockRejectedValueOnce(
+      new GuardForbiddenError("first 14 days"),
+    );
+    const response = await postAction(
+      post("/api/admin/guard/teams/7/actions", { action: "PAUSE", reason: "x" }),
+      ctx({ id: "7" }),
+    );
+    expect(response.status).toBe(403);
   });
 
   it("reviews a campaign", async () => {
@@ -101,7 +154,7 @@ describe("Guard admin API", () => {
       ctx({ id: "cmp_1" }),
     );
     expect(response.status).toBe(200);
-    expect(mocks.reviewCampaign).toHaveBeenCalledWith("cmp_1", {
+    expect(mocks.guardReviewCampaign).toHaveBeenCalledWith("cmp_1", {
       decision: "stop",
       reason: "bought list",
     });
@@ -113,23 +166,24 @@ describe("Guard admin API", () => {
       ctx({ id: "cmp_1" }),
     );
     expect(bad.status).toBe(400);
-    expect(mocks.reviewCampaign).not.toHaveBeenCalled();
+    expect(mocks.guardReviewCampaign).not.toHaveBeenCalled();
   });
 
   it("answers 404 and 409 for missing or non-sending campaigns", async () => {
-    mocks.reviewCampaign.mockRejectedValueOnce(
+    mocks.guardReviewCampaign.mockRejectedValueOnce(
       new GuardNotFoundError("Campaign not found"),
     );
     const missing = await postReview(
       post("/api/admin/guard/campaigns/x/review", {
         decision: "approve",
         reason: "ok",
+        contentHash: "abc",
       }),
       ctx({ id: "x" }),
     );
     expect(missing.status).toBe(404);
 
-    mocks.reviewCampaign.mockRejectedValueOnce(
+    mocks.guardReviewCampaign.mockRejectedValueOnce(
       new GuardConflictError("Campaign is sent, not sending"),
     );
     const conflict = await postReview(
