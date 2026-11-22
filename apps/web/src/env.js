@@ -61,6 +61,9 @@ export const env = createEnv({
     DISCORD_WEBHOOK_URL: z.string().optional(),
     /** Bearer token for the internal admin API (/api/admin). The API is off when unset. */
     ADMIN_API_TOKEN: z.string().min(32).optional(),
+    // Bounce/complaint rules (cloud only). "alert" (the default) only posts to
+    // Discord; "enforce" pauses or blocks teams and emails them; "off" disables.
+    SENDING_RULES_MODE: z.enum(["off", "alert", "enforce"]).default("alert"),
     REDIS_URL: z.string(),
     REDIS_KEY_PREFIX: z.string().default(""),
     S3_COMPATIBLE_ACCESS_KEY: z.string().optional(),
@@ -134,6 +137,7 @@ export const env = createEnv({
     FOUNDER_EMAIL: process.env.FOUNDER_EMAIL,
     DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN || undefined,
+    SENDING_RULES_MODE: process.env.SENDING_RULES_MODE,
     REDIS_URL: process.env.REDIS_URL,
     REDIS_KEY_PREFIX: process.env.REDIS_KEY_PREFIX,
     FROM_EMAIL: process.env.FROM_EMAIL,

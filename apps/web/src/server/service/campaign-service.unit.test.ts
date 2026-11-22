@@ -4,6 +4,13 @@ import { UnsubscribeReason } from "@prisma/client";
 
 const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
   const mockTx = {
+    $queryRaw: vi.fn(),
+    team: {
+      findUnique: vi.fn(),
+    },
+    campaign: {
+      update: vi.fn(),
+    },
     campaignEmail: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -33,6 +40,9 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
         findUnique: vi.fn(),
       },
       domain: {
+        findUnique: vi.fn(),
+      },
+      team: {
         findUnique: vi.fn(),
       },
       campaign: {
@@ -435,7 +445,60 @@ describe("resumeCampaign", () => {
       teamId: 7,
       scheduledAt: null,
     });
-    mockDb.campaign.update.mockResolvedValue({});
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: null,
+    });
+    mockTx.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: null,
+    });
+    mockTx.campaign.update.mockResolvedValue({});
+  });
+
+  it("won't resume while sending is paused on the team", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: new Date(),
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Sending is paused");
+
+    expect(mockQueueGetJob).not.toHaveBeenCalled();
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("won't resume while the team is blocked", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      isBlocked: true,
+      sendingPausedAt: null,
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Sending is paused");
+
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("won't overwrite a pause that lands after the first check", async () => {
+    mockQueueGetJob.mockResolvedValue(null);
+    mockTx.team.findUnique.mockResolvedValue({
+      isBlocked: false,
+      sendingPausedAt: new Date(),
+    });
+
+    await expect(
+      resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
+    ).rejects.toThrow("Sending is paused");
+
+    expect(mockTx.$queryRaw).toHaveBeenCalled();
+    expect(mockTx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      mockTx.team.findUnique.mock.invocationCallOrder[0]!,
+    );
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
   });
 
   it("clears a failed batch so the scheduler can continue the campaign", async () => {
@@ -449,7 +512,7 @@ describe("resumeCampaign", () => {
 
     expect(mockQueueGetJob).toHaveBeenCalledWith("campaign-batch-campaign_1");
     expect(job.remove).toHaveBeenCalled();
-    expect(mockDb.campaign.update).toHaveBeenCalledWith({
+    expect(mockTx.campaign.update).toHaveBeenCalledWith({
       where: { id: "campaign_1" },
       data: { status: "RUNNING" },
     });
@@ -477,7 +540,7 @@ describe("resumeCampaign", () => {
       resumeCampaign({ campaignId: "campaign_1", teamId: 7 }),
     ).rejects.toThrow("Job is locked");
 
-    expect(mockDb.campaign.update).not.toHaveBeenCalled();
+    expect(mockTx.campaign.update).not.toHaveBeenCalled();
   });
 });
 
