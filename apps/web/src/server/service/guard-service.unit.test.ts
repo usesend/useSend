@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
-  mockEnv: { NEXT_PUBLIC_IS_CLOUD: true },
+  mockEnv: { NEXT_PUBLIC_IS_CLOUD: true, REDIS_URL: "redis://localhost:6379" },
   mockRedis: { set: vi.fn(), exists: vi.fn() },
   mockDb: {
     $transaction: vi.fn(),
@@ -16,9 +16,14 @@ const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
 
 vi.mock("~/env", () => ({ env: mockEnv }));
 vi.mock("~/server/db", () => ({ db: mockDb }));
-vi.mock("~/server/redis", () => ({
-  getRedis: () => mockRedis,
-  redisKey: (key: string) => key,
+vi.mock("~/server/redis", () => ({ redisKey: (key: string) => key }));
+vi.mock("ioredis", () => ({
+  default: class {
+    status = "ready";
+    on() {}
+    set = mockRedis.set;
+    exists = mockRedis.exists;
+  },
 }));
 vi.mock("~/server/logger/log", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -84,9 +89,17 @@ describe("reviewHoldFor", () => {
 
     mockRedis.exists.mockResolvedValue(1);
     mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
+    mockDb.team.findUnique.mockClear();
     await expect(reviewHoldFor(7)).resolves.toBeNull();
-
     expect(mockDb.team.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("never asks Redis about older teams", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      createdAt: new Date(Date.now() - 30 * DAY),
+    });
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+    expect(mockRedis.exists).not.toHaveBeenCalled();
   });
 
   it("knows the Guard is running for 2 minutes after it checks in", async () => {

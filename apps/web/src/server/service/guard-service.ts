@@ -5,7 +5,8 @@ import { z } from "zod";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { getRedis, redisKey } from "~/server/redis";
+import IORedis from "ioredis";
+import { redisKey } from "~/server/redis";
 import { TeamService } from "~/server/service/team-service";
 
 /**
@@ -40,10 +41,33 @@ export class GuardForbiddenError extends Error {}
 const GUARD_ALIVE_SECONDS = 120;
 const GUARD_SEEN_KEY = "guard:last-seen";
 
+let heartbeatClient: IORedis | null = null;
+
+/**
+ * Its own Redis connection that fails fast: if Redis is slow or down, sending
+ * must not wait on "is the Guard running?". No offline queue (nothing is sent
+ * later), one try, half a second per command.
+ */
+function heartbeatRedis() {
+  if (!heartbeatClient || heartbeatClient.status === "end") {
+    heartbeatClient = new IORedis(`${env.REDIS_URL}?family=0`, {
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 0,
+      commandTimeout: 500,
+      connectTimeout: 2_000,
+      lazyConnect: false,
+    });
+    heartbeatClient.on("error", () => {
+      // Errors surface as failed commands, handled below.
+    });
+  }
+  return heartbeatClient;
+}
+
 /** Called when the Guard lists campaigns: it's running. */
 export async function markGuardSeen() {
   try {
-    await getRedis().set(
+    await heartbeatRedis().set(
       redisKey(GUARD_SEEN_KEY),
       String(Date.now()),
       "EX",
@@ -61,7 +85,7 @@ export async function markGuardSeen() {
 export async function guardIsRunning() {
   if (!env.NEXT_PUBLIC_IS_CLOUD) return false;
   try {
-    return (await getRedis().exists(redisKey(GUARD_SEEN_KEY))) === 1;
+    return (await heartbeatRedis().exists(redisKey(GUARD_SEEN_KEY))) === 1;
   } catch (error) {
     logger.warn({ err: error }, "[Guard]: Couldn't check if it's running");
     return false;
@@ -92,12 +116,14 @@ export async function reviewHoldFor(
   teamId: number,
   client: Pick<typeof db, "team"> = db,
 ): Promise<Date | null> {
-  if (!(await guardIsRunning())) return null;
+  if (!env.NEXT_PUBLIC_IS_CLOUD) return null;
+  // Team age first, so older teams never touch Redis here.
   const team = await client.team.findUnique({
     where: { id: teamId },
     select: { createdAt: true },
   });
   if (!team || !isNewTeam(team)) return null;
+  if (!(await guardIsRunning())) return null;
   return new Date(Date.now() + REVIEW_HOLD_MINUTES * 60 * 1000);
 }
 
