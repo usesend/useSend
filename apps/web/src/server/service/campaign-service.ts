@@ -651,6 +651,7 @@ export async function guardReviewCampaign(
       name: true,
       status: true,
       sent: true,
+      lastCursor: true,
       guardStoppedAt: true,
       reviewHoldUntil: true,
       team: { select: { createdAt: true, name: true } },
@@ -713,9 +714,10 @@ export async function guardReviewCampaign(
         teamName: campaign.team.name,
         campaignName: campaign.name,
         reason: body.reason,
-        // A SCHEDULED campaign that sent before (paused, then rescheduled)
-        // has also started.
-        started: startedBeforeStop || campaign.sent > 0,
+        // A SCHEDULED campaign that ran a batch before (paused, then
+        // rescheduled) has also started: its cursor moved.
+        started:
+          startedBeforeStop || campaign.sent > 0 || campaign.lastCursor !== null,
       }),
     ).catch((error: unknown) =>
       logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),

@@ -670,6 +670,7 @@ describe("guardReviewCampaign", () => {
       guardStoppedAt: null,
       reviewHoldUntil: new Date(Date.now() + 5 * 60_000),
       sent: 0,
+      lastCursor: null,
       team: { createdAt: new Date(), name: "Acme" },
       ...overrides,
     };
