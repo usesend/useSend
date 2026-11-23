@@ -22,6 +22,9 @@ import {
 } from "~/server/service/guard-service";
 import { TRPCError } from "@trpc/server";
 
+/** Applications shown per filter on the admin waitlist page, newest first. */
+const PENDING_PAGE = 100;
+
 const waitlistUserSelection = {
   id: true,
   email: true,
@@ -175,31 +178,57 @@ export const adminRouter = createTRPCRouter({
     }),
 
   /** Pending applications with the Guard's advice: suggested approvals first. */
-  pendingApplications: adminProcedure.query(async () => {
-    const applications = await db.waitlistApplication.findMany({
-      where: { status: "PENDING", user: { isWaitlisted: true } },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-      select: {
-        id: true,
-        userId: true,
-        email: true,
-        website: true,
-        emailTypes: true,
-        emailVolume: true,
-        listSource: true,
-        description: true,
-        guardVerdict: true,
-        guardNote: true,
-        createdAt: true,
-      },
-    });
-    const order = (verdict: string | null) =>
-      ["approve", "unsure", "reject"].indexOf(verdict ?? "") + 1 || 4;
-    return applications.sort(
-      (a, b) => order(a.guardVerdict) - order(b.guardVerdict),
-    );
-  }),
+  pendingApplications: adminProcedure
+    .input(
+      z
+        .object({
+          /** The Guard's advice to show; "none" is not checked yet. */
+          verdict: z
+            .enum(["approve", "unsure", "reject", "none"])
+            .default("approve"),
+        })
+        .default({}),
+    )
+    .query(async ({ input }) => {
+      const pending = {
+        status: "PENDING" as const,
+        user: { isWaitlisted: true },
+      };
+      const [groups, applications] = await Promise.all([
+        db.waitlistApplication.groupBy({
+          by: ["guardVerdict"],
+          where: pending,
+          _count: { _all: true },
+        }),
+        db.waitlistApplication.findMany({
+          where: {
+            ...pending,
+            guardVerdict: input.verdict === "none" ? null : input.verdict,
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: PENDING_PAGE,
+          select: {
+            id: true,
+            userId: true,
+            email: true,
+            website: true,
+            emailTypes: true,
+            emailVolume: true,
+            listSource: true,
+            description: true,
+            guardVerdict: true,
+            guardNote: true,
+            createdAt: true,
+          },
+        }),
+      ]);
+      const counts = { approve: 0, unsure: 0, reject: 0, none: 0 };
+      for (const group of groups) {
+        const key = (group.guardVerdict ?? "none") as keyof typeof counts;
+        if (key in counts) counts[key] += group._count._all;
+      }
+      return { counts, items: applications, pageSize: PENDING_PAGE };
+    }),
 
   findUserByEmail: adminProcedure
     .input(

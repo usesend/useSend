@@ -5,6 +5,7 @@ import { Button } from "@usesend/ui/src/button";
 import Spinner from "@usesend/ui/src/spinner";
 import { toast } from "@usesend/ui/src/toaster";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
 
 import { api } from "~/trpc/react";
 
@@ -17,6 +18,15 @@ const VERDICT: Record<
   reject: { label: "Guard: reject", variant: "destructive" },
 };
 
+type Filter = "approve" | "unsure" | "reject" | "none";
+
+const FILTERS: Array<[Filter, string]> = [
+  ["approve", "Guard says let in"],
+  ["unsure", "Unsure"],
+  ["reject", "Guard says reject"],
+  ["none", "Not checked yet"],
+];
+
 /** Pending applications with the Guard's advice, and a button for each decision. */
 export function PendingApplications({
   onDecided,
@@ -25,7 +35,12 @@ export function PendingApplications({
   onDecided?: (userId: number) => void;
 }) {
   const utils = api.useUtils();
-  const pending = api.admin.pendingApplications.useQuery();
+  const [filter, setFilter] = useState<Filter>("approve");
+  // Keep the last filter's data while the next loads, so counts don't blink.
+  const pending = api.admin.pendingApplications.useQuery(
+    { verdict: filter },
+    { placeholderData: (previous) => previous },
+  );
 
   const letIn = api.admin.updateUserWaitlist.useMutation({
     onSuccess: (user) => {
@@ -57,45 +72,70 @@ export function PendingApplications({
       ? reject.variables?.userId
       : undefined;
 
-  if (pending.isLoading) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
-        <Spinner className="h-4 w-4" /> Loading applications...
-      </div>
-    );
-  }
-
-  if (pending.isError) {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 p-6 text-sm">
-        <p>Couldn't load the applications: {pending.error.message}</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void pending.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  const applications = pending.data ?? [];
+  const applications = pending.data?.items ?? [];
+  const counts = pending.data?.counts;
+  const total = counts
+    ? counts.approve + counts.unsure + counts.reject + counts.none
+    : 0;
+  const inFilter = counts?.[filter] ?? 0;
 
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Pending applications</h2>
-        <p className="text-sm text-muted-foreground">
-          {applications.length >= 200
-            ? "Oldest 200 shown"
-            : `${applications.length} waiting`}
-        </p>
+        <p className="text-sm text-muted-foreground">{total} waiting</p>
       </div>
 
-      {applications.length === 0 ? (
+      <div
+        className="flex flex-wrap gap-2"
+        aria-label="Filter by the Guard's advice"
+      >
+        {FILTERS.map(([key, label]) => (
+          <Button
+            key={key}
+            type="button"
+            size="sm"
+            aria-pressed={filter === key}
+            variant={filter === key ? "default" : "outline"}
+            onClick={() => setFilter(key)}
+          >
+            {label}
+            <span className="ml-1.5 tabular-nums opacity-70">
+              {counts?.[key] ?? 0}
+            </span>
+          </Button>
+        ))}
+      </div>
+
+      {pending.isLoading ? (
+        <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
+          <Spinner className="h-4 w-4" /> Loading applications...
+        </div>
+      ) : null}
+
+      {pending.isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 p-6 text-sm">
+          <p>Couldn't load the applications: {pending.error.message}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void pending.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {inFilter > applications.length ? (
+        <p className="text-sm text-muted-foreground">
+          Newest {applications.length} of {inFilter} shown. Decide some and the
+          next ones appear.
+        </p>
+      ) : null}
+
+      {!pending.isLoading && !pending.isError && applications.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-          Nobody is waiting.
+          {filter === "none" ? "Everything has been checked." : "Nothing here."}
         </div>
       ) : null}
 
