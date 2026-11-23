@@ -143,7 +143,7 @@ describe("EmailQueueService job options", () => {
 
     const retryOptions = {
       attempts: 3,
-      backoff: { type: "exponential", delay: 5_000 },
+      backoff: { type: "exponential", delay: 5_000, jitter: 0.5 },
     };
     expect(mockQueueAdd).toHaveBeenCalledWith(
       "email-1",
@@ -192,14 +192,34 @@ describe("EmailQueueService send retries", () => {
     );
   });
 
-  it("throws a transient server error back to the queue while attempts remain", async () => {
+  it("doesn't retry a server error or dropped connection: SES may have accepted it", async () => {
+    // A retry could send the customer's email twice (SES has no idempotency
+    // key), so these are recorded as failed, as before.
     mockSendRawEmail.mockRejectedValueOnce(transientError);
 
-    await expect(process({ attemptsMade: 0, attempts: 3 })).rejects.toBe(
-      transientError,
-    );
-    expect(mockDb.emailEvent.create).not.toHaveBeenCalled();
-    expect(mockDb.email.update).not.toHaveBeenCalled();
+    await expect(
+      process({ attemptsMade: 0, attempts: 3 }),
+    ).resolves.toBeUndefined();
+    expect(mockDb.email.update).toHaveBeenCalledWith({
+      where: { id: email.id },
+      data: { latestStatus: "FAILED" },
+    });
+
+    vi.clearAllMocks();
+    mockDb.email.findUnique.mockResolvedValue(email);
+    mockCheckEmailLimit.mockResolvedValue({ isLimitReached: false });
+    const dropped = Object.assign(new Error("socket hang up"), {
+      name: "TimeoutError",
+      $retryable: { throttling: false },
+    });
+    mockSendRawEmail.mockRejectedValueOnce(dropped);
+    await expect(
+      process({ attemptsMade: 0, attempts: 3 }),
+    ).resolves.toBeUndefined();
+    expect(mockDb.email.update).toHaveBeenCalledWith({
+      where: { id: email.id },
+      data: { latestStatus: "FAILED" },
+    });
   });
 
   it("records FAILED when a retryable send is on its last attempt", async () => {

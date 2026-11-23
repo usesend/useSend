@@ -23,37 +23,30 @@ type QueueEmailJob = TeamJob<{
   isBulk?: boolean;
 }>;
 
-// A queued email is retried when SES refuses the send for a transient reason,
-// so a brief throttle or server error does not lose the mail. Terminal errors
-// (an invalid from address, a rejected recipient) are recorded as FAILED at once.
+// A queued email is retried only when SES explicitly refused it for sending
+// too fast: then SES definitely didn't accept it, so a retry can't send it
+// twice. Anything else (a server error, a dropped connection, a timeout) may
+// have been accepted already, and SES has no idempotency key, so it's still
+// recorded as FAILED rather than risk a duplicate to the customer's recipient.
 const EMAIL_MAX_ATTEMPTS = 3;
 const EMAIL_BASE_BACKOFF_MS = 5_000;
 
 const EMAIL_JOB_OPTIONS = {
   ...DEFAULT_QUEUE_OPTIONS,
   attempts: EMAIL_MAX_ATTEMPTS,
-  backoff: { type: "exponential", delay: EMAIL_BASE_BACKOFF_MS },
+  // Jitter spreads retries out, so a throttled burst doesn't retry in lockstep.
+  backoff: { type: "exponential", delay: EMAIL_BASE_BACKOFF_MS, jitter: 0.5 },
 };
 
-/**
- * Whether a send failed for a reason that can clear on its own: SES refused
- * the send for the account send rate, or the AWS SDK marked the error
- * transient (a 5xx or a connection error). SES did not accept the message, so
- * the queue can try again. Any other error is terminal.
- */
-function isRetryableSendError(error: any): boolean {
-  if (
-    error?.name === "TooManyRequestsException" ||
-    error?.name === "ThrottlingException" ||
-    error?.name === "Throttling"
-  ) {
-    return true;
-  }
-  if (error?.$retryable) {
-    return true;
-  }
-  const status = error?.$metadata?.httpStatusCode;
-  return typeof status === "number" && (status === 429 || status >= 500);
+/** SES refused the send for the account's send rate: it wasn't accepted. */
+export function isThrottledSendError(error: any): boolean {
+  const name = String(error?.name ?? error?.Code ?? "");
+  return (
+    name === "TooManyRequestsException" ||
+    name === "ThrottlingException" ||
+    name === "Throttling" ||
+    error?.$metadata?.httpStatusCode === 429
+  );
 }
 
 function createQueueAndWorker(region: string, quota: number, suffix: string) {
@@ -61,7 +54,11 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
 
   const queueName = `${region}-${suffix}`;
 
-  const queue = new Queue(queueName, { connection, prefix: BULL_PREFIX, skipVersionCheck: true });
+  const queue = new Queue(queueName, {
+    connection,
+    prefix: BULL_PREFIX,
+    skipVersionCheck: true,
+  });
 
   // TODO: Add team context to job data when queueing
   const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
@@ -84,22 +81,22 @@ export class EmailQueueService {
   public static initializeQueue(
     region: string,
     quota: number,
-    transactionalQuotaPercentage: number
+    transactionalQuotaPercentage: number,
   ) {
     logger.info(
       { region },
-      `[EmailQueueService]: Initializing queue for region`
+      `[EmailQueueService]: Initializing queue for region`,
     );
 
     const transactionalQuota = Math.floor(
-      (quota * transactionalQuotaPercentage) / 100
+      (quota * transactionalQuotaPercentage) / 100,
     );
     const marketingQuota = quota - transactionalQuota;
 
     if (this.transactionalQueue.has(region)) {
       logger.info(
         { region, transactionalQuota },
-        `[EmailQueueService]: Updating transactional quota for region`
+        `[EmailQueueService]: Updating transactional quota for region`,
       );
       const transactionalWorker = this.transactionalWorker.get(region);
       if (transactionalWorker) {
@@ -109,13 +106,13 @@ export class EmailQueueService {
     } else {
       logger.info(
         { region, transactionalQuota },
-        `[EmailQueueService]: Creating transactional queue for region`
+        `[EmailQueueService]: Creating transactional queue for region`,
       );
       const { queue: transactionalQueue, worker: transactionalWorker } =
         createQueueAndWorker(
           region,
           transactionalQuota !== 0 ? transactionalQuota : 1,
-          "transaction"
+          "transaction",
         );
       this.transactionalQueue.set(region, transactionalQueue);
       this.transactionalWorker.set(region, transactionalWorker);
@@ -124,7 +121,7 @@ export class EmailQueueService {
     if (this.marketingQueue.has(region)) {
       logger.info(
         { region, marketingQuota },
-        `[EmailQueueService]: Updating marketing quota for region`
+        `[EmailQueueService]: Updating marketing quota for region`,
       );
       const marketingWorker = this.marketingWorker.get(region);
       if (marketingWorker) {
@@ -133,13 +130,13 @@ export class EmailQueueService {
     } else {
       logger.info(
         { region, marketingQuota },
-        `[EmailQueueService]: Creating marketing queue for region`
+        `[EmailQueueService]: Creating marketing queue for region`,
       );
       const { queue: marketingQueue, worker: marketingWorker } =
         createQueueAndWorker(
           region,
           marketingQuota !== 0 ? marketingQuota : 1,
-          "marketing"
+          "marketing",
         );
       this.marketingQueue.set(region, marketingQueue);
       this.marketingWorker.set(region, marketingWorker);
@@ -152,7 +149,7 @@ export class EmailQueueService {
     region: string,
     transactional: boolean,
     unsubUrl?: string,
-    delay?: number
+    delay?: number,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -173,7 +170,7 @@ export class EmailQueueService {
         isBulk,
         teamId,
       },
-      { jobId: emailId, delay, ...EMAIL_JOB_OPTIONS }
+      { jobId: emailId, delay, ...EMAIL_JOB_OPTIONS },
     );
   }
 
@@ -193,7 +190,7 @@ export class EmailQueueService {
       unsubUrl?: string;
       delay?: number;
       timestamp?: number; // Optional: pass timestamp if needed for data
-    }[]
+    }[],
   ): Promise<void> {
     if (jobs.length === 0) {
       logger.info("[EmailQueueService]: No jobs provided for bulk queue.");
@@ -206,7 +203,7 @@ export class EmailQueueService {
 
     logger.info(
       { count: jobs.length },
-      `[EmailQueueService]: Starting bulk queue for jobs.`
+      `[EmailQueueService]: Starting bulk queue for jobs.`,
     );
 
     // Group jobs by region and type
@@ -234,7 +231,7 @@ export class EmailQueueService {
           transactional: boolean;
           jobDetails: typeof jobs;
         }
-      >
+      >,
     );
 
     const bulkAddPromises: Promise<any>[] = [];
@@ -244,7 +241,7 @@ export class EmailQueueService {
       if (!group || !group.queue) {
         logger.error(
           { groupKey, count: group?.jobDetails?.length ?? 0 },
-          `[EmailQueueService]: Queue not found for group during bulk add. Skipping jobs.`
+          `[EmailQueueService]: Queue not found for group during bulk add. Skipping jobs.`,
         );
         // Optionally: handle these skipped jobs (e.g., mark corresponding emails as failed)
         continue;
@@ -270,22 +267,22 @@ export class EmailQueueService {
 
       logger.info(
         { count: bulkData.length, queue: queue.name },
-        `[EmailQueueService]: Adding jobs to queue`
+        `[EmailQueueService]: Adding jobs to queue`,
       );
       bulkAddPromises.push(
         queue.addBulk(bulkData).catch((error) => {
           logger.error(
             { err: error, queue: queue.name },
-            `[EmailQueueService]: Failed to add bulk jobs to queue`
+            `[EmailQueueService]: Failed to add bulk jobs to queue`,
           );
           // Optionally: handle bulk add failure (e.g., mark corresponding emails as failed)
-        })
+        }),
       );
     }
 
     await Promise.allSettled(bulkAddPromises);
     logger.info(
-      "[EmailQueueService]: Finished processing bulk queue requests."
+      "[EmailQueueService]: Finished processing bulk queue requests.",
     );
   }
 
@@ -293,7 +290,7 @@ export class EmailQueueService {
     emailId: string,
     region: string,
     transactional: boolean,
-    delay: number
+    delay: number,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -315,7 +312,7 @@ export class EmailQueueService {
   public static async chancelEmail(
     emailId: string,
     region: string,
-    transactional: boolean
+    transactional: boolean,
   ) {
     if (!this.initialized) {
       await this.init();
@@ -340,7 +337,7 @@ export class EmailQueueService {
       this.initializeQueue(
         sesSetting.region,
         sesSetting.sesEmailRateLimit,
-        sesSetting.transactionalQuota
+        sesSetting.transactionalQuota,
       );
     }
     this.initialized = true;
@@ -350,7 +347,7 @@ export class EmailQueueService {
 async function executeEmail(job: QueueEmailJob) {
   logger.info(
     { emailId: job.data.emailId, elapsed: Date.now() - job.data.timestamp },
-    `[EmailQueueService]: Executing email job`
+    `[EmailQueueService]: Executing email job`,
   );
 
   const email = await db.email.findUnique({
@@ -366,7 +363,7 @@ async function executeEmail(job: QueueEmailJob) {
   if (!email) {
     logger.info(
       { emailId: job.data.emailId },
-      `[EmailQueueService]: Email not found, skipping`
+      `[EmailQueueService]: Email not found, skipping`,
     );
     return;
   }
@@ -380,7 +377,7 @@ async function executeEmail(job: QueueEmailJob) {
   const configurationSetName = await getConfigurationSetName(
     domain?.clickTracking ?? false,
     domain?.openTracking ?? false,
-    domain?.region ?? env.AWS_DEFAULT_REGION
+    domain?.region ?? env.AWS_DEFAULT_REGION,
   );
 
   if (!configurationSetName) {
@@ -488,7 +485,7 @@ async function executeEmail(job: QueueEmailJob) {
 
     logger.info(
       { emailId: email.id, sesEmailId: messageId },
-      `[EmailQueueService]: Email sent`
+      `[EmailQueueService]: Email sent`,
     );
 
     // Delete attachments and headers after sending the email
@@ -504,10 +501,10 @@ async function executeEmail(job: QueueEmailJob) {
     // attempts left, so the queue retries the email after its backoff. The
     // email is recorded as FAILED only when the error is terminal or this was
     // the last attempt.
-    if (isRetryableSendError(error) && attempt < attempts) {
+    if (isThrottledSendError(error) && attempt < attempts) {
       logger.warn(
         { emailId: email.id, attempt, attempts, err: error },
-        `[EmailQueueService]: Transient send failure, the queue will retry the email`,
+        `[EmailQueueService]: SES throttled the send, the queue will retry the email`,
       );
       throw error;
     }
