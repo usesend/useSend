@@ -21,6 +21,7 @@ import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { requeueJob } from "../queue/requeue-job";
 import { SuppressionService } from "./suppression-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { emailTeam } from "./team-email";
 import {
   validateApiKeyDomainAccess,
   validateDomainFromEmail,
@@ -649,9 +650,10 @@ export async function guardReviewCampaign(
       teamId: true,
       name: true,
       status: true,
+      sent: true,
       guardStoppedAt: true,
       reviewHoldUntil: true,
-      team: { select: { createdAt: true } },
+      team: { select: { createdAt: true, name: true } },
     },
   });
   if (!campaign) throw new GuardNotFoundError("Campaign not found");
@@ -676,7 +678,12 @@ export async function guardReviewCampaign(
           action: "PAUSE",
           actor: GUARD_ACTOR,
           reason: `Stopped campaign "${campaign.name}": ${body.reason}`,
-          details: { scope: "campaign", campaignId, source: GUARD_ACTOR },
+          details: {
+            scope: "campaign",
+            campaignId,
+            source: GUARD_ACTOR,
+            customerReason: body.reason,
+          },
         },
       });
       return true;
@@ -686,6 +693,18 @@ export async function guardReviewCampaign(
         `Campaign is ${campaign.status.toLowerCase()}, not sending`,
       );
     }
+    void emailTeam(
+      teamId,
+      `Your campaign "${campaign.name}" is on hold for review`,
+      campaignOnHoldEmail({
+        teamName: campaign.team.name,
+        campaignName: campaign.name,
+        reason: body.reason,
+        alreadySent: campaign.sent,
+      }),
+    ).catch((error: unknown) =>
+      logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),
+    );
     return { ok: true, status: "PAUSED" };
   }
 
@@ -758,6 +777,123 @@ export async function guardReviewCampaign(
       status: current.guardStoppedAt ? "SCHEDULED" : current.status,
     };
   });
+}
+
+/** The email a team gets when the Guard puts its campaign on hold. */
+export function campaignOnHoldEmail(input: {
+  teamName: string;
+  campaignName: string;
+  reason: string;
+  alreadySent: number;
+}) {
+  const reason = input.reason.trim().replace(/[.\s]+$/, "");
+  const sentLine =
+    input.alreadySent > 0
+      ? `${input.alreadySent.toLocaleString()} emails had already gone out; the rest are on hold.`
+      : "Nothing has been sent yet.";
+  return [
+    `Hi ${input.teamName},`,
+    "",
+    `We've put your campaign "${input.campaignName}" on hold before it went out, because ${reason}.`,
+    "",
+    `In their first two weeks, new accounts' campaigns get a quick check. ${sentLine}`,
+    "",
+    "If we got this wrong, just reply to this email and we'll take a look, usually within a day.",
+    "",
+    "useSend",
+  ].join("\n");
+}
+
+/** Why the Guard is holding a campaign, for its page; null if it isn't. */
+export async function guardHoldFor(campaign: {
+  id: string;
+  teamId: number;
+  guardStoppedAt: Date | null;
+}) {
+  if (!campaign.guardStoppedAt) return null;
+  const stop = await db.teamAction.findFirst({
+    where: {
+      teamId: campaign.teamId,
+      actor: GUARD_ACTOR,
+      action: "PAUSE",
+      details: { path: ["campaignId"], equals: campaign.id },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { details: true },
+  });
+  const details = stop?.details as { customerReason?: string } | null;
+  return {
+    since: campaign.guardStoppedAt,
+    reason: details?.customerReason ?? null,
+  };
+}
+
+/**
+ * You release a campaign the Guard put on hold: it goes back to sending, and
+ * the team is told. Logged as an alert entry (a team RESUME would reset the
+ * sending rules' window).
+ */
+export async function adminReleaseCampaign(campaignId: string, actor: string) {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      teamId: true,
+      name: true,
+      guardStoppedAt: true,
+      team: { select: { name: true } },
+    },
+  });
+  if (!campaign) throw new GuardNotFoundError("Campaign not found");
+  if (!campaign.guardStoppedAt) {
+    throw new GuardConflictError("This campaign isn't on hold");
+  }
+  const { teamId } = campaign;
+
+  // As in resume: an explicit restart clears a batch that failed long ago.
+  await CampaignBatchService.clearFailedBatch(campaignId);
+
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+    const team = await tx.team.findUnique({
+      where: { id: teamId },
+      select: { isBlocked: true, sendingPausedAt: true },
+    });
+    if (team?.isBlocked || team?.sendingPausedAt) {
+      throw new GuardConflictError(
+        "The team is paused or blocked; resume the team first",
+      );
+    }
+    const { count } = await tx.campaign.updateMany({
+      where: { id: campaignId, guardStoppedAt: { not: null } },
+      data: { status: "SCHEDULED", guardStoppedAt: null, reviewHoldUntil: null },
+    });
+    if (count === 0) throw new GuardConflictError("This campaign isn't on hold");
+    await tx.teamAction.create({
+      data: {
+        teamId,
+        action: "ALERT",
+        actor,
+        reason: `Released campaign "${campaign.name}" from the Guard's hold`,
+        details: { scope: "campaign", campaignId, source: "admin" },
+      },
+    });
+  });
+
+  void emailTeam(
+    teamId,
+    `Your campaign "${campaign.name}" is sending again`,
+    [
+      `Hi ${campaign.team.name},`,
+      "",
+      `Thanks for waiting. We've checked your campaign "${campaign.name}" and it's sending now.`,
+      "",
+      "useSend",
+    ].join("\n"),
+  ).catch((error: unknown) =>
+    logger.error({ err: error, campaignId }, "[Guard]: Released email failed"),
+  );
+  return { ok: true };
 }
 
 export function createUnsubUrl(contactId: string, campaignId: string) {

@@ -15,6 +15,12 @@ import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 import { TeamService } from "~/server/service/team-service";
 import { WaitlistService } from "~/server/service/waitlist-service";
 import { unsentCampaignIds } from "~/server/service/sending-rules-service";
+import { adminReleaseCampaign } from "~/server/service/campaign-service";
+import {
+  GuardConflictError,
+  GuardNotFoundError,
+} from "~/server/service/guard-service";
+import { TRPCError } from "@trpc/server";
 
 const waitlistUserSelection = {
   id: true,
@@ -59,6 +65,12 @@ const teamAdminSelection = {
   sendingPausedAt: true,
   billingEmail: true,
   createdAt: true,
+  campaigns: {
+    where: { guardStoppedAt: { not: null } },
+    orderBy: { guardStoppedAt: "desc" },
+    take: 20,
+    select: { id: true, name: true, guardStoppedAt: true, total: true, sent: true },
+  },
   actions: {
     orderBy: { createdAt: "desc" },
     take: 10,
@@ -424,6 +436,33 @@ export const adminRouter = createTRPCRouter({
       }
 
       return team ?? null;
+    }),
+
+  releaseCampaign: adminProcedure
+    .input(z.object({ campaignId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const campaign = await db.campaign.findUnique({
+        where: { id: input.campaignId },
+        select: { teamId: true },
+      });
+      if (!campaign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+      }
+      try {
+        await adminReleaseCampaign(
+          input.campaignId,
+          `admin:${ctx.session.user.email ?? ctx.session.user.id}`,
+        );
+      } catch (error) {
+        if (error instanceof GuardConflictError || error instanceof GuardNotFoundError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+      return db.team.findUnique({
+        where: { id: campaign.teamId },
+        select: teamAdminSelection,
+      });
     }),
 
   updateTeamSettings: adminProcedure

@@ -2,10 +2,9 @@ import type { Prisma, TeamActionType } from "@prisma/client";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { logger } from "~/server/logger/log";
-import { sendMail } from "~/server/mailer";
 import { getRedis, redisKey } from "~/server/redis";
-import { toPlainHtml } from "~/server/utils/email-content";
 import { sendToDiscord } from "./notification-service";
+import { emailTeam } from "./team-email";
 import { TeamService } from "./team-service";
 import {
   judgeCounts,
@@ -168,27 +167,6 @@ async function teamLabel(teamId: number) {
     select: { name: true },
   });
   return `${team?.name ?? "Unknown team"} (#${teamId})`;
-}
-
-async function emailTeam(teamId: number, subject: string, text: string) {
-  const teamUsers = await TeamService.getTeamUsers(teamId);
-  const recipients = teamUsers
-    .map((teamUser) => teamUser.user?.email)
-    .filter((email): email is string => Boolean(email));
-
-  const results = await Promise.allSettled(
-    recipients.map((to) =>
-      sendMail(to, subject, text, toPlainHtml(text), "hey@usesend.com"),
-    ),
-  );
-  results.forEach((result) => {
-    if (result.status === "rejected") {
-      logger.error(
-        { err: result.reason, teamId },
-        "[SendingRules]: Team email failed",
-      );
-    }
-  });
 }
 
 async function notify(message: string) {

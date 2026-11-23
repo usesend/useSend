@@ -50,6 +50,9 @@ const { mockDb, mockTx, mockUpdateContactSubscription } = vi.hoisted(() => {
       team: {
         findUnique: vi.fn(),
       },
+      teamAction: {
+        findFirst: vi.fn(),
+      },
       campaign: {
         findUnique: vi.fn(),
         update: vi.fn(),
@@ -75,9 +78,11 @@ const {
   mockQueueEmail,
   mockReviewHoldFor,
   mockAssertGuardMayAct,
+  mockEmailTeam,
 } = vi.hoisted(() => ({
   mockReviewHoldFor: vi.fn(),
   mockAssertGuardMayAct: vi.fn(),
+  mockEmailTeam: vi.fn(async () => undefined),
   mockQueueAdd: vi.fn(),
   mockQueueGetJob: vi.fn(),
   capturedBatchHandler: {
@@ -141,6 +146,8 @@ vi.mock("~/server/service/domain-service", () => ({
   validateDomainFromEmail: vi.fn(),
 }));
 
+vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
+
 vi.mock("~/server/service/guard-service", () => ({
   GUARD_ACTOR: "guard",
   GuardConflictError: class GuardConflictError extends Error {},
@@ -169,6 +176,9 @@ vi.mock("~/server/logger/log", () => ({
 import {
   CampaignBatchService,
   recordCampaignContactFailure,
+  adminReleaseCampaign,
+  campaignOnHoldEmail,
+  guardHoldFor,
   guardReviewCampaign,
   resumeCampaign,
   scheduleCampaign,
@@ -658,7 +668,8 @@ describe("guardReviewCampaign", () => {
       status: "SCHEDULED",
       guardStoppedAt: null,
       reviewHoldUntil: new Date(Date.now() + 5 * 60_000),
-      team: { createdAt: new Date() },
+      sent: 0,
+      team: { createdAt: new Date(), name: "Acme" },
       ...overrides,
     };
   }
@@ -702,9 +713,19 @@ describe("guardReviewCampaign", () => {
       data: expect.objectContaining({
         action: "PAUSE",
         actor: "guard",
-        details: { scope: "campaign", campaignId: "cmp_1", source: "guard" },
+        details: {
+          scope: "campaign",
+          campaignId: "cmp_1",
+          source: "guard",
+          customerReason: "bought list",
+        },
       }),
     });
+    expect(mockEmailTeam).toHaveBeenCalledWith(
+      7,
+      'Your campaign "Launch" is on hold for review',
+      expect.stringContaining("because bought list."),
+    );
   });
 
   it("won't stop an established team's campaign unless allowed", async () => {
@@ -725,6 +746,7 @@ describe("guardReviewCampaign", () => {
       guardReviewCampaign("cmp_1", { decision: "stop", reason: "x" }),
     ).rejects.toThrow("not sending");
     expect(mockTx.teamAction.create).not.toHaveBeenCalled();
+    expect(mockEmailTeam).not.toHaveBeenCalled();
   });
 
   it("approving lets a waiting campaign send, if its content is what was reviewed", async () => {
@@ -850,6 +872,88 @@ describe("guardReviewCampaign", () => {
 
     expect(result.status).toBe("RUNNING");
     expect(mockTx.$queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe("telling the team about a hold", () => {
+  it("writes the on-hold email in plain words", () => {
+    const text = campaignOnHoldEmail({
+      teamName: "Acme",
+      campaignName: "Launch",
+      reason: "a link points to a site Google lists as phishing.",
+      alreadySent: 0,
+    });
+    expect(text).toContain('We\'ve put your campaign "Launch" on hold before it went out, because a link points to a site Google lists as phishing.');
+    expect(text).toContain("Nothing has been sent yet.");
+    expect(text).toContain("just reply to this email");
+  });
+
+  it("says how many went out if it was already sending", () => {
+    expect(
+      campaignOnHoldEmail({ teamName: "Acme", campaignName: "L", reason: "x", alreadySent: 1200 }),
+    ).toContain("1,200 emails had already gone out; the rest are on hold.");
+  });
+
+  it("shows the reason on the campaign page while it's on hold", async () => {
+    mockDb.teamAction.findFirst.mockResolvedValue({
+      details: { customerReason: "it looks like cold outreach" },
+    });
+    const since = new Date();
+    await expect(
+      guardHoldFor({ id: "cmp_1", teamId: 7, guardStoppedAt: since }),
+    ).resolves.toEqual({ since, reason: "it looks like cold outreach" });
+    await expect(
+      guardHoldFor({ id: "cmp_1", teamId: 7, guardStoppedAt: null }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe("adminReleaseCampaign", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "cmp_1",
+      teamId: 7,
+      name: "Launch",
+      guardStoppedAt: new Date(),
+      team: { name: "Acme" },
+    });
+    mockTx.team.findUnique.mockResolvedValue({ isBlocked: false, sendingPausedAt: null });
+    mockTx.campaign.updateMany.mockResolvedValue({ count: 1 });
+    mockQueueGetJob.mockResolvedValue(null);
+  });
+
+  it("puts it back to sending, logs who did it, and tells the team", async () => {
+    await adminReleaseCampaign("cmp_1", "admin:km@example.com");
+
+    expect(mockTx.$queryRaw).toHaveBeenCalled();
+    expect(mockTx.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "cmp_1", guardStoppedAt: { not: null } },
+      data: { status: "SCHEDULED", guardStoppedAt: null, reviewHoldUntil: null },
+    });
+    expect(mockTx.teamAction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "ALERT", actor: "admin:km@example.com" }),
+    });
+    expect(mockEmailTeam).toHaveBeenCalledWith(
+      7,
+      'Your campaign "Launch" is sending again',
+      expect.stringContaining("it's sending now"),
+    );
+  });
+
+  it("refuses a campaign that isn't on hold", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      id: "cmp_1", teamId: 7, name: "Launch", guardStoppedAt: null, team: { name: "Acme" },
+    });
+    await expect(adminReleaseCampaign("cmp_1", "admin:x")).rejects.toThrow("isn't on hold");
+    expect(mockEmailTeam).not.toHaveBeenCalled();
+  });
+
+  it("asks to resume the team first if it's paused", async () => {
+    mockTx.team.findUnique.mockResolvedValue({ isBlocked: false, sendingPausedAt: new Date() });
+    await expect(adminReleaseCampaign("cmp_1", "admin:x")).rejects.toThrow("resume the team first");
+    expect(mockTx.campaign.updateMany).not.toHaveBeenCalled();
+    expect(mockEmailTeam).not.toHaveBeenCalled();
   });
 });
 

@@ -134,6 +134,19 @@ export default function CampaignDetailsPage({
         )}
       </div>
 
+      {campaign.guardHold ? (
+        <div className="mt-6 rounded-lg border border-red/40 bg-red/10 px-4 py-3 text-sm">
+          <p className="font-medium">This campaign is on hold for review.</p>
+          <p className="mt-1 text-muted-foreground">
+            {campaign.guardHold.reason
+              ? `We held it because ${campaign.guardHold.reason.replace(/[.\s]+$/, "")}. `
+              : ""}
+            If we got this wrong, reply to our email or write to
+            hey@usesend.com and we&apos;ll take a look.
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-10">
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
