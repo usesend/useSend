@@ -1,0 +1,643 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
+  mockEnv: { NEXT_PUBLIC_IS_CLOUD: true, REDIS_URL: "redis://localhost:6379" },
+  mockRedis: { set: vi.fn(), exists: vi.fn() },
+  mockDb: {
+    $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
+    team: { findUnique: vi.fn(), updateMany: vi.fn() },
+    campaign: { findMany: vi.fn(), updateMany: vi.fn() },
+    teamAction: { create: vi.fn() },
+    email: { findMany: vi.fn() },
+    waitlistApplication: { updateMany: vi.fn(), findUnique: vi.fn() },
+  },
+  mockRefreshTeamCache: vi.fn(),
+}));
+
+vi.mock("~/env", () => ({ env: mockEnv }));
+vi.mock("~/server/db", () => ({ db: mockDb }));
+vi.mock("~/server/redis", () => ({ redisKey: (key: string) => key }));
+vi.mock("ioredis", () => ({
+  default: class {
+    status = "ready";
+    on() {}
+    set = mockRedis.set;
+    exists = mockRedis.exists;
+  },
+}));
+vi.mock("~/server/logger/log", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock("~/server/service/team-service", () => ({
+  TeamService: { refreshTeamCache: mockRefreshTeamCache },
+}));
+const { mockEmailTeam } = vi.hoisted(() => ({ mockEmailTeam: vi.fn() }));
+vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
+const { mockSendToDiscord } = vi.hoisted(() => ({
+  mockSendToDiscord: vi.fn(),
+}));
+vi.mock("~/server/service/notification-service", () => ({
+  sendToDiscord: mockSendToDiscord,
+}));
+
+import {
+  GuardConflictError,
+  GuardForbiddenError,
+  GuardNotFoundError,
+  assertGuardMayAct,
+  campaignContentHash,
+  markGuardSeen,
+  recordApplicationVerdict,
+  isReviewHeld,
+  listActiveCampaigns,
+  listNewEmails,
+  newEmailsQuery,
+  abusePauseEmail,
+  teamActionBody,
+  recordTeamAction,
+  reviewHoldFor,
+  sampleTeamEmails,
+} from "~/server/service/guard-service";
+
+const DAY = 24 * 60 * 60 * 1000;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
+  mockRedis.exists.mockResolvedValue(1);
+  mockDb.$transaction.mockImplementation(
+    async (fn: (tx: typeof mockDb) => unknown) => fn(mockDb),
+  );
+  mockDb.$queryRaw.mockResolvedValue([{ id: 7 }]);
+});
+
+describe("reviewHoldFor", () => {
+  it("holds a new team's campaign for 10 minutes", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      createdAt: new Date(Date.now() - 3 * DAY),
+    });
+
+    const until = await reviewHoldFor(7);
+
+    expect(until).toBeInstanceOf(Date);
+    const minutes = (until!.getTime() - Date.now()) / 60_000;
+    expect(minutes).toBeGreaterThan(9.9);
+    expect(minutes).toBeLessThanOrEqual(10);
+  });
+
+  it("doesn't hold a team past its 14 days", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      createdAt: new Date(Date.now() - 15 * DAY),
+    });
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+  });
+
+  it("doesn't hold anything while the Guard isn't running", async () => {
+    mockDb.team.findUnique.mockResolvedValue({ createdAt: new Date() });
+
+    mockRedis.exists.mockResolvedValue(0);
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+
+    mockRedis.exists.mockRejectedValue(new Error("redis down"));
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+
+    mockRedis.exists.mockResolvedValue(1);
+    mockEnv.NEXT_PUBLIC_IS_CLOUD = false;
+    mockDb.team.findUnique.mockClear();
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+    expect(mockDb.team.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("never asks Redis about older teams", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      createdAt: new Date(Date.now() - 30 * DAY),
+    });
+    await expect(reviewHoldFor(7)).resolves.toBeNull();
+    expect(mockRedis.exists).not.toHaveBeenCalled();
+  });
+
+  it("knows the Guard is running for 2 minutes after it checks in", async () => {
+    await markGuardSeen();
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      "guard:last-seen",
+      expect.any(String),
+      "EX",
+      120,
+    );
+  });
+});
+
+describe("isReviewHeld", () => {
+  it("is held only until the time passes", () => {
+    expect(isReviewHeld({ reviewHoldUntil: null })).toBe(false);
+    expect(
+      isReviewHeld({ reviewHoldUntil: new Date(Date.now() + 60_000) }),
+    ).toBe(true);
+    expect(isReviewHeld({ reviewHoldUntil: new Date(Date.now() - 1) })).toBe(
+      false,
+    );
+  });
+});
+
+describe("assertGuardMayAct", () => {
+  it("lets the Guard act only on new teams", () => {
+    expect(() =>
+      assertGuardMayAct({ createdAt: new Date(Date.now() - DAY) }),
+    ).not.toThrow();
+    expect(() =>
+      assertGuardMayAct({ createdAt: new Date(Date.now() - 30 * DAY) }),
+    ).toThrow(GuardForbiddenError);
+  });
+});
+
+describe("campaignContentHash", () => {
+  it("changes with anything the Guard judges, reply-to included", () => {
+    const base = {
+      from: "a@x.com",
+      replyTo: ["r@x.com"],
+      subject: "Hi",
+      previewText: null,
+      html: "<p>1</p>",
+      content: null as string | null,
+    };
+    const hash = campaignContentHash(base);
+    expect(campaignContentHash({ ...base })).toBe(hash);
+    expect(campaignContentHash({ ...base, replyTo: ["other@y.com"] })).not.toBe(
+      hash,
+    );
+    expect(campaignContentHash({ ...base, subject: "Hey" })).not.toBe(hash);
+    expect(campaignContentHash({ ...base, html: "<p>2</p>" })).not.toBe(hash);
+    expect(campaignContentHash({ ...base, content: '{"doc":1}' })).not.toBe(
+      hash,
+    );
+  });
+});
+
+describe("listActiveCampaigns", () => {
+  const make = (id: string, overrides: Record<string, unknown> = {}) => ({
+    id,
+    name: id,
+    status: "RUNNING",
+    from: "a@x.com",
+    replyTo: [],
+    subject: "Hi",
+    previewText: null,
+    html: "<p>x</p>",
+    content: null,
+    total: 1,
+    sent: 0,
+    scheduledAt: null,
+    reviewHoldUntil: null,
+    guardStoppedAt: null,
+    createdAt: new Date(),
+    team: { id: 7, name: "Acme", createdAt: new Date(Date.now() - 90 * DAY) },
+    ...overrides,
+  });
+
+  it("marks new teams and campaigns waiting for review", async () => {
+    mockDb.campaign.findMany.mockResolvedValueOnce([{ id: "c1" }]);
+    mockDb.campaign.findMany.mockResolvedValueOnce([
+      make("c1", {
+        status: "SCHEDULED",
+        reviewHoldUntil: new Date(Date.now() + 60_000),
+        team: { id: 7, name: "Acme", createdAt: new Date(Date.now() - DAY) },
+      }),
+    ]);
+
+    const page = await listActiveCampaigns({ limit: 10 });
+
+    expect(page.items[0]?.waitingForReview).toBe(true);
+    expect(page.items[0]?.team.isNew).toBe(true);
+    expect(page.items[0]?.contentHash).toBe(
+      campaignContentHash(make("c1") as never),
+    );
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("pages through campaigns", async () => {
+    mockDb.campaign.findMany.mockResolvedValueOnce([
+      { id: "c1" },
+      { id: "c2" },
+      { id: "c3" },
+    ]);
+    mockDb.campaign.findMany.mockResolvedValueOnce([make("c1"), make("c2")]);
+
+    const page = await listActiveCampaigns({ limit: 2 });
+
+    expect(page.items.map((item) => item.id)).toEqual(["c1", "c2"]);
+    expect(page.nextCursor).toBe("c2");
+    expect(mockDb.campaign.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ take: 3, select: { id: true } }),
+    );
+    // Content only for the page, not the extra row.
+    expect(mockDb.campaign.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ where: { id: { in: ["c1", "c2"] } } }),
+    );
+    expect(page.items[0]?.team.isNew).toBe(false);
+  });
+
+  it("truncates very large HTML but hashes all of it", async () => {
+    const html = "x".repeat(150_000);
+    mockDb.campaign.findMany.mockResolvedValueOnce([{ id: "c1" }]);
+    mockDb.campaign.findMany.mockResolvedValueOnce([make("c1", { html })]);
+
+    const item = (await listActiveCampaigns({ limit: 10 })).items[0]!;
+
+    expect(item.html?.length).toBe(100_000);
+    expect(item.htmlTruncated).toBe(true);
+    expect(item.contentHash).toBe(
+      campaignContentHash(make("c1", { html }) as never),
+    );
+  });
+});
+
+describe("recordTeamAction", () => {
+  beforeEach(() => {
+    mockDb.team.findUnique.mockResolvedValue({
+      id: 7,
+      createdAt: new Date(Date.now() - DAY),
+    });
+  });
+
+  it("an alert only logs", async () => {
+    const result = await recordTeamAction(7, {
+      action: "ALERT",
+      reason: "sends look like lead gen",
+    });
+
+    expect(result.changed).toBe(false);
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.teamAction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "ALERT",
+        actor: "guard",
+        details: { source: "guard" },
+      }),
+    });
+  });
+
+  it("a pause stops the team and its campaigns, and refreshes the cache", async () => {
+    mockDb.team.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.campaign.updateMany.mockResolvedValue({ count: 2 });
+
+    const result = await recordTeamAction(7, {
+      action: "PAUSE",
+      reason: "phishing content",
+    });
+
+    expect(result.changed).toBe(true);
+    expect(mockDb.$queryRaw).toHaveBeenCalled();
+    expect(mockDb.team.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 7,
+        isBlocked: false,
+        sendingPausedAt: null,
+        // Rechecked in the update itself, so a team can't age past 14 days
+        // between the check and the pause.
+        createdAt: { gte: expect.any(Date) },
+      },
+      data: { sendingPausedAt: expect.any(Date) },
+    });
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
+      where: { teamId: 7, status: { in: ["RUNNING", "SCHEDULED"] } },
+      data: { status: "PAUSED" },
+    });
+    expect(mockRefreshTeamCache).toHaveBeenCalledWith(7);
+    // Every Guard pause reaches Discord, even without abuse evidence.
+    expect(mockSendToDiscord).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing more for a team that's already paused or blocked", async () => {
+    mockDb.team.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await recordTeamAction(7, { action: "PAUSE", reason: "x" });
+
+    expect(result.changed).toBe(false);
+    expect(mockDb.teamAction.create).not.toHaveBeenCalled();
+    expect(mockRefreshTeamCache).not.toHaveBeenCalled();
+    expect(mockSendToDiscord).not.toHaveBeenCalled();
+  });
+
+  it("won't pause a team past its first 14 days", async () => {
+    mockDb.team.findUnique.mockResolvedValue({
+      id: 7,
+      createdAt: new Date(Date.now() - 30 * DAY),
+    });
+
+    await expect(
+      recordTeamAction(7, { action: "PAUSE", reason: "x" }),
+    ).rejects.toBeInstanceOf(GuardForbiddenError);
+    expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe("an established customer", () => {
+    beforeEach(() => {
+      mockDb.team.findUnique.mockResolvedValue({
+        id: 374,
+        name: "Arali",
+        createdAt: new Date(Date.now() - 365 * DAY),
+      });
+      mockDb.team.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("is never paused by the Guard, even with evidence", async () => {
+      mockDb.email.findMany.mockResolvedValue([{ subject: "Lead assigned" }]);
+      for (const abuse of ["cold_outreach", "phishing"] as const) {
+        await expect(
+          recordTeamAction(374, {
+            action: "PAUSE",
+            reason: "x",
+            abuse,
+            emailIds: ["e1"],
+          }),
+        ).rejects.toBeInstanceOf(GuardForbiddenError);
+      }
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+      expect(mockEmailTeam).not.toHaveBeenCalled();
+      expect(mockSendToDiscord).not.toHaveBeenCalled();
+    });
+
+    it("can still get an alert", async () => {
+      const result = await recordTeamAction(374, {
+        action: "ALERT",
+        reason: "x",
+      });
+      expect(result.changed).toBe(false);
+    });
+  });
+
+  describe("a new team paused for a terms break", () => {
+    beforeEach(() => {
+      mockDb.team.findUnique.mockResolvedValue({
+        id: 7,
+        name: "Fresh",
+        createdAt: new Date(Date.now() - DAY),
+      });
+      mockDb.team.updateMany.mockResolvedValue({ count: 1 });
+      mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+    });
+
+    it("is told why, with the evidence subjects, and Discord hears", async () => {
+      mockDb.email.findMany.mockResolvedValue([
+        { subject: "Your E-ZPass Invoice Notification" },
+        { subject: "Your E-ZPass Invoice Notification" },
+      ]);
+      const result = await recordTeamAction(7, {
+        action: "PAUSE",
+        reason: "E-ZPass phishing",
+        abuse: "phishing",
+        emailIds: ["e1", "e2"],
+      });
+      expect(result.changed).toBe(true);
+      expect(mockDb.email.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ["e1", "e2"] }, teamId: 7 },
+        select: { subject: true },
+      });
+      expect(mockSendToDiscord).toHaveBeenCalledTimes(1);
+      const [, subject, text] = mockEmailTeam.mock.calls[0]!;
+      expect(subject).toContain("paused");
+      expect(text).toContain("Your E-ZPass Invoice Notification");
+      expect(text).not.toContain("E-ZPass phishing");
+    });
+
+    it("needs evidence that's this team's own", async () => {
+      await expect(
+        recordTeamAction(7, { action: "PAUSE", reason: "x", abuse: "scam" }),
+      ).rejects.toThrow("emailIds");
+      mockDb.email.findMany.mockResolvedValue([{ subject: "a" }]);
+      await expect(
+        recordTeamAction(7, {
+          action: "PAUSE",
+          reason: "x",
+          abuse: "scam",
+          emailIds: ["mine", "someone-elses"],
+        }),
+      ).rejects.toThrow("aren't this team's");
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("says when the team doesn't exist", async () => {
+    mockDb.team.findUnique.mockResolvedValue(null);
+    await expect(
+      recordTeamAction(99, { action: "PAUSE", reason: "x" }),
+    ).rejects.toBeInstanceOf(GuardNotFoundError);
+  });
+});
+
+describe("sampleTeamEmails", () => {
+  it("returns content but only the recipients' domains", async () => {
+    mockDb.email.findMany.mockResolvedValue([
+      {
+        id: "e1",
+        createdAt: new Date(),
+        from: "hi@acme.com",
+        to: ["alice@gmail.com", "bob@gmail.com", "carol@corp.io"],
+        subject: "Hello",
+        text: "Hi there",
+        html: "<p>Hi there</p>",
+        latestStatus: "DELIVERED",
+        campaignId: null,
+      },
+    ]);
+
+    const { items } = await sampleTeamEmails(7, { limit: 10 });
+
+    expect(items[0]).not.toHaveProperty("to");
+    expect(items[0]?.toDomains).toEqual(["gmail.com", "corp.io"]);
+    expect(items[0]?.text).toBe("Hi there");
+    // Campaign emails keep only the preview in text, so HTML comes too.
+    expect(items[0]?.html).toBe("<p>Hi there</p>");
+  });
+});
+
+describe("listNewEmails", () => {
+  const row = (id: string, at: string) => ({
+    id,
+    createdAt: new Date(at),
+    from: "a@acme.com",
+    to: ["x@gmail.com", "y@gmail.com"],
+    replyTo: [],
+    subject: "Hi",
+    text: "t",
+    html: null,
+    team: {
+      id: 7,
+      name: "Acme",
+      createdAt: new Date(Date.now() - DAY),
+      isBlocked: false,
+      sendingPausedAt: null,
+    },
+  });
+
+  it("pages through API emails with a cursor that never skips a tie", async () => {
+    mockDb.email.findMany.mockResolvedValue([
+      row("e1", "2026-11-23T10:00:00.000Z"),
+      row("e2", "2026-11-23T10:00:01.000Z"),
+    ]);
+
+    const page = await listNewEmails({
+      cursor: "2026-11-23T09:59:59.000Z|e0",
+      limit: 2,
+    });
+
+    const query = mockDb.email.findMany.mock.calls[0]![0];
+    const at = new Date("2026-11-23T09:59:59.000Z");
+    expect(query.where).toEqual({
+      campaignId: null,
+      createdAt: { gte: at, lt: expect.any(Date) },
+      NOT: { createdAt: at, id: { lte: "e0" } },
+    });
+    expect(page.nextCursor).toBe("2026-11-23T10:00:01.000Z|e2");
+    expect(page.items[0]).toMatchObject({ toDomains: ["gmail.com"] });
+    expect(page.items[0]).not.toHaveProperty("to");
+    expect(page.items[0]!.team.isNew).toBe(true);
+  });
+
+  it("starts with a date-only cursor that it accepts back", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const first = await listNewEmails({ limit: 100 });
+    expect(first.nextCursor).toMatch(/\|$/);
+    expect(newEmailsQuery.parse({ cursor: first.nextCursor }).cursor).toBe(
+      first.nextCursor,
+    );
+    await listNewEmails({ cursor: first.nextCursor, limit: 100 });
+    const query = mockDb.email.findMany.mock.calls[1]![0];
+    expect(query.where).not.toHaveProperty("NOT");
+  });
+
+  it("only reads rows old enough that nothing can still commit behind them", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const before = Date.now();
+    await listNewEmails({ limit: 100 });
+    const { lt } = mockDb.email.findMany.mock.calls[0]![0].where.createdAt;
+    expect(before - lt.getTime()).toBeGreaterThanOrEqual(29_000);
+  });
+
+  it("rejects an impossible cursor date", () => {
+    expect(() =>
+      newEmailsQuery.parse({ cursor: "2026-99-99T99:99:99Z|e9" }),
+    ).toThrow();
+  });
+
+  it("keeps the cursor when nothing is new", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const page = await listNewEmails({
+      cursor: "2026-11-23T10:00:00.000Z|e9",
+      limit: 100,
+    });
+    expect(page.nextCursor).toBe("2026-11-23T10:00:00.000Z|e9");
+  });
+});
+
+describe("abusePauseEmail for other terms", () => {
+  it("names the rule, and asks how people signed up instead of blaming a leak", () => {
+    const { text } = abusePauseEmail({
+      teamName: "Acme",
+      abuse: "cold_outreach",
+      subjects: ["Quick question about your business"],
+    });
+    expect(text).toContain("cold outreach");
+    expect(text).toContain("which our terms don't allow");
+    expect(text).toContain("how they signed up");
+    expect(text).not.toContain("leaked");
+  });
+
+  it("accepts every banned kind in a pause request", () => {
+    for (const abuse of [
+      "cold_outreach",
+      "gambling",
+      "adult",
+      "money_scheme",
+      "pharma",
+    ]) {
+      expect(
+        teamActionBody.parse({
+          action: "PAUSE",
+          reason: "x",
+          abuse,
+          emailIds: ["e1"],
+        }).abuse,
+      ).toBe(abuse);
+    }
+    expect(() =>
+      teamActionBody.parse({
+        action: "PAUSE",
+        reason: "x",
+        abuse: "spam",
+        emailIds: ["e1"],
+      }),
+    ).toThrow();
+  });
+});
+
+describe("abusePauseEmail", () => {
+  it("quotes subjects on one line, without links", () => {
+    const { text } = abusePauseEmail({
+      teamName: "Acme",
+      abuse: "phishing",
+      subjects: [
+        "Pay now\nat https://evil.example/x or evil.example today",
+        "",
+      ],
+    });
+    expect(text).toContain('- "Pay now at or today"');
+    expect(text).not.toContain("evil");
+  });
+});
+
+describe("recordApplicationVerdict", () => {
+  beforeEach(() => {
+    mockDb.waitlistApplication.updateMany.mockReset();
+    mockDb.waitlistApplication.findUnique.mockReset();
+  });
+
+  it("saves advice only on a pending application", async () => {
+    mockDb.waitlistApplication.updateMany.mockResolvedValue({ count: 1 });
+    await recordApplicationVerdict("app_1", {
+      verdict: "unsure",
+      note: "Thin site",
+      revision: "2026-11-22T13:52:29.110Z",
+    });
+    // Saved only against the version reviewed, without changing that version.
+    const revision = new Date("2026-11-22T13:52:29.110Z");
+    expect(mockDb.waitlistApplication.updateMany).toHaveBeenCalledWith({
+      where: { id: "app_1", status: "PENDING", updatedAt: revision },
+      data: {
+        guardVerdict: "unsure",
+        guardNote: "Thin site",
+        updatedAt: revision,
+      },
+    });
+  });
+
+  it("tells a decided application from a missing one", async () => {
+    mockDb.waitlistApplication.updateMany.mockResolvedValue({ count: 0 });
+    const input = {
+      verdict: "reject" as const,
+      note: "x",
+      revision: "2026-11-22T13:52:29.110Z",
+    };
+    mockDb.waitlistApplication.findUnique.mockResolvedValue({
+      status: "PENDING",
+    });
+    await expect(recordApplicationVerdict("app_1", input)).rejects.toThrow(
+      "resubmitted",
+    );
+
+    mockDb.waitlistApplication.findUnique.mockResolvedValue({
+      status: "APPROVED",
+    });
+    await expect(
+      recordApplicationVerdict("app_1", input),
+    ).rejects.toBeInstanceOf(GuardConflictError);
+
+    mockDb.waitlistApplication.findUnique.mockResolvedValue(null);
+    await expect(
+      recordApplicationVerdict("app_2", input),
+    ).rejects.toBeInstanceOf(GuardNotFoundError);
+  });
+});

@@ -23,6 +23,19 @@ export function SendingStatusBanner() {
     );
   }
 
+  if (currentTeam.sendingPausedAt) {
+    return (
+      <div className="mb-6 rounded-lg border border-red/40 bg-red/10 px-4 py-3 text-sm">
+        <p className="font-medium">Sending is paused for this team.</p>
+        <p className="mt-1 text-muted-foreground">
+          Too many emails bounced or were marked as spam. Remove old or
+          unconfirmed addresses from your list, then reply to our email or write
+          to hey@usesend.com and we&apos;ll turn sending back on.
+        </p>
+      </div>
+    );
+  }
+
   const onFreePlan = currentTeam.plan === "FREE" || !currentTeam.isActive;
   if (onFreePlan && !currentTeam.freePlanAllowed) {
     return (

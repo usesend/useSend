@@ -114,6 +114,9 @@ model WaitlistApplication {
   description String
   status      WaitlistStatus @default(PENDING)
   reviewedAt  DateTime?
+  /// The Guard's advice (approve, reject or unsure) and why. The founder decides.
+  guardVerdict String?
+  guardNote    String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -143,6 +146,8 @@ model Team {
   isBlocked        Boolean           @default(false)
   /// Teams created before paid-only signups may keep sending on the free plan.
   freePlanAllowed  Boolean           @default(false)
+  /// Set when sending is paused (e.g. bounce rate too high). Cleared on resume.
+  sendingPausedAt  DateTime?
   teamUsers        TeamUser[]
   domains          Domain[]
   apiKeys          ApiKey[]
@@ -157,6 +162,31 @@ model Team {
   webhookEndpoints Webhook[]
   webhookCalls     WebhookCall[]
   feedback         Feedback[]
+  actions          TeamAction[]
+}
+
+enum TeamActionType {
+  ALERT
+  PAUSE
+  RESUME
+  BLOCK
+  UNBLOCK
+}
+
+/// Every pause, block and alert on a team, by the sending rules, an admin or the Guard.
+model TeamAction {
+  id        String         @id @default(cuid())
+  teamId    Int
+  action    TeamActionType
+  /// "rules", "guard" or "admin:<email>"
+  actor     String
+  reason    String
+  details   Json?
+  createdAt DateTime       @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
 }
 
 model TeamInvite {
@@ -300,6 +330,11 @@ model Email {
 
   @@index([campaignId, contactId])
   @@index([createdAt(sort: Desc)])
+  // A team's emails, newest first: the dashboard email list and search, the
+  // public API's GET /emails (and its count), and the email export.
+  @@index([teamId, createdAt(sort: Desc)])
+  // The same, filtered by domain (domain-restricted API keys, domain filter).
+  @@index([teamId, domainId, createdAt(sort: Desc)])
 }
 
 model CampaignEmail {
@@ -411,6 +446,10 @@ model Campaign {
   batchWindowMinutes Int            @default(0)
   lastCursor         String?
   lastSentAt         DateTime?
+  /// A new team's campaign waits for the Guard's check until this time, then sends anyway.
+  reviewHoldUntil    DateTime?
+  /// Set when the Guard stops the campaign; it can't send again until the Guard approves it.
+  guardStoppedAt     DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 

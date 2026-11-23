@@ -35,7 +35,7 @@ export interface SesBounce {
     | "General"
     | "NoEmail"
     | "Suppressed"
-    | "OnAccountSuppressionList	"
+    | "OnAccountSuppressionList"
     | "MailboxFull"
     | "MessageTooLarge"
     | "ContentRejected"

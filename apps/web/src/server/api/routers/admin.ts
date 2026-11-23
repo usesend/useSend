@@ -14,6 +14,16 @@ import { toPlainHtml } from "~/server/utils/email-content";
 import { sesRegionSchema } from "~/lib/zod/ses-setting-schema";
 import { TeamService } from "~/server/service/team-service";
 import { WaitlistService } from "~/server/service/waitlist-service";
+import { unsentCampaignIds } from "~/server/service/sending-rules-service";
+import { adminReleaseCampaign } from "~/server/service/campaign-service";
+import {
+  GuardConflictError,
+  GuardNotFoundError,
+} from "~/server/service/guard-service";
+import { TRPCError } from "@trpc/server";
+
+/** Applications shown per filter on the admin waitlist page, newest first. */
+const PENDING_PAGE = 100;
 
 const waitlistUserSelection = {
   id: true,
@@ -55,8 +65,32 @@ const teamAdminSelection = {
   dailyEmailLimit: true,
   isBlocked: true,
   freePlanAllowed: true,
+  sendingPausedAt: true,
   billingEmail: true,
   createdAt: true,
+  campaigns: {
+    where: { guardStoppedAt: { not: null } },
+    orderBy: { guardStoppedAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      name: true,
+      guardStoppedAt: true,
+      total: true,
+      sent: true,
+    },
+  },
+  actions: {
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      action: true,
+      actor: true,
+      reason: true,
+      createdAt: true,
+    },
+  },
   teamUsers: {
     select: {
       role: true,
@@ -143,6 +177,59 @@ export const adminRouter = createTRPCRouter({
       );
     }),
 
+  /** Pending applications with the Guard's advice: suggested approvals first. */
+  pendingApplications: adminProcedure
+    .input(
+      z
+        .object({
+          /** The Guard's advice to show; "none" is not checked yet. */
+          verdict: z
+            .enum(["approve", "unsure", "reject", "none"])
+            .default("approve"),
+        })
+        .default({}),
+    )
+    .query(async ({ input }) => {
+      const pending = {
+        status: "PENDING" as const,
+        user: { isWaitlisted: true },
+      };
+      const [groups, applications] = await Promise.all([
+        db.waitlistApplication.groupBy({
+          by: ["guardVerdict"],
+          where: pending,
+          _count: { _all: true },
+        }),
+        db.waitlistApplication.findMany({
+          where: {
+            ...pending,
+            guardVerdict: input.verdict === "none" ? null : input.verdict,
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: PENDING_PAGE,
+          select: {
+            id: true,
+            userId: true,
+            email: true,
+            website: true,
+            emailTypes: true,
+            emailVolume: true,
+            listSource: true,
+            description: true,
+            guardVerdict: true,
+            guardNote: true,
+            createdAt: true,
+          },
+        }),
+      ]);
+      const counts = { approve: 0, unsure: 0, reject: 0, none: 0 };
+      for (const group of groups) {
+        const key = (group.guardVerdict ?? "none") as keyof typeof counts;
+        if (key in counts) counts[key] += group._count._all;
+      }
+      return { counts, items: applications, pageSize: PENDING_PAGE };
+    }),
+
   findUserByEmail: adminProcedure
     .input(
       z.object({
@@ -166,6 +253,12 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.number(),
         isWaitlisted: z.boolean(),
+        /**
+         * Let in someone already rejected. Only the lookup's deliberate
+         * switch sends this; the queue's Let in never does, so a stale tab
+         * can't welcome someone who was just rejected.
+         */
+        overrideRejection: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -178,42 +271,56 @@ export const adminRouter = createTRPCRouter({
         throw new Error("User not found");
       }
 
-      const updatedUser = await db.$transaction(async (tx) => {
-        const user = await tx.user.update({
-          where: { id: input.userId },
-          data: { isWaitlisted: input.isWaitlisted },
-          select: waitlistUserSelection,
-        });
-
-        if (existingUser.isWaitlisted && !input.isWaitlisted) {
-          await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+      const { updatedUser, letIn } = await db.$transaction(async (tx) => {
+        if (!input.isWaitlisted) {
+          // Same lock as rejecting, so the two can't cross.
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+          if (!input.overrideRejection) {
+            const application = await tx.waitlistApplication.findUnique({
+              where: { userId: input.userId },
+              select: { status: true },
+            });
+            if (application?.status === "REJECTED") {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Already rejected. Use the lookup below to let them in anyway.",
+              });
+            }
+          }
+          // Only the click that actually takes them off the waitlist sends the
+          // welcome email: a double click or a second tab changes nothing.
+          const { count } = await tx.user.updateMany({
+            where: { id: input.userId, isWaitlisted: true },
+            data: { isWaitlisted: false },
+          });
+          if (count === 1) {
+            await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+          }
           // Re-read so the admin page shows the approved application.
-          return tx.user.findUniqueOrThrow({
+          const user = await tx.user.findUniqueOrThrow({
             where: { id: input.userId },
             select: waitlistUserSelection,
           });
+          return { updatedUser: user, letIn: count === 1 };
         }
 
-        return user;
+        const user = await tx.user.update({
+          where: { id: input.userId },
+          data: { isWaitlisted: true },
+          select: waitlistUserSelection,
+        });
+        return { updatedUser: user, letIn: false };
       });
 
       const founderEmail = env.FOUNDER_EMAIL ?? undefined;
       const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
 
       const shouldSendAcceptanceEmail =
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        Boolean(updatedUser.email) &&
-        (founderEmail || fallbackFrom);
+        letIn && Boolean(updatedUser.email) && (founderEmail || fallbackFrom);
 
       // Add user to contact book when removed from waitlist (cloud only)
-      if (
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        isCloud() &&
-        env.CONTACT_BOOK_ID &&
-        updatedUser.email
-      ) {
+      if (letIn && isCloud() && env.CONTACT_BOOK_ID && updatedUser.email) {
         try {
           const client = new UseSend(env.USESEND_API_KEY);
 
@@ -319,6 +426,36 @@ export const adminRouter = createTRPCRouter({
 
       const fromOverride = founderEmail ?? undefined;
 
+      // Claim the decision first, so a double click, a second tab or someone
+      // who already has access never gets a rejection email.
+      const rejectedAt = new Date();
+      await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+        const current = await tx.user.findUniqueOrThrow({
+          where: { id: input.userId },
+          select: {
+            isWaitlisted: true,
+            waitlistApplication: { select: { status: true } },
+          },
+        });
+        if (!current.isWaitlisted) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "They already have access",
+          });
+        }
+        if (current.waitlistApplication?.status === "REJECTED") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Already rejected",
+          });
+        }
+        await tx.waitlistApplication.updateMany({
+          where: { userId: input.userId },
+          data: { status: "REJECTED", reviewedAt: rejectedAt },
+        });
+      });
+
       const text = [
         "Hello,",
         "",
@@ -343,10 +480,18 @@ export const adminRouter = createTRPCRouter({
           { userId: user.id, error },
           "Failed to send waitlist rejection email",
         );
+        // Put it back in the queue so it can be tried again.
+        await db.waitlistApplication.updateMany({
+          // Only this rejection, not a later one.
+          where: {
+            userId: user.id,
+            status: "REJECTED",
+            reviewedAt: rejectedAt,
+          },
+          data: { status: "PENDING", reviewedAt: null },
+        });
         throw new Error("Failed to send waitlist rejection email");
       }
-
-      await WaitlistService.setStatus(user.id, "REJECTED");
 
       return { sent: true };
     }),
@@ -413,6 +558,39 @@ export const adminRouter = createTRPCRouter({
       return team ?? null;
     }),
 
+  releaseCampaign: adminProcedure
+    .input(z.object({ campaignId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const campaign = await db.campaign.findUnique({
+        where: { id: input.campaignId },
+        select: { teamId: true },
+      });
+      if (!campaign) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign not found",
+        });
+      }
+      try {
+        await adminReleaseCampaign(
+          input.campaignId,
+          `admin:${ctx.session.user.email ?? ctx.session.user.id}`,
+        );
+      } catch (error) {
+        if (
+          error instanceof GuardConflictError ||
+          error instanceof GuardNotFoundError
+        ) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+      return db.team.findUnique({
+        where: { id: campaign.teamId },
+        select: teamAdminSelection,
+      });
+    }),
+
   updateTeamSettings: adminProcedure
     .input(
       z.object({
@@ -421,16 +599,85 @@ export const adminRouter = createTRPCRouter({
         dailyEmailLimit: z.number().int().min(0).max(10_000_000),
         isBlocked: z.boolean(),
         freePlanAllowed: z.boolean(),
+        sendingPaused: z.boolean(),
         plan: z.enum(["FREE", "BASIC"]),
       }),
     )
-    .mutation(async ({ input }) => {
-      const { teamId, ...data } = input;
+    .mutation(async ({ ctx, input }) => {
+      const { teamId, sendingPaused, ...data } = input;
 
-      const updatedTeam = await db.team.update({
-        where: { id: teamId },
-        data,
-        select: teamAdminSelection,
+      const actor = `admin:${ctx.session.user.email ?? ctx.session.user.id}`;
+
+      const updatedTeam = await db.$transaction(async (tx) => {
+        // Lock the row so a concurrent pause or block by the sending rules
+        // can't be overwritten without being logged.
+        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+        const existing = await tx.team.findUnique({
+          where: { id: teamId },
+          select: { isBlocked: true, sendingPausedAt: true },
+        });
+        if (!existing) {
+          throw new Error("Team not found");
+        }
+
+        const actions: Prisma.TeamActionCreateManyInput[] = [];
+        const resets =
+          (existing.isBlocked && !data.isBlocked) ||
+          (Boolean(existing.sendingPausedAt) && !sendingPaused);
+        // Campaigns that already sent aren't judged on old totals after a reset.
+        const resetDetails = resets
+          ? { unsentCampaignIds: await unsentCampaignIds(tx, teamId) }
+          : undefined;
+        if (existing.isBlocked !== data.isBlocked) {
+          actions.push({
+            teamId,
+            actor,
+            action: data.isBlocked ? "BLOCK" : "UNBLOCK",
+            reason: data.isBlocked
+              ? "Blocked by an admin"
+              : "Unblocked by an admin",
+            details: data.isBlocked ? undefined : resetDetails,
+          });
+        }
+        if (Boolean(existing.sendingPausedAt) !== sendingPaused) {
+          actions.push({
+            teamId,
+            actor,
+            action: sendingPaused ? "PAUSE" : "RESUME",
+            reason: sendingPaused
+              ? "Paused by an admin"
+              : "Resumed by an admin",
+            details: sendingPaused ? undefined : resetDetails,
+          });
+        }
+
+        // Log first, so the team returned below includes the new actions.
+        if (actions.length > 0) {
+          await tx.teamAction.createMany({ data: actions });
+        }
+
+        const stopsSending =
+          (data.isBlocked && !existing.isBlocked) ||
+          (sendingPaused && !existing.sendingPausedAt);
+        if (stopsSending) {
+          await tx.campaign.updateMany({
+            where: { teamId, status: { in: ["RUNNING", "SCHEDULED"] } },
+            data: { status: "PAUSED" },
+          });
+        }
+
+        const team = await tx.team.update({
+          where: { id: teamId },
+          data: {
+            ...data,
+            sendingPausedAt: sendingPaused
+              ? (existing.sendingPausedAt ?? new Date())
+              : null,
+          },
+          select: teamAdminSelection,
+        });
+
+        return team;
       });
 
       // Sending reads the cached team, so refresh it for blocks to apply now.

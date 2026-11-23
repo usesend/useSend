@@ -1,11 +1,13 @@
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
+import { isIP } from "node:net";
 import { env } from "~/env";
 import {
   Campaign,
   Contact,
   EmailStatus,
+  Prisma,
   UnsubscribeReason,
 } from "@prisma/client";
 import { EmailQueueService } from "./email-queue-service";
@@ -17,8 +19,10 @@ import {
 } from "../queue/queue-constants";
 import { logger } from "../logger/log";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { requeueJob } from "../queue/requeue-job";
 import { SuppressionService } from "./suppression-service";
 import { UnsendApiError } from "../public-api/api-error";
+import { emailTeam } from "./team-email";
 import {
   validateApiKeyDomainAccess,
   validateDomainFromEmail,
@@ -31,6 +35,17 @@ import {
 } from "../utils/contact-variable-replacement";
 import { updateContactSubscription } from "./contact-service";
 import { getCampaignUnsubscribeVariableValues } from "~/lib/constants/campaign";
+import {
+  GUARD_ACTOR,
+  GuardConflictError,
+  GuardNotFoundError,
+  assertGuardMayAct,
+  campaignContentHash,
+  isReviewHeld,
+  reviewBody,
+  reviewHoldFor,
+} from "~/server/service/guard-service";
+import type { z } from "zod";
 
 const CAMPAIGN_UNSUB_PLACEHOLDER_TOKENS = [
   "{{unsend_unsubscribe_url}}",
@@ -368,15 +383,27 @@ export async function sendCampaign(id: string) {
   });
 
   // Mark as scheduled (or keep running if already running), set totals and scheduledAt if not set
-  await db.campaign.update({
-    where: { id },
-    data: {
-      status: "SCHEDULED",
-      total,
-      scheduledAt: campaign.scheduledAt ?? new Date(),
-      lastCursor: campaign.lastCursor ?? null,
-    },
+  const reviewHoldUntil = await reviewHoldFor(campaign.teamId);
+  const scheduledAt = campaign.scheduledAt ?? new Date();
+  const lastCursor = campaign.lastCursor ?? null;
+  await db.$transaction(async (tx) => {
+    await lockTeamAndCheckNotStopped(tx, campaign.teamId, id);
+    await tx.campaign.update({
+      where: { id },
+      data: {
+        status: "SCHEDULED",
+        total,
+        scheduledAt,
+        lastCursor,
+        reviewHoldUntil,
+      },
+    });
   });
+
+  // Sending is an explicit choice: clear a batch that failed long ago, so the
+  // scheduler doesn't pause the campaign because of it (after the update, as
+  // in scheduleCampaign).
+  await CampaignBatchService.clearFailedBatch(id);
 
   // Kick off first batch immediately (idempotent by jobId)
   await CampaignBatchService.queueBatch({
@@ -464,16 +491,28 @@ export async function scheduleCampaign({
   const shouldResetCursor =
     campaign.status === "DRAFT" || campaign.status === "SENT";
 
-  await db.campaign.update({
-    where: { id: campaign.id },
-    data: {
-      status: "SCHEDULED",
-      scheduledAt,
-      total,
-      ...(batchSize ? { batchSize } : {}),
-      ...(shouldResetCursor ? { lastCursor: null } : {}),
-    },
+  // New teams' campaigns wait for the Guard's check (sends anyway later).
+  const reviewHoldUntil = await reviewHoldFor(teamId);
+  await db.$transaction(async (tx) => {
+    await lockTeamAndCheckNotStopped(tx, teamId, campaignId);
+    await tx.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "SCHEDULED",
+        scheduledAt,
+        total,
+        ...(batchSize ? { batchSize } : {}),
+        ...(shouldResetCursor ? { lastCursor: null } : {}),
+        reviewHoldUntil,
+      },
+    });
   });
+
+  // Scheduling is an explicit choice: clear a batch that failed long ago, so
+  // the scheduler doesn't pause the campaign because of it. This runs after the
+  // new schedule is saved, so the scheduler can't start an early batch in
+  // between. If it fails, the worst case is the campaign gets paused, not sent.
+  await CampaignBatchService.clearFailedBatch(campaign.id);
 
   return { ok: true };
 }
@@ -504,6 +543,48 @@ export async function pauseCampaign({
   return { ok: true };
 }
 
+function campaignUnderReviewError() {
+  return new UnsendApiError({
+    code: "FORBIDDEN",
+    message:
+      "Our team is reviewing this campaign. Write to hey@usesend.com if you have questions.",
+  });
+}
+
+/**
+ * Takes the Team row lock (the one pausing, blocking and the Guard take) and
+ * refuses a campaign the Guard stopped. Every change that sets a campaign
+ * sending runs this first, in the same transaction.
+ */
+async function lockTeamAndCheckNotStopped(
+  tx: Prisma.TransactionClient,
+  teamId: number,
+  campaignId: string,
+) {
+  await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+  const current = await tx.campaign.findUnique({
+    where: { id: campaignId },
+    select: { guardStoppedAt: true },
+  });
+  if (current?.guardStoppedAt) throw campaignUnderReviewError();
+}
+
+async function assertTeamCanSend(
+  client: Pick<typeof db, "team">,
+  teamId: number,
+) {
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { isBlocked: true, sendingPausedAt: true },
+  });
+  if (team?.isBlocked || team?.sendingPausedAt) {
+    throw new UnsendApiError({
+      code: "FORBIDDEN",
+      message: "Sending is paused on your account, so campaigns can't resume",
+    });
+  }
+}
+
 export async function resumeCampaign({
   campaignId,
   teamId,
@@ -522,18 +603,351 @@ export async function resumeCampaign({
     });
   }
 
-  if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
-    await db.campaign.update({
+  await assertTeamCanSend(db, teamId);
+
+  if (campaign.guardStoppedAt) throw campaignUnderReviewError();
+
+  const reviewHoldUntil = await reviewHoldFor(teamId);
+
+  // Resuming is an explicit choice, so it also clears a batch that failed long
+  // ago and that the scheduler no longer retries on its own.
+  await CampaignBatchService.clearFailedBatch(campaignId);
+
+  const status =
+    campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()
+      ? "SCHEDULED"
+      : "RUNNING";
+
+  // Check again and write the status under the team row lock that pausing and
+  // blocking take, so a pause landing in between can't be overwritten.
+  await db.$transaction(async (tx) => {
+    await lockTeamAndCheckNotStopped(tx, teamId, campaignId);
+    await assertTeamCanSend(tx, teamId);
+    await tx.campaign.update({
       where: { id: campaignId },
-      data: { status: "SCHEDULED" },
+      data: { status, reviewHoldUntil },
     });
-  } else {
-    await db.campaign.update({
-      where: { id: campaignId },
-      data: { status: "RUNNING" },
+  });
+
+  return { ok: true };
+}
+
+/**
+ * The Guard's decision on a campaign.
+ * - stop: pauses a sending campaign and marks it stopped (new teams only).
+ *   Nothing can set it sending again until the Guard approves it.
+ * - approve: must name the content fingerprint the Guard reviewed. Lets a
+ *   waiting campaign send now, or restarts one the Guard stopped.
+ * Both take the Team row lock and re-read the campaign under it.
+ */
+export async function guardReviewCampaign(
+  campaignId: string,
+  body: z.infer<typeof reviewBody>,
+) {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      teamId: true,
+      name: true,
+      status: true,
+      guardStoppedAt: true,
+      reviewHoldUntil: true,
+      team: { select: { createdAt: true, name: true } },
+    },
+  });
+  if (!campaign) throw new GuardNotFoundError("Campaign not found");
+  const { teamId } = campaign;
+
+  if (body.decision === "stop") {
+    assertGuardMayAct(campaign.team);
+    const stopData = {
+      status: "PAUSED" as const,
+      reviewHoldUntil: null,
+      guardStoppedAt: new Date(),
+    };
+    // Stopping it while still SCHEDULED is atomic proof no batch had started
+    // (the worker only starts from SCHEDULED with a conditional update).
+    let startedBeforeStop = false;
+    const stopped = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+      const fromScheduled = await tx.campaign.updateMany({
+        where: { id: campaignId, status: "SCHEDULED" },
+        data: stopData,
+      });
+      let count = fromScheduled.count;
+      if (count === 0) {
+        const fromRunning = await tx.campaign.updateMany({
+          where: { id: campaignId, status: "RUNNING" },
+          data: stopData,
+        });
+        count = fromRunning.count;
+        startedBeforeStop = count > 0;
+      }
+      if (count === 0) return false;
+      // Progress as of the stop (nothing can start it again now): a batch
+      // that ran before (paused, then rescheduled) moved the cursor.
+      const progress = await tx.campaign.findUnique({
+        where: { id: campaignId },
+        select: { sent: true, lastCursor: true },
+      });
+      if (progress && (progress.sent > 0 || Boolean(progress.lastCursor))) {
+        startedBeforeStop = true;
+      }
+      await tx.teamAction.create({
+        data: {
+          teamId,
+          action: "PAUSE",
+          actor: GUARD_ACTOR,
+          reason: `Stopped campaign "${campaign.name}": ${body.reason}`,
+          details: {
+            scope: "campaign",
+            campaignId,
+            source: GUARD_ACTOR,
+            customerReason: customerReason(body.reason),
+          },
+        },
+      });
+      return true;
     });
+    if (!stopped) {
+      throw new GuardConflictError(
+        `Campaign is ${campaign.status.toLowerCase()}, not sending`,
+      );
+    }
+    void emailTeam(
+      teamId,
+      `Your campaign "${campaign.name}" is on hold for review`,
+      campaignOnHoldEmail({
+        teamName: campaign.team.name,
+        campaignName: campaign.name,
+        reason: body.reason,
+        started: startedBeforeStop,
+      }),
+    ).catch((error: unknown) =>
+      logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),
+    );
+    return { ok: true, status: "PAUSED" };
   }
 
+  // Approve. Nothing to do for a campaign that isn't waiting or stopped.
+  if (!campaign.guardStoppedAt && !isReviewHeld(campaign)) {
+    return { ok: true, status: campaign.status };
+  }
+
+  if (campaign.guardStoppedAt) {
+    // As in resume and schedule: an explicit restart clears a batch that
+    // failed long ago, so the scheduler doesn't pause it again for that.
+    await CampaignBatchService.clearFailedBatch(campaignId);
+  }
+
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+    const current = await tx.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        status: true,
+        updatedAt: true,
+        guardStoppedAt: true,
+        from: true,
+        replyTo: true,
+        subject: true,
+        previewText: true,
+        html: true,
+        content: true,
+      },
+    });
+    if (!current) throw new GuardNotFoundError("Campaign not found");
+    // Stopped since it was first read: its old failed batch wasn't cleared.
+    if (current.guardStoppedAt && !campaign.guardStoppedAt) {
+      throw new GuardConflictError(
+        "The campaign was stopped meanwhile; review it again",
+      );
+    }
+    if (campaignContentHash(current) !== body.contentHash) {
+      throw new GuardConflictError(
+        "The campaign changed since it was reviewed; review it again",
+      );
+    }
+
+    if (current.guardStoppedAt) {
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { isBlocked: true, sendingPausedAt: true },
+      });
+      if (team?.isBlocked || team?.sendingPausedAt) {
+        throw new GuardConflictError(
+          "The team is paused or blocked; resume the team first",
+        );
+      }
+    }
+
+    // Only if nothing changed since the read above (an edit sets a new hold).
+    const { count } = await tx.campaign.updateMany({
+      where: { id: campaignId, updatedAt: current.updatedAt },
+      data: current.guardStoppedAt
+        ? { status: "SCHEDULED", guardStoppedAt: null, reviewHoldUntil: null }
+        : { reviewHoldUntil: null },
+    });
+    if (count === 0) {
+      throw new GuardConflictError(
+        "The campaign changed since it was reviewed; review it again",
+      );
+    }
+    return {
+      ok: true,
+      status: current.guardStoppedAt ? "SCHEDULED" : current.status,
+    };
+  });
+}
+
+const GENERIC_HOLD_REASON = "it needs a quick look from our team";
+
+/**
+ * The Guard's reason, made safe to show a customer: one short line, no links
+ * or email addresses (the model writes it, so don't pass anything through
+ * that could point people elsewhere).
+ */
+export function customerReason(reason: string) {
+  const cleaned = reason
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "")
+    .split(/\s+/)
+    .filter((word) => {
+      // Drop IP addresses (v4 or v6, bracketed, with a port or path).
+      const host = word
+        .replace(/^[(<]+|[)>.,;!?]+$/g, "")
+        .replace(/\/.*$/, "")
+        .replace(/^\[([^\]]+)\](:\d+)?$/, "$1")
+        .replace(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/, "$1");
+      return isIP(host) === 0;
+    })
+    .join(" ")
+    .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/[.\s]+$/, "");
+  if (cleaned.length < 8) return GENERIC_HOLD_REASON;
+  return cleaned.length > 200 ? `${cleaned.slice(0, 197).trimEnd()}…` : cleaned;
+}
+
+/** The email a team gets when the Guard puts its campaign on hold. */
+export function campaignOnHoldEmail(input: {
+  teamName: string;
+  campaignName: string;
+  reason: string;
+  started: boolean;
+}) {
+  const reason = customerReason(input.reason);
+  const intro = input.started
+    ? `We've put the rest of your campaign "${input.campaignName}" on hold, because ${reason}.`
+    : `We've put your campaign "${input.campaignName}" on hold before it went out, because ${reason}.`;
+  const sentLine = input.started
+    ? "Some emails may already have gone out; further sending is on hold."
+    : "Nothing has been sent yet.";
+  return [
+    `Hi ${input.teamName},`,
+    "",
+    intro,
+    "",
+    `In their first two weeks, new accounts' campaigns get a quick check. ${sentLine}`,
+    "",
+    "If we got this wrong, just reply to this email and we'll take a look, usually within a day.",
+    "",
+    "useSend",
+  ].join("\n");
+}
+
+/** Why the Guard is holding a campaign, for its page; null if it isn't. */
+export async function guardHoldFor(campaign: {
+  id: string;
+  teamId: number;
+  guardStoppedAt: Date | null;
+}) {
+  if (!campaign.guardStoppedAt) return null;
+  const stop = await db.teamAction.findFirst({
+    where: {
+      teamId: campaign.teamId,
+      actor: GUARD_ACTOR,
+      action: "PAUSE",
+      details: { path: ["campaignId"], equals: campaign.id },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { details: true },
+  });
+  const details = stop?.details as { customerReason?: string } | null;
+  return {
+    since: campaign.guardStoppedAt,
+    reason: details?.customerReason ?? null,
+  };
+}
+
+/**
+ * You release a campaign the Guard put on hold: it goes back to sending, and
+ * the team is told. Logged as an alert entry (a team RESUME would reset the
+ * sending rules' window).
+ */
+export async function adminReleaseCampaign(campaignId: string, actor: string) {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      teamId: true,
+      name: true,
+      guardStoppedAt: true,
+      team: { select: { name: true } },
+    },
+  });
+  if (!campaign) throw new GuardNotFoundError("Campaign not found");
+  if (!campaign.guardStoppedAt) {
+    throw new GuardConflictError("This campaign isn't on hold");
+  }
+  const { teamId } = campaign;
+
+  // As in resume: an explicit restart clears a batch that failed long ago.
+  await CampaignBatchService.clearFailedBatch(campaignId);
+
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
+    const team = await tx.team.findUnique({
+      where: { id: teamId },
+      select: { isBlocked: true, sendingPausedAt: true },
+    });
+    if (team?.isBlocked || team?.sendingPausedAt) {
+      throw new GuardConflictError(
+        "The team is paused or blocked; resume the team first",
+      );
+    }
+    const { count } = await tx.campaign.updateMany({
+      where: { id: campaignId, guardStoppedAt: { not: null } },
+      data: { status: "SCHEDULED", guardStoppedAt: null, reviewHoldUntil: null },
+    });
+    if (count === 0) throw new GuardConflictError("This campaign isn't on hold");
+    await tx.teamAction.create({
+      data: {
+        teamId,
+        action: "ALERT",
+        actor,
+        reason: `Released campaign "${campaign.name}" from the Guard's hold`,
+        details: { scope: "campaign", campaignId, source: "admin" },
+      },
+    });
+  });
+
+  void emailTeam(
+    teamId,
+    `Your campaign "${campaign.name}" is sending again`,
+    [
+      `Hi ${campaign.team.name},`,
+      "",
+      `Thanks for waiting. We've checked your campaign "${campaign.name}" and released it; it will continue as scheduled.`,
+      "",
+      "useSend",
+    ].join("\n"),
+  ).catch((error: unknown) =>
+    logger.error({ err: error, campaignId }, "[Guard]: Released email failed"),
+  );
   return { ok: true };
 }
 
@@ -1058,6 +1472,17 @@ export async function updateCampaignAnalytics(
 
 type CampaignBatchJob = TeamJob<{ campaignId: string }>;
 
+// A failed batch is retried by the scheduler after a short wait, so a batch
+// that keeps failing doesn't run on every 1.5s scheduler tick.
+const CAMPAIGN_BATCH_RETRY_AFTER_MS = 60 * 1000;
+// A batch that failed longer ago than this is not retried automatically, so an
+// old campaign never starts sending again by surprise: the campaign is paused
+// instead, and its owner can resume it.
+const CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS = 24 * 60 * 60 * 1000;
+
+const campaignBatchJobId = (campaignId: string) =>
+  `campaign-batch-${campaignId}`;
+
 export class CampaignBatchService {
   private static batchQueue = new Queue<CampaignBatchJob>(
     CAMPAIGN_BATCH_QUEUE,
@@ -1079,19 +1504,47 @@ export class CampaignBatchService {
       if (!campaign) return;
       if (!campaign.contactBookId) return;
 
-      // Skip paused campaigns
-      if (campaign.status === "PAUSED") return;
+      // Skip paused campaigns, and ones the Guard stopped
+      if (campaign.status === "PAUSED" || campaign.guardStoppedAt) return;
+
+      // A new team's campaign waits for the Guard's check, for a few minutes
+      // at most; the scheduler queues it again on its next tick.
+      if (isReviewHeld(campaign)) return;
 
       // Respect scheduledAt if set
       if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now())
         return;
 
-      // First touch moves SCHEDULED -> RUNNING
+      // First touch moves SCHEDULED -> RUNNING, only if nothing paused or
+      // stopped it since it was read above.
       if (campaign.status === "SCHEDULED") {
-        await db.campaign.update({
-          where: { id: campaignId },
+        const now = new Date();
+        const { count } = await db.campaign.updateMany({
+          where: {
+            id: campaignId,
+            status: "SCHEDULED",
+            guardStoppedAt: null,
+            OR: [{ reviewHoldUntil: null }, { reviewHoldUntil: { lte: now } }],
+          },
           data: { status: "RUNNING" },
         });
+        if (count === 0) {
+          const current = await db.campaign.findUnique({
+            where: { id: campaignId },
+            select: {
+              status: true,
+              guardStoppedAt: true,
+              reviewHoldUntil: true,
+            },
+          });
+          if (
+            current?.status !== "RUNNING" ||
+            current.guardStoppedAt ||
+            isReviewHeld(current)
+          ) {
+            return;
+          }
+        }
       }
 
       const batchSize = campaign.batchSize ?? 500;
@@ -1212,6 +1665,32 @@ export class CampaignBatchService {
     },
   );
 
+  static {
+    this.worker.on("failed", (job, err) => {
+      logger.error(
+        { err, campaignId: job?.data?.campaignId, jobId: job?.id },
+        "[CampaignBatchService]: Campaign batch failed; the scheduler retries it after a minute if the campaign is still running",
+      );
+    });
+  }
+
+  static async hasFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    return Boolean(job && (await job.isFailed()));
+  }
+
+  /** Removes a kept failed batch job for a campaign, if there is one. */
+  static async clearFailedBatch(campaignId: string) {
+    const job = await this.batchQueue.getJob(campaignBatchJobId(campaignId));
+    if (job && (await job.isFailed())) {
+      await job.remove();
+      logger.info(
+        { campaignId },
+        "[CampaignBatchService]: Cleared a failed batch on resume",
+      );
+    }
+  }
+
   static async queueBatch({
     campaignId,
     teamId,
@@ -1219,13 +1698,24 @@ export class CampaignBatchService {
     campaignId: string;
     teamId?: number;
   }) {
+    // When the campaign was last changed, read before looking at the queue.
+    // Pausing below only applies if updatedAt is unchanged since, an optimistic
+    // guard against undoing a resume or reschedule made at the same moment.
+    let seenUpdatedAt: Date | undefined;
+
     // Defensive check: avoid enqueue if window not elapsed (scheduler already enforces)
     try {
       const campaign = await db.campaign.findUnique({
         where: { id: campaignId },
-        select: { lastSentAt: true, batchWindowMinutes: true, status: true },
+        select: {
+          lastSentAt: true,
+          batchWindowMinutes: true,
+          status: true,
+          updatedAt: true,
+        },
       });
       if (!campaign) return;
+      seenUpdatedAt = campaign.updatedAt;
       if (campaign.status === "PAUSED" || campaign.status === "SENT") return;
       const windowMin = campaign.batchWindowMinutes ?? 0;
       if (windowMin > 0 && campaign.lastSentAt) {
@@ -1246,10 +1736,53 @@ export class CampaignBatchService {
       );
     }
 
-    await this.batchQueue.add(
+    // A plain add() would do nothing after a failed batch: BullMQ keeps the
+    // failed job under this fixed id for 30 days, and the campaign would stop.
+    const result = await requeueJob(
+      this.batchQueue,
       `campaign-${campaignId}`,
       { campaignId, teamId },
-      { jobId: `campaign-batch-${campaignId}`, ...DEFAULT_QUEUE_OPTIONS },
+      { jobId: campaignBatchJobId(campaignId), ...DEFAULT_QUEUE_OPTIONS },
+      {
+        retryFailedAfterMs: CAMPAIGN_BATCH_RETRY_AFTER_MS,
+        maxFailedAgeMs: CAMPAIGN_BATCH_MAX_AUTO_RETRY_AGE_MS,
+      },
     );
+
+    if (result === "retried") {
+      logger.warn(
+        { campaignId },
+        "[CampaignBatchService]: Retrying a failed campaign batch",
+      );
+    }
+
+    if (
+      result === "failed-too-long-ago" &&
+      seenUpdatedAt &&
+      // Check again right before pausing: resume, schedule and send clear the
+      // failed batch, and that must win. (A clear landing in the moment between
+      // this check and the update below can still pause the campaign; that is
+      // safe, as nothing is sent, and the owner can resume it.)
+      (await this.hasFailedBatch(campaignId))
+    ) {
+      // Pause in the database, not just skip: BullMQ deletes the failed job
+      // after 30 days, and the campaign would then restart on the next tick.
+      // The updatedAt check guards against undoing a resume or reschedule
+      // made while we were looking at the queue.
+      const paused = await db.campaign.updateMany({
+        where: {
+          id: campaignId,
+          status: { in: ["SCHEDULED", "RUNNING"] },
+          updatedAt: seenUpdatedAt,
+        },
+        data: { status: "PAUSED" },
+      });
+      if (paused.count > 0) {
+        logger.warn(
+          { campaignId },
+          "[CampaignBatchService]: Paused a campaign whose batch failed over a day ago; resume it to continue",
+        );
+      }
+    }
   }
 }

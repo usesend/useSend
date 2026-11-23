@@ -116,6 +116,20 @@ describe("LimitService.checkEmailLimit paid-only signups", () => {
     });
   });
 
+  it("stops a paused team from sending", async () => {
+    mockGetTeamCached.mockResolvedValue(
+      team({
+        freePlanAllowed: true,
+        sendingPausedAt: new Date().toISOString(),
+      }),
+    );
+
+    await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+      isLimitReached: true,
+      reason: LimitReason.EMAIL_SENDING_PAUSED,
+    });
+  });
+
   it("reports a block before the missing plan", async () => {
     mockGetTeamCached.mockResolvedValue(team({ isBlocked: true }));
 

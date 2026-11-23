@@ -17,6 +17,7 @@ import {
   getDocumentUploadUrl,
   isStorageConfigured,
 } from "~/server/service/storage-service";
+import { reviewHoldFor } from "~/server/service/guard-service";
 
 const statuses = Object.values(CampaignStatus) as [CampaignStatus];
 
@@ -164,11 +165,43 @@ export const campaignRouter = createTRPCRouter({
         campaignUpdateData.html = htmlToSave;
       }
 
-      const campaign = await db.campaign.update({
-        where: { id: campaignId },
-        data: campaignUpdateData,
+      // Changing what a sending campaign says sends it back for the Guard's
+      // check (new teams only; never clears a hold that's still waiting).
+      const changesContent =
+        data.content !== undefined ||
+        htmlToSave !== undefined ||
+        data.subject !== undefined ||
+        data.from !== undefined ||
+        data.previewText !== undefined ||
+        data.replyTo !== undefined;
+      const reviewHoldUntil = changesContent
+        ? await reviewHoldFor(team.id)
+        : null;
+
+      if (!reviewHoldUntil) {
+        return db.campaign.update({
+          where: { id: campaignId },
+          data: campaignUpdateData,
+        });
+      }
+
+      // Under the Team row lock the Guard's approval takes, decide from the
+      // campaign's current state, so an approval can't slip in between.
+      return db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${team.id} FOR UPDATE`;
+        const current = await tx.campaign.findUnique({
+          where: { id: campaignId },
+          select: { status: true },
+        });
+        const sending =
+          current?.status === "SCHEDULED" || current?.status === "RUNNING";
+        return tx.campaign.update({
+          where: { id: campaignId },
+          data: sending
+            ? { ...campaignUpdateData, reviewHoldUntil }
+            : campaignUpdateData,
+        });
       });
-      return campaign;
     }),
 
   deleteCampaign: campaignProcedure.mutation(async ({ ctx: { team }, input }) => {
@@ -188,17 +221,19 @@ export const campaignRouter = createTRPCRouter({
     }
 
     const imageUploadSupported = isStorageConfigured();
+    const guardHold = await campaignService.guardHoldFor(campaign);
 
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
         where: { id: campaign.contactBookId, teamId: team.id },
       });
-      return { ...campaign, contactBook, imageUploadSupported };
+      return { ...campaign, contactBook, imageUploadSupported, guardHold };
     }
     return {
       ...campaign,
       contactBook: null,
       imageUploadSupported,
+      guardHold,
     };
   }),
 

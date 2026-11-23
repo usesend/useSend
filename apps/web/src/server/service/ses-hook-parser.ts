@@ -3,6 +3,7 @@ import {
   SuppressionReason,
   UnsubscribeReason,
   type Email,
+  type Prisma,
 } from "@prisma/client";
 import {
   type EmailBasePayload,
@@ -31,6 +32,9 @@ import { getChildLogger, logger, withLogger } from "../logger/log";
 import { randomUUID } from "crypto";
 import { SuppressionService } from "./suppression-service";
 import { WebhookService } from "./webhook-service";
+import { checkSendingHealth } from "./sending-rules-service";
+import { isSpamTrapBounce } from "./sending-rules";
+import { claimOutcome, releaseOutcome } from "./ses-outcome-claims";
 
 export async function parseSesHook(data: SesEvent) {
   const mailStatus = getEmailStatus(data);
@@ -132,6 +136,13 @@ export async function parseSesHook(data: SesEvent) {
   const isHardBounced =
     mailStatus === EmailStatus.BOUNCED &&
     (mailData as SesBounce).bounceType === "Permanent";
+  // SES never tried to deliver to an address on our account's suppression
+  // list, and AWS doesn't count it toward the bounce rate. Neither do we: a
+  // team re-sending to one address shouldn't look like a bad list.
+  const countsAsHardBounce =
+    isHardBounced &&
+    String((mailData as SesBounce).bounceSubType ?? "").trim() !==
+      "OnAccountSuppressionList";
 
   // Fix: Only add the actual bounced/complained recipients to suppression list
   // Add emails to suppression list for hard bounces and complaints
@@ -204,76 +215,108 @@ export async function parseSesHook(data: SesEvent) {
 
   const isDuplicateEngagement = Boolean(existingMailEvent) && isEngagementEvent;
 
-  if (
-    !isDuplicateEngagement &&
-    [
-      "DELIVERED",
-      "OPENED",
-      "CLICKED",
-      "BOUNCED",
-      "COMPLAINED",
-      "SENT",
-    ].includes(mailStatus)
-  ) {
-    logger.info("Updating daily email usage");
-    const updateField = mailStatus.toLowerCase();
+  // SES can deliver the same hard bounce or complaint more than once. Count
+  // each only once per email: the sending rules and dashboards rely on it.
+  const outcome = countsAsHardBounce
+    ? ("hardBounced" as const)
+    : isHardBounced
+      ? ("suppressedBounce" as const)
+      : mailStatus === EmailStatus.COMPLAINED
+        ? ("complained" as const)
+        : null;
+  const claim = outcome ? await claimOutcome(email.id, outcome) : null;
+  // "unavailable" (Redis failed) still updates the dashboards, as before;
+  // only a confirmed duplicate is skipped.
+  const isDuplicateOutcome = claim === "duplicate";
 
-    await db.dailyEmailUsage.upsert({
-      where: {
-        teamId_domainId_date_type: {
-          teamId: email.teamId,
-          domainId: email.domainId ?? 0,
-          date: today,
-          type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
-        },
-      },
-      create: {
-        teamId: email.teamId,
-        domainId: email.domainId ?? 0,
-        date: today,
-        type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
-        delivered: updateField === "delivered" ? 1 : 0,
-        opened: updateField === "opened" ? 1 : 0,
-        clicked: updateField === "clicked" ? 1 : 0,
-        bounced: updateField === "bounced" ? 1 : 0,
-        complained: updateField === "complained" ? 1 : 0,
-        sent: updateField === "sent" ? 1 : 0,
-        hardBounced: isHardBounced ? 1 : 0,
-      },
-      update: {
-        [updateField]: {
-          increment: 1,
-        },
-        ...(isHardBounced ? { hardBounced: { increment: 1 } } : {}),
-      },
-    });
-
+  try {
     if (
-      isHardBounced ||
-      updateField === "complained" ||
-      updateField === "delivered"
+      !isDuplicateEngagement &&
+      !isDuplicateOutcome &&
+      [
+        "DELIVERED",
+        "OPENED",
+        "CLICKED",
+        "BOUNCED",
+        "COMPLAINED",
+        "SENT",
+      ].includes(mailStatus)
     ) {
-      logger.info("Updating cumulated metrics");
-      const cumulatedField = isHardBounced ? "hardBounced" : updateField;
-      await db.cumulatedMetrics.upsert({
-        where: {
-          teamId_domainId: {
+      logger.info("Updating daily email usage");
+      const updateField = mailStatus.toLowerCase();
+
+      // Both counters in one transaction, so a failure can't leave one
+      // counted and the other not (which a replay would then double).
+      const usageWrites: Prisma.PrismaPromise<unknown>[] = [
+        db.dailyEmailUsage.upsert({
+          where: {
+            teamId_domainId_date_type: {
+              teamId: email.teamId,
+              domainId: email.domainId ?? 0,
+              date: today,
+              type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
+            },
+          },
+          create: {
             teamId: email.teamId,
             domainId: email.domainId ?? 0,
+            date: today,
+            type: email.campaignId ? "MARKETING" : "TRANSACTIONAL",
+            delivered: updateField === "delivered" ? 1 : 0,
+            opened: updateField === "opened" ? 1 : 0,
+            clicked: updateField === "clicked" ? 1 : 0,
+            bounced: updateField === "bounced" ? 1 : 0,
+            complained: updateField === "complained" ? 1 : 0,
+            sent: updateField === "sent" ? 1 : 0,
+            hardBounced: countsAsHardBounce ? 1 : 0,
           },
-        },
-        update: {
-          [cumulatedField]: {
-            increment: BigInt(1),
+          update: {
+            [updateField]: {
+              increment: 1,
+            },
+            ...(countsAsHardBounce ? { hardBounced: { increment: 1 } } : {}),
           },
-        },
-        create: {
-          teamId: email.teamId,
-          domainId: email.domainId ?? 0,
-          [cumulatedField]: BigInt(1),
-        },
-      });
+        }),
+      ];
+
+      if (
+        countsAsHardBounce ||
+        updateField === "complained" ||
+        updateField === "delivered"
+      ) {
+        logger.info("Updating cumulated metrics");
+        const cumulatedField = countsAsHardBounce ? "hardBounced" : updateField;
+        usageWrites.push(
+          db.cumulatedMetrics.upsert({
+            where: {
+              teamId_domainId: {
+                teamId: email.teamId,
+                domainId: email.domainId ?? 0,
+              },
+            },
+            update: {
+              [cumulatedField]: {
+                increment: BigInt(1),
+              },
+            },
+            create: {
+              teamId: email.teamId,
+              domainId: email.domainId ?? 0,
+              [cumulatedField]: BigInt(1),
+            },
+          }),
+        );
+      }
+
+      await db.$transaction(usageWrites);
     }
+  } catch (error) {
+    // Nothing was counted, so give the claim back: a redelivery or replay of
+    // this event can then count it instead of finding it claimed.
+    if (outcome && claim === "claimed") {
+      await releaseOutcome(email.id, outcome);
+    }
+    throw error;
   }
 
   if (email.campaignId) {
@@ -293,9 +336,27 @@ export async function parseSesHook(data: SesEvent) {
         await updateCampaignAnalytics(
           email.campaignId,
           mailStatus,
-          isHardBounced,
+          countsAsHardBounce,
         );
       }
+    }
+  }
+
+  // Check the sending rules once per new hard bounce or complaint, after the
+  // counters above include it. A repeat of the same event doesn't re-run them.
+  if (outcome && outcome !== "suppressedBounce" && claim === "claimed") {
+    try {
+      await checkSendingHealth({
+        teamId: email.teamId,
+        campaignId: email.campaignId,
+        spamTrap: countsAsHardBounce && isSpamTrapBounce(data.bounce),
+      });
+    } catch (error) {
+      // Never fail event processing because of the rules.
+      logger.error(
+        { err: error, teamId: email.teamId },
+        "[SesHookParser]: Sending rules check failed",
+      );
     }
   }
 
@@ -412,8 +473,7 @@ function normalizeBounceSubType(
   subType: SesBounce["bounceSubType"] | undefined,
 ): EmailBounceSubType {
   const normalized = subType?.replace(/\s+/g, "") as
-    | EmailBounceSubType
-    | undefined;
+    EmailBounceSubType | undefined;
 
   const validSubTypes: EmailBounceSubType[] = [
     "General",

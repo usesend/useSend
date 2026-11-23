@@ -16,6 +16,7 @@ import {
   WEBHOOK_DISPATCH_QUEUE,
 } from "../queue/queue-constants";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
+import { requeueJob } from "../queue/requeue-job";
 import { logger } from "../logger/log";
 import { LimitService } from "./limit-service";
 import { withPlanLimitLock } from "./plan-limit-lock";
@@ -86,6 +87,20 @@ export class WebhookQueueService {
         callId,
         teamId,
       },
+      { jobId: callId },
+    );
+  }
+
+  /**
+   * Queues a call again when a user presses Retry. A plain add() would do
+   * nothing after the call used up its attempts, because the failed job is kept
+   * under the same id (see requeueJob).
+   */
+  public static async requeueCall(callId: string, teamId: number) {
+    return requeueJob(
+      this.queue,
+      callId,
+      { callId, teamId },
       { jobId: callId },
     );
   }
@@ -188,7 +203,31 @@ export class WebhookService {
       },
     });
 
-    await WebhookQueueService.enqueueCall(call.id, params.teamId);
+    try {
+      await WebhookQueueService.requeueCall(call.id, params.teamId);
+    } catch (error) {
+      // Nothing was queued: put the call back as it was, so it still shows as
+      // failed and can be retried again from the dashboard. Only undo our own
+      // reset (PENDING, attempt 0): once a worker picks the call up it sets
+      // attempt >= 1, and its result must not be overwritten.
+      await db.webhookCall.updateMany({
+        where: {
+          id: call.id,
+          status: WebhookCallStatus.PENDING,
+          attempt: 0,
+        },
+        data: {
+          status: call.status,
+          attempt: call.attempt,
+          nextAttemptAt: call.nextAttemptAt,
+          lastError: call.lastError,
+          responseStatus: call.responseStatus,
+          responseTimeMs: call.responseTimeMs,
+          responseText: call.responseText,
+        },
+      });
+      throw error;
+    }
 
     return call.id;
   }
