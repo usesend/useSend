@@ -930,6 +930,9 @@ describe("telling the team about a hold", () => {
     expect(customerReason("please review ftp://192.0.2.1/verify and 203.0.113.9/login today")).toBe(
       "please review and today",
     );
+    expect(customerReason("please review 2001:db8::1 and [2001:db8::2]:443 today")).toBe(
+      "please review and today",
+    );
     expect(customerReason("  ")).toBe("it needs a quick look from our team");
     expect(customerReason("x".repeat(300)).length).toBeLessThanOrEqual(200);
   });

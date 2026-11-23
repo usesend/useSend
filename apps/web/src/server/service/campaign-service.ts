@@ -1,6 +1,7 @@
 import { EmailRenderer } from "@usesend/email-editor/src/renderer";
 import { db } from "../db";
 import { createHash } from "crypto";
+import { isIP } from "node:net";
 import { env } from "~/env";
 import {
   Campaign,
@@ -810,7 +811,17 @@ const GENERIC_HOLD_REASON = "it needs a quick look from our team";
 export function customerReason(reason: string) {
   const cleaned = reason
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "")
-    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/\S*)?/g, "")
+    .split(/\s+/)
+    .filter((word) => {
+      // Drop IP addresses (v4 or v6, bracketed, with a port or path).
+      const host = word
+        .replace(/^[[(<]+|[\])>.,;:!?]+$/g, "")
+        .replace(/\/.*$/, "")
+        .replace(/^\[([^\]]+)\](:\d+)?$/, "$1")
+        .replace(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/, "$1");
+      return isIP(host) === 0;
+    })
+    .join(" ")
     .replace(/\S+@\S+\.\S+/g, "")
     .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
     .replace(/[\r\n\t]+/g, " ")
