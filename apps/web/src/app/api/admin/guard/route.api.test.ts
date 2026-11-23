@@ -4,6 +4,7 @@ const { mockEnv, mocks } = vi.hoisted(() => ({
   mockEnv: { ADMIN_API_TOKEN: undefined as string | undefined },
   mocks: {
     listApplications: vi.fn(),
+    recordApplicationVerdict: vi.fn(),
     listNewEmails: vi.fn(),
     listActiveCampaigns: vi.fn(),
     markGuardSeen: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock("~/server/service/campaign-service", () => ({
 }));
 
 import { GET as getApplications } from "~/app/api/admin/guard/applications/route";
+import { POST as postVerdict } from "~/app/api/admin/guard/applications/[id]/verdict/route";
 import { GET as getCampaigns } from "~/app/api/admin/guard/campaigns/route";
 import { GET as getNewEmails } from "~/app/api/admin/guard/emails/route";
 import { POST as postReview } from "~/app/api/admin/guard/campaigns/[id]/review/route";
@@ -113,6 +115,47 @@ describe("Guard admin API", () => {
       ctx(),
     );
     expect(bad.status).toBe(400);
+  });
+
+  it("saves the Guard's advice on an application", async () => {
+    const response = await postVerdict(
+      post("/api/admin/guard/applications/app_1/verdict", {
+        verdict: "approve",
+        note: "Real SaaS, transactional only.",
+        revision: "2026-11-22T13:52:29.110Z",
+      }),
+      ctx({ id: "app_1" }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.recordApplicationVerdict).toHaveBeenCalledWith("app_1", {
+      verdict: "approve",
+      note: "Real SaaS, transactional only.",
+      revision: "2026-11-22T13:52:29.110Z",
+    });
+
+    const bad = await postVerdict(
+      post("/api/admin/guard/applications/app_1/verdict", {
+        verdict: "yes",
+        note: "x",
+      }),
+      ctx({ id: "app_1" }),
+    );
+    expect(bad.status).toBe(400);
+  });
+
+  it("says when the application was already decided", async () => {
+    mocks.recordApplicationVerdict.mockRejectedValue(
+      new GuardConflictError("Application was already decided"),
+    );
+    const response = await postVerdict(
+      post("/api/admin/guard/applications/app_1/verdict", {
+        verdict: "reject",
+        note: "x",
+        revision: "2026-11-22T13:52:29.110Z",
+      }),
+      ctx({ id: "app_1" }),
+    );
+    expect(response.status).toBe(409);
   });
 
   it("lists new teams for 14 days by default", async () => {

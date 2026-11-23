@@ -179,6 +179,11 @@ export const applicationsQuery = z.object({
   status: z.nativeEnum(WaitlistStatus).default("PENDING"),
   since: z.coerce.date().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  /** Only applications without the Guard's advice yet. */
+  needsAdvice: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
 });
 
 export async function listApplications(
@@ -188,6 +193,7 @@ export async function listApplications(
     where: {
       status: query.status,
       ...(query.since ? { createdAt: { gt: query.since } } : {}),
+      ...(query.needsAdvice ? { guardVerdict: null } : {}),
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: query.limit,
@@ -202,10 +208,58 @@ export async function listApplications(
       listSource: true,
       description: true,
       status: true,
+      guardVerdict: true,
       createdAt: true,
+      updatedAt: true,
     },
   });
-  return { items };
+  // `revision` changes on every resubmission; advice is saved against it.
+  return {
+    items: items.map(({ updatedAt, ...item }) => ({
+      ...item,
+      revision: updatedAt.toISOString(),
+    })),
+  };
+}
+
+export const applicationVerdictBody = z.object({
+  verdict: z.enum(["approve", "reject", "unsure"]),
+  note: z.string().trim().min(1).max(2_000),
+  /** The `revision` the Guard reviewed. 409 if they resubmitted since. */
+  revision: z.string().datetime(),
+});
+
+/**
+ * Saves the Guard's advice on a pending application, for the admin page.
+ * It's advice only: the founder lets people in or rejects them.
+ */
+export async function recordApplicationVerdict(
+  id: string,
+  input: z.infer<typeof applicationVerdictBody>,
+) {
+  const revision = new Date(input.revision);
+  const { count } = await db.waitlistApplication.updateMany({
+    where: { id, status: "PENDING", updatedAt: revision },
+    // Keep updatedAt, so the revision only changes when they resubmit.
+    data: {
+      guardVerdict: input.verdict,
+      guardNote: input.note,
+      updatedAt: revision,
+    },
+  });
+  if (count === 0) {
+    const current = await db.waitlistApplication.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (!current) throw new GuardNotFoundError("Application not found");
+    throw new GuardConflictError(
+      current.status === "PENDING"
+        ? "They resubmitted since you read it: read it again"
+        : "Application was already decided",
+    );
+  }
+  return { ok: true };
 }
 
 // --- Campaigns ---

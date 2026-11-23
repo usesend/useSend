@@ -69,7 +69,13 @@ const teamAdminSelection = {
     where: { guardStoppedAt: { not: null } },
     orderBy: { guardStoppedAt: "desc" },
     take: 20,
-    select: { id: true, name: true, guardStoppedAt: true, total: true, sent: true },
+    select: {
+      id: true,
+      name: true,
+      guardStoppedAt: true,
+      total: true,
+      sent: true,
+    },
   },
   actions: {
     orderBy: { createdAt: "desc" },
@@ -168,6 +174,33 @@ export const adminRouter = createTRPCRouter({
       );
     }),
 
+  /** Pending applications with the Guard's advice: suggested approvals first. */
+  pendingApplications: adminProcedure.query(async () => {
+    const applications = await db.waitlistApplication.findMany({
+      where: { status: "PENDING", user: { isWaitlisted: true } },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+      select: {
+        id: true,
+        userId: true,
+        email: true,
+        website: true,
+        emailTypes: true,
+        emailVolume: true,
+        listSource: true,
+        description: true,
+        guardVerdict: true,
+        guardNote: true,
+        createdAt: true,
+      },
+    });
+    const order = (verdict: string | null) =>
+      ["approve", "unsure", "reject"].indexOf(verdict ?? "") + 1 || 4;
+    return applications.sort(
+      (a, b) => order(a.guardVerdict) - order(b.guardVerdict),
+    );
+  }),
+
   findUserByEmail: adminProcedure
     .input(
       z.object({
@@ -191,6 +224,12 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.number(),
         isWaitlisted: z.boolean(),
+        /**
+         * Let in someone already rejected. Only the lookup's deliberate
+         * switch sends this; the queue's Let in never does, so a stale tab
+         * can't welcome someone who was just rejected.
+         */
+        overrideRejection: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -203,42 +242,56 @@ export const adminRouter = createTRPCRouter({
         throw new Error("User not found");
       }
 
-      const updatedUser = await db.$transaction(async (tx) => {
-        const user = await tx.user.update({
-          where: { id: input.userId },
-          data: { isWaitlisted: input.isWaitlisted },
-          select: waitlistUserSelection,
-        });
-
-        if (existingUser.isWaitlisted && !input.isWaitlisted) {
-          await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+      const { updatedUser, letIn } = await db.$transaction(async (tx) => {
+        if (!input.isWaitlisted) {
+          // Same lock as rejecting, so the two can't cross.
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+          if (!input.overrideRejection) {
+            const application = await tx.waitlistApplication.findUnique({
+              where: { userId: input.userId },
+              select: { status: true },
+            });
+            if (application?.status === "REJECTED") {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Already rejected. Use the lookup below to let them in anyway.",
+              });
+            }
+          }
+          // Only the click that actually takes them off the waitlist sends the
+          // welcome email: a double click or a second tab changes nothing.
+          const { count } = await tx.user.updateMany({
+            where: { id: input.userId, isWaitlisted: true },
+            data: { isWaitlisted: false },
+          });
+          if (count === 1) {
+            await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+          }
           // Re-read so the admin page shows the approved application.
-          return tx.user.findUniqueOrThrow({
+          const user = await tx.user.findUniqueOrThrow({
             where: { id: input.userId },
             select: waitlistUserSelection,
           });
+          return { updatedUser: user, letIn: count === 1 };
         }
 
-        return user;
+        const user = await tx.user.update({
+          where: { id: input.userId },
+          data: { isWaitlisted: true },
+          select: waitlistUserSelection,
+        });
+        return { updatedUser: user, letIn: false };
       });
 
       const founderEmail = env.FOUNDER_EMAIL ?? undefined;
       const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
 
       const shouldSendAcceptanceEmail =
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        Boolean(updatedUser.email) &&
-        (founderEmail || fallbackFrom);
+        letIn && Boolean(updatedUser.email) && (founderEmail || fallbackFrom);
 
       // Add user to contact book when removed from waitlist (cloud only)
-      if (
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        isCloud() &&
-        env.CONTACT_BOOK_ID &&
-        updatedUser.email
-      ) {
+      if (letIn && isCloud() && env.CONTACT_BOOK_ID && updatedUser.email) {
         try {
           const client = new UseSend(env.USESEND_API_KEY);
 
@@ -344,6 +397,36 @@ export const adminRouter = createTRPCRouter({
 
       const fromOverride = founderEmail ?? undefined;
 
+      // Claim the decision first, so a double click, a second tab or someone
+      // who already has access never gets a rejection email.
+      const rejectedAt = new Date();
+      await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+        const current = await tx.user.findUniqueOrThrow({
+          where: { id: input.userId },
+          select: {
+            isWaitlisted: true,
+            waitlistApplication: { select: { status: true } },
+          },
+        });
+        if (!current.isWaitlisted) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "They already have access",
+          });
+        }
+        if (current.waitlistApplication?.status === "REJECTED") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Already rejected",
+          });
+        }
+        await tx.waitlistApplication.updateMany({
+          where: { userId: input.userId },
+          data: { status: "REJECTED", reviewedAt: rejectedAt },
+        });
+      });
+
       const text = [
         "Hello,",
         "",
@@ -368,10 +451,18 @@ export const adminRouter = createTRPCRouter({
           { userId: user.id, error },
           "Failed to send waitlist rejection email",
         );
+        // Put it back in the queue so it can be tried again.
+        await db.waitlistApplication.updateMany({
+          // Only this rejection, not a later one.
+          where: {
+            userId: user.id,
+            status: "REJECTED",
+            reviewedAt: rejectedAt,
+          },
+          data: { status: "PENDING", reviewedAt: null },
+        });
         throw new Error("Failed to send waitlist rejection email");
       }
-
-      await WaitlistService.setStatus(user.id, "REJECTED");
 
       return { sent: true };
     }),
@@ -446,7 +537,10 @@ export const adminRouter = createTRPCRouter({
         select: { teamId: true },
       });
       if (!campaign) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign not found",
+        });
       }
       try {
         await adminReleaseCampaign(
@@ -454,7 +548,10 @@ export const adminRouter = createTRPCRouter({
           `admin:${ctx.session.user.email ?? ctx.session.user.id}`,
         );
       } catch (error) {
-        if (error instanceof GuardConflictError || error instanceof GuardNotFoundError) {
+        if (
+          error instanceof GuardConflictError ||
+          error instanceof GuardNotFoundError
+        ) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
         throw error;
