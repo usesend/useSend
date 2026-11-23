@@ -22,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { api } from "~/trpc/react";
 import { isCloud } from "~/utils/common";
+import { PendingApplications } from "./PendingApplications";
 import type { AppRouter } from "~/server/api/root";
 import type { inferRouterOutputs } from "@trpc/server";
 
@@ -97,7 +98,13 @@ export default function AdminWaitlistPage() {
 
   const handleToggle = (checked: boolean) => {
     if (!userResult) return;
-    updateWaitlist.mutate({ userId: userResult.id, isWaitlisted: checked });
+    // A deliberate switch on the person you looked up, so it may override a
+    // rejection.
+    updateWaitlist.mutate({
+      userId: userResult.id,
+      isWaitlisted: checked,
+      overrideRejection: true,
+    });
   };
 
   const handleReject = () => {
@@ -115,6 +122,14 @@ export default function AdminWaitlistPage() {
 
   return (
     <div className="space-y-6">
+      <PendingApplications
+        onDecided={(userId) => {
+          if (userResult?.id === userId && userResult.email) {
+            findUser.mutate({ email: userResult.email });
+          }
+        }}
+      />
+
       <div className="rounded-lg border p-6 shadow-sm">
         <Form {...form}>
           <form

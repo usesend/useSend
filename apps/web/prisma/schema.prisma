@@ -114,6 +114,9 @@ model WaitlistApplication {
   description String
   status      WaitlistStatus @default(PENDING)
   reviewedAt  DateTime?
+  /// The Guard's advice (approve, reject or unsure) and why. The founder decides.
+  guardVerdict String?
+  guardNote    String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
