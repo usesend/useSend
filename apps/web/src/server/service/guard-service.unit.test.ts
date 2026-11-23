@@ -291,7 +291,14 @@ describe("recordTeamAction", () => {
     expect(result.changed).toBe(true);
     expect(mockDb.$queryRaw).toHaveBeenCalled();
     expect(mockDb.team.updateMany).toHaveBeenCalledWith({
-      where: { id: 7, isBlocked: false, sendingPausedAt: null },
+      where: {
+        id: 7,
+        isBlocked: false,
+        sendingPausedAt: null,
+        // Rechecked in the update itself, so a team can't age past 14 days
+        // between the check and the pause.
+        createdAt: { gte: expect.any(Date) },
+      },
       data: { sendingPausedAt: expect.any(Date) },
     });
     expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
@@ -326,60 +333,80 @@ describe("recordTeamAction", () => {
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
   });
 
-  describe("an older team", () => {
+  describe("an established customer", () => {
+    beforeEach(() => {
+      mockDb.team.findUnique.mockResolvedValue({
+        id: 374,
+        name: "Arali",
+        createdAt: new Date(Date.now() - 365 * DAY),
+      });
+      mockDb.team.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("is never paused by the Guard, even with evidence", async () => {
+      mockDb.email.findMany.mockResolvedValue([{ subject: "Lead assigned" }]);
+      for (const abuse of ["cold_outreach", "phishing"] as const) {
+        await expect(
+          recordTeamAction(374, {
+            action: "PAUSE",
+            reason: "x",
+            abuse,
+            emailIds: ["e1"],
+          }),
+        ).rejects.toBeInstanceOf(GuardForbiddenError);
+      }
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+      expect(mockEmailTeam).not.toHaveBeenCalled();
+      expect(mockSendToDiscord).not.toHaveBeenCalled();
+    });
+
+    it("can still get an alert", async () => {
+      const result = await recordTeamAction(374, {
+        action: "ALERT",
+        reason: "x",
+      });
+      expect(result.changed).toBe(false);
+    });
+  });
+
+  describe("a new team paused for a terms break", () => {
     beforeEach(() => {
       mockDb.team.findUnique.mockResolvedValue({
         id: 7,
-        name: "Motionstack",
-        createdAt: new Date(Date.now() - 365 * DAY),
+        name: "Fresh",
+        createdAt: new Date(Date.now() - DAY),
       });
       mockDb.team.updateMany.mockResolvedValue({ count: 1 });
       mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
     });
 
-    it("is paused for phishing, with the emails that show it, and told why", async () => {
+    it("is told why, with the evidence subjects, and Discord hears", async () => {
       mockDb.email.findMany.mockResolvedValue([
         { subject: "Your E-ZPass Invoice Notification" },
         { subject: "Your E-ZPass Invoice Notification" },
       ]);
-
       const result = await recordTeamAction(7, {
         action: "PAUSE",
         reason: "E-ZPass phishing",
         abuse: "phishing",
         emailIds: ["e1", "e2"],
       });
-
       expect(result.changed).toBe(true);
       expect(mockDb.email.findMany).toHaveBeenCalledWith({
         where: { id: { in: ["e1", "e2"] }, teamId: 7 },
         select: { subject: true },
       });
       expect(mockSendToDiscord).toHaveBeenCalledTimes(1);
-      expect(mockSendToDiscord.mock.calls[0]![0]).toMatch(
-        /Guard paused Motionstack.*#7.*customer since.*phishing \(2 emails/s,
-      );
-      expect(mockEmailTeam).toHaveBeenCalledTimes(1);
       const [, subject, text] = mockEmailTeam.mock.calls[0]!;
       expect(subject).toContain("paused");
       expect(text).toContain("Your E-ZPass Invoice Notification");
-      expect(text).toContain("API keys has probably leaked");
-      // The AI's own wording never reaches the customer.
       expect(text).not.toContain("E-ZPass phishing");
     });
 
-    it("isn't paused for anything else", async () => {
-      await expect(
-        recordTeamAction(7, { action: "PAUSE", reason: "spammy" }),
-      ).rejects.toBeInstanceOf(GuardForbiddenError);
-      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
-    });
-
-    it("isn't paused without evidence, or with another team's emails", async () => {
+    it("needs evidence that's this team's own", async () => {
       await expect(
         recordTeamAction(7, { action: "PAUSE", reason: "x", abuse: "scam" }),
       ).rejects.toThrow("emailIds");
-
       mockDb.email.findMany.mockResolvedValue([{ subject: "a" }]);
       await expect(
         recordTeamAction(7, {
@@ -390,7 +417,6 @@ describe("recordTeamAction", () => {
         }),
       ).rejects.toThrow("aren't this team's");
       expect(mockDb.team.updateMany).not.toHaveBeenCalled();
-      expect(mockEmailTeam).not.toHaveBeenCalled();
     });
   });
 

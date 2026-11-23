@@ -15,9 +15,8 @@ import { sendToDiscord } from "~/server/service/notification-service";
  * What the Guard (our separate review service) can read and do, through the
  * internal admin API. It reads applications, campaigns, new teams and their
  * emails; it can approve or stop a campaign, log an alert, and pause a team.
- * It can never block or resume a team, or delete anything. It pauses older
- * teams only for a clear break of the terms (phishing, scams, cold outreach,
- * gambling and the other banned kinds), naming the emails that show it.
+ * It can never block or resume a team, or delete anything, and it can only
+ * pause teams in their first 14 days: established customers get alerts.
  *
  * New teams' campaigns wait for the Guard's check before sending, but only
  * while the Guard is running (it checks in by listing campaigns), and only
@@ -573,8 +572,9 @@ export async function recordTeamAction(
     return { ok: true, changed: false };
   }
 
-  // New teams can be paused for anything clear; older teams only for
-  // phishing or scams, with the emails that show it.
+  // The Guard only ever pauses new teams. An established customer is never
+  // paused automatically: the Guard alerts and the founder decides.
+  assertGuardMayAct(team);
   let evidence: Array<{ subject: string }> = [];
   if (body.abuse) {
     const ids = [...new Set(body.emailIds ?? [])];
@@ -588,14 +588,18 @@ export async function recordTeamAction(
     if (evidence.length !== ids.length) {
       throw new GuardForbiddenError("Some of those emails aren't this team's");
     }
-  } else {
-    assertGuardMayAct(team);
   }
 
   const changed = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
     const { count } = await tx.team.updateMany({
-      where: { id: teamId, isBlocked: false, sendingPausedAt: null },
+      // Still new at the moment of the pause, not just when it was checked.
+      where: {
+        id: teamId,
+        isBlocked: false,
+        sendingPausedAt: null,
+        createdAt: { gte: watchStart() },
+      },
       data: { sendingPausedAt: new Date() },
     });
     if (count === 0) return false;
