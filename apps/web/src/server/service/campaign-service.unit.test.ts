@@ -669,8 +669,6 @@ describe("guardReviewCampaign", () => {
       status: "SCHEDULED",
       guardStoppedAt: null,
       reviewHoldUntil: new Date(Date.now() + 5 * 60_000),
-      sent: 0,
-      lastCursor: null,
       team: { createdAt: new Date(), name: "Acme" },
       ...overrides,
     };
@@ -727,6 +725,18 @@ describe("guardReviewCampaign", () => {
       7,
       'Your campaign "Launch" is on hold for review',
       expect.stringContaining("Nothing has been sent yet."),
+    );
+  });
+
+  it("treats a campaign whose cursor moved as started, read at the stop", async () => {
+    mockTx.campaign.findUnique.mockResolvedValueOnce({ sent: 0, lastCursor: "contact_9" });
+
+    await guardReviewCampaign("cmp_1", { decision: "stop", reason: "bought list" });
+
+    expect(mockEmailTeam).toHaveBeenCalledWith(
+      7,
+      expect.any(String),
+      expect.stringContaining("Some emails may already have gone out"),
     );
   });
 
@@ -916,6 +926,9 @@ describe("telling the team about a hold", () => {
     );
     expect(customerReason("go to evil-login.com/verify now, it links to a phishing site")).toBe(
       "go to now, it links to a phishing site",
+    );
+    expect(customerReason("please review ftp://192.0.2.1/verify and 203.0.113.9/login today")).toBe(
+      "please review and today",
     );
     expect(customerReason("  ")).toBe("it needs a quick look from our team");
     expect(customerReason("x".repeat(300)).length).toBeLessThanOrEqual(200);

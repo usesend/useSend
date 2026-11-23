@@ -650,8 +650,6 @@ export async function guardReviewCampaign(
       teamId: true,
       name: true,
       status: true,
-      sent: true,
-      lastCursor: true,
       guardStoppedAt: true,
       reviewHoldUntil: true,
       team: { select: { createdAt: true, name: true } },
@@ -686,6 +684,15 @@ export async function guardReviewCampaign(
         startedBeforeStop = count > 0;
       }
       if (count === 0) return false;
+      // Progress as of the stop (nothing can start it again now): a batch
+      // that ran before (paused, then rescheduled) moved the cursor.
+      const progress = await tx.campaign.findUnique({
+        where: { id: campaignId },
+        select: { sent: true, lastCursor: true },
+      });
+      if (progress && (progress.sent > 0 || Boolean(progress.lastCursor))) {
+        startedBeforeStop = true;
+      }
       await tx.teamAction.create({
         data: {
           teamId,
@@ -714,10 +721,7 @@ export async function guardReviewCampaign(
         teamName: campaign.team.name,
         campaignName: campaign.name,
         reason: body.reason,
-        // A SCHEDULED campaign that ran a batch before (paused, then
-        // rescheduled) has also started: its cursor moved.
-        started:
-          startedBeforeStop || campaign.sent > 0 || campaign.lastCursor !== null,
+        started: startedBeforeStop,
       }),
     ).catch((error: unknown) =>
       logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),
@@ -805,7 +809,8 @@ const GENERIC_HOLD_REASON = "it needs a quick look from our team";
  */
 export function customerReason(reason: string) {
   const cleaned = reason
-    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "")
+    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/\S*)?/g, "")
     .replace(/\S+@\S+\.\S+/g, "")
     .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
     .replace(/[\r\n\t]+/g, " ")

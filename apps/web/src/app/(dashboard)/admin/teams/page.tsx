@@ -79,6 +79,20 @@ export default function AdminTeamsPage() {
     },
   });
 
+  // Reset the form only when a different team or new settings arrive, not
+  // when just the held campaigns or actions change (a Release keeps edits).
+  const settingsKey = team
+    ? JSON.stringify([
+        team.id,
+        team.apiRateLimit,
+        team.dailyEmailLimit,
+        team.isBlocked,
+        team.freePlanAllowed,
+        Boolean(team.sendingPausedAt),
+        team.plan,
+      ])
+    : null;
+
   useEffect(() => {
     if (team) {
       updateForm.reset({
@@ -90,7 +104,8 @@ export default function AdminTeamsPage() {
         plan: team.plan,
       });
     }
-  }, [team, updateForm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsKey, updateForm]);
 
   if (!isCloud()) {
     return (
