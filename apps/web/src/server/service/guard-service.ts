@@ -16,7 +16,8 @@ import { sendToDiscord } from "~/server/service/notification-service";
  * internal admin API. It reads applications, campaigns, new teams and their
  * emails; it can approve or stop a campaign, log an alert, and pause a team.
  * It can never block or resume a team, or delete anything. It pauses older
- * teams only for phishing or scams, naming the emails that show it.
+ * teams only for a clear break of the terms (phishing, scams, cold outreach,
+ * gambling and the other banned kinds), naming the emails that show it.
  *
  * New teams' campaigns wait for the Guard's check before sending, but only
  * while the Guard is running (it checks in by listing campaigns), and only
@@ -423,8 +424,18 @@ export const teamActionBody = z.object({
   action: z.enum(["ALERT", "PAUSE"]),
   reason: z.string().trim().min(1).max(2_000),
   details: z.record(z.unknown()).optional(),
-  /** Needed to pause a team past its first 14 days. */
-  abuse: z.enum(["phishing", "scam"]).optional(),
+  /** The rule broken. Needed to pause a team past its first 14 days. */
+  abuse: z
+    .enum([
+      "phishing",
+      "scam",
+      "cold_outreach",
+      "gambling",
+      "adult",
+      "money_scheme",
+      "pharma",
+    ])
+    .optional(),
   /** The team's emails that show the abuse. Needed with `abuse`. */
   emailIds: z.array(z.string().min(1)).min(1).max(20).optional(),
 });
@@ -433,7 +444,16 @@ const ABUSE_LABEL = {
   phishing:
     "phishing (pretending to be another company to get people's details)",
   scam: "a scam",
+  cold_outreach:
+    "cold outreach (emails to people who never signed up to hear from you)",
+  gambling: "gambling or betting",
+  adult: "adult content",
+  money_scheme: "crypto, trading, MLM or make-money schemes",
+  pharma: "pharmaceuticals or supplements with medical claims",
 } as const;
+
+/** Kinds that usually mean someone else used the account. */
+const LIKELY_LEAKED = new Set(["phishing", "scam"]);
 
 /** The email a team gets when the Guard pauses it for phishing or a scam. */
 export function abusePauseEmail(input: {
@@ -457,7 +477,11 @@ export function abusePauseEmail(input: {
     .join("\n");
   return {
     subject: "useSend: we paused sending on your account",
-    text: `Hi ${input.teamName} team,\n\nWe paused sending on your useSend account because emails sent from it look like ${ABUSE_LABEL[input.abuse]}, for example:\n${subjects}\n\nIf you didn't send these, one of your API keys has probably leaked, often from a hacked website. Delete that key in useSend, create a new one, and check the site that used it.\n\nReply to this email and we'll turn sending back on once it's sorted. While sending is paused, new emails fail instead of going out.\n\nuseSend`,
+    text: `Hi ${input.teamName} team,\n\nWe paused sending on your useSend account because emails sent from it look like ${ABUSE_LABEL[input.abuse]}, which our terms don't allow, for example:\n${subjects}\n\n${
+      LIKELY_LEAKED.has(input.abuse)
+        ? "If you didn't send these, one of your API keys has probably leaked, often from a hacked website. Delete that key in useSend, create a new one, and check the site that used it.\n\nReply to this email and we'll turn sending back on once it's sorted."
+        : "If we got this wrong, reply to this email and tell us who these emails go to and how they signed up; we'll take another look."
+    } While sending is paused, new emails fail instead of going out.\n\nuseSend`,
   };
 }
 
@@ -573,7 +597,7 @@ export function guardPauseNotice(
     ? "new team"
     : `customer since ${team.createdAt.toISOString().slice(0, 10)}`;
   const why = body.abuse
-    ? `${body.abuse} (${evidenceCount} email${evidenceCount === 1 ? "" : "s"} as evidence). The team has been emailed.`
+    ? `${body.abuse.replace("_", " ")} (${evidenceCount} email${evidenceCount === 1 ? "" : "s"} as evidence). The team has been emailed.`
     : "clear abuse.";
   return `🛑 **Guard paused ${team.name}** (#${team.id}, ${age}) for ${why}\n${body.reason.slice(0, 600)}\nResume on the admin teams page if it's wrong: ${env.NEXTAUTH_URL}/admin/teams`;
 }

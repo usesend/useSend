@@ -51,6 +51,7 @@ import {
   listNewEmails,
   newEmailsQuery,
   abusePauseEmail,
+  teamActionBody,
   recordTeamAction,
   reviewHoldFor,
   sampleTeamEmails,
@@ -486,6 +487,47 @@ describe("listNewEmails", () => {
       limit: 100,
     });
     expect(page.nextCursor).toBe("2026-11-23T10:00:00.000Z|e9");
+  });
+});
+
+describe("abusePauseEmail for other terms", () => {
+  it("names the rule, and asks how people signed up instead of blaming a leak", () => {
+    const { text } = abusePauseEmail({
+      teamName: "Acme",
+      abuse: "cold_outreach",
+      subjects: ["Quick question about your business"],
+    });
+    expect(text).toContain("cold outreach");
+    expect(text).toContain("which our terms don't allow");
+    expect(text).toContain("how they signed up");
+    expect(text).not.toContain("leaked");
+  });
+
+  it("accepts every banned kind in a pause request", () => {
+    for (const abuse of [
+      "cold_outreach",
+      "gambling",
+      "adult",
+      "money_scheme",
+      "pharma",
+    ]) {
+      expect(
+        teamActionBody.parse({
+          action: "PAUSE",
+          reason: "x",
+          abuse,
+          emailIds: ["e1"],
+        }).abuse,
+      ).toBe(abuse);
+    }
+    expect(() =>
+      teamActionBody.parse({
+        action: "PAUSE",
+        reason: "x",
+        abuse: "spam",
+        emailIds: ["e1"],
+      }),
+    ).toThrow();
   });
 });
 
