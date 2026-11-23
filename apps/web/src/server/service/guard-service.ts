@@ -593,7 +593,13 @@ export async function recordTeamAction(
   const changed = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
     const { count } = await tx.team.updateMany({
-      where: { id: teamId, isBlocked: false, sendingPausedAt: null },
+      // Still new at the moment of the pause, not just when it was checked.
+      where: {
+        id: teamId,
+        isBlocked: false,
+        sendingPausedAt: null,
+        createdAt: { gte: watchStart() },
+      },
       data: { sendingPausedAt: new Date() },
     });
     if (count === 0) return false;

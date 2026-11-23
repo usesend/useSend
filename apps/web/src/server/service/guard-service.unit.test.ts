@@ -291,7 +291,14 @@ describe("recordTeamAction", () => {
     expect(result.changed).toBe(true);
     expect(mockDb.$queryRaw).toHaveBeenCalled();
     expect(mockDb.team.updateMany).toHaveBeenCalledWith({
-      where: { id: 7, isBlocked: false, sendingPausedAt: null },
+      where: {
+        id: 7,
+        isBlocked: false,
+        sendingPausedAt: null,
+        // Rechecked in the update itself, so a team can't age past 14 days
+        // between the check and the pause.
+        createdAt: { gte: expect.any(Date) },
+      },
       data: { sendingPausedAt: expect.any(Date) },
     });
     expect(mockDb.campaign.updateMany).toHaveBeenCalledWith({
