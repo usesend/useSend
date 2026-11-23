@@ -416,7 +416,9 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   // Each recent API message (sender + subject pattern) and how many different
   // people it went to: one message blasted to thousands of strangers only
   // shows up as a pattern. Scoped to the last 2 hours so it describes a
-  // burst, not the whole day. Counts only; no addresses leave the database.
+  // burst, not the whole day. Recipients include cc and bcc. Every attempt
+  // counts (even suppressed or failed): trying to blast a list is the signal.
+  // Counts only; no addresses leave the database.
   const recentRows = await db.$queryRaw<
     Array<{
       teamId: number;
@@ -431,7 +433,9 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
       COUNT(DISTINCT e.id)::int AS emails,
       COUNT(DISTINCT lower(r.address))::int AS recipients
     FROM "Email" e
-    CROSS JOIN LATERAL unnest(e."to") AS r(address)
+    CROSS JOIN LATERAL unnest(
+      e."to" || coalesce(e.cc, '{}') || coalesce(e.bcc, '{}')
+    ) AS r(address)
     WHERE e."teamId" = ANY(${page.map((team) => team.id)})
       AND e."createdAt" > ${new Date(Date.now() - RECENT_MESSAGES_MS)}
       AND e."campaignId" IS NULL
