@@ -136,6 +136,13 @@ export async function parseSesHook(data: SesEvent) {
   const isHardBounced =
     mailStatus === EmailStatus.BOUNCED &&
     (mailData as SesBounce).bounceType === "Permanent";
+  // SES never tried to deliver to an address on our account's suppression
+  // list, and AWS doesn't count it toward the bounce rate. Neither do we: a
+  // team re-sending to one address shouldn't look like a bad list.
+  const countsAsHardBounce =
+    isHardBounced &&
+    String((mailData as SesBounce).bounceSubType ?? "").trim() !==
+      "OnAccountSuppressionList";
 
   // Fix: Only add the actual bounced/complained recipients to suppression list
   // Add emails to suppression list for hard bounces and complaints
@@ -210,7 +217,7 @@ export async function parseSesHook(data: SesEvent) {
 
   // SES can deliver the same hard bounce or complaint more than once. Count
   // each only once per email: the sending rules and dashboards rely on it.
-  const outcome = isHardBounced
+  const outcome = countsAsHardBounce
     ? ("hardBounced" as const)
     : mailStatus === EmailStatus.COMPLAINED
       ? ("complained" as const)
@@ -259,24 +266,24 @@ export async function parseSesHook(data: SesEvent) {
             bounced: updateField === "bounced" ? 1 : 0,
             complained: updateField === "complained" ? 1 : 0,
             sent: updateField === "sent" ? 1 : 0,
-            hardBounced: isHardBounced ? 1 : 0,
+            hardBounced: countsAsHardBounce ? 1 : 0,
           },
           update: {
             [updateField]: {
               increment: 1,
             },
-            ...(isHardBounced ? { hardBounced: { increment: 1 } } : {}),
+            ...(countsAsHardBounce ? { hardBounced: { increment: 1 } } : {}),
           },
         }),
       ];
 
       if (
-        isHardBounced ||
+        countsAsHardBounce ||
         updateField === "complained" ||
         updateField === "delivered"
       ) {
         logger.info("Updating cumulated metrics");
-        const cumulatedField = isHardBounced ? "hardBounced" : updateField;
+        const cumulatedField = countsAsHardBounce ? "hardBounced" : updateField;
         usageWrites.push(
           db.cumulatedMetrics.upsert({
             where: {
@@ -327,7 +334,7 @@ export async function parseSesHook(data: SesEvent) {
         await updateCampaignAnalytics(
           email.campaignId,
           mailStatus,
-          isHardBounced,
+          countsAsHardBounce,
         );
       }
     }
@@ -340,7 +347,7 @@ export async function parseSesHook(data: SesEvent) {
       await checkSendingHealth({
         teamId: email.teamId,
         campaignId: email.campaignId,
-        spamTrap: isHardBounced && isSpamTrapBounce(data.bounce),
+        spamTrap: countsAsHardBounce && isSpamTrapBounce(data.bounce),
       });
     } catch (error) {
       // Never fail event processing because of the rules.

@@ -4,6 +4,7 @@ const { mockEnv, mocks } = vi.hoisted(() => ({
   mockEnv: { ADMIN_API_TOKEN: undefined as string | undefined },
   mocks: {
     listApplications: vi.fn(),
+    listNewEmails: vi.fn(),
     listActiveCampaigns: vi.fn(),
     markGuardSeen: vi.fn(),
     guardReviewCampaign: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock("~/server/service/campaign-service", () => ({
 
 import { GET as getApplications } from "~/app/api/admin/guard/applications/route";
 import { GET as getCampaigns } from "~/app/api/admin/guard/campaigns/route";
+import { GET as getNewEmails } from "~/app/api/admin/guard/emails/route";
 import { POST as postReview } from "~/app/api/admin/guard/campaigns/[id]/review/route";
 import { GET as getTeams } from "~/app/api/admin/guard/teams/route";
 import { GET as getEmails } from "~/app/api/admin/guard/teams/[id]/emails/route";
@@ -93,6 +95,26 @@ describe("Guard admin API", () => {
     );
   });
 
+  it("lists new emails from a cursor, and rejects a bad one", async () => {
+    const ok = await getNewEmails(
+      get(
+        "/api/admin/guard/emails?cursor=2026-11-23T10%3A00%3A00.000Z%7Ce9&limit=50",
+      ),
+      ctx(),
+    );
+    expect(ok.status).toBe(200);
+    expect(mocks.listNewEmails).toHaveBeenCalledWith({
+      cursor: "2026-11-23T10:00:00.000Z|e9",
+      limit: 50,
+    });
+
+    const bad = await getNewEmails(
+      get("/api/admin/guard/emails?cursor=nope"),
+      ctx(),
+    );
+    expect(bad.status).toBe(400);
+  });
+
   it("lists new teams for 14 days by default", async () => {
     await getTeams(get("/api/admin/guard/teams"), ctx());
     expect(mocks.listWatchedTeams).toHaveBeenCalledWith({
@@ -102,7 +124,10 @@ describe("Guard admin API", () => {
   });
 
   it("pages campaigns", async () => {
-    await getCampaigns(get("/api/admin/guard/campaigns?limit=10&cursor=c9"), ctx());
+    await getCampaigns(
+      get("/api/admin/guard/campaigns?limit=10&cursor=c9"),
+      ctx(),
+    );
     expect(mocks.markGuardSeen).toHaveBeenCalled();
     expect(mocks.listActiveCampaigns).toHaveBeenCalledWith({
       limit: 10,
@@ -141,7 +166,10 @@ describe("Guard admin API", () => {
       new GuardForbiddenError("first 14 days"),
     );
     const response = await postAction(
-      post("/api/admin/guard/teams/7/actions", { action: "PAUSE", reason: "x" }),
+      post("/api/admin/guard/teams/7/actions", {
+        action: "PAUSE",
+        reason: "x",
+      }),
       ctx({ id: "7" }),
     );
     expect(response.status).toBe(403);

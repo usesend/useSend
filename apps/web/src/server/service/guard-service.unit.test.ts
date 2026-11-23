@@ -31,6 +31,8 @@ vi.mock("~/server/logger/log", () => ({
 vi.mock("~/server/service/team-service", () => ({
   TeamService: { refreshTeamCache: mockRefreshTeamCache },
 }));
+const { mockEmailTeam } = vi.hoisted(() => ({ mockEmailTeam: vi.fn() }));
+vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
 
 import {
   GuardForbiddenError,
@@ -40,6 +42,7 @@ import {
   markGuardSeen,
   isReviewHeld,
   listActiveCampaigns,
+  listNewEmails,
   recordTeamAction,
   reviewHoldFor,
   sampleTeamEmails,
@@ -148,9 +151,9 @@ describe("campaignContentHash", () => {
     };
     const hash = campaignContentHash(base);
     expect(campaignContentHash({ ...base })).toBe(hash);
-    expect(
-      campaignContentHash({ ...base, replyTo: ["other@y.com"] }),
-    ).not.toBe(hash);
+    expect(campaignContentHash({ ...base, replyTo: ["other@y.com"] })).not.toBe(
+      hash,
+    );
     expect(campaignContentHash({ ...base, subject: "Hey" })).not.toBe(hash);
     expect(campaignContentHash({ ...base, html: "<p>2</p>" })).not.toBe(hash);
     expect(campaignContentHash({ ...base, content: '{"doc":1}' })).not.toBe(
@@ -308,6 +311,70 @@ describe("recordTeamAction", () => {
     expect(mockDb.team.updateMany).not.toHaveBeenCalled();
   });
 
+  describe("an older team", () => {
+    beforeEach(() => {
+      mockDb.team.findUnique.mockResolvedValue({
+        id: 7,
+        name: "Motionstack",
+        createdAt: new Date(Date.now() - 365 * DAY),
+      });
+      mockDb.team.updateMany.mockResolvedValue({ count: 1 });
+      mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+    });
+
+    it("is paused for phishing, with the emails that show it, and told why", async () => {
+      mockDb.email.findMany.mockResolvedValue([
+        { subject: "Your E-ZPass Invoice Notification" },
+        { subject: "Your E-ZPass Invoice Notification" },
+      ]);
+
+      const result = await recordTeamAction(7, {
+        action: "PAUSE",
+        reason: "E-ZPass phishing",
+        abuse: "phishing",
+        emailIds: ["e1", "e2"],
+      });
+
+      expect(result.changed).toBe(true);
+      expect(mockDb.email.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ["e1", "e2"] }, teamId: 7 },
+        select: { subject: true },
+      });
+      expect(mockEmailTeam).toHaveBeenCalledTimes(1);
+      const [, subject, text] = mockEmailTeam.mock.calls[0]!;
+      expect(subject).toContain("paused");
+      expect(text).toContain("Your E-ZPass Invoice Notification");
+      expect(text).toContain("API keys has probably leaked");
+      // The AI's own wording never reaches the customer.
+      expect(text).not.toContain("E-ZPass phishing");
+    });
+
+    it("isn't paused for anything else", async () => {
+      await expect(
+        recordTeamAction(7, { action: "PAUSE", reason: "spammy" }),
+      ).rejects.toBeInstanceOf(GuardForbiddenError);
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("isn't paused without evidence, or with another team's emails", async () => {
+      await expect(
+        recordTeamAction(7, { action: "PAUSE", reason: "x", abuse: "scam" }),
+      ).rejects.toThrow("emailIds");
+
+      mockDb.email.findMany.mockResolvedValue([{ subject: "a" }]);
+      await expect(
+        recordTeamAction(7, {
+          action: "PAUSE",
+          reason: "x",
+          abuse: "scam",
+          emailIds: ["mine", "someone-elses"],
+        }),
+      ).rejects.toThrow("aren't this team's");
+      expect(mockDb.team.updateMany).not.toHaveBeenCalled();
+      expect(mockEmailTeam).not.toHaveBeenCalled();
+    });
+  });
+
   it("says when the team doesn't exist", async () => {
     mockDb.team.findUnique.mockResolvedValue(null);
     await expect(
@@ -339,5 +406,59 @@ describe("sampleTeamEmails", () => {
     expect(items[0]?.text).toBe("Hi there");
     // Campaign emails keep only the preview in text, so HTML comes too.
     expect(items[0]?.html).toBe("<p>Hi there</p>");
+  });
+});
+
+describe("listNewEmails", () => {
+  const row = (id: string, at: string) => ({
+    id,
+    createdAt: new Date(at),
+    from: "a@acme.com",
+    to: ["x@gmail.com", "y@gmail.com"],
+    replyTo: [],
+    subject: "Hi",
+    text: "t",
+    html: null,
+    team: {
+      id: 7,
+      name: "Acme",
+      createdAt: new Date(Date.now() - DAY),
+      isBlocked: false,
+      sendingPausedAt: null,
+    },
+  });
+
+  it("pages through API emails with a cursor that never skips a tie", async () => {
+    mockDb.email.findMany.mockResolvedValue([
+      row("e1", "2026-11-23T10:00:00.000Z"),
+      row("e2", "2026-11-23T10:00:01.000Z"),
+    ]);
+
+    const page = await listNewEmails({
+      cursor: "2026-11-23T09:59:59.000Z|e0",
+      limit: 2,
+    });
+
+    const query = mockDb.email.findMany.mock.calls[0]![0];
+    expect(query.where).toEqual({
+      campaignId: null,
+      OR: [
+        { createdAt: { gt: new Date("2026-11-23T09:59:59.000Z") } },
+        { createdAt: new Date("2026-11-23T09:59:59.000Z"), id: { gt: "e0" } },
+      ],
+    });
+    expect(page.nextCursor).toBe("2026-11-23T10:00:01.000Z|e2");
+    expect(page.items[0]).toMatchObject({ toDomains: ["gmail.com"] });
+    expect(page.items[0]).not.toHaveProperty("to");
+    expect(page.items[0]!.team.isNew).toBe(true);
+  });
+
+  it("keeps the cursor when nothing is new", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const page = await listNewEmails({
+      cursor: "2026-11-23T10:00:00.000Z|e9",
+      limit: 100,
+    });
+    expect(page.nextCursor).toBe("2026-11-23T10:00:00.000Z|e9");
   });
 });

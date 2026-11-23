@@ -215,13 +215,16 @@ describe("parseSesHook sending rules", () => {
     mockClaimOutcome.mockResolvedValue("claimed");
   });
 
-  function bounceEvent(diagnosticCode: string): SesEvent {
+  function bounceEvent(
+    diagnosticCode: string,
+    bounceSubType = "General",
+  ): SesEvent {
     const event = buildEvent("Open");
     delete event.open;
     event.eventType = "Bounce";
     event.bounce = {
       bounceType: "Permanent",
-      bounceSubType: "General",
+      bounceSubType,
       bouncedRecipients: [
         { emailAddress: "recipient@example.com", diagnosticCode },
       ],
@@ -264,6 +267,20 @@ describe("parseSesHook sending rules", () => {
     expect(mockDb.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
       mockCheckSendingHealth.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("doesn't count a send to an address on the SES suppression list, like AWS", async () => {
+    await parseSesHook(
+      bounceEvent("Amazon SES did not send", "OnAccountSuppressionList"),
+    );
+
+    expect(mockClaimOutcome).not.toHaveBeenCalled();
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
+    const usage = mockDb.dailyEmailUsage.upsert.mock.calls[0]?.[0];
+    expect(usage.create.hardBounced).toBe(0);
+    expect(usage.update).not.toHaveProperty("hardBounced");
+    // Still a bounce on the dashboard, just not a hard one.
+    expect(usage.update.bounced).toEqual({ increment: 1 });
   });
 
   it("counts a repeated hard bounce only once", async () => {
