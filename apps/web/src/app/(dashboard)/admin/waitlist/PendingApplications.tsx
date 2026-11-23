@@ -36,7 +36,11 @@ export function PendingApplications({
 }) {
   const utils = api.useUtils();
   const [filter, setFilter] = useState<Filter>("approve");
-  const pending = api.admin.pendingApplications.useQuery({ verdict: filter });
+  // Keep the last filter's data while the next loads, so counts don't blink.
+  const pending = api.admin.pendingApplications.useQuery(
+    { verdict: filter },
+    { placeholderData: (previous) => previous },
+  );
 
   const letIn = api.admin.updateUserWaitlist.useMutation({
     onSuccess: (user) => {
@@ -68,29 +72,6 @@ export function PendingApplications({
       ? reject.variables?.userId
       : undefined;
 
-  if (pending.isLoading) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
-        <Spinner className="h-4 w-4" /> Loading applications...
-      </div>
-    );
-  }
-
-  if (pending.isError) {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 p-6 text-sm">
-        <p>Couldn't load the applications: {pending.error.message}</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void pending.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
   const applications = pending.data?.items ?? [];
   const counts = pending.data?.counts;
   const total = counts
@@ -105,14 +86,16 @@ export function PendingApplications({
         <p className="text-sm text-muted-foreground">{total} waiting</p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist">
+      <div
+        className="flex flex-wrap gap-2"
+        aria-label="Filter by the Guard's advice"
+      >
         {FILTERS.map(([key, label]) => (
           <Button
             key={key}
             type="button"
             size="sm"
-            role="tab"
-            aria-selected={filter === key}
+            aria-pressed={filter === key}
             variant={filter === key ? "default" : "outline"}
             onClick={() => setFilter(key)}
           >
@@ -124,6 +107,25 @@ export function PendingApplications({
         ))}
       </div>
 
+      {pending.isLoading ? (
+        <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
+          <Spinner className="h-4 w-4" /> Loading applications...
+        </div>
+      ) : null}
+
+      {pending.isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 p-6 text-sm">
+          <p>Couldn't load the applications: {pending.error.message}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void pending.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       {inFilter > applications.length ? (
         <p className="text-sm text-muted-foreground">
           Newest {applications.length} of {inFilter} shown. Decide some and the
@@ -131,7 +133,7 @@ export function PendingApplications({
         </p>
       ) : null}
 
-      {applications.length === 0 ? (
+      {!pending.isLoading && !pending.isError && applications.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           {filter === "none" ? "Everything has been checked." : "Nothing here."}
         </div>
