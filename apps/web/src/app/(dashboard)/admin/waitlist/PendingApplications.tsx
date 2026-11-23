@@ -24,18 +24,24 @@ export function PendingApplications() {
 
   const letIn = api.admin.updateUserWaitlist.useMutation({
     onSuccess: (user) => {
-      toast.success(`Let in ${user.email}. They got the welcome email.`);
-      void utils.admin.pendingApplications.invalidate();
+      toast.success(`Let in ${user.email}.`);
+      return utils.admin.pendingApplications.invalidate();
     },
-    onError: (error) => toast.error(error.message ?? "Couldn't let them in"),
+    onError: (error) => {
+      toast.error(error.message ?? "Couldn't let them in");
+      return utils.admin.pendingApplications.invalidate();
+    },
   });
 
   const reject = api.admin.rejectWaitlistUser.useMutation({
     onSuccess: () => {
       toast.success("Rejected. They got the rejection email.");
-      void utils.admin.pendingApplications.invalidate();
+      return utils.admin.pendingApplications.invalidate();
     },
-    onError: (error) => toast.error(error.message ?? "Couldn't reject"),
+    onError: (error) => {
+      toast.error(error.message ?? "Couldn't reject");
+      return utils.admin.pendingApplications.invalidate();
+    },
   });
 
   const busyUserId = letIn.isPending
@@ -59,7 +65,9 @@ export function PendingApplications() {
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Pending applications</h2>
         <p className="text-sm text-muted-foreground">
-          {applications.length} waiting
+          {applications.length >= 200
+            ? "Oldest 200 shown"
+            : `${applications.length} waiting`}
         </p>
       </div>
 

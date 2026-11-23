@@ -236,42 +236,41 @@ export const adminRouter = createTRPCRouter({
         throw new Error("User not found");
       }
 
-      const updatedUser = await db.$transaction(async (tx) => {
-        const user = await tx.user.update({
-          where: { id: input.userId },
-          data: { isWaitlisted: input.isWaitlisted },
-          select: waitlistUserSelection,
-        });
-
-        if (existingUser.isWaitlisted && !input.isWaitlisted) {
-          await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+      const { updatedUser, letIn } = await db.$transaction(async (tx) => {
+        if (!input.isWaitlisted) {
+          // Only the click that actually takes them off the waitlist sends the
+          // welcome email: a double click or a second tab changes nothing.
+          const { count } = await tx.user.updateMany({
+            where: { id: input.userId, isWaitlisted: true },
+            data: { isWaitlisted: false },
+          });
+          if (count === 1) {
+            await WaitlistService.setStatus(input.userId, "APPROVED", tx);
+          }
           // Re-read so the admin page shows the approved application.
-          return tx.user.findUniqueOrThrow({
+          const user = await tx.user.findUniqueOrThrow({
             where: { id: input.userId },
             select: waitlistUserSelection,
           });
+          return { updatedUser: user, letIn: count === 1 };
         }
 
-        return user;
+        const user = await tx.user.update({
+          where: { id: input.userId },
+          data: { isWaitlisted: true },
+          select: waitlistUserSelection,
+        });
+        return { updatedUser: user, letIn: false };
       });
 
       const founderEmail = env.FOUNDER_EMAIL ?? undefined;
       const fallbackFrom = env.FROM_EMAIL ?? env.ADMIN_EMAIL ?? undefined;
 
       const shouldSendAcceptanceEmail =
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        Boolean(updatedUser.email) &&
-        (founderEmail || fallbackFrom);
+        letIn && Boolean(updatedUser.email) && (founderEmail || fallbackFrom);
 
       // Add user to contact book when removed from waitlist (cloud only)
-      if (
-        existingUser.isWaitlisted &&
-        !input.isWaitlisted &&
-        isCloud() &&
-        env.CONTACT_BOOK_ID &&
-        updatedUser.email
-      ) {
+      if (letIn && isCloud() && env.CONTACT_BOOK_ID && updatedUser.email) {
         try {
           const client = new UseSend(env.USESEND_API_KEY);
 
@@ -377,6 +376,32 @@ export const adminRouter = createTRPCRouter({
 
       const fromOverride = founderEmail ?? undefined;
 
+      // Claim the decision first, so a double click, a second tab or someone
+      // who already has access never gets a rejection email.
+      await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+        const current = await tx.user.findUniqueOrThrow({
+          where: { id: input.userId },
+          select: {
+            isWaitlisted: true,
+            waitlistApplication: { select: { status: true } },
+          },
+        });
+        if (!current.isWaitlisted) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "They already have access",
+          });
+        }
+        if (current.waitlistApplication?.status === "REJECTED") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Already rejected",
+          });
+        }
+        await WaitlistService.setStatus(input.userId, "REJECTED", tx);
+      });
+
       const text = [
         "Hello,",
         "",
@@ -401,10 +426,13 @@ export const adminRouter = createTRPCRouter({
           { userId: user.id, error },
           "Failed to send waitlist rejection email",
         );
+        // Put it back in the queue so it can be tried again.
+        await db.waitlistApplication.updateMany({
+          where: { userId: user.id, status: "REJECTED" },
+          data: { status: "PENDING", reviewedAt: null },
+        });
         throw new Error("Failed to send waitlist rejection email");
       }
-
-      await WaitlistService.setStatus(user.id, "REJECTED");
 
       return { sent: true };
     }),

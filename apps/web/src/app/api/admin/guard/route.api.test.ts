@@ -100,6 +100,7 @@ describe("Guard admin API", () => {
       post("/api/admin/guard/applications/app_1/verdict", {
         verdict: "approve",
         note: "Real SaaS, transactional only.",
+        revision: "2026-11-22T13:52:29.110Z",
       }),
       ctx({ id: "app_1" }),
     );
@@ -107,6 +108,7 @@ describe("Guard admin API", () => {
     expect(mocks.recordApplicationVerdict).toHaveBeenCalledWith("app_1", {
       verdict: "approve",
       note: "Real SaaS, transactional only.",
+      revision: "2026-11-22T13:52:29.110Z",
     });
 
     const bad = await postVerdict(
@@ -127,6 +129,7 @@ describe("Guard admin API", () => {
       post("/api/admin/guard/applications/app_1/verdict", {
         verdict: "reject",
         note: "x",
+        revision: "2026-11-22T13:52:29.110Z",
       }),
       ctx({ id: "app_1" }),
     );
