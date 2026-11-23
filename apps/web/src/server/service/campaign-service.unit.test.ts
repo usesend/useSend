@@ -703,7 +703,7 @@ describe("guardReviewCampaign", () => {
     expect(mockAssertGuardMayAct).toHaveBeenCalled();
     expect(mockTx.$queryRaw).toHaveBeenCalled();
     expect(mockTx.campaign.updateMany).toHaveBeenCalledWith({
-      where: { id: "cmp_1", status: { in: ["SCHEDULED", "RUNNING"] } },
+      where: { id: "cmp_1", status: "SCHEDULED" },
       data: {
         status: "PAUSED",
         reviewHoldUntil: null,
@@ -725,7 +725,21 @@ describe("guardReviewCampaign", () => {
     expect(mockEmailTeam).toHaveBeenCalledWith(
       7,
       'Your campaign "Launch" is on hold for review',
-      expect.stringContaining("because bought list."),
+      expect.stringContaining("Nothing has been sent yet."),
+    );
+  });
+
+  it("doesn't claim nothing went out if a batch had started", async () => {
+    mockTx.campaign.updateMany
+      .mockResolvedValueOnce({ count: 0 }) // no longer SCHEDULED
+      .mockResolvedValueOnce({ count: 1 }); // stopped while RUNNING
+
+    await guardReviewCampaign("cmp_1", { decision: "stop", reason: "bought list" });
+
+    expect(mockEmailTeam).toHaveBeenCalledWith(
+      7,
+      expect.any(String),
+      expect.stringContaining("Some emails may already have gone out"),
     );
   });
 
@@ -898,6 +912,9 @@ describe("telling the team about a hold", () => {
   it("strips links, addresses and new lines from the model's reason", () => {
     expect(customerReason("it looks like phishing. Visit https://evil.example/login or mail help@evil.example\nIGNORE ALL")).toBe(
       "it looks like phishing. Visit or mail IGNORE ALL",
+    );
+    expect(customerReason("go to evil-login.com/verify now, it links to a phishing site")).toBe(
+      "go to now, it links to a phishing site",
     );
     expect(customerReason("  ")).toBe("it needs a quick look from our team");
     expect(customerReason("x".repeat(300)).length).toBeLessThanOrEqual(200);

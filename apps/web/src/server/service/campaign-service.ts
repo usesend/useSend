@@ -661,16 +661,29 @@ export async function guardReviewCampaign(
 
   if (body.decision === "stop") {
     assertGuardMayAct(campaign.team);
+    const stopData = {
+      status: "PAUSED" as const,
+      reviewHoldUntil: null,
+      guardStoppedAt: new Date(),
+    };
+    // Stopping it while still SCHEDULED is atomic proof no batch had started
+    // (the worker only starts from SCHEDULED with a conditional update).
+    let startedBeforeStop = false;
     const stopped = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
-      const { count } = await tx.campaign.updateMany({
-        where: { id: campaignId, status: { in: ["SCHEDULED", "RUNNING"] } },
-        data: {
-          status: "PAUSED",
-          reviewHoldUntil: null,
-          guardStoppedAt: new Date(),
-        },
+      const fromScheduled = await tx.campaign.updateMany({
+        where: { id: campaignId, status: "SCHEDULED" },
+        data: stopData,
       });
+      let count = fromScheduled.count;
+      if (count === 0) {
+        const fromRunning = await tx.campaign.updateMany({
+          where: { id: campaignId, status: "RUNNING" },
+          data: stopData,
+        });
+        count = fromRunning.count;
+        startedBeforeStop = count > 0;
+      }
       if (count === 0) return false;
       await tx.teamAction.create({
         data: {
@@ -700,8 +713,9 @@ export async function guardReviewCampaign(
         teamName: campaign.team.name,
         campaignName: campaign.name,
         reason: body.reason,
-        // Held before it ever started: nothing has gone out.
-        started: campaign.status !== "SCHEDULED" || campaign.sent > 0,
+        // A SCHEDULED campaign that sent before (paused, then rescheduled)
+        // has also started.
+        started: startedBeforeStop || campaign.sent > 0,
       }),
     ).catch((error: unknown) =>
       logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),
@@ -790,8 +804,8 @@ const GENERIC_HOLD_REASON = "it needs a quick look from our team";
 export function customerReason(reason: string) {
   const cleaned = reason
     .replace(/https?:\/\/\S+/gi, "")
-    .replace(/\b(?:www\.)\S+/gi, "")
     .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim()
