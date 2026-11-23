@@ -37,6 +37,7 @@ const {
 }));
 
 vi.mock("bullmq", () => ({
+  UnrecoverableError: class UnrecoverableError extends Error {},
   Queue: class {
     public name: string;
     public add = mockQueueAdd;
@@ -73,7 +74,8 @@ vi.mock("~/env", () => ({
   env: { AWS_DEFAULT_REGION: "us-east-1" },
 }));
 
-import { EmailQueueService } from "./email-queue-service";
+import { UnrecoverableError } from "bullmq";
+import { EmailQueueService, ThrottledSendError } from "./email-queue-service";
 
 const email = {
   id: "email-1",
@@ -179,9 +181,9 @@ describe("EmailQueueService send retries", () => {
   it("throws a throttled send back to the queue while attempts remain", async () => {
     mockSendRawEmail.mockRejectedValueOnce(throttleError);
 
-    await expect(process({ attemptsMade: 0, attempts: 3 })).rejects.toBe(
-      throttleError,
-    );
+    await expect(
+      process({ attemptsMade: 0, attempts: 3 }),
+    ).rejects.toBeInstanceOf(ThrottledSendError);
 
     // not failed: the job's backoff retries it
     expect(mockDb.emailEvent.create).not.toHaveBeenCalled();
@@ -240,6 +242,17 @@ describe("EmailQueueService send retries", () => {
       where: { id: email.id },
       data: { latestStatus: "FAILED" },
     });
+  });
+
+  it("never retries when SES accepted the email but saving that failed", async () => {
+    mockSendRawEmail.mockResolvedValueOnce("ses-message-id");
+    mockDb.email.update.mockRejectedValue(new Error("db down"));
+    mockDb.emailEvent.create.mockRejectedValue(new Error("db down"));
+
+    const outcome = process({ attemptsMade: 0, attempts: 3 });
+    // Unrecoverable: the queue fails the job instead of sending it again.
+    await expect(outcome).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(mockSendRawEmail).toHaveBeenCalledTimes(1);
   });
 
   it("records FAILED at once for a terminal error", async () => {

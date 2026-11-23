@@ -1,4 +1,4 @@
-import { Queue, Worker } from "bullmq";
+import { Queue, UnrecoverableError, Worker } from "bullmq";
 import { env } from "~/env";
 import { EmailAttachment } from "~/types";
 import { convert as htmlToText } from "html-to-text";
@@ -38,6 +38,32 @@ const EMAIL_JOB_OPTIONS = {
   backoff: { type: "exponential", delay: EMAIL_BASE_BACKOFF_MS, jitter: 0.5 },
 };
 
+/** Marks the one failure the queue may retry: SES throttled the send. */
+export class ThrottledSendError extends Error {
+  constructor(readonly original: unknown) {
+    super(
+      `SES throttled the send: ${String((original as Error)?.message ?? original)}`,
+    );
+    this.name = "ThrottledSendError";
+  }
+}
+
+/**
+ * Only a throttled send goes back to the queue for a retry. Anything else
+ * that escapes (e.g. SES accepted the email but saving that failed) must never
+ * be retried: the retry would send the email again.
+ */
+async function executeEmailOnce(job: QueueEmailJob) {
+  try {
+    await executeEmail(job);
+  } catch (error) {
+    if (error instanceof ThrottledSendError) throw error;
+    throw new UnrecoverableError(
+      `[EmailQueueService]: not retried: ${(error as Error)?.message ?? String(error)}`,
+    );
+  }
+}
+
 /** SES refused the send for the account's send rate: it wasn't accepted. */
 export function isThrottledSendError(error: any): boolean {
   const name = String(error?.name ?? error?.Code ?? "");
@@ -61,7 +87,7 @@ function createQueueAndWorker(region: string, quota: number, suffix: string) {
   });
 
   // TODO: Add team context to job data when queueing
-  const worker = new Worker(queueName, createWorkerHandler(executeEmail), {
+  const worker = new Worker(queueName, createWorkerHandler(executeEmailOnce), {
     concurrency: quota,
     connection,
     prefix: BULL_PREFIX,
@@ -506,7 +532,7 @@ async function executeEmail(job: QueueEmailJob) {
         { emailId: email.id, attempt, attempts, err: error },
         `[EmailQueueService]: SES throttled the send, the queue will retry the email`,
       );
-      throw error;
+      throw new ThrottledSendError(error);
     }
 
     await db.emailEvent.create({
