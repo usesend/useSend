@@ -33,6 +33,12 @@ vi.mock("~/server/service/team-service", () => ({
 }));
 const { mockEmailTeam } = vi.hoisted(() => ({ mockEmailTeam: vi.fn() }));
 vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
+const { mockSendToDiscord } = vi.hoisted(() => ({
+  mockSendToDiscord: vi.fn(),
+}));
+vi.mock("~/server/service/notification-service", () => ({
+  sendToDiscord: mockSendToDiscord,
+}));
 
 import {
   GuardForbiddenError,
@@ -289,6 +295,8 @@ describe("recordTeamAction", () => {
       data: { status: "PAUSED" },
     });
     expect(mockRefreshTeamCache).toHaveBeenCalledWith(7);
+    // Every Guard pause reaches Discord, even without abuse evidence.
+    expect(mockSendToDiscord).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing more for a team that's already paused or blocked", async () => {
@@ -299,6 +307,7 @@ describe("recordTeamAction", () => {
     expect(result.changed).toBe(false);
     expect(mockDb.teamAction.create).not.toHaveBeenCalled();
     expect(mockRefreshTeamCache).not.toHaveBeenCalled();
+    expect(mockSendToDiscord).not.toHaveBeenCalled();
   });
 
   it("won't pause a team past its first 14 days", async () => {
@@ -342,6 +351,10 @@ describe("recordTeamAction", () => {
         where: { id: { in: ["e1", "e2"] }, teamId: 7 },
         select: { subject: true },
       });
+      expect(mockSendToDiscord).toHaveBeenCalledTimes(1);
+      expect(mockSendToDiscord.mock.calls[0]![0]).toMatch(
+        /Guard paused Motionstack.*#7.*customer since.*phishing \(2 emails/s,
+      );
       expect(mockEmailTeam).toHaveBeenCalledTimes(1);
       const [, subject, text] = mockEmailTeam.mock.calls[0]!;
       expect(subject).toContain("paused");

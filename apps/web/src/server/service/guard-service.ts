@@ -9,6 +9,7 @@ import IORedis from "ioredis";
 import { redisKey } from "~/server/redis";
 import { TeamService } from "~/server/service/team-service";
 import { emailTeam } from "~/server/service/team-email";
+import { sendToDiscord } from "~/server/service/notification-service";
 
 /**
  * What the Guard (our separate review service) can read and do, through the
@@ -543,6 +544,12 @@ export async function recordTeamAction(
       // The cache expires within 2 minutes anyway.
       logger.error({ err: error, teamId }, "[Guard]: Cache refresh failed");
     }
+    // Always tell the founder, whatever the agent posts itself.
+    try {
+      await sendToDiscord(guardPauseNotice(team, body, evidence.length));
+    } catch (error) {
+      logger.error({ err: error, teamId }, "[Guard]: Discord notice failed");
+    }
     if (body.abuse) {
       // Tell them, so they can find a leaked key. emailTeam never throws.
       const message = abusePauseEmail({
@@ -554,6 +561,21 @@ export async function recordTeamAction(
     }
   }
   return { ok: true, changed };
+}
+
+/** The Discord message for every Guard pause. */
+export function guardPauseNotice(
+  team: { id: number; name: string; createdAt: Date },
+  body: z.infer<typeof teamActionBody>,
+  evidenceCount: number,
+) {
+  const age = isNewTeam(team)
+    ? "new team"
+    : `customer since ${team.createdAt.toISOString().slice(0, 10)}`;
+  const why = body.abuse
+    ? `${body.abuse} (${evidenceCount} email${evidenceCount === 1 ? "" : "s"} as evidence). The team has been emailed.`
+    : "clear abuse.";
+  return `🛑 **Guard paused ${team.name}** (#${team.id}, ${age}) for ${why}\n${body.reason.slice(0, 600)}\nResume on the admin teams page if it's wrong: ${env.NEXTAUTH_URL}/admin/teams`;
 }
 
 // --- New emails (API and SMTP, not campaigns) ---
