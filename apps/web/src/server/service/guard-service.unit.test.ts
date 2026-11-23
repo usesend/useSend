@@ -440,12 +440,11 @@ describe("listNewEmails", () => {
     });
 
     const query = mockDb.email.findMany.mock.calls[0]![0];
+    const at = new Date("2026-11-23T09:59:59.000Z");
     expect(query.where).toEqual({
       campaignId: null,
-      OR: [
-        { createdAt: { gt: new Date("2026-11-23T09:59:59.000Z") } },
-        { createdAt: new Date("2026-11-23T09:59:59.000Z"), id: { gt: "e0" } },
-      ],
+      createdAt: { gte: at },
+      NOT: { createdAt: at, id: { lte: "e0" } },
     });
     expect(page.nextCursor).toBe("2026-11-23T10:00:01.000Z|e2");
     expect(page.items[0]).toMatchObject({ toDomains: ["gmail.com"] });

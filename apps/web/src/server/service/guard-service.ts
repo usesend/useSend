@@ -570,10 +570,10 @@ export async function listNewEmails(query: z.infer<typeof newEmailsQuery>) {
   const rows = await db.email.findMany({
     where: {
       campaignId: null,
-      OR: [
-        { createdAt: { gt: after } },
-        ...(afterId ? [{ createdAt: after, id: { gt: afterId } }] : []),
-      ],
+      // A date range first, so the createdAt index does the work; then skip
+      // what the last page already returned at that same instant.
+      createdAt: { gte: after },
+      ...(afterId ? { NOT: { createdAt: after, id: { lte: afterId } } } : {}),
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: query.limit,
