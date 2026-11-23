@@ -375,7 +375,12 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
             select: {
               email: true,
               waitlistApplication: {
-                select: { website: true, description: true },
+                select: {
+                  website: true,
+                  description: true,
+                  emailVolume: true,
+                  listSource: true,
+                },
               },
             },
           },
@@ -404,6 +409,23 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   });
   const usageByTeam = new Map(usage.map((row) => [row.teamId, row._sum]));
 
+  // API email in the last day, and to how many different people: one message
+  // blasted to thousands of strangers only shows up as a pattern. Counts
+  // only; no addresses leave the database.
+  const lastDayRows = await db.$queryRaw<
+    Array<{ teamId: number; emails: number; recipients: number }>
+  >`
+    SELECT e."teamId" AS "teamId",
+      COUNT(DISTINCT e.id)::int AS emails,
+      COUNT(DISTINCT lower(r.address))::int AS recipients
+    FROM "Email" e
+    CROSS JOIN LATERAL unnest(e."to") AS r(address)
+    WHERE e."teamId" = ANY(${page.map((team) => team.id)})
+      AND e."createdAt" > ${new Date(Date.now() - DAY_MS)}
+      AND e."campaignId" IS NULL
+    GROUP BY e."teamId"`;
+  const lastDayByTeam = new Map(lastDayRows.map((row) => [row.teamId, row]));
+
   return {
     items: page.map(({ teamUsers, ...team }) => {
       const sums = usageByTeam.get(team.id);
@@ -414,7 +436,15 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
           email: user.email,
           website: user.waitlistApplication?.website ?? null,
           description: user.waitlistApplication?.description ?? null,
+          // What they said they'd send, so the Guard can compare it with
+          // what they actually send.
+          emailVolume: user.waitlistApplication?.emailVolume ?? null,
+          listSource: user.waitlistApplication?.listSource ?? null,
         })),
+        lastDay: {
+          emails: lastDayByTeam.get(team.id)?.emails ?? 0,
+          recipients: lastDayByTeam.get(team.id)?.recipients ?? 0,
+        },
         usage: {
           sent: sums?.sent ?? 0,
           delivered: sums?.delivered ?? 0,

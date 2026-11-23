@@ -6,7 +6,8 @@ const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
   mockDb: {
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
-    team: { findUnique: vi.fn(), updateMany: vi.fn() },
+    team: { findUnique: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
+    dailyEmailUsage: { groupBy: vi.fn() },
     campaign: { findMany: vi.fn(), updateMany: vi.fn() },
     teamAction: { create: vi.fn() },
     email: { findMany: vi.fn() },
@@ -52,6 +53,7 @@ import {
   isReviewHeld,
   listActiveCampaigns,
   listNewEmails,
+  listWatchedTeams,
   newEmailsQuery,
   abusePauseEmail,
   teamActionBody,
@@ -425,6 +427,64 @@ describe("recordTeamAction", () => {
     await expect(
       recordTeamAction(99, { action: "PAUSE", reason: "x" }),
     ).rejects.toBeInstanceOf(GuardNotFoundError);
+  });
+});
+
+describe("listWatchedTeams", () => {
+  it("includes what each member applied with, to compare with their sending", async () => {
+    mockDb.team.findMany.mockResolvedValue([
+      {
+        id: 453,
+        name: "New team",
+        createdAt: new Date(),
+        domains: [],
+        teamUsers: [
+          {
+            role: "ADMIN",
+            user: {
+              email: "owner@example.com",
+              waitlistApplication: {
+                website: "https://example.com",
+                description: "A weekly digest",
+                emailVolume: "Close to zero for now",
+                listSource: "Signup form with double opt-in",
+              },
+            },
+          },
+        ],
+      },
+    ]);
+    mockDb.dailyEmailUsage.groupBy.mockResolvedValue([
+      {
+        teamId: 453,
+        _sum: {
+          sent: 2952,
+          delivered: 2933,
+          bounced: 17,
+          hardBounced: 17,
+          complained: 2,
+        },
+      },
+    ]);
+
+    mockDb.$queryRaw.mockResolvedValueOnce([
+      { teamId: 453, emails: 2952, recipients: 2946 },
+    ]);
+
+    const { items } = await listWatchedTeams({ days: 14, limit: 100 });
+
+    expect(items[0]!.members).toEqual([
+      {
+        role: "ADMIN",
+        email: "owner@example.com",
+        website: "https://example.com",
+        description: "A weekly digest",
+        emailVolume: "Close to zero for now",
+        listSource: "Signup form with double opt-in",
+      },
+    ]);
+    expect(items[0]!.usage.sent).toBe(2952);
+    expect(items[0]!.lastDay).toEqual({ emails: 2952, recipients: 2946 });
   });
 });
 
