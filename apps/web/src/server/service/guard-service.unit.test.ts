@@ -43,6 +43,8 @@ import {
   isReviewHeld,
   listActiveCampaigns,
   listNewEmails,
+  newEmailsQuery,
+  abusePauseEmail,
   recordTeamAction,
   reviewHoldFor,
   sampleTeamEmails,
@@ -452,6 +454,18 @@ describe("listNewEmails", () => {
     expect(page.items[0]!.team.isNew).toBe(true);
   });
 
+  it("starts with a date-only cursor that it accepts back", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const first = await listNewEmails({ limit: 100 });
+    expect(first.nextCursor).toMatch(/\|$/);
+    expect(newEmailsQuery.parse({ cursor: first.nextCursor }).cursor).toBe(
+      first.nextCursor,
+    );
+    await listNewEmails({ cursor: first.nextCursor, limit: 100 });
+    const query = mockDb.email.findMany.mock.calls[1]![0];
+    expect(query.where).not.toHaveProperty("NOT");
+  });
+
   it("keeps the cursor when nothing is new", async () => {
     mockDb.email.findMany.mockResolvedValue([]);
     const page = await listNewEmails({
@@ -459,5 +473,20 @@ describe("listNewEmails", () => {
       limit: 100,
     });
     expect(page.nextCursor).toBe("2026-11-23T10:00:00.000Z|e9");
+  });
+});
+
+describe("abusePauseEmail", () => {
+  it("quotes subjects on one line, without links", () => {
+    const { text } = abusePauseEmail({
+      teamName: "Acme",
+      abuse: "phishing",
+      subjects: [
+        "Pay now\nat https://evil.example/x or evil.example today",
+        "",
+      ],
+    });
+    expect(text).toContain('- "Pay now at or today"');
+    expect(text).not.toContain("evil");
   });
 });

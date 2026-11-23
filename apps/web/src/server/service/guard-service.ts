@@ -440,9 +440,19 @@ export function abusePauseEmail(input: {
   abuse: keyof typeof ABUSE_LABEL;
   subjects: string[];
 }) {
+  // Their own subjects, but cleaned: one line, no links or domains, short.
   const subjects = input.subjects
+    .map((subject) =>
+      subject
+        .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "")
+        .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100),
+    )
+    .filter(Boolean)
     .slice(0, 3)
-    .map((subject) => `- "${subject.slice(0, 150)}"`)
+    .map((subject) => `- "${subject}"`)
     .join("\n");
   return {
     subject: "useSend: we paused sending on your account",
@@ -552,7 +562,7 @@ export const newEmailsQuery = z.object({
   /** From `nextCursor`; without it, starts from the last 10 minutes. */
   cursor: z
     .string()
-    .regex(/^\d{4}-\d\d-\d\dT[\d:.]+Z\|[\w-]+$/)
+    .regex(/^\d{4}-\d\d-\d\dT[\d:.]+Z\|[\w-]*$/)
     .optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
