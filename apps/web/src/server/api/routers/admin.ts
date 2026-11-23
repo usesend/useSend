@@ -69,7 +69,13 @@ const teamAdminSelection = {
     where: { guardStoppedAt: { not: null } },
     orderBy: { guardStoppedAt: "desc" },
     take: 20,
-    select: { id: true, name: true, guardStoppedAt: true, total: true, sent: true },
+    select: {
+      id: true,
+      name: true,
+      guardStoppedAt: true,
+      total: true,
+      sent: true,
+    },
   },
   actions: {
     orderBy: { createdAt: "desc" },
@@ -167,6 +173,33 @@ export const adminRouter = createTRPCRouter({
         input.region ?? env.AWS_DEFAULT_REGION,
       );
     }),
+
+  /** Pending applications with the Guard's advice: suggested approvals first. */
+  pendingApplications: adminProcedure.query(async () => {
+    const applications = await db.waitlistApplication.findMany({
+      where: { status: "PENDING", user: { isWaitlisted: true } },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+      select: {
+        id: true,
+        userId: true,
+        email: true,
+        website: true,
+        emailTypes: true,
+        emailVolume: true,
+        listSource: true,
+        description: true,
+        guardVerdict: true,
+        guardNote: true,
+        createdAt: true,
+      },
+    });
+    const order = (verdict: string | null) =>
+      ["approve", "unsure", "reject"].indexOf(verdict ?? "") + 1 || 4;
+    return applications.sort(
+      (a, b) => order(a.guardVerdict) - order(b.guardVerdict),
+    );
+  }),
 
   findUserByEmail: adminProcedure
     .input(
@@ -446,7 +479,10 @@ export const adminRouter = createTRPCRouter({
         select: { teamId: true },
       });
       if (!campaign) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Campaign not found",
+        });
       }
       try {
         await adminReleaseCampaign(
@@ -454,7 +490,10 @@ export const adminRouter = createTRPCRouter({
           `admin:${ctx.session.user.email ?? ctx.session.user.id}`,
         );
       } catch (error) {
-        if (error instanceof GuardConflictError || error instanceof GuardNotFoundError) {
+        if (
+          error instanceof GuardConflictError ||
+          error instanceof GuardNotFoundError
+        ) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
         throw error;

@@ -34,6 +34,9 @@ export class WaitlistService {
       description: input.description,
       status: "PENDING" as const,
       reviewedAt: null,
+      // A resubmission needs a fresh check.
+      guardVerdict: null,
+      guardNote: null,
     };
 
     return db.waitlistApplication.upsert({

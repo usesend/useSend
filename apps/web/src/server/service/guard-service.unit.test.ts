@@ -10,6 +10,7 @@ const { mockEnv, mockDb, mockRefreshTeamCache, mockRedis } = vi.hoisted(() => ({
     campaign: { findMany: vi.fn(), updateMany: vi.fn() },
     teamAction: { create: vi.fn() },
     email: { findMany: vi.fn() },
+    waitlistApplication: { updateMany: vi.fn(), findUnique: vi.fn() },
   },
   mockRefreshTeamCache: vi.fn(),
 }));
@@ -33,11 +34,13 @@ vi.mock("~/server/service/team-service", () => ({
 }));
 
 import {
+  GuardConflictError,
   GuardForbiddenError,
   GuardNotFoundError,
   assertGuardMayAct,
   campaignContentHash,
   markGuardSeen,
+  recordApplicationVerdict,
   isReviewHeld,
   listActiveCampaigns,
   recordTeamAction,
@@ -148,9 +151,9 @@ describe("campaignContentHash", () => {
     };
     const hash = campaignContentHash(base);
     expect(campaignContentHash({ ...base })).toBe(hash);
-    expect(
-      campaignContentHash({ ...base, replyTo: ["other@y.com"] }),
-    ).not.toBe(hash);
+    expect(campaignContentHash({ ...base, replyTo: ["other@y.com"] })).not.toBe(
+      hash,
+    );
     expect(campaignContentHash({ ...base, subject: "Hey" })).not.toBe(hash);
     expect(campaignContentHash({ ...base, html: "<p>2</p>" })).not.toBe(hash);
     expect(campaignContentHash({ ...base, content: '{"doc":1}' })).not.toBe(
@@ -339,5 +342,37 @@ describe("sampleTeamEmails", () => {
     expect(items[0]?.text).toBe("Hi there");
     // Campaign emails keep only the preview in text, so HTML comes too.
     expect(items[0]?.html).toBe("<p>Hi there</p>");
+  });
+});
+
+describe("recordApplicationVerdict", () => {
+  beforeEach(() => {
+    mockDb.waitlistApplication.updateMany.mockReset();
+    mockDb.waitlistApplication.findUnique.mockReset();
+  });
+
+  it("saves advice only on a pending application", async () => {
+    mockDb.waitlistApplication.updateMany.mockResolvedValue({ count: 1 });
+    await recordApplicationVerdict("app_1", {
+      verdict: "unsure",
+      note: "Thin site",
+    });
+    expect(mockDb.waitlistApplication.updateMany).toHaveBeenCalledWith({
+      where: { id: "app_1", status: "PENDING" },
+      data: { guardVerdict: "unsure", guardNote: "Thin site" },
+    });
+  });
+
+  it("tells a decided application from a missing one", async () => {
+    mockDb.waitlistApplication.updateMany.mockResolvedValue({ count: 0 });
+    mockDb.waitlistApplication.findUnique.mockResolvedValue({ id: "app_1" });
+    await expect(
+      recordApplicationVerdict("app_1", { verdict: "reject", note: "x" }),
+    ).rejects.toBeInstanceOf(GuardConflictError);
+
+    mockDb.waitlistApplication.findUnique.mockResolvedValue(null);
+    await expect(
+      recordApplicationVerdict("app_2", { verdict: "reject", note: "x" }),
+    ).rejects.toBeInstanceOf(GuardNotFoundError);
   });
 });

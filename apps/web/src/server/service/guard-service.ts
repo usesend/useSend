@@ -198,10 +198,39 @@ export async function listApplications(
       listSource: true,
       description: true,
       status: true,
+      guardVerdict: true,
       createdAt: true,
     },
   });
   return { items };
+}
+
+export const applicationVerdictBody = z.object({
+  verdict: z.enum(["approve", "reject", "unsure"]),
+  note: z.string().trim().min(1).max(2_000),
+});
+
+/**
+ * Saves the Guard's advice on a pending application, for the admin page.
+ * It's advice only: the founder lets people in or rejects them.
+ */
+export async function recordApplicationVerdict(
+  id: string,
+  input: z.infer<typeof applicationVerdictBody>,
+) {
+  const { count } = await db.waitlistApplication.updateMany({
+    where: { id, status: "PENDING" },
+    data: { guardVerdict: input.verdict, guardNote: input.note },
+  });
+  if (count === 0) {
+    const exists = await db.waitlistApplication.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!exists) throw new GuardNotFoundError("Application not found");
+    throw new GuardConflictError("Application was already decided");
+  }
+  return { ok: true };
 }
 
 // --- Campaigns ---

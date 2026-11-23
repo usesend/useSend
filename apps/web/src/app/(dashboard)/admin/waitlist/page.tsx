@@ -22,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { api } from "~/trpc/react";
 import { isCloud } from "~/utils/common";
+import { PendingApplications } from "./PendingApplications";
 import type { AppRouter } from "~/server/api/root";
 import type { inferRouterOutputs } from "@trpc/server";
 
@@ -115,6 +116,8 @@ export default function AdminWaitlistPage() {
 
   return (
     <div className="space-y-6">
+      <PendingApplications />
+
       <div className="rounded-lg border p-6 shadow-sm">
         <Form {...form}>
           <form

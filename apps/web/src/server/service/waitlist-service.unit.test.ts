@@ -69,7 +69,12 @@ describe("waitlist applications", () => {
       listSource: "People sign up for our app",
       status: "PENDING",
     });
-    expect(call.update).toMatchObject({ status: "PENDING", reviewedAt: null });
+    expect(call.update).toMatchObject({
+      status: "PENDING",
+      reviewedAt: null,
+      guardVerdict: null,
+      guardNote: null,
+    });
   });
 
   it("records the outcome on the transaction it's given", async () => {
