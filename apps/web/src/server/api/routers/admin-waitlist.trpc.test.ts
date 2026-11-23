@@ -10,7 +10,11 @@ const { mockDb, mockSendMail } = vi.hoisted(() => {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    waitlistApplication: { findMany: vi.fn(), updateMany: vi.fn() },
+    waitlistApplication: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
   };
   return { mockDb, mockSendMail: vi.fn() };
 });
@@ -106,6 +110,36 @@ describe("letting someone in", () => {
     // A double click or a second tab: already let in, so nothing is sent.
     mockDb.user.updateMany.mockResolvedValueOnce({ count: 0 });
     await caller.updateUserWaitlist({ userId: 7, isWaitlisted: false });
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("letting in someone already rejected", () => {
+  beforeEach(() => {
+    mockDb.waitlistApplication.findUnique.mockResolvedValue({
+      status: "REJECTED",
+    });
+    mockDb.user.findUniqueOrThrow.mockResolvedValue({
+      ...waitlisted,
+      isWaitlisted: false,
+    });
+  });
+
+  it("is refused from the queue, so a stale tab can't welcome them", async () => {
+    await expect(
+      caller.updateUserWaitlist({ userId: 7, isWaitlisted: false }),
+    ).rejects.toThrow("Already rejected");
+    expect(mockDb.user.updateMany).not.toHaveBeenCalled();
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it("works from the lookup's deliberate switch", async () => {
+    mockDb.user.updateMany.mockResolvedValue({ count: 1 });
+    await caller.updateUserWaitlist({
+      userId: 7,
+      isWaitlisted: false,
+      overrideRejection: true,
+    });
     expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
 });

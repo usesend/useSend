@@ -18,13 +18,19 @@ const VERDICT: Record<
 };
 
 /** Pending applications with the Guard's advice, and a button for each decision. */
-export function PendingApplications() {
+export function PendingApplications({
+  onDecided,
+}: {
+  /** Called after a Let in or Reject goes through. */
+  onDecided?: (userId: number) => void;
+}) {
   const utils = api.useUtils();
   const pending = api.admin.pendingApplications.useQuery();
 
   const letIn = api.admin.updateUserWaitlist.useMutation({
     onSuccess: (user) => {
       toast.success(`Let in ${user.email}.`);
+      onDecided?.(user.id);
       return utils.admin.pendingApplications.invalidate();
     },
     onError: (error) => {
@@ -34,8 +40,9 @@ export function PendingApplications() {
   });
 
   const reject = api.admin.rejectWaitlistUser.useMutation({
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       toast.success("Rejected. They got the rejection email.");
+      onDecided?.(variables.userId);
       return utils.admin.pendingApplications.invalidate();
     },
     onError: (error) => {
@@ -54,6 +61,21 @@ export function PendingApplications() {
     return (
       <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
         <Spinner className="h-4 w-4" /> Loading applications...
+      </div>
+    );
+  }
+
+  if (pending.isError) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/50 p-6 text-sm">
+        <p>Couldn't load the applications: {pending.error.message}</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void pending.refetch()}
+        >
+          Retry
+        </Button>
       </div>
     );
   }

@@ -98,7 +98,13 @@ export default function AdminWaitlistPage() {
 
   const handleToggle = (checked: boolean) => {
     if (!userResult) return;
-    updateWaitlist.mutate({ userId: userResult.id, isWaitlisted: checked });
+    // A deliberate switch on the person you looked up, so it may override a
+    // rejection.
+    updateWaitlist.mutate({
+      userId: userResult.id,
+      isWaitlisted: checked,
+      overrideRejection: true,
+    });
   };
 
   const handleReject = () => {
@@ -116,7 +122,13 @@ export default function AdminWaitlistPage() {
 
   return (
     <div className="space-y-6">
-      <PendingApplications />
+      <PendingApplications
+        onDecided={(userId) => {
+          if (userResult?.id === userId && userResult.email) {
+            findUser.mutate({ email: userResult.email });
+          }
+        }}
+      />
 
       <div className="rounded-lg border p-6 shadow-sm">
         <Form {...form}>

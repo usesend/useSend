@@ -224,6 +224,12 @@ export const adminRouter = createTRPCRouter({
       z.object({
         userId: z.number(),
         isWaitlisted: z.boolean(),
+        /**
+         * Let in someone already rejected. Only the lookup's deliberate
+         * switch sends this; the queue's Let in never does, so a stale tab
+         * can't welcome someone who was just rejected.
+         */
+        overrideRejection: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -238,6 +244,21 @@ export const adminRouter = createTRPCRouter({
 
       const { updatedUser, letIn } = await db.$transaction(async (tx) => {
         if (!input.isWaitlisted) {
+          // Same lock as rejecting, so the two can't cross.
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+          if (!input.overrideRejection) {
+            const application = await tx.waitlistApplication.findUnique({
+              where: { userId: input.userId },
+              select: { status: true },
+            });
+            if (application?.status === "REJECTED") {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Already rejected. Use the lookup below to let them in anyway.",
+              });
+            }
+          }
           // Only the click that actually takes them off the waitlist sends the
           // welcome email: a double click or a second tab changes nothing.
           const { count } = await tx.user.updateMany({
