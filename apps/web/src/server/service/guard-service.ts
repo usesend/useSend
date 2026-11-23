@@ -8,12 +8,16 @@ import { logger } from "~/server/logger/log";
 import IORedis from "ioredis";
 import { redisKey } from "~/server/redis";
 import { TeamService } from "~/server/service/team-service";
+import { emailTeam } from "~/server/service/team-email";
+import { sendToDiscord } from "~/server/service/notification-service";
 
 /**
  * What the Guard (our separate review service) can read and do, through the
  * internal admin API. It reads applications, campaigns, new teams and their
  * emails; it can approve or stop a campaign, log an alert, and pause a team.
- * It can never block or resume a team, or delete anything.
+ * It can never block or resume a team, or delete anything. It pauses older
+ * teams only for a clear break of the terms (phishing, scams, cold outreach,
+ * gambling and the other banned kinds), naming the emails that show it.
  *
  * New teams' campaigns wait for the Guard's check before sending, but only
  * while the Guard is running (it checks in by listing campaigns), and only
@@ -474,7 +478,66 @@ export const teamActionBody = z.object({
   action: z.enum(["ALERT", "PAUSE"]),
   reason: z.string().trim().min(1).max(2_000),
   details: z.record(z.unknown()).optional(),
+  /** The rule broken. Needed to pause a team past its first 14 days. */
+  abuse: z
+    .enum([
+      "phishing",
+      "scam",
+      "cold_outreach",
+      "gambling",
+      "adult",
+      "money_scheme",
+      "pharma",
+    ])
+    .optional(),
+  /** The team's emails that show the abuse. Needed with `abuse`. */
+  emailIds: z.array(z.string().min(1)).min(1).max(20).optional(),
 });
+
+const ABUSE_LABEL = {
+  phishing:
+    "phishing (pretending to be another company to get people's details)",
+  scam: "a scam",
+  cold_outreach:
+    "cold outreach (emails to people who never signed up to hear from you)",
+  gambling: "gambling or betting",
+  adult: "adult content",
+  money_scheme: "crypto, trading, MLM or make-money schemes",
+  pharma: "pharmaceuticals or supplements with medical claims",
+} as const;
+
+/** Kinds that usually mean someone else used the account. */
+const LIKELY_LEAKED = new Set(["phishing", "scam"]);
+
+/** The email a team gets when the Guard pauses it for phishing or a scam. */
+export function abusePauseEmail(input: {
+  teamName: string;
+  abuse: keyof typeof ABUSE_LABEL;
+  subjects: string[];
+}) {
+  // Their own subjects, but cleaned: one line, no links or domains, short.
+  const subjects = input.subjects
+    .map((subject) =>
+      subject
+        .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, "")
+        .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b(?:\/\S*)?/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100),
+    )
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((subject) => `- "${subject}"`)
+    .join("\n");
+  return {
+    subject: "useSend: we paused sending on your account",
+    text: `Hi ${input.teamName} team,\n\nWe paused sending on your useSend account because emails sent from it look like ${ABUSE_LABEL[input.abuse]}, which our terms don't allow, for example:\n${subjects}\n\n${
+      LIKELY_LEAKED.has(input.abuse)
+        ? "If you didn't send these, one of your API keys has probably leaked, often from a hacked website. Delete that key in useSend, create a new one, and check the site that used it.\n\nReply to this email and we'll turn sending back on once it's sorted."
+        : "If we got this wrong, reply to this email and tell us who these emails go to and how they signed up; we'll take another look."
+    } While sending is paused, new emails fail instead of going out.\n\nuseSend`,
+  };
+}
 
 /**
  * ALERT only logs. PAUSE stops the team's sending and its campaigns, like an
@@ -487,7 +550,7 @@ export async function recordTeamAction(
 ) {
   const team = await db.team.findUnique({
     where: { id: teamId },
-    select: { id: true, createdAt: true },
+    select: { id: true, name: true, createdAt: true },
   });
   if (!team) throw new GuardNotFoundError("Team not found");
 
@@ -510,7 +573,24 @@ export async function recordTeamAction(
     return { ok: true, changed: false };
   }
 
-  assertGuardMayAct(team);
+  // New teams can be paused for anything clear; older teams only for
+  // phishing or scams, with the emails that show it.
+  let evidence: Array<{ subject: string }> = [];
+  if (body.abuse) {
+    const ids = [...new Set(body.emailIds ?? [])];
+    if (ids.length === 0) {
+      throw new GuardForbiddenError("Name the emails that show it (emailIds)");
+    }
+    evidence = await db.email.findMany({
+      where: { id: { in: ids }, teamId },
+      select: { subject: true },
+    });
+    if (evidence.length !== ids.length) {
+      throw new GuardForbiddenError("Some of those emails aren't this team's");
+    }
+  } else {
+    assertGuardMayAct(team);
+  }
 
   const changed = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Team" WHERE id = ${teamId} FOR UPDATE`;
@@ -542,6 +622,111 @@ export async function recordTeamAction(
       // The cache expires within 2 minutes anyway.
       logger.error({ err: error, teamId }, "[Guard]: Cache refresh failed");
     }
+    // Always tell the founder, whatever the agent posts itself.
+    try {
+      await sendToDiscord(guardPauseNotice(team, body, evidence.length));
+    } catch (error) {
+      logger.error({ err: error, teamId }, "[Guard]: Discord notice failed");
+    }
+    if (body.abuse) {
+      // Tell them, so they can find a leaked key. emailTeam never throws.
+      const message = abusePauseEmail({
+        teamName: team.name,
+        abuse: body.abuse,
+        subjects: [...new Set(evidence.map((email) => email.subject))],
+      });
+      await emailTeam(teamId, message.subject, message.text);
+    }
   }
   return { ok: true, changed };
+}
+
+/** The Discord message for every Guard pause. */
+export function guardPauseNotice(
+  team: { id: number; name: string; createdAt: Date },
+  body: z.infer<typeof teamActionBody>,
+  evidenceCount: number,
+) {
+  const age = isNewTeam(team)
+    ? "new team"
+    : `customer since ${team.createdAt.toISOString().slice(0, 10)}`;
+  const why = body.abuse
+    ? `${body.abuse.replace("_", " ")} (${evidenceCount} email${evidenceCount === 1 ? "" : "s"} as evidence). The team has been emailed.`
+    : "clear abuse.";
+  return `🛑 **Guard paused ${team.name}** (#${team.id}, ${age}) for ${why}\n${body.reason.slice(0, 600)}\nResume on the admin teams page if it's wrong: ${env.NEXTAUTH_URL}/admin/teams`;
+}
+
+// --- New emails (API and SMTP, not campaigns) ---
+
+const COMMIT_SETTLE_MS = 30_000;
+
+export const newEmailsQuery = z.object({
+  /** From `nextCursor`; without it, starts from the last 10 minutes. */
+  cursor: z
+    .string()
+    .regex(/^\d{4}-\d\d-\d\dT[\d:.]+Z\|[\w-]*$/)
+    .refine((cursor) => !Number.isNaN(Date.parse(cursor.split("|")[0]!)), {
+      message: "Invalid cursor timestamp",
+    })
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+/**
+ * Emails sent through the API or SMTP since the cursor, oldest first, across
+ * all teams, for the Guard's content check. Campaign emails are checked
+ * through their campaign instead. Recipients are reduced to their domains.
+ */
+export async function listNewEmails(query: z.infer<typeof newEmailsQuery>) {
+  const [afterIso, afterId] = query.cursor?.split("|") ?? [];
+  const after = afterIso
+    ? new Date(afterIso)
+    : new Date(Date.now() - 10 * 60_000);
+  const rows = await db.email.findMany({
+    where: {
+      campaignId: null,
+      // A date range first, so the createdAt index does the work; then skip
+      // what the last page already returned at that same instant.
+      // Only rows at least 30s old: an insert can get its timestamp before
+      // it commits, so newer rows could still appear behind the cursor.
+      createdAt: { gte: after, lt: new Date(Date.now() - COMMIT_SETTLE_MS) },
+      ...(afterId ? { NOT: { createdAt: after, id: { lte: afterId } } } : {}),
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: query.limit,
+    select: {
+      id: true,
+      createdAt: true,
+      from: true,
+      to: true,
+      replyTo: true,
+      subject: true,
+      text: true,
+      html: true,
+      team: {
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          isBlocked: true,
+          sendingPausedAt: true,
+        },
+      },
+    },
+  });
+  const last = rows.at(-1);
+  return {
+    items: rows.map(({ to, text, html, team, ...email }) => ({
+      ...email,
+      toDomains: [
+        ...new Set(to.map((address) => address.split("@")[1] ?? "")),
+      ].filter(Boolean),
+      text: truncate(text, EMAIL_TEXT_MAX),
+      html: truncate(html, EMAIL_TEXT_MAX),
+      team: { ...team, isNew: isNewTeam(team) },
+    })),
+    nextCursor: last
+      ? `${last.createdAt.toISOString()}|${last.id}`
+      : (query.cursor ?? `${after.toISOString()}|`),
+  };
 }

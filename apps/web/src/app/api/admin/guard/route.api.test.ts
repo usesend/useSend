@@ -5,6 +5,7 @@ const { mockEnv, mocks } = vi.hoisted(() => ({
   mocks: {
     listApplications: vi.fn(),
     recordApplicationVerdict: vi.fn(),
+    listNewEmails: vi.fn(),
     listActiveCampaigns: vi.fn(),
     markGuardSeen: vi.fn(),
     guardReviewCampaign: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("~/server/service/campaign-service", () => ({
 import { GET as getApplications } from "~/app/api/admin/guard/applications/route";
 import { POST as postVerdict } from "~/app/api/admin/guard/applications/[id]/verdict/route";
 import { GET as getCampaigns } from "~/app/api/admin/guard/campaigns/route";
+import { GET as getNewEmails } from "~/app/api/admin/guard/emails/route";
 import { POST as postReview } from "~/app/api/admin/guard/campaigns/[id]/review/route";
 import { GET as getTeams } from "~/app/api/admin/guard/teams/route";
 import { GET as getEmails } from "~/app/api/admin/guard/teams/[id]/emails/route";
@@ -93,6 +95,26 @@ describe("Guard admin API", () => {
     expect(mocks.listApplications).toHaveBeenCalledWith(
       expect.objectContaining({ status: "PENDING", limit: 5 }),
     );
+  });
+
+  it("lists new emails from a cursor, and rejects a bad one", async () => {
+    const ok = await getNewEmails(
+      get(
+        "/api/admin/guard/emails?cursor=2026-11-23T10%3A00%3A00.000Z%7Ce9&limit=50",
+      ),
+      ctx(),
+    );
+    expect(ok.status).toBe(200);
+    expect(mocks.listNewEmails).toHaveBeenCalledWith({
+      cursor: "2026-11-23T10:00:00.000Z|e9",
+      limit: 50,
+    });
+
+    const bad = await getNewEmails(
+      get("/api/admin/guard/emails?cursor=nope"),
+      ctx(),
+    );
+    expect(bad.status).toBe(400);
   });
 
   it("saves the Guard's advice on an application", async () => {
