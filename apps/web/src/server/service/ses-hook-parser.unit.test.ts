@@ -274,13 +274,24 @@ describe("parseSesHook sending rules", () => {
       bounceEvent("Amazon SES did not send", "OnAccountSuppressionList"),
     );
 
-    expect(mockClaimOutcome).not.toHaveBeenCalled();
+    expect(mockClaimOutcome).toHaveBeenCalledWith(email.id, "suppressedBounce");
     expect(mockCheckSendingHealth).not.toHaveBeenCalled();
     const usage = mockDb.dailyEmailUsage.upsert.mock.calls[0]?.[0];
     expect(usage.create.hardBounced).toBe(0);
     expect(usage.update).not.toHaveProperty("hardBounced");
     // Still a bounce on the dashboard, just not a hard one.
     expect(usage.update.bounced).toEqual({ increment: 1 });
+  });
+
+  it("counts a repeated suppression-list bounce only once", async () => {
+    mockClaimOutcome.mockResolvedValue("duplicate");
+
+    await parseSesHook(
+      bounceEvent("Amazon SES did not send", "OnAccountSuppressionList"),
+    );
+
+    expect(mockDb.dailyEmailUsage.upsert).not.toHaveBeenCalled();
+    expect(mockCheckSendingHealth).not.toHaveBeenCalled();
   });
 
   it("counts a repeated hard bounce only once", async () => {

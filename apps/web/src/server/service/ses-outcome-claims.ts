@@ -7,7 +7,11 @@ import { getRedis, redisKey } from "~/server/redis";
 
 const OUTCOME_CLAIM_SECONDS = 14 * 24 * 60 * 60;
 
-export type Outcome = "hardBounced" | "complained";
+/**
+ * "suppressedBounce" is a bounce to an address on our SES suppression list:
+ * claimed so a repeat isn't counted twice, but it isn't a hard bounce.
+ */
+export type Outcome = "hardBounced" | "complained" | "suppressedBounce";
 
 export type OutcomeClaim = "claimed" | "duplicate" | "unavailable";
 

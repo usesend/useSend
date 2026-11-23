@@ -604,11 +604,16 @@ export function guardPauseNotice(
 
 // --- New emails (API and SMTP, not campaigns) ---
 
+const COMMIT_SETTLE_MS = 30_000;
+
 export const newEmailsQuery = z.object({
   /** From `nextCursor`; without it, starts from the last 10 minutes. */
   cursor: z
     .string()
     .regex(/^\d{4}-\d\d-\d\dT[\d:.]+Z\|[\w-]*$/)
+    .refine((cursor) => !Number.isNaN(Date.parse(cursor.split("|")[0]!)), {
+      message: "Invalid cursor timestamp",
+    })
     .optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
@@ -628,7 +633,9 @@ export async function listNewEmails(query: z.infer<typeof newEmailsQuery>) {
       campaignId: null,
       // A date range first, so the createdAt index does the work; then skip
       // what the last page already returned at that same instant.
-      createdAt: { gte: after },
+      // Only rows at least 30s old: an insert can get its timestamp before
+      // it commits, so newer rows could still appear behind the cursor.
+      createdAt: { gte: after, lt: new Date(Date.now() - COMMIT_SETTLE_MS) },
       ...(afterId ? { NOT: { createdAt: after, id: { lte: afterId } } } : {}),
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],

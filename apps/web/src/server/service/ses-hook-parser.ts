@@ -219,9 +219,11 @@ export async function parseSesHook(data: SesEvent) {
   // each only once per email: the sending rules and dashboards rely on it.
   const outcome = countsAsHardBounce
     ? ("hardBounced" as const)
-    : mailStatus === EmailStatus.COMPLAINED
-      ? ("complained" as const)
-      : null;
+    : isHardBounced
+      ? ("suppressedBounce" as const)
+      : mailStatus === EmailStatus.COMPLAINED
+        ? ("complained" as const)
+        : null;
   const claim = outcome ? await claimOutcome(email.id, outcome) : null;
   // "unavailable" (Redis failed) still updates the dashboards, as before;
   // only a confirmed duplicate is skipped.
@@ -342,7 +344,7 @@ export async function parseSesHook(data: SesEvent) {
 
   // Check the sending rules once per new hard bounce or complaint, after the
   // counters above include it. A repeat of the same event doesn't re-run them.
-  if (outcome && claim === "claimed") {
+  if (outcome && outcome !== "suppressedBounce" && claim === "claimed") {
     try {
       await checkSendingHealth({
         teamId: email.teamId,

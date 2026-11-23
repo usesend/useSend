@@ -8,7 +8,16 @@ import { TeamService } from "~/server/service/team-service";
  * hey@usesend.com. Failures are logged, never thrown.
  */
 export async function emailTeam(teamId: number, subject: string, text: string) {
-  const teamUsers = await TeamService.getTeamUsers(teamId);
+  let teamUsers: Awaited<ReturnType<typeof TeamService.getTeamUsers>>;
+  try {
+    teamUsers = await TeamService.getTeamUsers(teamId);
+  } catch (error) {
+    logger.error(
+      { err: error, teamId },
+      "[TeamEmail]: Couldn't find the team's members",
+    );
+    return;
+  }
   const recipients = teamUsers
     .map((teamUser) => teamUser.user?.email)
     .filter((email): email is string => Boolean(email));
@@ -20,7 +29,10 @@ export async function emailTeam(teamId: number, subject: string, text: string) {
   );
   results.forEach((result) => {
     if (result.status === "rejected") {
-      logger.error({ err: result.reason, teamId }, "[TeamEmail]: Team email failed");
+      logger.error(
+        { err: result.reason, teamId },
+        "[TeamEmail]: Team email failed",
+      );
     }
   });
 }

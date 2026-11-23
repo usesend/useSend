@@ -459,7 +459,7 @@ describe("listNewEmails", () => {
     const at = new Date("2026-11-23T09:59:59.000Z");
     expect(query.where).toEqual({
       campaignId: null,
-      createdAt: { gte: at },
+      createdAt: { gte: at, lt: expect.any(Date) },
       NOT: { createdAt: at, id: { lte: "e0" } },
     });
     expect(page.nextCursor).toBe("2026-11-23T10:00:01.000Z|e2");
@@ -478,6 +478,20 @@ describe("listNewEmails", () => {
     await listNewEmails({ cursor: first.nextCursor, limit: 100 });
     const query = mockDb.email.findMany.mock.calls[1]![0];
     expect(query.where).not.toHaveProperty("NOT");
+  });
+
+  it("only reads rows old enough that nothing can still commit behind them", async () => {
+    mockDb.email.findMany.mockResolvedValue([]);
+    const before = Date.now();
+    await listNewEmails({ limit: 100 });
+    const { lt } = mockDb.email.findMany.mock.calls[0]![0].where.createdAt;
+    expect(before - lt.getTime()).toBeGreaterThanOrEqual(29_000);
+  });
+
+  it("rejects an impossible cursor date", () => {
+    expect(() =>
+      newEmailsQuery.parse({ cursor: "2026-99-99T99:99:99Z|e9" }),
+    ).toThrow();
   });
 
   it("keeps the cursor when nothing is new", async () => {
