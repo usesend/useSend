@@ -468,7 +468,13 @@ describe("listWatchedTeams", () => {
     ]);
 
     mockDb.$queryRaw.mockResolvedValueOnce([
-      { teamId: 453, emails: 2952, recipients: 2946 },
+      {
+        teamId: 453,
+        from: "info@example.com",
+        subject: "Successful registration",
+        emails: 1932,
+        recipients: 1930,
+      },
     ]);
 
     const { items } = await listWatchedTeams({ days: 14, limit: 100 });
@@ -484,7 +490,14 @@ describe("listWatchedTeams", () => {
       },
     ]);
     expect(items[0]!.usage.sent).toBe(2952);
-    expect(items[0]!.lastDay).toEqual({ emails: 2952, recipients: 2946 });
+    expect(items[0]!.recentMessages).toEqual([
+      {
+        from: "info@example.com",
+        subject: "Successful registration",
+        emails: 1932,
+        recipients: 1930,
+      },
+    ]);
   });
 });
 
