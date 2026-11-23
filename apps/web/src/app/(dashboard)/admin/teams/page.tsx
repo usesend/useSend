@@ -79,6 +79,20 @@ export default function AdminTeamsPage() {
     },
   });
 
+  // Reset the form only when a different team or new settings arrive, not
+  // when just the held campaigns or actions change (a Release keeps edits).
+  const settingsKey = team
+    ? JSON.stringify([
+        team.id,
+        team.apiRateLimit,
+        team.dailyEmailLimit,
+        team.isBlocked,
+        team.freePlanAllowed,
+        Boolean(team.sendingPausedAt),
+        team.plan,
+      ])
+    : null;
+
   useEffect(() => {
     if (team) {
       updateForm.reset({
@@ -90,7 +104,8 @@ export default function AdminTeamsPage() {
         plan: team.plan,
       });
     }
-  }, [team, updateForm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsKey, updateForm]);
 
   if (!isCloud()) {
     return (
@@ -113,6 +128,14 @@ export default function AdminTeamsPage() {
     onError: (error) => {
       toast.error(error.message ?? "Unable to search for team");
     },
+  });
+
+  const releaseCampaign = api.admin.releaseCampaign.useMutation({
+    onSuccess: (updated) => {
+      if (updated) setTeam(updated);
+      toast.success("Campaign released");
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const updateTeam = api.admin.updateTeamSettings.useMutation({
@@ -447,6 +470,44 @@ export default function AdminTeamsPage() {
               </form>
             </Form>
           </div>
+
+          {team.campaigns.length > 0 ? (
+            <div className="border-t pt-6">
+              <h3 className="mb-3 text-sm font-medium">
+                On hold by the Guard
+              </h3>
+              <ul className="space-y-2 text-sm">
+                {team.campaigns.map((campaign) => (
+                  <li
+                    key={campaign.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                  >
+                    <div>
+                      <div className="font-medium">{campaign.name}</div>
+                      <div className="text-muted-foreground">
+                        {campaign.total.toLocaleString()} recipients, held{" "}
+                        {campaign.guardStoppedAt
+                          ? formatDistanceToNow(new Date(campaign.guardStoppedAt), {
+                              addSuffix: true,
+                            })
+                          : ""}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={releaseCampaign.isPending}
+                      onClick={() =>
+                        releaseCampaign.mutate({ campaignId: campaign.id })
+                      }
+                    >
+                      Release
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="border-t pt-6">
             <h3 className="mb-3 text-sm font-medium">Recent actions</h3>

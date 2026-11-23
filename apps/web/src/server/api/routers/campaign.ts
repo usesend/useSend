@@ -221,17 +221,19 @@ export const campaignRouter = createTRPCRouter({
     }
 
     const imageUploadSupported = isStorageConfigured();
+    const guardHold = await campaignService.guardHoldFor(campaign);
 
     if (campaign?.contactBookId) {
       const contactBook = await db.contactBook.findUnique({
         where: { id: campaign.contactBookId, teamId: team.id },
       });
-      return { ...campaign, contactBook, imageUploadSupported };
+      return { ...campaign, contactBook, imageUploadSupported, guardHold };
     }
     return {
       ...campaign,
       contactBook: null,
       imageUploadSupported,
+      guardHold,
     };
   }),
 
