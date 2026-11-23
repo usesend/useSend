@@ -378,6 +378,7 @@ export const adminRouter = createTRPCRouter({
 
       // Claim the decision first, so a double click, a second tab or someone
       // who already has access never gets a rejection email.
+      const rejectedAt = new Date();
       await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
         const current = await tx.user.findUniqueOrThrow({
@@ -399,7 +400,10 @@ export const adminRouter = createTRPCRouter({
             message: "Already rejected",
           });
         }
-        await WaitlistService.setStatus(input.userId, "REJECTED", tx);
+        await tx.waitlistApplication.updateMany({
+          where: { userId: input.userId },
+          data: { status: "REJECTED", reviewedAt: rejectedAt },
+        });
       });
 
       const text = [
@@ -428,7 +432,12 @@ export const adminRouter = createTRPCRouter({
         );
         // Put it back in the queue so it can be tried again.
         await db.waitlistApplication.updateMany({
-          where: { userId: user.id, status: "REJECTED" },
+          // Only this rejection, not a later one.
+          where: {
+            userId: user.id,
+            status: "REJECTED",
+            reviewedAt: rejectedAt,
+          },
           data: { status: "PENDING", reviewedAt: null },
         });
         throw new Error("Failed to send waitlist rejection email");

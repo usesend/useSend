@@ -151,8 +151,13 @@ describe("rejecting someone", () => {
     await expect(caller.rejectWaitlistUser({ userId: 7 })).rejects.toThrow(
       "Failed to send",
     );
+    const claim = mockDb.waitlistApplication.updateMany.mock.calls[0]?.[0];
     expect(mockDb.waitlistApplication.updateMany).toHaveBeenLastCalledWith({
-      where: { userId: 7, status: "REJECTED" },
+      where: {
+        userId: 7,
+        status: "REJECTED",
+        reviewedAt: claim.data.reviewedAt,
+      },
       data: { status: "PENDING", reviewedAt: null },
     });
   });
