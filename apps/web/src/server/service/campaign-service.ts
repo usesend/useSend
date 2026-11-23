@@ -815,7 +815,7 @@ export function customerReason(reason: string) {
     .filter((word) => {
       // Drop IP addresses (v4 or v6, bracketed, with a port or path).
       const host = word
-        .replace(/^[[(<]+|[\])>.,;:!?]+$/g, "")
+        .replace(/^[(<]+|[)>.,;!?]+$/g, "")
         .replace(/\/.*$/, "")
         .replace(/^\[([^\]]+)\](:\d+)?$/, "$1")
         .replace(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/, "$1");
