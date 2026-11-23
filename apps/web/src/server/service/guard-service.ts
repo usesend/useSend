@@ -352,6 +352,10 @@ export const watchQuery = z.object({
 });
 
 /** Teams created in the last `days`, with their sending numbers, paged. */
+/** The window and size of each team's `recentMessages`. */
+const RECENT_MESSAGES_MS = 2 * 60 * 60 * 1000;
+const RECENT_MESSAGES_MAX = 5;
+
 export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   const since = new Date(Date.now() - query.days * DAY_MS);
   const teams = await db.team.findMany({
@@ -375,7 +379,12 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
             select: {
               email: true,
               waitlistApplication: {
-                select: { website: true, description: true },
+                select: {
+                  website: true,
+                  description: true,
+                  emailVolume: true,
+                  listSource: true,
+                },
               },
             },
           },
@@ -404,6 +413,41 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
   });
   const usageByTeam = new Map(usage.map((row) => [row.teamId, row._sum]));
 
+  // Each recent API message (sender + subject pattern) and how many different
+  // people it went to: one message blasted to thousands of strangers only
+  // shows up as a pattern. Scoped to the last 2 hours so it describes a
+  // burst, not the whole day. Recipients include cc and bcc. Every attempt
+  // counts (even suppressed or failed): trying to blast a list is the signal.
+  // Counts only; no addresses leave the database.
+  const recentRows = await db.$queryRaw<
+    Array<{
+      teamId: number;
+      from: string;
+      subject: string;
+      emails: number;
+      recipients: number;
+    }>
+  >`
+    SELECT e."teamId" AS "teamId", e."from" AS "from",
+      regexp_replace(e.subject, '[0-9]+', '#', 'g') AS subject,
+      COUNT(DISTINCT e.id)::int AS emails,
+      COUNT(DISTINCT lower(r.address))::int AS recipients
+    FROM "Email" e
+    CROSS JOIN LATERAL unnest(
+      e."to" || coalesce(e.cc, '{}') || coalesce(e.bcc, '{}')
+    ) AS r(address)
+    WHERE e."teamId" = ANY(${page.map((team) => team.id)})
+      AND e."createdAt" > ${new Date(Date.now() - RECENT_MESSAGES_MS)}
+      AND e."campaignId" IS NULL
+    GROUP BY 1, 2, 3
+    ORDER BY emails DESC`;
+  const recentByTeam = new Map<number, typeof recentRows>();
+  for (const row of recentRows) {
+    const rows = recentByTeam.get(row.teamId) ?? [];
+    if (rows.length < RECENT_MESSAGES_MAX) rows.push(row);
+    recentByTeam.set(row.teamId, rows);
+  }
+
   return {
     items: page.map(({ teamUsers, ...team }) => {
       const sums = usageByTeam.get(team.id);
@@ -414,7 +458,14 @@ export async function listWatchedTeams(query: z.infer<typeof watchQuery>) {
           email: user.email,
           website: user.waitlistApplication?.website ?? null,
           description: user.waitlistApplication?.description ?? null,
+          // What they said they'd send, so the Guard can compare it with
+          // what they actually send.
+          emailVolume: user.waitlistApplication?.emailVolume ?? null,
+          listSource: user.waitlistApplication?.listSource ?? null,
         })),
+        recentMessages: (recentByTeam.get(team.id) ?? []).map(
+          ({ teamId: _teamId, ...message }) => message,
+        ),
         usage: {
           sent: sums?.sent ?? 0,
           delivered: sums?.delivered ?? 0,
