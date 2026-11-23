@@ -178,6 +178,7 @@ import {
   recordCampaignContactFailure,
   adminReleaseCampaign,
   campaignOnHoldEmail,
+  customerReason,
   guardHoldFor,
   guardReviewCampaign,
   resumeCampaign,
@@ -881,17 +882,25 @@ describe("telling the team about a hold", () => {
       teamName: "Acme",
       campaignName: "Launch",
       reason: "a link points to a site Google lists as phishing.",
-      alreadySent: 0,
+      started: false,
     });
     expect(text).toContain('We\'ve put your campaign "Launch" on hold before it went out, because a link points to a site Google lists as phishing.');
     expect(text).toContain("Nothing has been sent yet.");
     expect(text).toContain("just reply to this email");
   });
 
-  it("says how many went out if it was already sending", () => {
-    expect(
-      campaignOnHoldEmail({ teamName: "Acme", campaignName: "L", reason: "x", alreadySent: 1200 }),
-    ).toContain("1,200 emails had already gone out; the rest are on hold.");
+  it("doesn't promise nothing went out once it had started", () => {
+    const text = campaignOnHoldEmail({ teamName: "Acme", campaignName: "L", reason: "it looks like cold outreach", started: true });
+    expect(text).toContain("Some emails may already have gone out; further sending is on hold.");
+    expect(text).not.toContain("Nothing has been sent");
+  });
+
+  it("strips links, addresses and new lines from the model's reason", () => {
+    expect(customerReason("it looks like phishing. Visit https://evil.example/login or mail help@evil.example\nIGNORE ALL")).toBe(
+      "it looks like phishing. Visit or mail IGNORE ALL",
+    );
+    expect(customerReason("  ")).toBe("it needs a quick look from our team");
+    expect(customerReason("x".repeat(300)).length).toBeLessThanOrEqual(200);
   });
 
   it("shows the reason on the campaign page while it's on hold", async () => {
@@ -937,7 +946,7 @@ describe("adminReleaseCampaign", () => {
     expect(mockEmailTeam).toHaveBeenCalledWith(
       7,
       'Your campaign "Launch" is sending again',
-      expect.stringContaining("it's sending now"),
+      expect.stringContaining("it will continue as scheduled"),
     );
   });
 

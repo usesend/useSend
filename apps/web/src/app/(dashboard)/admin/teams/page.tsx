@@ -118,7 +118,7 @@ export default function AdminTeamsPage() {
   const releaseCampaign = api.admin.releaseCampaign.useMutation({
     onSuccess: (updated) => {
       if (updated) setTeam(updated);
-      toast.success("Campaign released; the team was emailed");
+      toast.success("Campaign released");
     },
     onError: (error) => toast.error(error.message),
   });

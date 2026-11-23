@@ -682,7 +682,7 @@ export async function guardReviewCampaign(
             scope: "campaign",
             campaignId,
             source: GUARD_ACTOR,
-            customerReason: body.reason,
+            customerReason: customerReason(body.reason),
           },
         },
       });
@@ -700,7 +700,8 @@ export async function guardReviewCampaign(
         teamName: campaign.team.name,
         campaignName: campaign.name,
         reason: body.reason,
-        alreadySent: campaign.sent,
+        // Held before it ever started: nothing has gone out.
+        started: campaign.status !== "SCHEDULED" || campaign.sent > 0,
       }),
     ).catch((error: unknown) =>
       logger.error({ err: error, campaignId }, "[Guard]: On-hold email failed"),
@@ -779,22 +780,44 @@ export async function guardReviewCampaign(
   });
 }
 
+const GENERIC_HOLD_REASON = "it needs a quick look from our team";
+
+/**
+ * The Guard's reason, made safe to show a customer: one short line, no links
+ * or email addresses (the model writes it, so don't pass anything through
+ * that could point people elsewhere).
+ */
+export function customerReason(reason: string) {
+  const cleaned = reason
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\b(?:www\.)\S+/gi, "")
+    .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/[.\s]+$/, "");
+  if (cleaned.length < 8) return GENERIC_HOLD_REASON;
+  return cleaned.length > 200 ? `${cleaned.slice(0, 197).trimEnd()}…` : cleaned;
+}
+
 /** The email a team gets when the Guard puts its campaign on hold. */
 export function campaignOnHoldEmail(input: {
   teamName: string;
   campaignName: string;
   reason: string;
-  alreadySent: number;
+  started: boolean;
 }) {
-  const reason = input.reason.trim().replace(/[.\s]+$/, "");
-  const sentLine =
-    input.alreadySent > 0
-      ? `${input.alreadySent.toLocaleString()} emails had already gone out; the rest are on hold.`
-      : "Nothing has been sent yet.";
+  const reason = customerReason(input.reason);
+  const intro = input.started
+    ? `We've put the rest of your campaign "${input.campaignName}" on hold, because ${reason}.`
+    : `We've put your campaign "${input.campaignName}" on hold before it went out, because ${reason}.`;
+  const sentLine = input.started
+    ? "Some emails may already have gone out; further sending is on hold."
+    : "Nothing has been sent yet.";
   return [
     `Hi ${input.teamName},`,
     "",
-    `We've put your campaign "${input.campaignName}" on hold before it went out, because ${reason}.`,
+    intro,
     "",
     `In their first two weeks, new accounts' campaigns get a quick check. ${sentLine}`,
     "",
@@ -886,7 +909,7 @@ export async function adminReleaseCampaign(campaignId: string, actor: string) {
     [
       `Hi ${campaign.team.name},`,
       "",
-      `Thanks for waiting. We've checked your campaign "${campaign.name}" and it's sending now.`,
+      `Thanks for waiting. We've checked your campaign "${campaign.name}" and released it; it will continue as scheduled.`,
       "",
       "useSend",
     ].join("\n"),
