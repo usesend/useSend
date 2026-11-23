@@ -13,6 +13,7 @@ const { mockDb, mockSendMail } = vi.hoisted(() => {
     waitlistApplication: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      groupBy: vi.fn(),
       updateMany: vi.fn(),
     },
   };
@@ -198,23 +199,43 @@ describe("rejecting someone", () => {
 });
 
 describe("pendingApplications", () => {
-  it("shows the Guard's suggested approvals first", async () => {
-    mockDb.waitlistApplication.findMany.mockResolvedValue([
-      { id: "a", guardVerdict: null },
-      { id: "b", guardVerdict: "reject" },
-      { id: "c", guardVerdict: "approve" },
-      { id: "d", guardVerdict: "unsure" },
+  it("shows one kind of advice at a time, newest first, with counts for all", async () => {
+    mockDb.waitlistApplication.groupBy.mockResolvedValue([
+      { guardVerdict: "approve", _count: { _all: 3 } },
+      { guardVerdict: null, _count: { _all: 800 } },
+      { guardVerdict: "reject", _count: { _all: 2 } },
     ]);
-    const list = await caller.pendingApplications();
-    expect(list.map((application) => application.id)).toEqual([
-      "c",
-      "d",
-      "b",
-      "a",
-    ]);
+    mockDb.waitlistApplication.findMany.mockResolvedValue([{ id: "c" }]);
+
+    const result = await caller.pendingApplications({ verdict: "none" });
+
+    expect(result.counts).toEqual({
+      approve: 3,
+      unsure: 0,
+      reject: 2,
+      none: 800,
+    });
+    expect(result.items).toEqual([{ id: "c" }]);
     expect(mockDb.waitlistApplication.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: "PENDING", user: { isWaitlisted: true } },
+        where: {
+          status: "PENDING",
+          user: { isWaitlisted: true },
+          guardVerdict: null,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 100,
+      }),
+    );
+  });
+
+  it("opens on the Guard's suggested approvals", async () => {
+    mockDb.waitlistApplication.groupBy.mockResolvedValue([]);
+    mockDb.waitlistApplication.findMany.mockResolvedValue([]);
+    await caller.pendingApplications();
+    expect(mockDb.waitlistApplication.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ guardVerdict: "approve" }),
       }),
     );
   });
