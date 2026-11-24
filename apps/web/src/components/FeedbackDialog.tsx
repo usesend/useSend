@@ -32,6 +32,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { api } from "~/trpc/react";
+import { FEEDBACK_ACTIVE_SESSION_KEY } from "~/lib/star-nudge";
 
 const FeedbackSchema = z.object({
   message: z.string().trim().min(1, "Feedback is required").max(2000),
@@ -73,6 +74,11 @@ export function FeedbackDialog({ trigger }: { trigger?: ReactNode }) {
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
+    if (nextOpen && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(FEEDBACK_ACTIVE_SESSION_KEY, "true");
+      } catch {}
+    }
     if (!nextOpen) {
       form.reset();
     }
