@@ -57,6 +57,8 @@ function parseDomainStatus(status?: string | null): DomainStatus {
 }
 
 function buildDnsRecords(domain: Domain): DomainDnsRecord[] {
+  if (domain.externalSesIdentity) return [];
+
   const subdomainSuffix = domain.subdomain ? `.${domain.subdomain}` : "";
   const mailDomain = `mail${subdomainSuffix}`;
   const dkimSelector = domain.dkimSelector ?? "usesend";
@@ -384,9 +386,10 @@ export async function createDomain(
   name: string,
   region: string,
   sesTenantId?: string,
+  importExisting = false,
 ) {
   return withPlanLimitLock(teamId, "domain", () =>
-    createDomainUnlocked(teamId, name, region, sesTenantId),
+    createDomainUnlocked(teamId, name, region, sesTenantId, importExisting),
   );
 }
 
@@ -394,8 +397,22 @@ async function createDomainUnlocked(
   teamId: number,
   name: string,
   region: string,
-  sesTenantId?: string,
+  sesTenantId: string | undefined,
+  importExisting: boolean,
 ) {
+  if (importExisting) {
+    name = name.trim().toLowerCase();
+    if (
+      sesTenantId ||
+      name.length > 253 ||
+      !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)
+    ) {
+      throw new UnsendApiError({
+        code: "BAD_REQUEST",
+        message: "An existing SES identity requires a domain name and a team without SES tenant isolation",
+      });
+    }
+  }
   const domainStr = tldts.getDomain(name);
 
   logger.info({ domainStr, name, region }, "Creating domain");
@@ -421,13 +438,21 @@ async function createDomainUnlocked(
   }
 
   const subdomain = tldts.getSubdomain(name);
-  const dkimSelector = "usesend";
-  const publicKey = await ses.addDomain(
-    name,
-    region,
-    sesTenantId,
-    dkimSelector,
-  );
+  const dkimSelector = importExisting ? null : "usesend";
+  const identity = importExisting
+    ? await ses.getDomainIdentity(name, region)
+    : null;
+
+  if (identity && !identity.VerifiedForSendingStatus) {
+    throw new UnsendApiError({
+      code: "BAD_REQUEST",
+      message: "SES has not verified this domain for sending in the selected region",
+    });
+  }
+
+  const publicKey = dkimSelector
+    ? await ses.addDomain(name, region, sesTenantId, dkimSelector)
+    : "";
 
   const domain = await db.domain.create({
     data: {
@@ -438,8 +463,12 @@ async function createDomainUnlocked(
       region,
       sesTenantId,
       dkimSelector,
-      dkimStatus: DomainStatus.NOT_STARTED,
-      spfDetails: DomainStatus.NOT_STARTED,
+      externalSesIdentity: importExisting,
+      status: importExisting ? DomainStatus.SUCCESS : DomainStatus.PENDING,
+      dkimStatus: identity?.DkimAttributes?.Status ?? DomainStatus.NOT_STARTED,
+      spfDetails:
+        identity?.MailFromAttributes?.MailFromDomainStatus ??
+        DomainStatus.NOT_STARTED,
     },
   });
 
@@ -496,9 +525,16 @@ export async function refreshDomainVerification(
     domainIdentity.MailFromAttributes?.MailFromDomainStatus?.toString();
   const verificationError =
     domainIdentity.VerificationInfo?.ErrorType?.toString() ?? null;
-  const verificationStatus = parseDomainStatus(
+  const sesVerificationStatus = parseDomainStatus(
     domainIdentity.VerificationStatus?.toString(),
   );
+  const verificationStatus = domain.externalSesIdentity
+    ? domainIdentity.VerifiedForSendingStatus
+      ? DomainStatus.SUCCESS
+      : sesVerificationStatus === DomainStatus.SUCCESS
+        ? DomainStatus.FAILED
+        : sesVerificationStatus
+    : sesVerificationStatus;
   const lastCheckedTime = domainIdentity.VerificationInfo?.LastCheckedTimestamp;
   const baseDomain = tldts.getDomain(domain.name);
   const _dmarcRecord = baseDomain ? await getDmarcRecord(baseDomain) : null;
@@ -515,11 +551,9 @@ export async function refreshDomainVerification(
       status: verificationStatus,
       errorMessage: verificationError,
       dmarcAdded: Boolean(dmarcRecord),
-      isVerifying: shouldContinueVerifying(
-        verificationStatus,
-        dkimStatus,
-        spfDetails,
-      ),
+      isVerifying: domain.externalSesIdentity
+        ? verificationStatus === DomainStatus.PENDING
+        : shouldContinueVerifying(verificationStatus, dkimStatus, spfDetails),
     },
   });
 
@@ -621,13 +655,14 @@ export async function deleteDomain(id: number) {
     throw new Error("Domain not found");
   }
 
-  const deleted = await ses.deleteDomain(
-    domain.name,
-    domain.region,
-    domain.sesTenantId ?? undefined,
-  );
-
-  if (!deleted) {
+  if (
+    !domain.externalSesIdentity &&
+    !(await ses.deleteDomain(
+      domain.name,
+      domain.region,
+      domain.sesTenantId ?? undefined,
+    ))
+  ) {
     throw new Error("Error in deleting domain");
   }
 

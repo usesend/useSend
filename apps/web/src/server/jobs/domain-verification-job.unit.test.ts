@@ -68,6 +68,7 @@ function createDomain(id: number, status: DomainStatus): Domain {
     clickTracking: false,
     openTracking: false,
     publicKey: "public-key",
+    externalSesIdentity: false,
     dkimSelector: "usesend",
     dkimStatus: DomainStatus.NOT_STARTED,
     spfDetails: DomainStatus.NOT_STARTED,

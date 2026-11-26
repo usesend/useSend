@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { isPlatformAdmin } from "~/server/platform-admin";
+import { isSelfHosted } from "~/utils/common";
 
 import {
   createTRPCRouter,
@@ -27,14 +30,38 @@ export const domainRouter = createTRPCRouter({
     return getValidSesRegions(settings.map((setting) => setting.region));
   }),
 
+  canImportExistingIdentity: teamProcedure.query(async ({ ctx }) => {
+    return (
+      isSelfHosted() &&
+      !ctx.team.sesTenantId &&
+      (await isPlatformAdmin(ctx.session.user))
+    );
+  }),
+
   createDomain: teamProcedure
-    .input(z.object({ name: z.string(), region: sesRegionSchema }))
+    .input(
+      z.object({
+        name: z.string(),
+        region: sesRegionSchema,
+        importExisting: z.boolean().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      if (
+        input.importExisting &&
+        (!isSelfHosted() ||
+          ctx.team.sesTenantId ||
+          !(await isPlatformAdmin(ctx.session.user)))
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return createDomain(
         ctx.team.id,
         input.name,
         input.region,
-        ctx.team.sesTenantId ?? undefined
+        ctx.team.sesTenantId ?? undefined,
+        input.importExisting,
       );
     }),
 

@@ -249,6 +249,7 @@ model Domain {
   region        String       @default("us-east-1")
   clickTracking Boolean      @default(false)
   openTracking  Boolean      @default(false)
+  externalSesIdentity Boolean @default(false)
   publicKey     String
   dkimSelector  String?      @default("usesend")
   dkimStatus    String?
