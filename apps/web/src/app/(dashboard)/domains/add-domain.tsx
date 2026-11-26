@@ -20,7 +20,7 @@ import {
 } from "@usesend/ui/src/form";
 
 import { api } from "~/trpc/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as tldts from "tldts";
@@ -40,6 +40,7 @@ import { LimitReason } from "~/lib/constants/plans";
 
 const domainSchema = z.object({
   region: z.string().optional(),
+  importExisting: z.boolean(),
   domain: z.string({ required_error: "Domain is required" }).min(1, {
     message: "Domain is required",
   }),
@@ -48,6 +49,7 @@ const domainSchema = z.object({
 export default function AddDomain() {
   const [open, setOpen] = useState(false);
 
+  const canImportExisting = api.domain.canImportExistingIdentity.useQuery();
   const regionQuery = api.domain.getAvailableRegions.useQuery();
   const limitsQuery = api.limits.get.useQuery({ type: LimitReason.DOMAIN });
 
@@ -59,6 +61,7 @@ export default function AddDomain() {
     resolver: zodResolver(domainSchema),
     defaultValues: {
       region: "",
+      importExisting: false,
       domain: "",
     },
   });
@@ -96,6 +99,7 @@ export default function AddDomain() {
     addDomainMutation.mutate(
       {
         name: values.domain,
+        importExisting: values.importExisting,
         region: singleRegion ?? values.region ?? "",
       },
       {
@@ -161,6 +165,16 @@ export default function AddDomain() {
                   </FormItem>
                 )}
               />
+
+              {canImportExisting.data && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    {...domainForm.register("importExisting")}
+                  />
+                  Use an existing verified SES identity
+                </label>
+              )}
 
               {showRegionSelect && (
                 <FormField

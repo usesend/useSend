@@ -193,6 +193,12 @@ Once you log in to useSend, it will prompt you add SES configuration.
 
 ![github app](/images/ses-settings/sandbox.png)
 
+### Use an existing SES identity
+
+On a self-hosted instance, a platform administrator can select **Use an existing verified SES identity** under **Domains → Add domain**. Select the region where the domain is already verified for sending. The configured SES credentials need `ses:GetEmailIdentity` for that domain, along with the usual sending permissions.
+
+useSend uses the identity's existing DKIM and MAIL FROM settings. Removing the domain from useSend unlinks it from the team and revokes its domain-scoped API keys. The SES identity remains available.
+
 ## Step 5: SMTP Proxy Server (Optional)
 
 The SMTP proxy server is an optional component that allows applications to send emails through useSend using standard SMTP protocol instead of the REST API. This is useful for legacy applications, email clients, or any software that needs to send emails via SMTP.

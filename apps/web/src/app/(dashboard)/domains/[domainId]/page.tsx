@@ -116,53 +116,59 @@ export default function DomainItemPage({
 
           <div className=" border rounded-lg p-4 shadow">
             <p className="font-semibold text-xl">DNS records</p>
-            <Table className="mt-2">
-              <TableHeader className="">
-                <TableRow className="">
-                  <TableHead className="rounded-tl-xl">Type</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead className="">TTL</TableHead>
-                  <TableHead className="">Priority</TableHead>
-                  <TableHead className="rounded-tr-xl">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(domainQuery.data?.dnsRecords ?? []).map((record) => {
-                  const key = `${record.type}-${record.name}`;
-                  const valueClassName = record.name.includes("_domainkey")
-                    ? "w-[200px] overflow-hidden text-ellipsis"
-                    : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
+            {domainQuery.data?.externalSesIdentity ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                This identity uses the DNS and signing settings already configured in Amazon SES.
+              </p>
+            ) : (
+              <Table className="mt-2">
+                <TableHeader className="">
+                  <TableRow className="">
+                    <TableHead className="rounded-tl-xl">Type</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Content</TableHead>
+                    <TableHead className="">TTL</TableHead>
+                    <TableHead className="">Priority</TableHead>
+                    <TableHead className="rounded-tr-xl">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(domainQuery.data?.dnsRecords ?? []).map((record) => {
+                    const key = `${record.type}-${record.name}`;
+                    const valueClassName = record.name.includes("_domainkey")
+                      ? "w-[200px] overflow-hidden text-ellipsis"
+                      : "w-[200px] overflow-hidden text-ellipsis text-nowrap";
 
-                  return (
-                    <TableRow key={key}>
-                      <TableCell className="">{record.type}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 items-center">
-                          {record.recommended ? (
-                            <span className="text-sm text-muted-foreground">
-                              (recommended)
-                            </span>
-                          ) : null}
-                          <TextWithCopyButton value={record.name} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="">
-                        <TextWithCopyButton
-                          value={record.value}
-                          className={valueClassName}
-                        />
-                      </TableCell>
-                      <TableCell className="">{record.ttl}</TableCell>
-                      <TableCell className="">{record.priority ?? ""}</TableCell>
-                      <TableCell className="">
-                        <DnsVerificationStatus status={record.status} />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="">{record.type}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2 items-center">
+                            {record.recommended ? (
+                              <span className="text-sm text-muted-foreground">
+                                (recommended)
+                              </span>
+                            ) : null}
+                            <TextWithCopyButton value={record.name} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="">
+                          <TextWithCopyButton
+                            value={record.value}
+                            className={valueClassName}
+                          />
+                        </TableCell>
+                        <TableCell className="">{record.ttl}</TableCell>
+                        <TableCell className="">{record.priority ?? ""}</TableCell>
+                        <TableCell className="">
+                          <DnsVerificationStatus status={record.status} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </div>
           {domainQuery.data ? (
             <DomainSettings domain={domainQuery.data} />

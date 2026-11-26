@@ -4,6 +4,8 @@ import { DomainStatus, type Domain } from "@prisma/client";
 const {
   mockDb,
   mockGetDomainIdentity,
+  mockAddDomain,
+  mockDeleteDomain,
   mockWebhookEmit,
   mockRedis,
   mockSendMail,
@@ -13,15 +15,21 @@ const {
 } = vi.hoisted(() => ({
   mockDb: {
     domain: {
+      create: vi.fn(),
+      delete: vi.fn(),
       update: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
+    apiKey: { deleteMany: vi.fn() },
+    $transaction: vi.fn((operations) => Promise.all(operations)),
     teamUser: {
       findMany: vi.fn(),
     },
   },
   mockGetDomainIdentity: vi.fn(),
+  mockAddDomain: vi.fn(),
+  mockDeleteDomain: vi.fn(),
   mockWebhookEmit: vi.fn(),
   mockRedis: {
     mget: vi.fn(),
@@ -52,6 +60,8 @@ vi.mock("~/server/db", () => ({
 
 vi.mock("~/server/aws/ses", () => ({
   getDomainIdentity: mockGetDomainIdentity,
+  addDomain: mockAddDomain,
+  deleteDomain: mockDeleteDomain,
 }));
 
 vi.mock("~/server/service/webhook-service", () => ({
@@ -80,7 +90,24 @@ vi.mock("~/server/email-templates", () => ({
   renderDomainVerificationStatusEmail: mockRenderDomainVerificationStatusEmail,
 }));
 
+vi.mock("./ses-settings-service", () => ({
+  SesSettingsService: { getSetting: vi.fn() },
+}));
+
+vi.mock("./limit-service", () => ({
+  LimitService: { checkDomainLimit: vi.fn() },
+}));
+
+vi.mock("./plan-limit-lock", () => ({
+  withPlanLimitLock: (_team: number, _kind: string, run: () => unknown) => run(),
+}));
+
+import { SesSettingsService } from "./ses-settings-service";
+import { LimitService } from "./limit-service";
+
 import {
+  createDomain as addDomain,
+  deleteDomain,
   DOMAIN_UNVERIFIED_RECHECK_MS,
   DOMAIN_VERIFIED_RECHECK_MS,
   isDomainVerificationDue,
@@ -99,6 +126,7 @@ function createDomain(overrides: Partial<Domain> = {}): Domain {
     clickTracking: false,
     openTracking: false,
     publicKey: "public-key",
+    externalSesIdentity: false,
     dkimSelector: "usesend",
     dkimStatus: DomainStatus.NOT_STARTED,
     spfDetails: DomainStatus.NOT_STARTED,
@@ -495,5 +523,59 @@ describe("domain-service", () => {
         ),
       ).rejects.toThrow("Domain: a-corp.test of from email is wrong");
     });
+  });
+});
+
+describe("importing an existing SES identity", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(SesSettingsService.getSetting).mockResolvedValue({ region: "us-west-2" } as NonNullable<Awaited<ReturnType<typeof SesSettingsService.getSetting>>>);
+    vi.mocked(LimitService.checkDomainLimit).mockResolvedValue({ isLimitReached: false } as Awaited<ReturnType<typeof LimitService.checkDomainLimit>>);
+  });
+
+  it("reads identity status and creates a local domain without changing SES", async () => {
+    mockGetDomainIdentity.mockResolvedValue({ VerifiedForSendingStatus: true });
+    mockDb.domain.create.mockResolvedValue(
+      createDomain({ externalSesIdentity: true, status: DomainStatus.SUCCESS }),
+    );
+
+    const domain = await addDomain(7, "Example.COM", "us-west-2", undefined, true);
+
+    expect(mockGetDomainIdentity).toHaveBeenCalledWith("example.com", "us-west-2");
+    expect(mockAddDomain).not.toHaveBeenCalled();
+    expect(mockDb.domain.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: "example.com",
+        externalSesIdentity: true,
+        status: DomainStatus.SUCCESS,
+      }),
+    });
+    expect(domain.dnsRecords).toEqual([]);
+  });
+
+  it("rejects an identity that is unverified for sending", async () => {
+    mockGetDomainIdentity.mockResolvedValue({ VerifiedForSendingStatus: false });
+
+    await expect(addDomain(7, "example.com", "us-west-2", undefined, true))
+      .rejects.toThrow("SES has not verified");
+    expect(mockDb.domain.create).not.toHaveBeenCalled();
+    expect(mockAddDomain).not.toHaveBeenCalled();
+  });
+
+  it("rejects importing a shared identity into an SES tenant", async () => {
+    await expect(addDomain(7, "example.com", "us-west-2", "tenant", true))
+      .rejects.toThrow("without SES tenant isolation");
+    expect(mockGetDomainIdentity).not.toHaveBeenCalled();
+  });
+
+  it("deletes the local domain and its API keys without deleting the SES identity", async () => {
+    const domain = createDomain({ externalSesIdentity: true });
+    mockDb.domain.findUnique.mockResolvedValue(domain);
+    mockDb.domain.delete.mockResolvedValue(domain);
+
+    await expect(deleteDomain(domain.id)).resolves.toEqual(domain);
+
+    expect(mockDeleteDomain).not.toHaveBeenCalled();
+    expect(mockDb.apiKey.deleteMany).toHaveBeenCalledWith({ where: { domainId: domain.id } });
   });
 });
