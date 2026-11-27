@@ -49,6 +49,21 @@ describe("replaceContactVariables", () => {
     ).toBe("Welcome, you!");
   });
 
+  it("does not keep whitespace padding in the fallback value", () => {
+    const contact = {
+      ...baseContact,
+      firstName: null,
+    } satisfies Contact;
+
+    expect(
+      replaceContactVariables(
+        "Hi {{ firstName, fallback= there }}, welcome!",
+        contact,
+        [...BUILT_IN_CONTACT_VARIABLES],
+      ),
+    ).toBe("Hi there, welcome!");
+  });
+
   it("uses fallback values for nullable built-in variables", () => {
     const contact = {
       ...baseContact,
