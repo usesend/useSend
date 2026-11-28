@@ -222,8 +222,9 @@ export class LimitService {
     teamId: number,
     emailId: string,
     limit: number,
+    /** The UTC day the check started, so a slow call can't spill into tomorrow. */
+    day: string,
   ) {
-    const day = new Date().toISOString().slice(0, 10);
     const claimed = await getRedis().eval(
       RESERVE_SLOT,
       1,
@@ -340,6 +341,8 @@ export class LimitService {
     if (activePlan !== "FREE" && emailId) {
       let rampLimit: number | null = null;
       let allowed = true;
+      // Captured once, before any call that could be slow.
+      const sendDay = new Date().toISOString().slice(0, 10);
       try {
         // Bounded: a hung Redis or DB call mustn't hold a queue worker.
         const result = await withTimeout(
@@ -350,6 +353,7 @@ export class LimitService {
               teamId,
               emailId,
               Math.min(limit, dailyLimit),
+              sendDay,
             );
             return { limit, allowed: ok };
           })(),
