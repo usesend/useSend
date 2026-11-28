@@ -30,3 +30,24 @@ export function parseFromAddress(from: string): ParsedFromAddress | undefined {
 
   return { name: entry.name, address: entry.address, domain };
 }
+
+/**
+ * How many mailboxes a list of to/cc/bcc entries reaches, parsed the way
+ * Nodemailer does when it sends (one entry can hold "a@x.com, b@x.com"; a
+ * quoted display name with a comma is still one mailbox; groups are expanded).
+ */
+export function countMailboxes(
+  entries: Array<string | null | undefined>,
+): number {
+  let count = 0;
+  for (const entry of entries) {
+    if (!entry) continue;
+    for (const parsed of addressparser(entry)) {
+      const group = (parsed as { group?: Array<{ address?: string }> }).group;
+      if (Array.isArray(group))
+        count += group.filter((member) => member.address).length;
+      else if (parsed.address) count += 1;
+    }
+  }
+  return count;
+}

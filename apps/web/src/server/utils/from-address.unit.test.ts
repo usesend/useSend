@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import nodemailer from "nodemailer";
 import addressparser from "nodemailer/lib/addressparser";
-import { parseFromAddress } from "~/server/utils/from-address";
+import { countMailboxes, parseFromAddress } from "~/server/utils/from-address";
 
 async function emittedFromAddress(from: { name: string; address: string }) {
   const { message } = await nodemailer
@@ -71,5 +71,19 @@ describe("parseFromAddress", () => {
     const parsed = parseFromAddress(from);
     expect(parsed).toBeDefined();
     expect(await emittedFromAddress(parsed!)).toBe(parsed!.address);
+  });
+});
+
+describe("countMailboxes", () => {
+  it("counts mailboxes the way Nodemailer sends them", () => {
+    expect(countMailboxes(["a@example.com"])).toBe(1);
+    expect(
+      countMailboxes(["a@example.com, b@example.com", "c@example.com"]),
+    ).toBe(3);
+    // A quoted display name with a comma is one mailbox.
+    expect(countMailboxes(['"Name, User" <u@example.com>'])).toBe(1);
+    // Groups expand to their members.
+    expect(countMailboxes(["Team: a@example.com, b@example.com;"])).toBe(2);
+    expect(countMailboxes([])).toBe(0);
   });
 });
