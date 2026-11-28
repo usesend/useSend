@@ -7,7 +7,7 @@ import {
 } from "~/server/service/new-sender-ramp";
 
 const DAY = 24 * 60 * 60 * 1000;
-const now = Date.parse("2026-11-28T12:00:00Z");
+const now = Date.parse("2026-12-20T12:00:00Z");
 const clean = { sent: 0, hardBounced: 0, complained: 0 };
 const team = (
   ageDays: number,
@@ -30,6 +30,20 @@ describe("newSenderDailyLimit", () => {
   it("never applies to established teams", () => {
     expect(newSenderDailyLimit(team(14), clean, now)).toBeNull();
     expect(newSenderDailyLimit(team(400), clean, now)).toBeNull();
+  });
+
+  it("never applies to teams created before it shipped (existing customers)", () => {
+    const created = Date.parse("2026-11-27T23:00:00Z");
+    expect(
+      newSenderDailyLimit(
+        {
+          createdAt: new Date(created),
+          dailyEmailLimit: DEFAULT_DAILY_EMAIL_LIMIT,
+        },
+        clean,
+        created + DAY,
+      ),
+    ).toBeNull();
   });
 
   it("skips teams whose limit an admin set by hand", () => {

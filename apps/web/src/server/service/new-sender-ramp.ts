@@ -21,6 +21,12 @@ export const NEW_SENDER_RAMP = [
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Teams created before the ramp shipped keep the limits they signed up with
+ * (founder: existing customers aren't affected).
+ */
+export const RAMP_STARTS_AT = Date.parse("2026-11-28T00:00:00Z");
+
+/**
  * Today's cap for a team still in its first 14 days, or null when the ramp
  * doesn't apply: an older team, or one whose daily limit an admin set by hand
  * (e.g. a business moving its existing volume over on day one).
@@ -36,7 +42,7 @@ export function newSenderDailyLimit(
   if (!team.createdAt) return null;
   if (team.dailyEmailLimit !== DEFAULT_DAILY_EMAIL_LIMIT) return null;
   const created = new Date(team.createdAt).getTime();
-  if (Number.isNaN(created)) return null;
+  if (Number.isNaN(created) || created < RAMP_STARTS_AT) return null;
   const ageDays = Math.floor((now - created) / DAY_MS);
   const step = NEW_SENDER_RAMP.find((s) => ageDays < s.beforeDay);
   if (!step) return null;

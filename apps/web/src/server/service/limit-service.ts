@@ -9,6 +9,15 @@ import { db } from "../db";
 import { logger } from "../logger/log";
 import { Plan } from "@prisma/client";
 
+/** Claims a new-account daily slot for one email: KEYS[1] day set, ARGV email id, limit, ttl. */
+const RESERVE_SLOT = `
+if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return 1 end
+if redis.call('SCARD', KEYS[1]) >= tonumber(ARGV[2]) then return 0 end
+redis.call('SADD', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+return 1
+`;
+
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
   return current >= limit;
@@ -154,16 +163,15 @@ export class LimitService {
   // - Sends "limit reached" notifications when limits are exceeded (rate-limited in TeamService)
   // - Teams with inactive subscriptions are treated like FREE plans for monthly limit alerts
   /**
-   * The new-account limit for a team in its first 14 days, with how many
-   * emails it has handed to SES today, or null when it doesn't apply. Counted
-   * from the emails themselves (not the cached, event-driven usage) so a
-   * burst can't overshoot it.
+   * The new-account limit for a team in its first 14 days, or null when it
+   * doesn't apply (older or grandfathered teams, custom limits). Lifetime
+   * bounce/complaint counts move slowly, so they're cached briefly.
    */
   static async newSenderLimit(team: {
     id: number;
     createdAt?: Date | string | null;
     dailyEmailLimit: number;
-  }): Promise<{ limit: number; sentToday: number } | null> {
+  }): Promise<number | null> {
     // Cheap check first: older teams and custom limits never query anything.
     if (
       newSenderDailyLimit(team, { sent: 0, hardBounced: 0, complained: 0 }) ===
@@ -171,27 +179,44 @@ export class LimitService {
     ) {
       return null;
     }
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const [usage, sentToday] = await Promise.all([
-      db.dailyEmailUsage.aggregate({
-        where: { teamId: team.id },
-        _sum: { sent: true, hardBounced: true, complained: true },
-      }),
-      db.email.count({
-        where: {
-          teamId: team.id,
-          sesEmailId: { not: null },
-          createdAt: { gte: startOfDay },
-        },
-      }),
-    ]);
-    const limit = newSenderDailyLimit(team, {
-      sent: usage._sum.sent ?? 0,
-      hardBounced: usage._sum.hardBounced ?? 0,
-      complained: usage._sum.complained ?? 0,
-    });
-    return limit === null ? null : { limit, sentToday };
+    const counts = await withCache(
+      `newsender:counts:${team.id}`,
+      async () => {
+        const usage = await db.dailyEmailUsage.aggregate({
+          where: { teamId: team.id },
+          _sum: { sent: true, hardBounced: true, complained: true },
+        });
+        return {
+          sent: usage._sum.sent ?? 0,
+          hardBounced: usage._sum.hardBounced ?? 0,
+          complained: usage._sum.complained ?? 0,
+        };
+      },
+      { ttlSeconds: 300 },
+    );
+    return newSenderDailyLimit(team, counts);
+  }
+
+  /**
+   * Atomically claims one of today's (UTC) slots for this email. The same
+   * email claiming again (a retry) reuses its slot, and concurrent workers
+   * can't both take the last one. Returns false when the day is full.
+   */
+  static async reserveNewSenderSlot(
+    teamId: number,
+    emailId: string,
+    limit: number,
+  ) {
+    const day = new Date().toISOString().slice(0, 10);
+    const claimed = await getRedis().eval(
+      RESERVE_SLOT,
+      1,
+      redisKey(`newsender:sent:${teamId}:${day}`),
+      emailId,
+      String(limit),
+      String(2 * 24 * 60 * 60),
+    );
+    return Number(claimed) === 1;
   }
 
   /** Tells the team once a day that it reached its new-account limit. */
@@ -226,6 +251,8 @@ export class LimitService {
   static async checkEmailLimit(
     teamId: number,
     recipients: string[] = [],
+    /** The email about to be sent; needed for the new-account limit. */
+    emailId?: string,
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -293,13 +320,31 @@ export class LimitService {
 
     // A paid team in its first 14 days starts with a lower daily limit that
     // grows with clean sending, so a list can't be blasted on day one.
-    if (activePlan !== "FREE") {
-      const ramp = await LimitService.newSenderLimit(team);
-      if (ramp && ramp.sentToday >= Math.min(ramp.limit, dailyLimit)) {
-        await LimitService.notifyNewSenderLimit(teamId, team.name, ramp.limit);
+    // If the check itself fails, sending carries on as before (logged).
+    if (activePlan !== "FREE" && emailId) {
+      let rampLimit: number | null = null;
+      let allowed = true;
+      try {
+        rampLimit = await LimitService.newSenderLimit(team);
+        if (rampLimit !== null) {
+          allowed = await LimitService.reserveNewSenderSlot(
+            teamId,
+            emailId,
+            Math.min(rampLimit, dailyLimit),
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { err: error, teamId },
+          "[LimitService]: New-account limit check failed; not applied",
+        );
+      }
+      if (rampLimit !== null && !allowed) {
+        // In the background: a slow notice mustn't hold a queue worker.
+        void LimitService.notifyNewSenderLimit(teamId, team.name, rampLimit);
         return {
           isLimitReached: true,
-          limit: ramp.limit,
+          limit: rampLimit,
           reason: LimitReason.EMAIL_DAILY_LIMIT_REACHED,
           available: 0,
         };

@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockEnv,
   mockGetTeamCached,
   mockTeamUsers,
   mockUsageAggregate,
-  mockEmailCount,
+  mockRedisEval,
   mockRedisSet,
   mockEmailTeam,
 } = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ const {
   mockGetTeamCached: vi.fn(),
   mockTeamUsers: vi.fn(),
   mockUsageAggregate: vi.fn(),
-  mockEmailCount: vi.fn(),
+  mockRedisEval: vi.fn(),
   mockRedisSet: vi.fn(),
   mockEmailTeam: vi.fn(),
 }));
@@ -26,7 +26,6 @@ vi.mock("~/server/db", () => ({
   db: {
     teamUser: { findMany: mockTeamUsers },
     dailyEmailUsage: { aggregate: mockUsageAggregate },
-    email: { count: mockEmailCount },
   },
 }));
 vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
@@ -35,7 +34,7 @@ vi.mock("~/server/logger/log", () => ({
 }));
 vi.mock("~/server/redis", () => ({
   withCache: (_key: string, fn: () => unknown) => fn(),
-  getRedis: () => ({ set: mockRedisSet }),
+  getRedis: () => ({ set: mockRedisSet, eval: mockRedisEval }),
   redisKey: (key: string) => key,
 }));
 vi.mock("~/server/service/usage-service", () => ({
@@ -172,67 +171,115 @@ describe("LimitService.checkEmailLimit paid-only signups", () => {
 
 describe("LimitService.checkEmailLimit new-account limit", () => {
   const DAY = 24 * 60 * 60 * 1000;
+  const NOW = Date.parse("2026-12-20T12:00:00Z");
   const paid = (ageDays: number, overrides: Record<string, unknown> = {}) =>
     team({
       plan: "BASIC",
       name: "Acme",
-      createdAt: new Date(Date.now() - ageDays * DAY - 60_000).toISOString(),
+      createdAt: new Date(NOW - ageDays * DAY - 60_000).toISOString(),
       ...overrides,
     });
+  // A tiny in-memory stand-in for the Redis slot script.
+  let slots: Map<string, Set<string>>;
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
     mockGetTeamCached.mockReset();
     mockUsageAggregate.mockReset();
-    mockEmailCount.mockReset();
     mockEmailTeam.mockReset();
     mockRedisSet.mockReset();
     mockRedisSet.mockResolvedValue("OK");
     mockUsageAggregate.mockResolvedValue({
       _sum: { sent: 0, hardBounced: 0, complained: 0 },
     });
+    slots = new Map();
+    mockRedisEval.mockReset();
+    mockRedisEval.mockImplementation(
+      async (
+        _script: string,
+        _n: number,
+        key: string,
+        id: string,
+        limit: string,
+      ) => {
+        const set = slots.get(key) ?? new Set<string>();
+        slots.set(key, set);
+        if (set.has(id)) return 1;
+        if (set.size >= Number(limit)) return 0;
+        set.add(id);
+        return 1;
+      },
+    );
   });
+  afterEach(() => vi.useRealTimers());
 
-  it("stops a day-old paid team at 200 emails and tells it once", async () => {
+  it("lets a day-old paid team send 200 emails, then stops it and tells it once", async () => {
     mockGetTeamCached.mockResolvedValue(paid(0));
-    mockEmailCount.mockResolvedValue(200);
-
-    await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+    for (let i = 0; i < 200; i++) {
+      await expect(
+        LimitService.checkEmailLimit(1, [], `e${i}`),
+      ).resolves.toMatchObject({
+        isLimitReached: false,
+      });
+    }
+    // A retry of an email that already has a slot still goes.
+    await expect(
+      LimitService.checkEmailLimit(1, [], "e5"),
+    ).resolves.toMatchObject({
+      isLimitReached: false,
+    });
+    await expect(
+      LimitService.checkEmailLimit(1, [], "e200"),
+    ).resolves.toMatchObject({
       isLimitReached: true,
       limit: 200,
       reason: LimitReason.EMAIL_DAILY_LIMIT_REACHED,
     });
-    expect(mockEmailTeam).toHaveBeenCalledWith(
-      1,
-      expect.stringContaining("limit for new accounts"),
-      expect.stringContaining("200"),
+    await vi.waitFor(() =>
+      expect(mockEmailTeam).toHaveBeenCalledWith(
+        1,
+        expect.stringContaining("limit for new accounts"),
+        expect.stringContaining("200"),
+      ),
     );
 
     mockRedisSet.mockResolvedValue(null); // already told today
-    await LimitService.checkEmailLimit(1);
+    await LimitService.checkEmailLimit(1, [], "e201");
+    await Promise.resolve();
     expect(mockEmailTeam).toHaveBeenCalledTimes(1);
   });
 
-  it("lets a new team send under its limit", async () => {
-    mockGetTeamCached.mockResolvedValue(paid(4));
-    mockEmailCount.mockResolvedValue(999);
-    await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+  it("keeps sending if the check itself fails", async () => {
+    mockGetTeamCached.mockResolvedValue(paid(0));
+    mockRedisEval.mockRejectedValue(new Error("redis down"));
+    await expect(
+      LimitService.checkEmailLimit(1, [], "e1"),
+    ).resolves.toMatchObject({
       isLimitReached: false,
     });
   });
 
-  it("never touches established customers or custom limits", async () => {
+  it("never touches established customers, grandfathered teams or custom limits", async () => {
+    const before = team({
+      plan: "BASIC",
+      createdAt: "2026-11-27T10:00:00Z",
+    });
     for (const t of [
       paid(14),
       paid(300),
       paid(0, { dailyEmailLimit: 50_000 }),
+      before,
     ]) {
       mockGetTeamCached.mockResolvedValue(t);
-      await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+      await expect(
+        LimitService.checkEmailLimit(1, [], "e1"),
+      ).resolves.toMatchObject({
         isLimitReached: false,
       });
     }
     expect(mockUsageAggregate).not.toHaveBeenCalled();
-    expect(mockEmailCount).not.toHaveBeenCalled();
+    expect(mockRedisEval).not.toHaveBeenCalled();
   });
 });
