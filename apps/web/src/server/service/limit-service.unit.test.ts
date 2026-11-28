@@ -261,6 +261,18 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
     });
   });
 
+  it("keeps sending if Redis hangs instead of failing", async () => {
+    mockGetTeamCached.mockResolvedValue(paid(0));
+    mockRedisEval.mockReturnValue(new Promise(() => {})); // never settles
+    const started = performance.now();
+    await expect(
+      LimitService.checkEmailLimit(1, [], "e1"),
+    ).resolves.toMatchObject({
+      isLimitReached: false,
+    });
+    expect(performance.now() - started).toBeLessThan(5_000);
+  });
+
   it("never touches established customers, grandfathered teams or custom limits", async () => {
     const before = team({
       plan: "BASIC",

@@ -18,6 +18,22 @@ redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
 return 1
 `;
 
+/** How long the new-account check may take before sending goes ahead without it. */
+const NEW_SENDER_CHECK_TIMEOUT_MS = 2_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`timed out after ${ms}ms`)),
+        ms,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 function isLimitExceeded(current: number, limit: number): boolean {
   if (limit === -1) return false; // unlimited
   return current >= limit;
@@ -325,15 +341,25 @@ export class LimitService {
       let rampLimit: number | null = null;
       let allowed = true;
       try {
-        rampLimit = await LimitService.newSenderLimit(team);
-        if (rampLimit !== null) {
-          allowed = await LimitService.reserveNewSenderSlot(
-            teamId,
-            emailId,
-            Math.min(rampLimit, dailyLimit),
-          );
-        }
+        // Bounded: a hung Redis or DB call mustn't hold a queue worker.
+        const result = await withTimeout(
+          (async () => {
+            const limit = await LimitService.newSenderLimit(team);
+            if (limit === null) return { limit, allowed: true };
+            const ok = await LimitService.reserveNewSenderSlot(
+              teamId,
+              emailId,
+              Math.min(limit, dailyLimit),
+            );
+            return { limit, allowed: ok };
+          })(),
+          NEW_SENDER_CHECK_TIMEOUT_MS,
+        );
+        rampLimit = result.limit;
+        allowed = result.allowed;
       } catch (error) {
+        rampLimit = null;
+        allowed = true;
         logger.error(
           { err: error, teamId },
           "[LimitService]: New-account limit check failed; not applied",
