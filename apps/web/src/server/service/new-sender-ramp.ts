@@ -62,6 +62,6 @@ export function newSenderLimitEmail(input: {
   ).join("\n");
   return {
     subject: "useSend: you've reached today's limit for new accounts",
-    text: `Hi ${input.teamName} team,\n\nYou've sent ${input.limit.toLocaleString()} emails today, the daily limit for new accounts. Emails sent after that fail instead of going out; the limit resets at midnight UTC.\n\nNew accounts start lower and grow automatically over the first two weeks, as long as bounces and spam complaints stay low:\n${steps}\n- after that: your plan's full daily limit\n\nIf you're moving existing sending to useSend and need more from day one, reply to this email and tell us about it.\n\n${input.settingsUrl}\n\nuseSend`,
+    text: `Hi ${input.teamName} team,\n\nYou've sent ${input.limit.toLocaleString()} emails today (each recipient counts as one), the daily limit for new accounts. Emails sent after that fail instead of going out; the limit resets at midnight UTC.\n\nNew accounts start lower and grow automatically over the first two weeks, as long as bounces and spam complaints stay low:\n${steps}\n- after that: your plan's full daily limit\n\nIf you're moving existing sending to useSend and need more from day one, reply to this email and tell us about it.\n\n${input.settingsUrl}\n\nuseSend`,
   };
 }

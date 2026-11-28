@@ -179,8 +179,8 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
       createdAt: new Date(NOW - ageDays * DAY - 60_000).toISOString(),
       ...overrides,
     });
-  // A tiny in-memory stand-in for the Redis slot script.
-  let slots: Map<string, Set<string>>;
+  // A tiny in-memory stand-in for the Redis reservation script.
+  let slots: Map<string, Map<string, number>>;
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -202,13 +202,15 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
         _n: number,
         key: string,
         id: string,
+        recipients: string,
         limit: string,
       ) => {
-        const set = slots.get(key) ?? new Set<string>();
-        slots.set(key, set);
-        if (set.has(id)) return 1;
-        if (set.size >= Number(limit)) return 0;
-        set.add(id);
+        const claims = slots.get(key) ?? new Map<string, number>();
+        slots.set(key, claims);
+        if (claims.has(id)) return 1;
+        const total = [...claims.values()].reduce((a, b) => a + b, 0);
+        if (total + Number(recipients) > Number(limit)) return 0;
+        claims.set(id, Number(recipients));
         return 1;
       },
     );
@@ -219,19 +221,19 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
     mockGetTeamCached.mockResolvedValue(paid(0));
     for (let i = 0; i < 200; i++) {
       await expect(
-        LimitService.checkEmailLimit(1, [], `e${i}`),
+        LimitService.checkEmailLimit(1, [], { id: `e${i}`, recipients: 1 }),
       ).resolves.toMatchObject({
         isLimitReached: false,
       });
     }
     // A retry of an email that already has a slot still goes.
     await expect(
-      LimitService.checkEmailLimit(1, [], "e5"),
+      LimitService.checkEmailLimit(1, [], { id: "e5", recipients: 1 }),
     ).resolves.toMatchObject({
       isLimitReached: false,
     });
     await expect(
-      LimitService.checkEmailLimit(1, [], "e200"),
+      LimitService.checkEmailLimit(1, [], { id: "e200", recipients: 1 }),
     ).resolves.toMatchObject({
       isLimitReached: true,
       limit: 200,
@@ -246,16 +248,31 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
     );
 
     mockRedisSet.mockResolvedValue(null); // already told today
-    await LimitService.checkEmailLimit(1, [], "e201");
+    await LimitService.checkEmailLimit(1, [], { id: "e201", recipients: 1 });
     await Promise.resolve();
     expect(mockEmailTeam).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts every recipient, so a big bcc can't slip past the limit", async () => {
+    mockGetTeamCached.mockResolvedValue(paid(0));
+    await expect(
+      LimitService.checkEmailLimit(1, [], { id: "bcc-blast", recipients: 250 }),
+    ).resolves.toMatchObject({ isLimitReached: true, limit: 200 });
+    for (const id of ["a", "b"]) {
+      await expect(
+        LimitService.checkEmailLimit(1, [], { id, recipients: 100 }),
+      ).resolves.toMatchObject({ isLimitReached: false });
+    }
+    await expect(
+      LimitService.checkEmailLimit(1, [], { id: "c", recipients: 1 }),
+    ).resolves.toMatchObject({ isLimitReached: true });
   });
 
   it("keeps sending if the check itself fails", async () => {
     mockGetTeamCached.mockResolvedValue(paid(0));
     mockRedisEval.mockRejectedValue(new Error("redis down"));
     await expect(
-      LimitService.checkEmailLimit(1, [], "e1"),
+      LimitService.checkEmailLimit(1, [], { id: "e1", recipients: 1 }),
     ).resolves.toMatchObject({
       isLimitReached: false,
     });
@@ -266,7 +283,7 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
     mockRedisEval.mockReturnValue(new Promise(() => {})); // never settles
     const started = performance.now();
     await expect(
-      LimitService.checkEmailLimit(1, [], "e1"),
+      LimitService.checkEmailLimit(1, [], { id: "e1", recipients: 1 }),
     ).resolves.toMatchObject({
       isLimitReached: false,
     });
@@ -286,7 +303,7 @@ describe("LimitService.checkEmailLimit new-account limit", () => {
     ]) {
       mockGetTeamCached.mockResolvedValue(t);
       await expect(
-        LimitService.checkEmailLimit(1, [], "e1"),
+        LimitService.checkEmailLimit(1, [], { id: "e1", recipients: 1 }),
       ).resolves.toMatchObject({
         isLimitReached: false,
       });

@@ -85,7 +85,9 @@ describe("newSenderLimitEmail", () => {
       settingsUrl: "https://app.usesend.com/settings",
     });
     expect(subject).toContain("limit for new accounts");
-    expect(text).toContain("You've sent 200 emails today");
+    expect(text).toContain(
+      "You've sent 200 emails today (each recipient counts as one)",
+    );
     expect(text).toContain("first 3 days: 200 emails a day");
     expect(text).toContain("until day 7: 1,000 emails a day");
     expect(text).toContain("until day 14: 5,000 emails a day");

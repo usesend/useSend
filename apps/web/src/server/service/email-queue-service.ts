@@ -465,7 +465,11 @@ async function executeEmail(job: QueueEmailJob) {
     const limitCheck = await LimitService.checkEmailLimit(
       email.teamId,
       email.to,
-      email.id,
+      {
+        id: email.id,
+        recipients:
+          email.to.length + (email.cc?.length ?? 0) + (email.bcc?.length ?? 0),
+      },
     );
     logger.info({ limitCheck }, `[EmailQueueService]: Limit check`);
     if (limitCheck.isLimitReached) {

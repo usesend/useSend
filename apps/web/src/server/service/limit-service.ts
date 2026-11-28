@@ -9,12 +9,20 @@ import { db } from "../db";
 import { logger } from "../logger/log";
 import { Plan } from "@prisma/client";
 
-/** Claims a new-account daily slot for one email: KEYS[1] day set, ARGV email id, limit, ttl. */
+/**
+ * Claims today's new-account allowance for one email's recipients.
+ * KEYS[1]: hash of email id -> recipients claimed, plus "__total".
+ * ARGV: email id, recipients, limit, ttl. A retry of the same email reuses
+ * its claim; concurrent workers can't both take the last of the allowance.
+ */
 const RESERVE_SLOT = `
-if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return 1 end
-if redis.call('SCARD', KEYS[1]) >= tonumber(ARGV[2]) then return 0 end
-redis.call('SADD', KEYS[1], ARGV[1])
-redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return 1 end
+local total = tonumber(redis.call('HGET', KEYS[1], '__total') or '0')
+local wanted = tonumber(ARGV[2])
+if total + wanted > tonumber(ARGV[3]) then return 0 end
+redis.call('HSET', KEYS[1], ARGV[1], wanted)
+redis.call('HINCRBY', KEYS[1], '__total', wanted)
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[4]))
 return 1
 `;
 
@@ -214,13 +222,15 @@ export class LimitService {
   }
 
   /**
-   * Atomically claims one of today's (UTC) slots for this email. The same
-   * email claiming again (a retry) reuses its slot, and concurrent workers
-   * can't both take the last one. Returns false when the day is full.
+   * Atomically claims today's (UTC) allowance for this email's recipients
+   * (to + cc + bcc: the cap counts people emailed, like the `sent` counter).
+   * A retry of the same email reuses its claim. Returns false when it would
+   * go over the day's limit.
    */
   static async reserveNewSenderSlot(
     teamId: number,
     emailId: string,
+    recipients: number,
     limit: number,
     /** The UTC day the check started, so a slow call can't spill into tomorrow. */
     day: string,
@@ -228,8 +238,9 @@ export class LimitService {
     const claimed = await getRedis().eval(
       RESERVE_SLOT,
       1,
-      redisKey(`newsender:sent:${teamId}:${day}`),
+      redisKey(`newsender:recipients:${teamId}:${day}`),
       emailId,
+      String(Math.max(1, recipients)),
       String(limit),
       String(2 * 24 * 60 * 60),
     );
@@ -241,10 +252,12 @@ export class LimitService {
     teamId: number,
     teamName: string,
     limit: number,
+    day: string,
   ) {
     try {
+      // Once per UTC day, so a notice just before midnight doesn't hide tomorrow's.
       const acquired = await getRedis().set(
-        redisKey(`limit:notify:${teamId}:NEW_SENDER`),
+        redisKey(`limit:notify:${teamId}:NEW_SENDER:${day}`),
         "1",
         "EX",
         24 * 60 * 60,
@@ -268,8 +281,8 @@ export class LimitService {
   static async checkEmailLimit(
     teamId: number,
     recipients: string[] = [],
-    /** The email about to be sent; needed for the new-account limit. */
-    emailId?: string,
+    /** The email about to be sent and its recipient count (to + cc + bcc); needed for the new-account limit. */
+    email?: { id: string; recipients: number },
   ): Promise<{
     isLimitReached: boolean;
     limit: number;
@@ -281,6 +294,8 @@ export class LimitService {
       return { isLimitReached: false, limit: -1 };
     }
 
+    // The UTC day this check started; the new-account limit counts against it.
+    const sendDay = new Date().toISOString().slice(0, 10);
     const team = await TeamService.getTeamCached(teamId);
 
     // In cloud, enforce verification and block flags first
@@ -338,11 +353,9 @@ export class LimitService {
     // A paid team in its first 14 days starts with a lower daily limit that
     // grows with clean sending, so a list can't be blasted on day one.
     // If the check itself fails, sending carries on as before (logged).
-    if (activePlan !== "FREE" && emailId) {
+    if (activePlan !== "FREE" && email) {
       let rampLimit: number | null = null;
       let allowed = true;
-      // Captured once, before any call that could be slow.
-      const sendDay = new Date().toISOString().slice(0, 10);
       try {
         // Bounded: a hung Redis or DB call mustn't hold a queue worker.
         const result = await withTimeout(
@@ -351,7 +364,8 @@ export class LimitService {
             if (limit === null) return { limit, allowed: true };
             const ok = await LimitService.reserveNewSenderSlot(
               teamId,
-              emailId,
+              email.id,
+              email.recipients,
               Math.min(limit, dailyLimit),
               sendDay,
             );
@@ -371,7 +385,12 @@ export class LimitService {
       }
       if (rampLimit !== null && !allowed) {
         // In the background: a slow notice mustn't hold a queue worker.
-        void LimitService.notifyNewSenderLimit(teamId, team.name, rampLimit);
+        void LimitService.notifyNewSenderLimit(
+          teamId,
+          team.name,
+          rampLimit,
+          sendDay,
+        );
         return {
           isLimitReached: true,
           limit: rampLimit,
