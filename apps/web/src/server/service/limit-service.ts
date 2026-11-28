@@ -2,7 +2,9 @@ import { PLAN_LIMITS, LimitReason } from "~/lib/constants/plans";
 import { env } from "~/env";
 import { getThisMonthUsage } from "./usage-service";
 import { TeamService } from "./team-service";
-import { withCache } from "../redis";
+import { getRedis, redisKey, withCache } from "../redis";
+import { emailTeam } from "./team-email";
+import { newSenderDailyLimit, newSenderLimitEmail } from "./new-sender-ramp";
 import { db } from "../db";
 import { logger } from "../logger/log";
 import { Plan } from "@prisma/client";
@@ -151,6 +153,76 @@ export class LimitService {
   // - Sends "warning" emails when nearing daily/monthly limits (rate-limited in TeamService)
   // - Sends "limit reached" notifications when limits are exceeded (rate-limited in TeamService)
   // - Teams with inactive subscriptions are treated like FREE plans for monthly limit alerts
+  /**
+   * The new-account limit for a team in its first 14 days, with how many
+   * emails it has handed to SES today, or null when it doesn't apply. Counted
+   * from the emails themselves (not the cached, event-driven usage) so a
+   * burst can't overshoot it.
+   */
+  static async newSenderLimit(team: {
+    id: number;
+    createdAt?: Date | string | null;
+    dailyEmailLimit: number;
+  }): Promise<{ limit: number; sentToday: number } | null> {
+    // Cheap check first: older teams and custom limits never query anything.
+    if (
+      newSenderDailyLimit(team, { sent: 0, hardBounced: 0, complained: 0 }) ===
+      null
+    ) {
+      return null;
+    }
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const [usage, sentToday] = await Promise.all([
+      db.dailyEmailUsage.aggregate({
+        where: { teamId: team.id },
+        _sum: { sent: true, hardBounced: true, complained: true },
+      }),
+      db.email.count({
+        where: {
+          teamId: team.id,
+          sesEmailId: { not: null },
+          createdAt: { gte: startOfDay },
+        },
+      }),
+    ]);
+    const limit = newSenderDailyLimit(team, {
+      sent: usage._sum.sent ?? 0,
+      hardBounced: usage._sum.hardBounced ?? 0,
+      complained: usage._sum.complained ?? 0,
+    });
+    return limit === null ? null : { limit, sentToday };
+  }
+
+  /** Tells the team once a day that it reached its new-account limit. */
+  static async notifyNewSenderLimit(
+    teamId: number,
+    teamName: string,
+    limit: number,
+  ) {
+    try {
+      const acquired = await getRedis().set(
+        redisKey(`limit:notify:${teamId}:NEW_SENDER`),
+        "1",
+        "EX",
+        24 * 60 * 60,
+        "NX",
+      );
+      if (acquired !== "OK") return;
+      const message = newSenderLimitEmail({
+        teamName,
+        limit,
+        settingsUrl: `${env.NEXTAUTH_URL}/settings`,
+      });
+      await emailTeam(teamId, message.subject, message.text);
+    } catch (error) {
+      logger.warn(
+        { err: error, teamId },
+        "[LimitService]: New-sender limit notice failed",
+      );
+    }
+  }
+
   static async checkEmailLimit(
     teamId: number,
     recipients: string[] = [],
@@ -218,6 +290,21 @@ export class LimitService {
       { dailyUsage, dailyLimit, team },
       `[LimitService]: Daily usage and limit`,
     );
+
+    // A paid team in its first 14 days starts with a lower daily limit that
+    // grows with clean sending, so a list can't be blasted on day one.
+    if (activePlan !== "FREE") {
+      const ramp = await LimitService.newSenderLimit(team);
+      if (ramp && ramp.sentToday >= Math.min(ramp.limit, dailyLimit)) {
+        await LimitService.notifyNewSenderLimit(teamId, team.name, ramp.limit);
+        return {
+          isLimitReached: true,
+          limit: ramp.limit,
+          reason: LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+          available: 0,
+        };
+      }
+    }
 
     if (isLimitExceeded(dailyUsage, dailyLimit)) {
       // Notify: daily limit reached

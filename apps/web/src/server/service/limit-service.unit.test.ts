@@ -1,20 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnv, mockGetTeamCached, mockTeamUsers } = vi.hoisted(() => ({
-  mockEnv: { NEXT_PUBLIC_IS_CLOUD: true },
+const {
+  mockEnv,
+  mockGetTeamCached,
+  mockTeamUsers,
+  mockUsageAggregate,
+  mockEmailCount,
+  mockRedisSet,
+  mockEmailTeam,
+} = vi.hoisted(() => ({
+  mockEnv: {
+    NEXT_PUBLIC_IS_CLOUD: true,
+    NEXTAUTH_URL: "https://app.usesend.com",
+  },
   mockGetTeamCached: vi.fn(),
   mockTeamUsers: vi.fn(),
+  mockUsageAggregate: vi.fn(),
+  mockEmailCount: vi.fn(),
+  mockRedisSet: vi.fn(),
+  mockEmailTeam: vi.fn(),
 }));
 
 vi.mock("~/env", () => ({ env: mockEnv }));
 vi.mock("~/server/db", () => ({
-  db: { teamUser: { findMany: mockTeamUsers } },
+  db: {
+    teamUser: { findMany: mockTeamUsers },
+    dailyEmailUsage: { aggregate: mockUsageAggregate },
+    email: { count: mockEmailCount },
+  },
 }));
+vi.mock("~/server/service/team-email", () => ({ emailTeam: mockEmailTeam }));
 vi.mock("~/server/logger/log", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 vi.mock("~/server/redis", () => ({
   withCache: (_key: string, fn: () => unknown) => fn(),
+  getRedis: () => ({ set: mockRedisSet }),
+  redisKey: (key: string) => key,
 }));
 vi.mock("~/server/service/usage-service", () => ({
   getThisMonthUsage: vi.fn(async () => ({
@@ -145,5 +167,72 @@ describe("LimitService.checkEmailLimit paid-only signups", () => {
       isLimitReached: false,
     });
     expect(mockGetTeamCached).not.toHaveBeenCalled();
+  });
+});
+
+describe("LimitService.checkEmailLimit new-account limit", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const paid = (ageDays: number, overrides: Record<string, unknown> = {}) =>
+    team({
+      plan: "BASIC",
+      name: "Acme",
+      createdAt: new Date(Date.now() - ageDays * DAY - 60_000).toISOString(),
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    mockEnv.NEXT_PUBLIC_IS_CLOUD = true;
+    mockGetTeamCached.mockReset();
+    mockUsageAggregate.mockReset();
+    mockEmailCount.mockReset();
+    mockEmailTeam.mockReset();
+    mockRedisSet.mockReset();
+    mockRedisSet.mockResolvedValue("OK");
+    mockUsageAggregate.mockResolvedValue({
+      _sum: { sent: 0, hardBounced: 0, complained: 0 },
+    });
+  });
+
+  it("stops a day-old paid team at 200 emails and tells it once", async () => {
+    mockGetTeamCached.mockResolvedValue(paid(0));
+    mockEmailCount.mockResolvedValue(200);
+
+    await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+      isLimitReached: true,
+      limit: 200,
+      reason: LimitReason.EMAIL_DAILY_LIMIT_REACHED,
+    });
+    expect(mockEmailTeam).toHaveBeenCalledWith(
+      1,
+      expect.stringContaining("limit for new accounts"),
+      expect.stringContaining("200"),
+    );
+
+    mockRedisSet.mockResolvedValue(null); // already told today
+    await LimitService.checkEmailLimit(1);
+    expect(mockEmailTeam).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a new team send under its limit", async () => {
+    mockGetTeamCached.mockResolvedValue(paid(4));
+    mockEmailCount.mockResolvedValue(999);
+    await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+      isLimitReached: false,
+    });
+  });
+
+  it("never touches established customers or custom limits", async () => {
+    for (const t of [
+      paid(14),
+      paid(300),
+      paid(0, { dailyEmailLimit: 50_000 }),
+    ]) {
+      mockGetTeamCached.mockResolvedValue(t);
+      await expect(LimitService.checkEmailLimit(1)).resolves.toMatchObject({
+        isLimitReached: false,
+      });
+    }
+    expect(mockUsageAggregate).not.toHaveBeenCalled();
+    expect(mockEmailCount).not.toHaveBeenCalled();
   });
 });
