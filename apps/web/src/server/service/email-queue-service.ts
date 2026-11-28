@@ -8,6 +8,7 @@ import { sendRawEmail } from "../aws/ses";
 import { getRedis, BULL_PREFIX } from "../redis";
 import { DEFAULT_QUEUE_OPTIONS } from "../queue/queue-constants";
 import { logger } from "../logger/log";
+import { countMailboxes } from "../utils/from-address";
 import { createWorkerHandler, TeamJob } from "../queue/bullmq-context";
 import { LimitService } from "./limit-service";
 import {
@@ -467,8 +468,12 @@ async function executeEmail(job: QueueEmailJob) {
       email.to,
       {
         id: email.id,
-        recipients:
-          email.to.length + (email.cc?.length ?? 0) + (email.bcc?.length ?? 0),
+        // Mailboxes as Nodemailer will send them, not array entries.
+        recipients: countMailboxes([
+          ...email.to,
+          ...(email.cc ?? []),
+          ...(email.bcc ?? []),
+        ]),
       },
     );
     logger.info({ limitCheck }, `[EmailQueueService]: Limit check`);

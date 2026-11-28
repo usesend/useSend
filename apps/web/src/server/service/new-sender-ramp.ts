@@ -50,7 +50,7 @@ export function newSenderDailyLimit(
   return step.perDay;
 }
 
-/** The email a team gets (once a day) when it reaches its new-account limit. */
+/** The email a team gets (once a day) when an email is refused by its new-account limit. */
 export function newSenderLimitEmail(input: {
   teamName: string;
   limit: number;
@@ -61,7 +61,7 @@ export function newSenderLimitEmail(input: {
       `- ${i === 0 ? "first 3 days" : `until day ${s.beforeDay}`}: ${s.perDay.toLocaleString()} emails a day`,
   ).join("\n");
   return {
-    subject: "useSend: you've reached today's limit for new accounts",
-    text: `Hi ${input.teamName} team,\n\nYou've sent ${input.limit.toLocaleString()} emails today (each recipient counts as one), the daily limit for new accounts. Emails sent after that fail instead of going out; the limit resets at midnight UTC.\n\nNew accounts start lower and grow automatically over the first two weeks, as long as bounces and spam complaints stay low:\n${steps}\n- after that: your plan's full daily limit\n\nIf you're moving existing sending to useSend and need more from day one, reply to this email and tell us about it.\n\n${input.settingsUrl}\n\nuseSend`,
+    subject: "useSend: an email went over today's limit for new accounts",
+    text: `Hi ${input.teamName} team,\n\nNew accounts can email up to ${input.limit.toLocaleString()} recipients a day (each to, cc and bcc address counts as one). An email that would go over today's limit isn't sent: it fails instead. Smaller emails can still go out while there's room, and the limit resets at midnight UTC.\n\nNew accounts start lower and grow automatically over the first two weeks, as long as bounces and spam complaints stay low:\n${steps}\n- after that: your plan's full daily limit\n\nIf you're moving existing sending to useSend and need more from day one, reply to this email and tell us about it.\n\n${input.settingsUrl}\n\nuseSend`,
   };
 }
